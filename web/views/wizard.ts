@@ -24,9 +24,9 @@ const wiz: { step: number; data: Record<string, unknown>; subdomain: string; ses
   plan: DEFAULT_PLAN,
 };
 
-/** Lê o plano escolhido na página de preços (ex.: #/criar?plano=profissional). */
+/** Lê o plano escolhido na página de preços (ex.: /criar?plano=profissional). */
 function syncPlanFromHash(): void {
-  const m = location.hash.match(/[?&]plano=([a-z]+)/i);
+  const m = (location.search + location.hash).match(/[?&]plano=([a-z]+)/i);
   if (m && isPlanId(m[1])) wiz.plan = m[1];
 }
 

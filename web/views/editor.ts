@@ -8,7 +8,7 @@
  */
 import { render, $, go, esc, toast, fileToUint8Array, withBusy, withButton, fadeInImages } from "../lib/dom.js";
 import {
-  appState, currentOwnerId,
+  appState, currentOwnerId, publicStoreUrl,
   storeRepository, assetRepository, bannerRepository, productRepository, adminPanelFor,
 } from "../composition.js";
 import { renderStore, type StoreViewModel } from "../../src/storefront/storeRenderer.js";
@@ -59,7 +59,7 @@ export async function renderEditor(): Promise<void> {
     )];
   }
 
-  const storeUrl = `${location.origin}${location.pathname}#/loja/${encodeURIComponent(store.identifier)}`;
+  const storeUrl = publicStoreUrl(store.identifier);
   const defaultColor = getTemplate(store.templateId).defaultBrand ?? "#DC2626";
 
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---

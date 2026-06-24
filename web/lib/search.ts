@@ -2,14 +2,14 @@
 import { esc, formatKz } from "./dom.js";
 import { loadStorefront } from "./storeCache.js";
 import { brandOf } from "./brand.js";
+import { currentStoreIdentifier } from "./routing.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
 let mounted = false;
 
-/** Identificador da loja a partir do hash atual (`#/loja/<id>...`). */
+/** Identificador da loja ativa (subdomínio em produção ou `/loja/<id>`). */
 function currentIdentifier(): string | null {
-  const m = location.hash.match(/#\/loja\/([^/]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+  return currentStoreIdentifier();
 }
 
 function normalize(s: string): string {
@@ -84,7 +84,7 @@ export function mountSearchUI(): void {
     const btn = (e.target as HTMLElement).closest("[data-search-btn]");
     if (!btn) return;
     e.preventDefault();
-    if (location.hash.startsWith("#/personalizar")) return; // no editor, só preview
+    if (location.pathname.startsWith("/personalizar")) return; // no editor, só preview
     const identifier = currentIdentifier();
     if (identifier) void openSearch(identifier);
   });

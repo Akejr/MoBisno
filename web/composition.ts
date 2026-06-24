@@ -133,23 +133,17 @@ export async function countPublishedStores(ownerId: string): Promise<number> {
 
 /* ----------------------------- Domínio público ----------------------------- */
 
-/** Domínio raiz da plataforma. As lojas vivem em `nomedaloja.mobisno.store`. */
-export const PLATFORM_APEX = "mobisno.store";
-
-/** Verdadeiro quando a app está a correr no domínio de produção (mobisno.store). */
-export function isPlatformHost(): boolean {
-  const h = location.hostname.toLowerCase();
-  return h === PLATFORM_APEX || h.endsWith(`.${PLATFORM_APEX}`);
-}
+import { PLATFORM_APEX, isPlatformHost } from "./lib/routing.js";
+export { PLATFORM_APEX, isPlatformHost };
 
 /**
  * URL pública de uma loja. Em produção usa o subdomínio real
  * (`https://identificador.mobisno.store`); em desenvolvimento/preview recorre
- * à rota por hash (`.../#/loja/identificador`).
+ * ao caminho limpo (`.../loja/identificador`).
  */
 export function publicStoreUrl(identifier: string): string {
   if (isPlatformHost()) return `https://${identifier}.${PLATFORM_APEX}`;
-  return `${location.origin}${location.pathname}#/loja/${encodeURIComponent(identifier)}`;
+  return `${location.origin}/loja/${encodeURIComponent(identifier)}`;
 }
 
 /** Com persistência real não semeamos dados: a loja-demo deixa de existir. */

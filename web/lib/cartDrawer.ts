@@ -142,7 +142,7 @@ export function mountCartUI(): void {
     const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("[data-cart-link]");
     if (!link) return;
     // No editor (preview), não fazer nada.
-    if (location.hash.startsWith("#/personalizar")) { e.preventDefault(); return; }
+    if (location.pathname.startsWith("/personalizar")) { e.preventDefault(); return; }
     // No mobile, deixa navegar para a página dedicada.
     if (isMobile()) return;
     const href = link.getAttribute("href") ?? "";

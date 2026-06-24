@@ -1,4 +1,5 @@
 /** Pequenos utilitários de DOM e navegação para a SPA. */
+import { navigate } from "./routing.js";
 
 /** Define o conteúdo HTML do contentor da app. */
 export function render(html: string): HTMLElement {
@@ -13,13 +14,26 @@ export function $<T extends HTMLElement = HTMLElement>(selector: string): T | nu
   return document.querySelector<T>(selector);
 }
 
-/** Navega para uma rota (hash). */
+/** Navega para uma rota (URL limpa). Aceita também o formato antigo `#/x`. */
 export function go(route: string): void {
-  if (location.hash === route) {
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-  } else {
-    location.hash = route;
+  navigate(route);
+}
+
+/** Define o título da aba do navegador. */
+export function setDocTitle(title: string): void {
+  document.title = title;
+}
+
+/** Define o favicon da aba (logótipo da loja ou o da plataforma). */
+export function setFavicon(href: string): void {
+  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
   }
+  link.type = /\.svg(\?|$)/i.test(href) ? "image/svg+xml" : "";
+  link.href = href;
 }
 
 /** Escapa texto para inserção segura em HTML. */

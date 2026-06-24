@@ -20,7 +20,7 @@ function navItem(href: string, icon: string, label: string, active: boolean): st
 }
 
 function currentTab(): string {
-  const m = location.hash.match(/^#\/painel\/?([a-z]*)/i);
+  const m = location.pathname.match(/^\/painel\/?([a-z]*)/i);
   return (m && m[1]) ? m[1].toLowerCase() : "inicio";
 }
 
