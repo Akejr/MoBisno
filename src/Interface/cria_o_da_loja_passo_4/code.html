@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html lang="pt"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MôBisno - Adicionar Produtos</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#404758",
+                        "inverse-primary": "#ffb59a",
+                        "tertiary-fixed-dim": "#c0c6db",
+                        "surface-tint": "#a73a00",
+                        "on-secondary-fixed": "#191c1d",
+                        "surface-container-low": "#fff1ec",
+                        "on-background": "#271812",
+                        "surface-container-high": "#ffe2d8",
+                        "secondary-fixed-dim": "#c5c7c8",
+                        "on-tertiary-container": "#242b3b",
+                        "tertiary-container": "#8b92a6",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#fadcd2",
+                        "on-primary-fixed-variant": "#802a00",
+                        "on-secondary": "#ffffff",
+                        "surface": "#fff8f6",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#626566",
+                        "surface-container": "#ffe9e2",
+                        "on-surface": "#271812",
+                        "on-tertiary-fixed": "#141b2b",
+                        "primary-fixed-dim": "#ffb59a",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#e1e3e4",
+                        "surface-dim": "#f1d4ca",
+                        "on-primary-container": "#521800",
+                        "secondary-fixed": "#e1e3e4",
+                        "primary-container": "#ff5c00",
+                        "on-secondary-fixed-variant": "#454748",
+                        "tertiary-fixed": "#dce2f7",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#fff8f6",
+                        "background": "#fff8f6",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-on-surface": "#ffede7",
+                        "primary-fixed": "#ffdbce",
+                        "inverse-surface": "#3e2c26",
+                        "secondary": "#5c5f60",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#5b4137",
+                        "tertiary": "#575e70",
+                        "primary": "#a73a00",
+                        "outline": "#8f7065",
+                        "outline-variant": "#e4beb1",
+                        "surface-container-highest": "#fadcd2",
+                        "on-primary-fixed": "#370e00",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "stack-lg": "32px",
+                        "container-max": "1024px",
+                        "base": "8px",
+                        "gutter": "24px",
+                        "margin-mobile": "16px",
+                        "margin-desktop": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "headline-lg": ["Inter", "sans-serif"],
+                        "headline-md": ["Inter", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"],
+                        "label-sm": ["Inter", "sans-serif"],
+                        "display-lg": ["Inter", "sans-serif"],
+                        "label-md": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-md": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.01em", "fontWeight": "500"}]
+                    },
+                    "boxShadow": {
+                        'soft': '0 4px 24px -4px rgba(39, 24, 18, 0.08), 0 2px 8px -2px rgba(39, 24, 18, 0.04)',
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopNavBar (Large) -->
+<header class="bg-surface border-b border-outline-variant shadow-sm w-full top-0 sticky z-50">
+<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+<div class="flex items-center gap-4">
+<a class="font-display-lg text-headline-md text-primary font-bold tracking-tight" href="#">MôBisno</a>
+</div>
+<nav class="hidden md:flex gap-8 items-center">
+<!-- Wizard State: Nav links inactive to focus on task -->
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Recursos</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Modelos</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Preços</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Ajuda</a>
+</nav>
+<div class="flex items-center gap-4 hidden md:flex">
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Entrar</a>
+<a class="bg-primary text-on-primary px-4 py-2 rounded-full font-label-md text-label-md font-bold hover:bg-surface-tint transition-colors shadow-sm" href="#">Criar minha loja</a>
+</div>
+<!-- Mobile Menu Icon Placeholder -->
+<button class="md:hidden text-on-surface p-2">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas (Wizard Step) -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-stack-lg md:py-16 flex flex-col items-center">
+<div class="w-full max-w-3xl">
+<!-- Progress Header -->
+<div class="mb-stack-lg">
+<div class="flex justify-between items-end mb-2">
+<div>
+<span class="text-primary font-label-sm text-label-sm uppercase tracking-wider font-bold">Passo 4 de 6</span>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mt-1">Adicionar Produtos</h1>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">66% Concluído</span>
+</div>
+<!-- Progress Bar -->
+<div class="w-full bg-surface-variant rounded-full h-2.5 overflow-hidden">
+<div class="bg-primary h-2.5 rounded-full transition-all duration-500 ease-out" style="width: 66%"></div>
+</div>
+<p class="mt-4 text-on-surface-variant font-body-md text-body-md">Comece adicionando seu primeiro produto. Não se preocupe, você pode editar ou adicionar mais depois.</p>
+</div>
+<!-- Form Card (Bento/Modern) -->
+<div class="bg-surface-container-lowest rounded-2xl shadow-soft border border-outline-variant p-6 md:p-8">
+<form action="#" class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Image Upload (Left col on desktop) -->
+<div class="md:col-span-5 flex flex-col gap-2">
+<label class="font-label-md text-label-md text-on-surface font-semibold">Imagem do Produto</label>
+<div class="relative group cursor-pointer w-full h-64 md:h-full min-h-[240px] rounded-xl border-2 border-dashed border-outline-variant bg-surface hover:bg-surface-container-high transition-colors flex flex-col items-center justify-center text-center p-6 overflow-hidden">
+<input aria-label="Upload de imagem" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" type="file"/>
+<div class="flex flex-col items-center gap-3 text-on-surface-variant group-hover:text-primary transition-colors">
+<div class="w-16 h-16 rounded-full bg-surface-variant flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-3xl">add_photo_alternate</span>
+</div>
+<p class="font-label-md text-label-md font-semibold">Clique para fazer upload</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-80">PNG, JPG, WEBP até 5MB</p>
+</div>
+</div>
+</div>
+<!-- Details Fields (Right col on desktop) -->
+<div class="md:col-span-7 flex flex-col gap-stack-md">
+<!-- Nome -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold" for="nome_produto">Nome do produto *</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-on-surface-variant/50" id="nome_produto" placeholder="Ex: Tênis Esportivo Nitro" type="text"/>
+</div>
+<!-- Preço & Estoque -->
+<div class="grid grid-cols-2 gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold" for="preco">Preço (Kz) *</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-body-md text-body-md">Kz</span>
+<input class="w-full bg-surface border border-outline-variant rounded-lg pl-10 pr-4 py-3 text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-on-surface-variant/50" id="preco" placeholder="0,00" type="number"/>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold" for="estoque">Estoque</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-on-surface-variant/50" id="estoque" placeholder="Qtd. inicial" type="number"/>
+</div>
+</div>
+<!-- Categoria -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold" for="categoria">Categoria</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all cursor-pointer" id="categoria">
+<option disabled="" selected="" value="">Selecione uma categoria...</option>
+<option value="moda">Moda e Vestuário</option>
+<option value="eletronicos">Eletrônicos</option>
+<option value="casa">Casa e Decoração</option>
+<option value="beleza">Saúde e Beleza</option>
+<option value="outros">Outros</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+<!-- Descrição -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold" for="descricao">Descrição do produto</label>
+<textarea class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface font-body-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none placeholder:text-on-surface-variant/50" id="descricao" placeholder="Descreva os detalhes, material, tamanho, etc." rows="4"></textarea>
+</div>
+</div>
+</form>
+</div>
+<!-- Footer Actions -->
+<div class="mt-stack-lg flex flex-col-reverse sm:flex-row justify-between items-center gap-4 border-t border-outline-variant pt-6">
+<button class="w-full sm:w-auto px-6 py-3 rounded-full font-label-md text-label-md font-bold text-on-surface border border-outline-variant hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                    Voltar
+                </button>
+<button class="w-full sm:w-auto px-8 py-3 rounded-full font-label-md text-label-md font-bold bg-primary text-on-primary hover:bg-surface-tint shadow-md transition-all flex items-center justify-center gap-2">
+                    Próximo
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-low border-t border-outline-variant full-width mt-auto">
+<div class="flex flex-col items-center gap-stack-md py-stack-lg px-margin-desktop w-full max-w-container-max mx-auto">
+<div class="font-headline-md text-headline-md text-on-surface font-bold tracking-tight">MôBisno</div>
+<div class="flex flex-wrap justify-center gap-6">
+<a class="text-on-surface-variant font-label-sm text-label-sm hover:text-primary transition-colors" href="#">Sobre nós</a>
+<a class="text-on-surface-variant font-label-sm text-label-sm hover:text-primary transition-colors" href="#">Termos</a>
+<a class="text-on-surface-variant font-label-sm text-label-sm hover:text-primary transition-colors" href="#">Privacidade</a>
+<a class="text-on-surface-variant font-label-sm text-label-sm hover:text-primary transition-colors" href="#">Contato</a>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-4 text-center">© 2024 MôBisno. Feito em Angola com orgulho.</p>
+</div>
+</footer>
+</body></html>

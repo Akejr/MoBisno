@@ -1,0 +1,25 @@
+{
+  "name": "mobisno-store-builder",
+  "version": "0.1.0",
+  "description": "Plataforma SaaS multi-inquilino de criação de lojas online (MôBisno)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "vite --config vite.config.web.ts",
+    "web:build": "vite build --config vite.config.web.ts"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "fast-check": "^3.23.0",
+    "typescript": "^5.7.0",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2"
+  }
+}

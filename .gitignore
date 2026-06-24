@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+coverage/
+.DS_Store
+
+# Variáveis de ambiente (a anon key é pública, mas mantemos fora do git por hábito)
+.env
+**/.env
+.env.local

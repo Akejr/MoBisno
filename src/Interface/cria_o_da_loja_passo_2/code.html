@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Escolher Modelo - MôBisno</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<!-- Tailwind CSS & Config -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#404758",
+                        "inverse-primary": "#ffb59a",
+                        "tertiary-fixed-dim": "#c0c6db",
+                        "surface-tint": "#a73a00",
+                        "on-secondary-fixed": "#191c1d",
+                        "surface-container-low": "#fff1ec",
+                        "on-background": "#271812",
+                        "surface-container-high": "#ffe2d8",
+                        "secondary-fixed-dim": "#c5c7c8",
+                        "on-tertiary-container": "#242b3b",
+                        "tertiary-container": "#8b92a6",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#fadcd2",
+                        "on-primary-fixed-variant": "#802a00",
+                        "on-secondary": "#ffffff",
+                        "surface": "#fff8f6",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#626566",
+                        "surface-container": "#ffe9e2",
+                        "on-surface": "#271812",
+                        "on-tertiary-fixed": "#141b2b",
+                        "primary-fixed-dim": "#ffb59a",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#e1e3e4",
+                        "surface-dim": "#f1d4ca",
+                        "on-primary-container": "#521800",
+                        "secondary-fixed": "#e1e3e4",
+                        "primary-container": "#ff5c00",
+                        "on-secondary-fixed-variant": "#454748",
+                        "tertiary-fixed": "#dce2f7",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#fff8f6",
+                        "background": "#fff8f6",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-on-surface": "#ffede7",
+                        "primary-fixed": "#ffdbce",
+                        "inverse-surface": "#3e2c26",
+                        "secondary": "#5c5f60",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#5b4137",
+                        "tertiary": "#575e70",
+                        "primary": "#a73a00",
+                        "outline": "#8f7065",
+                        "outline-variant": "#e4beb1",
+                        "surface-container-highest": "#fadcd2",
+                        "on-primary-fixed": "#370e00",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "stack-lg": "32px",
+                        "container-max": "1280px",
+                        "base": "8px",
+                        "gutter": "24px",
+                        "margin-mobile": "16px",
+                        "margin-desktop": "32px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-md": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.01em", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-sans">
+<!-- Minimal Wizard Header (No full nav to maintain transactional focus) -->
+<header class="bg-surface border-b border-outline-variant py-4 px-margin-mobile md:px-margin-desktop flex items-center justify-between sticky top-0 z-50">
+<div class="font-display-lg text-primary font-bold text-2xl tracking-tighter">MôBisno</div>
+<div class="font-label-md text-on-surface-variant flex items-center gap-2 bg-surface-container-low px-3 py-1 rounded-full">
+<span class="material-symbols-outlined" style="font-size: 16px;">storefront</span>
+            Criando sua loja
+        </div>
+</header>
+<!-- Progress Bar -->
+<div class="w-full bg-surface-container-high h-1.5">
+<div class="bg-primary h-full transition-all duration-500 ease-out" style="width: 33%;"></div>
+</div>
+<!-- Main Wizard Content Canvas -->
+<main class="flex-grow flex flex-col items-center py-stack-lg px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto">
+<!-- Section Header -->
+<div class="text-center mb-stack-lg max-w-2xl w-full">
+<h1 class="font-headline-lg text-headline-lg text-on-background mb-stack-sm">Escolher Modelo</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Selecione o visual inicial perfeito para o seu negócio. Não se preocupe, você poderá personalizar tudo mais tarde.</p>
+</div>
+<!-- Template Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter w-full">
+<!-- Template Card 1: Fashion / Boutique -->
+<div class="bg-surface rounded-xl overflow-hidden border border-outline-variant shadow-sm hover:shadow-md transition-all duration-200 flex flex-col group">
+<div class="aspect-[4/3] relative overflow-hidden bg-surface-container-low border-b border-outline-variant">
+<img alt="Modelo Boutique" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A modern e-commerce storefront template preview showcasing a high-end fashion boutique. The design features a large, striking lifestyle hero image of clothing, clean minimalist typography, and ample white space to emphasize the premium feel. The UI aesthetic is bright, professional, and uses a sophisticated light mode palette with subtle warm neutral undertones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuApKlqY3Qf-nslCP6DO9eRiTiyky0ufqA4fvwb5KnVg8ojZjxoYsRA8WP_QW4heuj8rJREWkrqWQvhCN8ayLUYGvqS9XYLNVJh8NnoVbfnyAe5C_D6SpFBG9KV-eH2b6bI32gAelXrI-ErsTNo22SurxxcdnX6W-m-nD-V1mviutd-t0qYJX9U2rGxIGOIruKl5c-qNf5Ss221Uy_Vcc19efxjsjgVRMpskW6qeh9hilYruUPKo4sBh3mZsReKPEZeP8u6OXAwH29I"/>
+<div class="absolute top-3 left-3 bg-primary-container text-on-primary-container font-label-sm px-2 py-1 rounded-md shadow-sm">
+                        Popular
+                    </div>
+</div>
+<div class="p-5 flex flex-col flex-grow">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Boutique Elegante</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md flex-grow">Ideal para moda, joias e acessórios. Destaca imagens de alta qualidade.</p>
+<div class="flex flex-col gap-2 mt-auto">
+<button class="w-full py-2.5 px-4 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-2">
+                            Usar este modelo
+                        </button>
+<button class="w-full py-2.5 px-4 rounded-lg border border-outline text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                            Pré-visualizar
+                        </button>
+</div>
+</div>
+</div>
+<!-- Template Card 2: Electronics / Tech -->
+<div class="bg-surface rounded-xl overflow-hidden border border-outline-variant shadow-sm hover:shadow-md transition-all duration-200 flex flex-col group">
+<div class="aspect-[4/3] relative overflow-hidden bg-surface-container-low border-b border-outline-variant">
+<img alt="Modelo Tech" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A clean, structured e-commerce template preview designed for an electronics or tech store. The layout features a structured grid of gadgets, clear technical specifications, and a crisp, functional aesthetic. The UI uses a bright, professional light mode design with organized sections, distinct product cards, and a focus on clarity and usability for technical buyers." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7tfK5UGd2YsM76MUTJzkPc95WBagIJ36zsjZymPCQXqYr_mdSyTUM9WGB20p7WKiSj1evJXpJTgzdnM-skmjKrFLXjdgsk1WDF2BFvMJ5u-2vQAbNg4nCOV02VgefX25PZsAytCOgc1-8kQJxezNDalvJ4Aga9oaax516Ets_e9eCmFewPzfnGRkkSQDZ7pySdd0fhkzJQSnMd9RzRdr55TSpxRzD79I9ibkusDk9IjRt5-dHwMArkhLo7MKLTH1zgE5BoT56Nfc"/>
+</div>
+<div class="p-5 flex flex-col flex-grow">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Tech Dinâmico</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md flex-grow">Layout focado em especificações técnicas e grandes catálogos de produtos.</p>
+<div class="flex flex-col gap-2 mt-auto">
+<button class="w-full py-2.5 px-4 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-2">
+                            Usar este modelo
+                        </button>
+<button class="w-full py-2.5 px-4 rounded-lg border border-outline text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                            Pré-visualizar
+                        </button>
+</div>
+</div>
+</div>
+<!-- Template Card 3: Food / Bakery -->
+<div class="bg-surface rounded-xl overflow-hidden border border-outline-variant shadow-sm hover:shadow-md transition-all duration-200 flex flex-col group">
+<div class="aspect-[4/3] relative overflow-hidden bg-surface-container-low border-b border-outline-variant">
+<img alt="Modelo Sabor" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A warm, inviting e-commerce template preview tailored for a bakery, cafe, or artisanal food business. The design features rich, appetizing photography of baked goods, soft rounded UI elements, and a welcoming layout. The aesthetic is bright and clean but utilizes warm undertones to evoke a sense of comfort and quality craftsmanship." src="https://lh3.googleusercontent.com/aida-public/AB6AXuADri-02v2dY7woixB4XgrghT0LJLFdpvYV83PV-hegr0-uH6fCyrfTn8qZtQrw8wRfElVEVjy3HuBPDVNzCfd3H2Tqkj5CUi1svUGhGHmMa5ixrQ6aAyQ3N6zpyxnUJQLvGVhP1yDp3l_D6aFVXQJ6nXVNIPeJucfo0FKY5QX5jg-I66nLhv0kHkNWehA1uwrLW4vUpQ1JhRGRzGtYPJpETNlLRiZjyvkcof7afyqohjTdpGwBah1jA5-3aMT0ZHIQ8ke0nQzCZXU"/>
+</div>
+<div class="p-5 flex flex-col flex-grow">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Sabor Artesanal</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md flex-grow">Visual acolhedor perfeito para confeitarias, restaurantes e produtos artesanais.</p>
+<div class="flex flex-col gap-2 mt-auto">
+<button class="w-full py-2.5 px-4 rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-2">
+                            Usar este modelo
+                        </button>
+<button class="w-full py-2.5 px-4 rounded-lg border border-outline text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                            Pré-visualizar
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Action Navigation -->
+<footer class="mt-auto border-t border-outline-variant bg-surface py-4 px-margin-mobile md:px-margin-desktop sticky bottom-0 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+<div class="max-w-container-max mx-auto w-full flex justify-between items-center">
+<button class="flex items-center gap-2 py-2.5 px-6 rounded-full text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">arrow_back</span>
+                Voltar
+            </button>
+<div class="text-sm font-body-md text-on-surface-variant hidden md:block">
+                Passo 2: Escolha de Layout
+            </div>
+<button class="flex items-center gap-2 py-2.5 px-6 rounded-full bg-surface-container-highest text-on-surface-variant font-label-md text-label-md cursor-not-allowed opacity-70">
+                Próximo
+                <span class="material-symbols-outlined" style="font-size: 20px;">arrow_forward</span>
+</button>
+</div>
+</footer>
+</body></html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html lang="pt-AO"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MôBisno - Crie a sua loja online em Angola</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "on-tertiary-fixed-variant": "#404758",
+                            "inverse-primary": "#ffb59a",
+                            "tertiary-fixed-dim": "#c0c6db",
+                            "surface-tint": "#a73a00",
+                            "on-secondary-fixed": "#191c1d",
+                            "surface-container-low": "#fff1ec",
+                            "on-background": "#271812",
+                            "surface-container-high": "#ffe2d8",
+                            "secondary-fixed-dim": "#c5c7c8",
+                            "on-tertiary-container": "#242b3b",
+                            "tertiary-container": "#8b92a6",
+                            "error-container": "#ffdad6",
+                            "surface-variant": "#fadcd2",
+                            "on-primary-fixed-variant": "#802a00",
+                            "on-secondary": "#ffffff",
+                            "surface": "#fff8f6",
+                            "on-primary": "#ffffff",
+                            "on-secondary-container": "#626566",
+                            "surface-container": "#ffe9e2",
+                            "on-surface": "#271812",
+                            "on-tertiary-fixed": "#141b2b",
+                            "primary-fixed-dim": "#ffb59a",
+                            "on-error-container": "#93000a",
+                            "secondary-container": "#e1e3e4",
+                            "surface-dim": "#f1d4ca",
+                            "on-primary-container": "#521800",
+                            "secondary-fixed": "#e1e3e4",
+                            "primary-container": "#ff5c00",
+                            "on-secondary-fixed-variant": "#454748",
+                            "tertiary-fixed": "#dce2f7",
+                            "error": "#ba1a1a",
+                            "surface-bright": "#fff8f6",
+                            "background": "#fff8f6",
+                            "surface-container-lowest": "#ffffff",
+                            "inverse-on-surface": "#ffede7",
+                            "primary-fixed": "#ffdbce",
+                            "inverse-surface": "#3e2c26",
+                            "secondary": "#5c5f60",
+                            "on-tertiary": "#ffffff",
+                            "on-surface-variant": "#5b4137",
+                            "tertiary": "#575e70",
+                            "primary": "#a73a00",
+                            "outline": "#8f7065",
+                            "outline-variant": "#e4beb1",
+                            "surface-container-highest": "#fadcd2",
+                            "on-primary-fixed": "#370e00",
+                            "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.25rem",
+                            "lg": "0.5rem",
+                            "xl": "0.75rem",
+                            "full": "9999px"
+                    },
+                    "spacing": {
+                            "stack-sm": "8px",
+                            "stack-md": "16px",
+                            "stack-lg": "32px",
+                            "container-max": "1280px",
+                            "base": "8px",
+                            "gutter": "24px",
+                            "margin-mobile": "16px",
+                            "margin-desktop": "32px"
+                    },
+                    "fontFamily": {
+                            "headline-lg-mobile": ["Inter"],
+                            "body-md": ["Inter"],
+                            "headline-lg": ["Inter"],
+                            "headline-md": ["Inter"],
+                            "body-lg": ["Inter"],
+                            "label-sm": ["Inter"],
+                            "display-lg": ["Inter"],
+                            "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                            "headline-lg-mobile": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                            "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                            "headline-lg": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                            "headline-md": ["24px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                            "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                            "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                            "display-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                            "label-md": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.01em", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col font-body-md">
+<!-- TopNavBar Component -->
+<nav class="bg-surface full-width top-0 sticky border-b border-outline-variant shadow-sm z-50">
+<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+<!-- Brand Logo -->
+<div class="flex items-center gap-2 cursor-pointer">
+<span class="material-symbols-outlined text-primary" data-icon="storefront" style="font-variation-settings: 'FILL' 1; font-size: 32px;">storefront</span>
+<span class="font-headline-md text-headline-md text-primary font-bold">MôBisno</span>
+</div>
+<!-- Navigation Links (Desktop) -->
+<div class="hidden md:flex items-center gap-8">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="#">Recursos</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="#">Modelos</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="#">Preços</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="#">Ajuda</a>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-4">
+<a class="hidden md:block text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="#">Entrar</a>
+<button class="bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container px-4 py-2 rounded-full font-label-md text-label-md transition-all active:scale-95 duration-100">
+                    Criar minha loja
+                </button>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col items-center w-full">
+<!-- Hero Section -->
+<section class="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-16 md:py-24 flex flex-col lg:flex-row items-center gap-12 lg:gap-gutter">
+<!-- Hero Text Content -->
+<div class="flex flex-col gap-stack-lg max-w-2xl lg:w-1/2">
+<h1 class="font-headline-lg-mobile md:font-display-lg text-headline-lg-mobile md:text-display-lg text-on-surface">
+                    Crie a sua loja online em poucos minutos
+                </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                    Com o MôBisno, qualquer negócio em Angola pode vender online com site próprio, produtos, banners, menus e pagamentos locais. Sem precisar de programador.
+                </p>
+<div class="flex flex-col sm:flex-row gap-4 pt-4">
+<button class="bg-primary text-on-primary hover:opacity-90 px-8 py-4 rounded-full font-label-md text-label-md transition-all shadow-md active:scale-95 text-center">
+                        Criar minha loja
+                    </button>
+<button class="border border-outline text-on-surface hover:bg-surface-container-low px-8 py-4 rounded-full font-label-md text-label-md transition-all text-center">
+                        Ver modelos
+                    </button>
+</div>
+</div>
+<!-- Hero Visual -->
+<div class="w-full lg:w-1/2 relative">
+<div class="absolute inset-0 bg-primary-container/20 blur-3xl rounded-full transform translate-y-12 scale-90"></div>
+<img alt="Dashboard Preview" class="relative z-10 w-full h-auto rounded-xl shadow-[0_20px_40px_-15px_rgba(39,24,18,0.15)] border border-outline-variant object-cover aspect-[4/3]" data-alt="A modern, high-fidelity UI mockup of an e-commerce dashboard displayed on a sleek laptop screen. The interface is light and minimalist, featuring soft orange accents against a pristine white background. It shows clean data charts, product inventory lists, and a mobile preview of an online store. The setting is a brightly lit, contemporary office workspace with subtle, warm daylight highlighting the premium feel of the software." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCRCZvp4rZX1UettqRelPRwAbYFIAEuIUBBAPUkeFdSy-cFkjzYl5RuZ4JWnl2gjSyFC0f3sY3JyidU1oungwHcNkH1aRG3WjJhOiFGuQIq2LxSstQAxYvYwM_XkDOzk3woWUL97NdSLqETf7Hi3wqb7EZYNVKy9ptWemRN53S1VnpU-ezsU3rsjd1I_9h1BlMfz7423mHS--1SAoT5Smlm4UgvUuXesJDldh8UTx4veTb8ymcrt1Xk1j2qbzGQAruSFhoE0yCnAk"/>
+</div>
+</section>
+<!-- Como Funciona Section (Bento Grid Style) -->
+<section class="w-full bg-surface-container-lowest py-24 border-t border-outline-variant">
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col gap-12">
+<div class="text-center max-w-2xl mx-auto flex flex-col gap-4">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Como funciona</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Tudo o que você precisa para começar a vender online hoje mesmo, de forma simples e direta.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Step 1 -->
+<div class="bg-surface rounded-xl p-8 border border-outline-variant shadow-[0_8px_24px_-12px_rgba(39,24,18,0.12)] flex flex-col gap-4 hover:shadow-[0_12px_32px_-12px_rgba(39,24,18,0.18)] transition-shadow">
+<div class="w-12 h-12 bg-surface-container-high rounded-full flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="view_quilt">view_quilt</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface text-[20px]">1. Escolha um modelo</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Selecione entre dezenas de templates otimizados para conversão e mobile-first.</p>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface rounded-xl p-8 border border-outline-variant shadow-[0_8px_24px_-12px_rgba(39,24,18,0.12)] flex flex-col gap-4 hover:shadow-[0_12px_32px_-12px_rgba(39,24,18,0.18)] transition-shadow">
+<div class="w-12 h-12 bg-surface-container-high rounded-full flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="inventory_2">inventory_2</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface text-[20px]">2. Adicione produtos</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Faça upload da sua logo, cadastre seu inventário e defina preços facilmente.</p>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface rounded-xl p-8 border border-outline-variant shadow-[0_8px_24px_-12px_rgba(39,24,18,0.12)] flex flex-col gap-4 hover:shadow-[0_12px_32px_-12px_rgba(39,24,18,0.18)] transition-shadow">
+<div class="w-12 h-12 bg-surface-container-high rounded-full flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="view_carousel">view_carousel</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface text-[20px]">3. Personalize banners</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Destaque promoções com banners atrativos e menus organizados para seus clientes.</p>
+</div>
+<!-- Step 4 -->
+<div class="bg-surface rounded-xl p-8 border border-outline-variant shadow-[0_8px_24px_-12px_rgba(39,24,18,0.12)] flex flex-col gap-4 hover:shadow-[0_12px_32px_-12px_rgba(39,24,18,0.18)] transition-shadow">
+<div class="w-12 h-12 bg-surface-container-high rounded-full flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-primary" data-icon="payments">payments</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface text-[20px]">4. Receba pagamentos</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Publique sua loja e integre métodos de pagamento locais em Angola de forma segura.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Component -->
+<footer class="bg-surface-container-low full-width border-t border-outline-variant">
+<div class="flex flex-col items-center gap-stack-md py-stack-lg px-margin-mobile md:px-margin-desktop w-full mt-auto max-w-container-max mx-auto">
+<div class="font-headline-md text-headline-md text-on-surface font-bold mb-4">
+                MôBisno
+            </div>
+<div class="flex flex-wrap justify-center gap-6 mb-4">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-sm text-label-sm" href="#">Sobre nós</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-sm text-label-sm" href="#">Termos</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-sm text-label-sm" href="#">Privacidade</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-sm text-label-sm" href="#">Contato</a>
+</div>
+<div class="font-body-md text-body-md text-on-surface-variant text-center">
+                © 2024 MôBisno. Feito em Angola com orgulho.
+            </div>
+</div>
+</footer>
+</body></html>
