@@ -7,6 +7,7 @@
  * (inofensivos na loja publicada).
  */
 import { esc, formatKz } from "../lib/dom.js";
+import { productSlugPath } from "../lib/slug.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -32,9 +33,9 @@ function storeHomeHref(view: StoreRenderView): string {
   return `#/loja/${encodeURIComponent(storeIdentifier(view))}`;
 }
 
-/** URL (hash) da página de um produto da loja. */
-function productHref(view: StoreRenderView, productId: string): string {
-  return `${storeHomeHref(view)}/produto/${encodeURIComponent(productId)}`;
+/** URL da página de um produto da loja (`/produto/<categoria>/<nome>`). */
+function productHref(view: StoreRenderView, p: StoreProductView): string {
+  return `${storeHomeHref(view)}/produto/${productSlugPath(p)}`;
 }
 
 /** URL (hash) da página de uma categoria da loja. */
@@ -152,7 +153,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { hidden?
     ? `<span class="absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wider text-white px-2 py-0.5 rounded" style="background:var(--brand,#DC2626)">Destaque</span>`
     : "";
   const hide = opts.hidden ? ` data-extra style="display:none"` : "";
-  return `<a href="${esc(productHref(view, p.id))}" class="group relative block" data-edit-product="${esc(p.id)}"${hide}>
+  return `<a href="${esc(productHref(view, p))}" class="group relative block" data-edit-product="${esc(p.id)}"${hide}>
     <div class="relative aspect-square bg-neutral-50 overflow-hidden mb-3 rounded-sm">${img}${badge}</div>
     <h3 class="text-sm font-medium text-neutral-900 line-clamp-2">${esc(p.name)}</h3>
     ${p.description ? `<p class="text-xs text-neutral-500 line-clamp-1">${esc(p.description)}</p>` : ""}

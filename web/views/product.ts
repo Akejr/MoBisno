@@ -4,6 +4,7 @@ import { getTemplate } from "../templates/registry.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
+import { productSlugPath } from "../lib/slug.js";
 
 function notFound(message: string): void {
   render(`
@@ -14,7 +15,11 @@ function notFound(message: string): void {
   </div>`);
 }
 
-export async function renderProductPage(identifier: string, productId: string): Promise<void> {
+/**
+ * Renderiza a página de um produto. O parâmetro `slugOrId` aceita o caminho
+ * amigável `<categoria>/<nome>` ou, por retrocompatibilidade, o id do produto.
+ */
+export async function renderProductPage(identifier: string, slugOrId: string): Promise<void> {
   const { result, view, custom } = await loadStorefront(identifier);
 
   if (view.kind === "not_found" || result.kind !== "render") {
@@ -22,7 +27,10 @@ export async function renderProductPage(identifier: string, productId: string): 
     return;
   }
 
-  const product = view.products.find((p) => p.id === productId);
+  const wanted = slugOrId.replace(/^\/+|\/+$/g, "").toLowerCase();
+  const product =
+    view.products.find((p) => productSlugPath(p).toLowerCase() === wanted) ??
+    view.products.find((p) => p.id === slugOrId);
   if (!product) {
     notFound("Produto não encontrado");
     return;

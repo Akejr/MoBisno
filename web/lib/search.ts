@@ -3,6 +3,7 @@ import { esc, formatKz } from "./dom.js";
 import { loadStorefront } from "./storeCache.js";
 import { brandOf } from "./brand.js";
 import { currentStoreIdentifier } from "./routing.js";
+import { productSlugPath } from "./slug.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
 let mounted = false;
@@ -46,7 +47,7 @@ export async function openSearch(identifier: string): Promise<void> {
     const thumb = p.imageUrl
       ? `<img src="${esc(p.imageUrl)}" class="w-12 h-12 rounded-lg object-cover" />`
       : `<div class="w-12 h-12 rounded-lg bg-neutral-100 flex items-center justify-center"><span class="material-symbols-outlined text-neutral-400">image</span></div>`;
-    return `<a href="${esc(homeHref)}/produto/${encodeURIComponent(p.id)}" data-result class="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[#f6f3f2]">
+    return `<a href="${esc(homeHref)}/produto/${productSlugPath(p)}" data-result class="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-[#f6f3f2]">
       ${thumb}
       <div class="min-w-0 flex-1"><p class="font-medium text-on-surface truncate">${esc(p.name)}</p><p class="text-sm text-on-surface-variant">${p.category ? esc(p.category) + " · " : ""}${esc(formatKz(p.price))}</p></div>
       <span class="material-symbols-outlined text-[#685b5f]">arrow_forward</span>

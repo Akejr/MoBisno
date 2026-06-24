@@ -10,6 +10,7 @@
  * na loja publicada).
  */
 import { esc, formatKz } from "../lib/dom.js";
+import { productSlugPath } from "../lib/slug.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -32,8 +33,8 @@ function storeIdentifier(view: StoreRenderView): string {
 function storeHomeHref(view: StoreRenderView): string {
   return `#/loja/${encodeURIComponent(storeIdentifier(view))}`;
 }
-function productHref(view: StoreRenderView, productId: string): string {
-  return `${storeHomeHref(view)}/produto/${encodeURIComponent(productId)}`;
+function productHref(view: StoreRenderView, p: StoreProductView): string {
+  return `${storeHomeHref(view)}/produto/${productSlugPath(p)}`;
 }
 function categoryHref(view: StoreRenderView, category: string): string {
   return `${storeHomeHref(view)}/categoria/${encodeURIComponent(category)}`;
@@ -130,7 +131,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { offset?
     ? `<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded text-[10px] font-bold tracking-widest" style="color:var(--brand,${DEFAULT_BRAND})">DESTAQUE</div>`
     : "";
   const hide = opts.hidden ? ` data-extra style="display:none"` : "";
-  return `<a href="${esc(productHref(view, p.id))}" data-edit-product="${esc(p.id)}" class="group block relative ${opts.offset ? "md:mt-8" : ""}"${hide}>
+  return `<a href="${esc(productHref(view, p))}" data-edit-product="${esc(p.id)}" class="group block relative ${opts.offset ? "md:mt-8" : ""}"${hide}>
     <div class="aspect-[4/5] bg-white overflow-hidden rounded-xl mb-5 relative">${img}${badge}</div>
     <div class="flex justify-between items-start gap-3">
       <div class="min-w-0">
