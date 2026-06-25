@@ -38,7 +38,8 @@ function initCanvas(canvas: HTMLCanvasElement): void {
   const mouse = { x: null as number | null, y: null as number | null, radius: 160 };
 
   const brandVar = readBrand(canvas);
-  const { r, g, b } = hexToRgb(brandVar);
+  let lastBrand = brandVar;
+  let col = hexToRgb(brandVar);
 
   function build(): void {
     particles = [];
@@ -97,7 +98,7 @@ function initCanvas(canvas: HTMLCanvasElement): void {
         }
         ctx!.strokeStyle = near
           ? `rgba(255,255,255,${opacity.toFixed(3)})`
-          : `rgba(${r},${g},${b},${(opacity * 0.7).toFixed(3)})`;
+          : `rgba(${col.r},${col.g},${col.b},${(opacity * 0.7).toFixed(3)})`;
         ctx!.lineWidth = 1;
         ctx!.beginPath();
         ctx!.moveTo(pa.x, pa.y);
@@ -117,6 +118,9 @@ function initCanvas(canvas: HTMLCanvasElement): void {
     }
     ctx!.fillStyle = "#0a0a12";
     ctx!.fillRect(0, 0, w, h);
+    // Relê a cor principal ao vivo (reflete mudanças no editor sem rebuild).
+    const bv = readBrand(canvas);
+    if (bv !== lastBrand) { lastBrand = bv; col = hexToRgb(bv); }
     for (const p of particles) {
       if (p.x > w || p.x < 0) p.dx = -p.dx;
       if (p.y > h || p.y < 0) p.dy = -p.dy;
@@ -134,7 +138,7 @@ function initCanvas(canvas: HTMLCanvasElement): void {
       p.y += p.dy;
       ctx!.beginPath();
       ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2, false);
-      ctx!.fillStyle = `rgba(${r},${g},${b},0.85)`;
+      ctx!.fillStyle = `rgba(${col.r},${col.g},${col.b},0.85)`;
       ctx!.fill();
     }
     connect();
