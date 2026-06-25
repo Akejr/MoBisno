@@ -660,13 +660,15 @@ export async function renderEditor(): Promise<void> {
         blk.parentElement?.insertBefore(mkDiv(blockLabel[type] ?? "Secção"), blk);
         if (type === "testimonials") {
           const i = Number(blk.dataset.editBlock);
+          const order: Array<"cards" | "editorial" | "marquee" | "destaque"> = ["cards", "editorial", "marquee", "destaque"];
+          const labels: Record<string, string> = { cards: "Cartões", editorial: "Editorial", marquee: "Carrossel", destaque: "Destaque" };
           const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
-          const cur = (custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined)?.variant ?? defVariant;
-          const bar = mkModelBar(`Modelo: ${cur === "editorial" ? "Editorial" : "Cartões"}`, "style", () => {
-            const bb = custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined;
+          const cur = (custom.blocks?.[i] as { variant?: "cards" | "editorial" | "marquee" | "destaque" } | undefined)?.variant ?? defVariant;
+          const bar = mkModelBar(`Modelo: ${labels[cur]}`, "style", () => {
+            const bb = custom.blocks?.[i] as { variant?: "cards" | "editorial" | "marquee" | "destaque" } | undefined;
             if (!bb) return;
             snapshot();
-            bb.variant = cur === "editorial" ? "cards" : "editorial";
+            bb.variant = order[(order.indexOf(cur) + 1) % order.length];
             void rebuild();
           });
           blk.parentElement?.insertBefore(bar, blk);

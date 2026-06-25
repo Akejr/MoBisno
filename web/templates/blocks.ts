@@ -68,6 +68,8 @@ function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i
   // Modelo escolhido no bloco; se ausente, usa o padrão do template (galeria = editorial).
   const variant = b.variant ?? (ctx.variant === "galeria" ? "editorial" : "cards");
   if (variant === "editorial") return testimonialsGaleria(b, i, ctx);
+  if (variant === "marquee") return testimonialsMarquee(b, i, ctx);
+  if (variant === "destaque") return testimonialsDestaque(b, i, ctx);
   const items = b.items ?? [];
   const cards = items.map((t, j) => {
     const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
@@ -131,6 +133,79 @@ function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>,
   return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative ${ctx.container} py-16 md:py-24">
     <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl">${esc(b.title ?? "")}</h2>
     <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12">${cards}</div>
+  </section>`;
+}
+
+/** Variante "Carrossel" — faixa horizontal com scroll infinito (pausa ao passar o rato). */
+function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  const items = b.items ?? [];
+  const card = (t: { name?: string; role?: string; text?: string }, j: number, clone: boolean): string => {
+    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+    const attrs = clone ? `aria-hidden="true"` : `data-testi-item="${j}"`;
+    const te = clone ? "" : `data-edit="blocks.${i}.items.${j}.text"`;
+    const ne = clone ? "" : `data-edit="blocks.${i}.items.${j}.name"`;
+    const re = clone ? "" : `data-edit="blocks.${i}.items.${j}.role"`;
+    return `<div ${attrs} class="mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+      <span class="material-symbols-outlined text-[26px]" style="color:${ctx.brand}">format_quote</span>
+      <p ${te} class="mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5">${esc(t.text ?? "")}</p>
+      <div class="mt-5 flex items-center gap-3">
+        <span class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        <div>
+          <p ${ne} class="font-semibold text-gray-900 text-sm">${esc(t.name ?? "")}</p>
+          <p ${re} class="text-gray-400 text-xs">${esc(t.role ?? "")}</p>
+        </div>
+      </div>
+    </div>`;
+  };
+  const originals = items.map((t, j) => card(t, j, false)).join("");
+  const clones = items.map((t, j) => card(t, j, true)).join("");
+  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative overflow-hidden bg-gray-50 border-y border-gray-100">
+    <style>
+      @keyframes mbMqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      .mb-mq-mask{position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
+      .mb-mq-track{display:flex;gap:20px;width:max-content;padding:0 10px;animation:mbMqScroll 36s linear infinite}
+      .mb-mq-mask:hover .mb-mq-track{animation-play-state:paused}
+      .mb-mq-card{transition:transform .25s ease, box-shadow .25s ease}
+      .mb-mq-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px -16px rgba(0,0,0,.3)}
+    </style>
+    <div class="${ctx.container} pt-14 md:pt-20 pb-8">
+      <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center">${esc(b.title ?? "")}</h2>
+    </div>
+    <div class="mb-mq-mask pb-16 md:pb-20">
+      <div data-edit-testimonials="${i}" class="mb-mq-track">${originals}${clones}</div>
+    </div>
+  </section>`;
+}
+
+/** Variante "Destaque" — citações grandes, centradas, com entrada animada escalonada. */
+function testimonialsDestaque(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  const items = b.items ?? [];
+  const rows = items.map((t, j) => {
+    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+    return `<figure data-testi-item="${j}" class="mb-dq-item relative max-w-3xl mx-auto text-center" style="animation-delay:${j * 130}ms">
+      <p data-edit="blocks.${i}.items.${j}.text" class="text-2xl md:text-[2rem] font-light leading-snug tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
+      <figcaption class="mt-7 flex items-center justify-center gap-3">
+        <span class="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        <div class="text-left leading-tight">
+          <p data-edit="blocks.${i}.items.${j}.name" class="text-sm font-semibold text-gray-900">${esc(t.name ?? "")}</p>
+          <p data-edit="blocks.${i}.items.${j}.role" class="text-[11px] uppercase tracking-widest text-gray-400 mt-0.5">${esc(t.role ?? "")}</p>
+        </div>
+      </figcaption>
+    </figure>`;
+  }).join(`<div class="mb-dq-sep"></div>`);
+  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative ${ctx.container} py-16 md:py-24">
+    <style>
+      @keyframes mbDqIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes mbDqFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+      .mb-dq-item{opacity:0;animation:mbDqIn .7s cubic-bezier(.16,1,.3,1) forwards}
+      .mb-dq-sep{height:1px;max-width:90px;margin:44px auto;background:linear-gradient(90deg,transparent,#d4d4d8,transparent)}
+      .mb-dq-quote{animation:mbDqFloat 4s ease-in-out infinite}
+    </style>
+    <div class="text-center">
+      <span class="mb-dq-quote material-symbols-outlined inline-block" style="font-size:64px;color:${ctx.brand}">format_quote</span>
+      <h2 data-edit="blocks.${i}.title" class="mt-1 text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
+    </div>
+    <div data-edit-testimonials="${i}" class="mt-14">${rows}</div>
   </section>`;
 }
 
