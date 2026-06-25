@@ -23,6 +23,7 @@ import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
 import { openMapPicker } from "../lib/mapPicker.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
+import { mountMosaicoHeroes } from "../lib/mosaicoHero.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -726,6 +727,7 @@ export async function renderEditor(): Promise<void> {
     }
     bind(preview);
     fadeInImages(preview);
+    mountMosaicoHeroes(preview, { interactive: false });
   }
 
   function updateScreenTabs(): void {
