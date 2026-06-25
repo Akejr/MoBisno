@@ -29,9 +29,11 @@ const DEFAULT_BRAND = "#b71656";
 const DEFAULT_PHONE = "+244 900 000 000";
 const DEFAULT_SUBTITLE = "Descubra fragrâncias exclusivas que capturam a sofisticação moderna. Agora em Angola.";
 const DEFAULT_CTA = "Comprar agora";
+/** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
+let mbLogoScale: number | undefined;
 
 function storeIdentifier(view: StoreRenderView): string {
-  return view.subdomain.replace(/\.mobisno\.com$/i, "");
+  return view.subdomain.split(".")[0] ?? view.subdomain;
 }
 function storeHomeHref(view: StoreRenderView): string {
   return `#/loja/${encodeURIComponent(storeIdentifier(view))}`;
@@ -49,13 +51,14 @@ function categoriesOf(view: StoreRenderView): string[] {
   return headerCategories(view);
 }
 function menuFor(view: StoreRenderView, custom?: StoreCustomization): string[] {
+  mbLogoScale = custom?.logoScale;
   return custom?.menu && custom.menu.length ? custom.menu : view.menu.items.map((i) => i.label);
 }
 
 function brandHtml(view: StoreRenderView): string {
   const b = view.header.brand;
   if (b.kind === "logo") {
-    return `<img src="${esc(b.url)}" alt="${esc(b.alt)}" class="h-9 md:h-10 w-auto object-contain" />`;
+    return `<img src="${esc(b.url)}" alt="${esc(b.alt)}" class="w-auto object-contain" style="height:${mbLogoScale ?? 38}px" />`;
   }
   return `<span style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-2xl font-bold tracking-tighter">${esc(view.storeName)}</span>`;
 }

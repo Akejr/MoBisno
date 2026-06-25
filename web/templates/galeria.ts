@@ -24,7 +24,8 @@ const CONTAINER = "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8";
 const DEFAULT_SUBTITLE = "Produtos selecionados, entrega em toda Angola e checkout simples.";
 const DEFAULT_CTA = "Ver produtos";
 const DEFAULT_PHONE = "+244 900 000 000";
-const DEFAULT_FEATURE_IMG = "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?q=80&w=1000";
+/** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
+let mbLogoScale: number | undefined;
 
 /** Imagens de reserva para o arco (quando a loja ainda tem poucas fotos). */
 const ARC_FALLBACK = [
@@ -58,14 +59,16 @@ function cartHref(view: StoreRenderView): string {
 function categoriesOf(view: StoreRenderView): string[] {
   return headerCategories(view);
 }
+
 function menuFor(view: StoreRenderView, custom?: StoreCustomization): string[] {
+  mbLogoScale = custom?.logoScale;
   return custom?.menu && custom.menu.length ? custom.menu : view.menu.items.map((i) => i.label);
 }
 
 function brandHtml(view: StoreRenderView): string {
   const brand = view.header.brand;
   if (brand.kind === "logo") {
-    return `<img src="${esc(brand.url)}" alt="${esc(brand.alt)}" class="h-8 md:h-9 w-auto object-contain" />`;
+    return `<img src="${esc(brand.url)}" alt="${esc(brand.alt)}" class="w-auto object-contain" style="height:${mbLogoScale ?? 32}px" />`;
   }
   return `<span class="text-xl md:text-2xl font-black tracking-tight text-gray-900">${esc(view.storeName)}</span>`;
 }
@@ -262,29 +265,6 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
 
 /* -------------------------------- Páginas -------------------------------- */
 
-/** Secção editorial: foto à esquerda, título + subtítulo à direita. */
-function featureSection(custom?: StoreCustomization): string {
-  const f = custom?.feature ?? {};
-  const img = f.imageUrl || DEFAULT_FEATURE_IMG;
-  const title = f.title || "Qualidade que se vê e se sente";
-  const subtitle = f.subtitle || "Selecionamos cada produto a pensar em si: materiais de confiança, entrega rápida em toda Angola e atendimento próximo pelo WhatsApp.";
-  return `
-  <section data-edit-feature class="bg-gray-50 border-t border-gray-100">
-    <div class="${CONTAINER} py-14 md:py-20">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14 items-center">
-        <div data-edit-feature-image class="relative aspect-[4/3] rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
-          <img src="${esc(img)}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/4f46e5?text=Imagem'" />
-        </div>
-        <div>
-          <span class="inline-block w-10 h-1.5 rounded-full mb-5" style="background:var(--brand,#4f46e5)"></span>
-          <h2 data-edit="feature.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900 leading-tight">${esc(title)}</h2>
-          <p data-edit="feature.subtitle" class="mt-4 text-gray-500 text-lg leading-relaxed">${esc(subtitle)}</p>
-        </div>
-      </div>
-    </div>
-  </section>`;
-}
-
 function render(view: StoreRenderView, custom?: StoreCustomization): string {
   const menuLabels = menuFor(view, custom);
   return `
@@ -294,7 +274,6 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} py-10 md:py-14">
       ${sectionsArea(view, custom)}
     </main>
-    <div data-feature-slot>${custom?.featureEnabled === false ? "" : featureSection(custom)}</div>
     ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" })}
     ${footerHtml(view, custom, menuLabels)}
   </div>`;

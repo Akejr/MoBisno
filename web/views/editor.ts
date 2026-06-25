@@ -50,6 +50,8 @@ export async function renderEditor(): Promise<void> {
   appState.storeId = store.id;
 
   const custom: StoreCustomization = await getCustomization(store.id);
+  let savedJson = JSON.stringify(custom);
+  const isDirty = (): boolean => JSON.stringify(custom) !== savedJson;
   const panel = adminPanelFor(store.id);
   let productsById = new Map<string, Product>();
 
@@ -107,7 +109,7 @@ export async function renderEditor(): Promise<void> {
       </div>
       <div class="flex items-center justify-between gap-3 px-4 md:px-6 py-2.5">
         <div class="flex items-center gap-3 min-w-0">
-          <a href="/painel" class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">arrow_back</span></a>
+          <a href="/painel" id="back-link" class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">arrow_back</span></a>
           <div class="min-w-0">
             <p class="text-xs text-gray-400 leading-none">A personalizar</p>
             <p class="text-gray-900 font-bold truncate">${esc(store.name)}</p>
@@ -176,14 +178,40 @@ export async function renderEditor(): Promise<void> {
       });
     });
 
-    // Logótipo — clicar (no logo ou no botão) abre o upload.
+    // Logótipo — trocar imagem + aumentar/diminuir tamanho.
     const logo = preview.querySelector<HTMLElement>("[data-edit-logo]");
     if (logo) {
-      logo.addEventListener("click", (e) => { e.preventDefault(); ($("#logo-input") as HTMLInputElement).click(); });
-      const ov = document.createElement("span");
-      ov.className = "mb-ov mb-logo-ov absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap bg-neutral-900 text-white text-xs px-2.5 py-1 rounded-full flex items-center gap-1 shadow";
-      ov.innerHTML = `<span class="material-symbols-outlined text-[14px]">photo_camera</span> Trocar logótipo`;
+      logo.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).closest("[data-logo-ctrl]")) return;
+        e.preventDefault();
+        ($("#logo-input") as HTMLInputElement).click();
+      });
+      const ov = document.createElement("div");
+      ov.className = "mb-ov mb-logo-ov absolute left-1/2 -translate-x-1/2 top-full mt-1 flex items-center gap-1 bg-neutral-900 text-white text-xs px-1.5 py-1 rounded-full shadow z-20";
+      const hasImg = !!logo.querySelector("img");
+      const sizeBtns = hasImg
+        ? `<button data-logo-ctrl data-act="smaller" title="Diminuir" class="mb-ov-btn w-6 h-6 rounded-full hover:bg-white/15 flex items-center justify-center"><span class="material-symbols-outlined text-[16px]">remove</span></button>`
+        : "";
+      const bigBtn = hasImg
+        ? `<button data-logo-ctrl data-act="bigger" title="Aumentar" class="mb-ov-btn w-6 h-6 rounded-full hover:bg-white/15 flex items-center justify-center"><span class="material-symbols-outlined text-[16px]">add</span></button>`
+        : "";
+      ov.innerHTML = `${sizeBtns}
+        <button data-logo-ctrl data-act="img" class="mb-ov-btn px-2 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">photo_camera</span> Trocar</button>
+        ${bigBtn}`;
       logo.appendChild(ov);
+      const curH = (): number => {
+        const img = logo.querySelector("img");
+        return custom.logoScale ?? (img ? Math.round(img.getBoundingClientRect().height) : 32);
+      };
+      const setScale = (delta: number): void => {
+        const next = Math.max(16, Math.min(80, curH() + delta));
+        snapshot();
+        setPath(custom as Record<string, any>, "logoScale", next);
+        void rebuild();
+      };
+      ov.querySelector('[data-act="smaller"]')?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); setScale(-4); });
+      ov.querySelector('[data-act="bigger"]')?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); setScale(4); });
+      ov.querySelector('[data-act="img"]')?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); ($("#logo-input") as HTMLInputElement).click(); });
     }
 
     // Hero — overlay por hover.
@@ -444,7 +472,24 @@ export async function renderEditor(): Promise<void> {
         const conf = custom.sections?.[i];
         if (!head || !conf) return;
         const wrap = document.createElement("div");
-        wrap.className = "mb-ov-btn flex items-center gap-2 shrink-0";
+        wrap.className = "mb-ov-btn flex items-center gap-1.5 shrink-0";
+        const mkMove = (dir: -1 | 1, icon: string, title: string): HTMLButtonElement => {
+          const btn = document.createElement("button");
+          btn.title = title;
+          btn.className = "text-neutral-400 hover:text-neutral-800";
+          btn.innerHTML = `<span class="material-symbols-outlined text-[20px]">${icon}</span>`;
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const a = custom.sections; if (!a) return;
+            const j = i + dir; if (j < 0 || j >= a.length) return;
+            snapshot(); [a[j], a[i]] = [a[i]!, a[j]!]; void rebuild();
+          });
+          return btn;
+        };
+        if ((custom.sections?.length ?? 0) > 1) {
+          wrap.appendChild(mkMove(-1, "arrow_upward", "Subir secção"));
+          wrap.appendChild(mkMove(1, "arrow_downward", "Descer secção"));
+        }
         const cur = conf.category;
         const opts = baseOpts.some((o) => o.v === cur) ? baseOpts : [...baseOpts, { v: cur, l: cur }];
         const sel = document.createElement("select");
@@ -495,7 +540,8 @@ export async function renderEditor(): Promise<void> {
           }
           void rebuild();
         }));
-      sectionsWrap.appendChild(addSec);
+      // O botão fica sempre no fim da última secção (depois dos blocos).
+      (preview.querySelector<HTMLElement>("[data-edit-blocks]") ?? sectionsWrap).appendChild(addSec);
     }
 
     // Botão de WhatsApp (página de produto) — editável.
@@ -719,7 +765,19 @@ export async function renderEditor(): Promise<void> {
       () => saveCustomization(ownerId, store!.id, custom),
       "A guardar…",
     );
+    if (ok) savedJson = JSON.stringify(custom);
     toast(ok ? "Loja guardada!" : "Não foi possível guardar.", ok ? "success" : "error");
+  });
+
+  // Aviso de alterações por guardar ao sair (botão voltar / fechar separador).
+  $("#back-link")?.addEventListener("click", (e) => {
+    if (isDirty() && !confirm("Tem alterações por guardar. Sair sem guardar? As alterações serão perdidas.")) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+  window.addEventListener("beforeunload", (e) => {
+    if (isDirty()) { e.preventDefault(); e.returnValue = ""; }
   });
 
   // Tutorial guiado.

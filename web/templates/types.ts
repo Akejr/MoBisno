@@ -19,6 +19,8 @@ export interface StoreCustomization {
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];
+  /** Altura do logótipo no cabeçalho, em píxeis (por omissão depende do modelo). */
+  logoScale?: number;
   /** Mostrar o bloco editorial abaixo dos produtos (Galeria). Por omissão visível. */
   featureEnabled?: boolean;
   /** Garantias/benefícios na página de produto (ícone + texto). Editáveis. */

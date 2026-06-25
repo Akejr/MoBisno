@@ -25,6 +25,8 @@ const HERO_FALLBACK = "https://images.unsplash.com/photo-1579952363873-27f3bade9
 const DEFAULT_SUBTITLE = "Produtos originais. Qualidade premium. Entrega em toda Angola.";
 const DEFAULT_CTA = "COMPRAR AGORA";
 const DEFAULT_PHONE = "+244 900 000 000";
+/** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
+let mbLogoScale: number | undefined;
 
 /** Identificador da loja a partir do subdomínio (`identificador.mobisno.store`). */
 function storeIdentifier(view: StoreRenderView): string {
@@ -59,7 +61,7 @@ function categoriesOf(view: StoreRenderView): string[] {
 function brandHtml(view: StoreRenderView): string {
   const brand = view.header.brand;
   if (brand.kind === "logo") {
-    return `<img src="${esc(brand.url)}" alt="${esc(brand.alt)}" class="h-8 md:h-10 w-auto object-contain" />`;
+    return `<img src="${esc(brand.url)}" alt="${esc(brand.alt)}" class="w-auto object-contain" style="height:${mbLogoScale ?? 40}px" />`;
   }
   return `<span style="${BEBAS}" class="text-2xl md:text-3xl text-neutral-900 tracking-tight">${esc(view.storeName.toUpperCase())}</span>`;
 }
@@ -196,6 +198,7 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
 }
 
 function menuFor(view: StoreRenderView, custom?: StoreCustomization): string[] {
+  mbLogoScale = custom?.logoScale;
   return custom?.menu && custom.menu.length ? custom.menu : view.menu.items.map((i) => i.label);
 }
 
