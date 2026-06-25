@@ -4,7 +4,7 @@
  * vivem no ecrã "Personalizar".
  */
 import { render, $, go, esc, toast, formatKz, withBusy, fadeInImages } from "../lib/dom.js";
-import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, setOwnerPlan, countPublishedStores, publicStoreUrl } from "../composition.js";
+import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, setOwnerPlan, countPublishedStores, publicStoreUrl, deleteStore } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
 import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -121,7 +121,29 @@ export async function renderDashboard(): Promise<void> {
       : "O plano Básico inclui checkout via WhatsApp. Faça upgrade para Profissional para desbloquear Multicaixa Express e referência bancária.";
     render(shell(stub("payments", "Pagamentos", `Métodos ativos: ${methods}. ${extra}`))); bindShell(); return;
   }
-  if (tab === "config") { render(shell(stub("settings", "Configurações gerais", "Nome da loja, subdomínio, idioma e preferências. Em breve."))); bindShell(); return; }
+  if (tab === "config") {
+    render(shell(`
+      <section class="max-w-2xl space-y-6">
+        ${stub("settings", "Configurações gerais", "Nome da loja, subdomínio, idioma e preferências. Em breve.")}
+        <div class="rounded-2xl border-2 border-red-200 bg-red-50/50 p-6">
+          <h3 class="font-black text-red-700 flex items-center gap-2"><span class="material-symbols-outlined">warning</span> Zona de perigo</h3>
+          <p class="text-sm text-gray-600 mt-2">Apagar esta loja remove <strong>permanentemente</strong> todos os produtos, imagens, banners e personalização. Esta ação não pode ser desfeita.</p>
+          <button id="delete-store" class="mt-4 inline-flex items-center gap-2 bg-red-600 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-red-700 transition-colors"><span class="material-symbols-outlined text-[18px]">delete_forever</span> Apagar esta loja</button>
+        </div>
+      </section>`));
+    bindShell();
+    $("#delete-store")?.addEventListener("click", async () => {
+      const typed = prompt(`Esta ação é permanente. Para confirmar, escreva o nome da loja:\n\n${store!.name}`);
+      if (typed === null) return;
+      if (typed.trim() !== store!.name.trim()) { toast("Nome não corresponde. Loja não apagada.", "error"); return; }
+      const ok = await withBusy(() => deleteStore(ownerId, store!.id), "A apagar loja…");
+      if (!ok) { toast("Não foi possível apagar a loja.", "error"); return; }
+      toast("Loja apagada.");
+      appState.storeId = null;
+      void renderDashboard();
+    });
+    return;
+  }
 
   // --- Início ---
   const products = await productRepository.listByStore(store.id);

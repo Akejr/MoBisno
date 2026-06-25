@@ -131,6 +131,17 @@ export async function countPublishedStores(ownerId: string): Promise<number> {
   return stores.filter((s) => s.state === "Publicada").length;
 }
 
+/**
+ * Apaga uma Loja do Dono autenticado, permanentemente. A remoção da linha em
+ * `stores` elimina em cascata produtos, banners e assets; a personalização
+ * (coluna jsonb) é removida com a própria linha. Devolve `true` em sucesso.
+ */
+export async function deleteStore(ownerId: string, storeId: string): Promise<boolean> {
+  const { error } = await supabase.from("stores").delete().eq("id", storeId).eq("owner_id", ownerId);
+  if (error) console.error("deleteStore", error);
+  return !error;
+}
+
 /* ----------------------------- Domínio público ----------------------------- */
 
 import { PLATFORM_APEX, isPlatformHost } from "./lib/routing.js";
