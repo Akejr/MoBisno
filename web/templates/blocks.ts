@@ -8,6 +8,23 @@ import type { ContentBlock, StoreCustomization } from "./types.js";
 
 export const DEFAULT_INFO_IMG = "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000";
 
+/** Verdadeiro se a cor (hex) é escura (luminância < 0.5) — para texto claro. */
+export function isDarkColor(hex?: string): boolean {
+  if (!hex) return false;
+  let h = hex.trim().replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  if (h.length !== 6 || Number.isNaN(n)) return false;
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+}
+
+/** Estilo + atributo de fundo de secção (opcional). */
+function secBg(b: { bg?: string }): { style: string; dark: string } {
+  if (!b.bg) return { style: "", dark: "" };
+  return { style: ` style="background:${esc(b.bg)}"`, dark: isDarkColor(b.bg) ? " data-sec-dark" : "" };
+}
+
 /** Cria um bloco novo com conteúdo por omissão, pelo tipo. */
 export function newBlock(type: ContentBlock["type"]): ContentBlock {
   switch (type) {
@@ -48,7 +65,8 @@ function infoBlock(b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: B
     <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${esc(b.text ?? "")}</p>
   </div>`;
   const left = b.imageSide !== "right";
-  return `<section data-edit-block="${i}" data-block-type="info" class="relative ${ctx.container} py-12 md:py-16">
+  const sb = secBg(b);
+  return `<section data-edit-block="${i}" data-block-type="info"${sb.style}${sb.dark} class="relative ${ctx.container} py-12 md:py-16">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
       ${left ? img + txt : txt + img}
     </div>
@@ -56,7 +74,8 @@ function infoBlock(b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: B
 }
 
 function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: BlockCtx): string {
-  return `<section data-edit-block="${i}" data-block-type="text" class="relative ${ctx.container} py-12 md:py-16">
+  const sb = secBg(b);
+  return `<section data-edit-block="${i}" data-block-type="text"${sb.style}${sb.dark} class="relative ${ctx.container} py-12 md:py-16">
     <div class="max-w-3xl mx-auto text-center">
       <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
       <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${esc(b.text ?? "")}</p>
@@ -123,7 +142,8 @@ function testimonialsCards(b: Extract<ContentBlock, { type: "testimonials" }>, i
       </div>
     </div>`;
   }).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative bg-gray-50 border-y border-gray-100">
+  const sb = secBg(b);
+  return `<section data-edit-block="${i}" data-block-type="testimonials"${sb.style}${sb.dark} class="relative ${b.bg ? "" : "bg-gray-50 border-y border-gray-100"}">
     <div class="${ctx.container} py-14 md:py-20">
       <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center">${esc(b.title ?? "")}</h2>
       <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">${cards}</div>
@@ -141,7 +161,8 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
   } else {
     src = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
   }
-  return `<section data-edit-block="${i}" data-block-type="location" class="relative ${ctx.container} py-12 md:py-16">
+  const sb = secBg(b);
+  return `<section data-edit-block="${i}" data-block-type="location"${sb.style}${sb.dark} class="relative ${ctx.container} py-12 md:py-16">
     <div class="text-center max-w-2xl mx-auto mb-8">
       <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
       <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> <span data-edit-loc-address data-edit="blocks.${i}.address">${esc(address)}</span></p>
@@ -155,6 +176,7 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
 /** Variante de testemunhos para o modelo Galeria (editorial, minimalista). */
 function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   const items = b.items ?? [];
+  const sb = secBg(b);
   const cards = items.map((t, j) => {
     return `<div data-testi-item="${j}" class="relative pt-6" style="border-top:2px solid ${ctx.brand}">
       <p data-edit="blocks.${i}.items.${j}.text" class="text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
@@ -167,7 +189,7 @@ function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>,
       </div>
     </div>`;
   }).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative ${ctx.container} py-16 md:py-24">
+  return `<section data-edit-block="${i}" data-block-type="testimonials"${sb.style}${sb.dark} class="relative ${ctx.container} py-16 md:py-24">
     <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl">${esc(b.title ?? "")}</h2>
     <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12">${cards}</div>
   </section>`;
@@ -195,7 +217,8 @@ function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>,
   };
   const originals = items.map((t, j) => card(t, j, false)).join("");
   const clones = items.map((t, j) => card(t, j, true)).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative overflow-hidden bg-gray-50 border-y border-gray-100">
+  const sb = secBg(b);
+  return `<section data-edit-block="${i}" data-block-type="testimonials"${sb.style}${sb.dark} class="relative overflow-hidden ${b.bg ? "" : "bg-gray-50 border-y border-gray-100"}">
     <style>
       @keyframes mbMqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
       .mb-mq-mask{position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
@@ -245,7 +268,7 @@ function testimonialsDestaque(b: Extract<ContentBlock, { type: "testimonials" }>
         `<span style="width:8px;height:8px;border-radius:9999px;background:${ctx.brand};opacity:.35;animation:mbHlDot${i} ${total}s ${(j * per).toFixed(2)}s infinite"></span>`).join("")}</div>`
     : "";
 
-  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="destaque" class="relative ${ctx.container} py-16 md:py-24">
+  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="destaque"${secBg(b).style}${secBg(b).dark} class="relative ${ctx.container} py-16 md:py-24">
     <style>${kf}</style>
     <div class="text-center mb-10">
       <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
@@ -272,5 +295,10 @@ function blockHtml(b: ContentBlock, i: number, ctx: BlockCtx): string {
 /** Região de blocos (sempre presente, para o editor ancorar o botão "Adicionar"). */
 export function blocksHtml(custom: StoreCustomization | undefined, ctx: BlockCtx): string {
   const blocks = custom?.blocks ?? [];
-  return `<div data-edit-blocks>${blocks.map((b, i) => blockHtml(b, i, ctx)).join("")}</div>`;
+  const style = `<style>
+    [data-sec-dark]{color:#e5e7eb}
+    [data-sec-dark] h1,[data-sec-dark] h2,[data-sec-dark] h3,[data-sec-dark] h4{color:#fff !important}
+    [data-sec-dark] p,[data-sec-dark] .text-gray-900,[data-sec-dark] .text-gray-700,[data-sec-dark] .text-gray-600,[data-sec-dark] .text-gray-500,[data-sec-dark] .text-gray-400,[data-sec-dark] .text-neutral-900,[data-sec-dark] .text-neutral-700,[data-sec-dark] .text-neutral-600,[data-sec-dark] .text-neutral-500,[data-sec-dark] .text-\\[\\#524345\\],[data-sec-dark] .text-\\[\\#685b5f\\]{color:#d1d5db !important}
+  </style>`;
+  return `${style}<div data-edit-blocks>${blocks.map((b, i) => blockHtml(b, i, ctx)).join("")}</div>`;
 }

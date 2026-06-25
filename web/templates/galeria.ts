@@ -14,6 +14,7 @@ import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
+import { isDarkColor } from "./blocks.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
@@ -146,7 +147,9 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
       ? `<div class="text-center mt-10"><button type="button" data-load-more data-step="${TWO_ROWS}" class="inline-flex items-center gap-1 border-2 font-bold px-8 py-3 rounded-full transition-colors" style="border-color:var(--brand,#4f46e5);color:var(--brand,#4f46e5)">Ver mais <span class="material-symbols-outlined text-[18px]">expand_more</span></button></div>`
       : "";
     const empty = items.length === 0 ? `<p class="text-gray-400 col-span-full py-8 text-center">Sem produtos nesta secção.</p>` : "";
-    return `<section data-section data-edit-section="${i}" class="${i > 0 ? "mt-14" : ""}">
+    const secStyle = sec.bg ? ` style="background:${sec.bg}"` : "";
+    const secPad = sec.bg ? "rounded-2xl p-6 md:p-8" : "";
+    return `<section data-section data-edit-section="${i}"${secStyle}${sec.bg && isDarkColor(sec.bg) ? " data-sec-dark" : ""} class="${i > 0 ? "mt-14" : ""} ${secPad}">
       <div data-edit-section-head class="flex items-center justify-between gap-3 mb-6">
         <h2 class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 truncate">${esc(sec.title)}</h2>
         ${moreRight}

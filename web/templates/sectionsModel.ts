@@ -30,6 +30,8 @@ export interface RenderSection {
   products: StoreProductView[];
   /** Link para a página com todos os produtos desta secção. */
   moreHref: string;
+  /** Cor de fundo da secção (opcional). */
+  bg?: string;
 }
 
 function identifier(view: StoreRenderView): string {
@@ -44,12 +46,12 @@ export function resolveSections(view: StoreRenderView, custom?: StoreCustomizati
   const list = custom?.sections && custom.sections.length ? custom.sections : [{ category: SEC_ALL }];
   return list.map((s) => {
     if (s.category === SEC_FEATURED) {
-      return { token: SEC_FEATURED, title: FEATURED_LABEL, products: view.products.filter((p) => p.featured), moreHref: catHref(view, FEATURED_LABEL) };
+      return { token: SEC_FEATURED, title: FEATURED_LABEL, products: view.products.filter((p) => p.featured), moreHref: catHref(view, FEATURED_LABEL), bg: s.bg };
     }
     if (!s.category || s.category === SEC_ALL) {
-      return { token: SEC_ALL, title: ALL_LABEL, products: [...view.products], moreHref: catHref(view, "Todos") };
+      return { token: SEC_ALL, title: ALL_LABEL, products: [...view.products], moreHref: catHref(view, "Todos"), bg: s.bg };
     }
-    return { token: s.category, title: s.category, products: view.products.filter((p) => (p.category ?? "") === s.category), moreHref: catHref(view, s.category) };
+    return { token: s.category, title: s.category, products: view.products.filter((p) => (p.category ?? "") === s.category), moreHref: catHref(view, s.category), bg: s.bg };
   });
 }
 
