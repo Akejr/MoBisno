@@ -648,7 +648,8 @@ export async function renderEditor(): Promise<void> {
     layer.appendChild(hole); layer.appendChild(tip);
     document.body.appendChild(layer);
 
-    const close = () => layer.remove();
+    const close = () => { trackToken++; layer.remove(); };
+    let trackToken = 0;
 
     function position(el: Element | null): void {
       const vw = window.innerWidth, vh = window.innerHeight;
@@ -691,12 +692,13 @@ export async function renderEditor(): Promise<void> {
       tip.querySelector("[data-next]")?.addEventListener("click", () => { if (last) { close(); return; } idx++; void show(); });
     }
 
-    /** Reposiciona o destaque enquanto o scroll suave decorre (≈750ms). */
+    /** Mantém o destaque sobre o elemento (acompanha scroll/animações). */
     function track(el: Element): void {
-      const start = performance.now();
+      const token = ++trackToken;
       const tick = (): void => {
+        if (token !== trackToken || !document.body.contains(layer)) return;
         position(el);
-        if (performance.now() - start < 750) requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     }
@@ -709,15 +711,23 @@ export async function renderEditor(): Promise<void> {
         await rebuild();
       }
       renderContent();
-      const el = document.querySelector(step.sel);
-      if (el) {
-        // Garante que a área aparece: faz scroll no contentor de pré-visualização.
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        position(el);
-        track(el);
+      // Aguarda um frame para o DOM/preview estabilizar após o rebuild.
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const el = document.querySelector(step.sel) as HTMLElement | null;
+      if (!el) { position(null); return; }
+
+      // Faz scroll no contentor de pré-visualização para centrar o elemento.
+      const preview = document.getElementById("preview");
+      if (preview) {
+        const pr = preview.getBoundingClientRect();
+        const er = el.getBoundingClientRect();
+        const target = preview.scrollTop + (er.top - pr.top) - (pr.height / 2 - er.height / 2);
+        preview.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
       } else {
-        position(null);
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
       }
+      position(el);
+      track(el);
     }
 
     await show();
