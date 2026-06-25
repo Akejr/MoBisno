@@ -12,6 +12,8 @@ import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
+import { renderHero } from "./heroes.js";
+import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
@@ -21,23 +23,16 @@ import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 const PER_ROW = 4;
 const TWO_ROWS = 8;
 const CONTAINER = "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8";
-const DEFAULT_SUBTITLE = "Produtos selecionados, entrega em toda Angola e checkout simples.";
-const DEFAULT_CTA = "Ver produtos";
 const DEFAULT_PHONE = "+244 900 000 000";
 /** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
 let mbLogoScale: number | undefined;
+/** Disposição dos produtos escolhida (definida em menuFor a cada render). */
+let mbGridVariant: ProductVariant | undefined;
 
-/** Imagens de reserva para o arco (quando a loja ainda tem poucas fotos). */
-const ARC_FALLBACK = [
-  "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=400",
-  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=400",
-  "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?q=80&w=400",
-  "https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=400",
-  "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=400",
-  "https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=400",
-  "https://images.unsplash.com/photo-1485462537746-965f33f7f6a7?q=80&w=400",
-  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400",
-];
+/** Aspeto do cartão de produto (omissão do modelo: quadrado). */
+function cardAspect(): string {
+  return cardAspectClass(mbGridVariant ?? "quadrado");
+}
 
 /* ------------------------------- Helpers ------------------------------- */
 
@@ -62,6 +57,7 @@ function categoriesOf(view: StoreRenderView): string[] {
 
 function menuFor(view: StoreRenderView, custom?: StoreCustomization): string[] {
   mbLogoScale = custom?.logoScale;
+  mbGridVariant = custom?.productGrid?.variant;
   return custom?.menu && custom.menu.length ? custom.menu : view.menu.items.map((i) => i.label);
 }
 
@@ -116,73 +112,6 @@ function headerHtml(view: StoreRenderView, menuLabels: string[]): string {
     </header>`;
 }
 
-/* --------------------------------- Hero --------------------------------- */
-
-/** Imagens para o arco. Usa as definidas pelo dono (heroImages); caso contrário
- *  as fotos dos produtos/banners; por fim imagens de reserva. Sem ciclar, para
- *  o mapeamento 1:1 com o editor. */
-function arcImages(view: StoreRenderView, custom?: StoreCustomization): string[] {
-  const fromCustom = (custom?.heroImages ?? []).filter((u): u is string => !!u);
-  if (fromCustom.length) return fromCustom.slice(0, 13);
-  const fromProducts = view.products.map((p) => p.imageUrl).filter((u): u is string => !!u);
-  const fromBanners = view.banners.map((b) => b.imageUrl);
-  const base = [...fromProducts, ...fromBanners];
-  return (base.length ? base : ARC_FALLBACK).slice(0, 13);
-}
-
-/** Hero com galeria em arco (cartões curvados) + título/subtítulo/CTA. */
-function arcHero(view: StoreRenderView, custom?: StoreCustomization): string {
-  const title = custom?.hero?.title || view.storeName;
-  const subtitle = custom?.hero?.subtitle || DEFAULT_SUBTITLE;
-  const cta = custom?.hero?.ctaLabel || DEFAULT_CTA;
-
-  const imgs = arcImages(view, custom);
-  const startAngle = 18;
-  const endAngle = 162;
-  const count = Math.max(imgs.length, 2);
-  const step = (endAngle - startAngle) / (count - 1);
-
-  const cards = imgs.map((src, i) => {
-    const angle = startAngle + step * i;
-    const rad = (angle * Math.PI) / 180;
-    const cos = Math.cos(rad).toFixed(4);
-    const sin = Math.sin(rad).toFixed(4);
-    const rot = (angle / 4 - 22).toFixed(2);
-    return `<div class="mb-arc-card" data-edit-arc-item="${i}" style="left:calc(50% + (${cos} * var(--arc-r)));bottom:calc(${sin} * var(--arc-r));z-index:${count - i};animation-delay:${i * 80}ms">
-      <div class="mb-arc-inner" style="transform:rotate(${rot}deg)">
-        <img src="${esc(src)}" alt="" class="block w-full h-full object-cover" draggable="false" onerror="this.onerror=null;this.src='https://placehold.co/300x300/eef2ff/4f46e5?text=Foto'" />
-      </div>
-    </div>`;
-  }).join("");
-
-  return `
-  <section class="relative overflow-hidden bg-white">
-    <style>
-      @keyframes mbArcIn{from{opacity:0;transform:translate(-50%,62%)}to{opacity:1;transform:translate(-50%,50%)}}
-      @keyframes mbHeroIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-      .mb-arc{position:relative;width:100%;height:calc(var(--arc-r) + var(--arc-card));--arc-r:clamp(170px,40vw,440px);--arc-card:clamp(60px,10vw,112px)}
-      .mb-arc-pivot{position:absolute;left:50%;bottom:0;transform:translateX(-50%)}
-      .mb-arc-card{position:absolute;width:var(--arc-card);height:var(--arc-card);transform:translate(-50%,50%);opacity:0;animation:mbArcIn .8s ease-out forwards}
-      .mb-arc-inner{width:100%;height:100%;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 14px 30px -12px rgba(0,0,0,.3);outline:1px solid rgba(0,0,0,.05);transition:transform .3s ease}
-      .mb-arc-inner:hover{transform:scale(1.06) !important}
-      .mb-hero-text{opacity:0;animation:mbHeroIn .8s ease-out forwards;animation-delay:.7s}
-    </style>
-    <div class="mb-arc" data-edit-arc>
-      <div class="mb-arc-pivot">${cards}</div>
-    </div>
-    <div class="relative z-10 ${CONTAINER} text-center -mt-28 sm:-mt-36 lg:-mt-44 pb-14">
-      <div class="mb-hero-text max-w-2xl mx-auto">
-        <h1 data-edit="hero.title" class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 leading-[1.05]">${esc(title)}</h1>
-        <p data-edit="hero.subtitle" class="mt-4 text-base md:text-lg text-gray-500 max-w-xl mx-auto">${esc(subtitle)}</p>
-        <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <a href="#produtos" class="w-full sm:w-auto px-7 py-3 rounded-full text-white font-semibold shadow-lg hover:opacity-95 transition-opacity" style="background:var(--brand,#4f46e5)"><span data-edit="hero.ctaLabel">${esc(cta)}</span></a>
-          <a href="${esc(cartHref(view))}" data-cart-link class="w-full sm:w-auto px-7 py-3 rounded-full border border-gray-300 text-gray-800 font-semibold hover:bg-gray-50 transition-colors">Ver carrinho</a>
-        </div>
-      </div>
-    </div>
-  </section>`;
-}
-
 /* ------------------------------- Produtos ------------------------------- */
 
 function productCard(view: StoreRenderView, p: StoreProductView, opts: { hidden?: boolean } = {}): string {
@@ -194,7 +123,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { hidden?
     : "";
   const hide = opts.hidden ? ` data-extra style="display:none"` : "";
   return `<a href="${esc(productHref(view, p))}" class="group block" data-edit-product="${esc(p.id)}"${hide}>
-    <div class="relative aspect-square bg-gray-50 overflow-hidden rounded-2xl border border-gray-100 mb-3">${img}${badge}</div>
+    <div class="relative ${cardAspect()} bg-gray-50 overflow-hidden rounded-2xl border border-gray-100 mb-3">${img}${badge}</div>
     <h3 class="text-sm font-semibold text-gray-900 line-clamp-2">${esc(p.name)}</h3>
     ${p.description ? `<p class="text-xs text-gray-500 line-clamp-1 mt-0.5">${esc(p.description)}</p>` : ""}
     <p class="pt-1 text-sm font-bold" style="color:var(--brand,#4f46e5)">${esc(formatKz(p.price))}</p>
@@ -204,6 +133,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { hidden?
 const GRID_CLS = "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8";
 
 function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): string {
+  const gridCls = mbGridVariant ? gridColsClass(mbGridVariant) : GRID_CLS;
   const sections = resolveSections(view, custom);
   const multi = sections.length > 1;
   const blocks = sections.map((sec, i) => {
@@ -221,7 +151,7 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
         <h2 class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 truncate">${esc(sec.title)}</h2>
         ${moreRight}
       </div>
-      <div data-section-grid data-edit-products class="${GRID_CLS}">${cards}${empty}</div>
+      <div data-section-grid data-edit-products class="${gridCls}">${cards}${empty}</div>
       ${moreBottom}
     </section>`;
   }).join("");
@@ -270,7 +200,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
   return `
   <div class="min-h-screen flex flex-col bg-white text-gray-900 font-sans">
     ${headerHtml(view, menuLabels)}
-    ${arcHero(view, custom)}
+    ${renderHero(custom?.hero?.variant, view, custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" }, "arco")}
     <main id="produtos" class="${CONTAINER} py-10 md:py-14">
       ${sectionsArea(view, custom)}
     </main>

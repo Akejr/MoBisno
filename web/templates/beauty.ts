@@ -13,6 +13,8 @@ import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
+import { renderHero } from "./heroes.js";
+import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
@@ -31,6 +33,13 @@ const DEFAULT_SUBTITLE = "Descubra fragrâncias exclusivas que capturam a sofist
 const DEFAULT_CTA = "Comprar agora";
 /** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
 let mbLogoScale: number | undefined;
+/** Disposição dos produtos escolhida (definida em menuFor a cada render). */
+let mbGridVariant: ProductVariant | undefined;
+
+/** Aspeto do cartão de produto (omissão do modelo: alto 4:5). */
+function cardAspect(): string {
+  return cardAspectClass(mbGridVariant ?? "alto");
+}
 
 function storeIdentifier(view: StoreRenderView): string {
   return view.subdomain.split(".")[0] ?? view.subdomain;
@@ -52,6 +61,7 @@ function categoriesOf(view: StoreRenderView): string[] {
 }
 function menuFor(view: StoreRenderView, custom?: StoreCustomization): string[] {
   mbLogoScale = custom?.logoScale;
+  mbGridVariant = custom?.productGrid?.variant;
   return custom?.menu && custom.menu.length ? custom.menu : view.menu.items.map((i) => i.label);
 }
 
@@ -138,7 +148,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { offset?
     : "";
   const hide = opts.hidden ? ` data-extra style="display:none"` : "";
   return `<a href="${esc(productHref(view, p))}" data-edit-product="${esc(p.id)}" class="group block relative ${opts.offset ? "md:mt-8" : ""}"${hide}>
-    <div class="aspect-[4/5] bg-white overflow-hidden rounded-xl mb-5 relative">${img}${badge}</div>
+    <div class="${cardAspect()} bg-white overflow-hidden rounded-xl mb-5 relative">${img}${badge}</div>
     <div class="flex justify-between items-start gap-3">
       <div class="min-w-0">
         <h3 style="${SERIF}" class="text-xl text-[#1c1b1b] group-hover:text-[color:var(--brand,${DEFAULT_BRAND})] transition-colors truncate">${esc(p.name)}</h3>
@@ -154,6 +164,7 @@ const GRID_CLS = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-1
 
 /** Área de secções de produtos (uma ou várias secções por categoria). */
 function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): string {
+  const gridCls = mbGridVariant ? gridColsClass(mbGridVariant) : GRID_CLS;
   const sections = resolveSections(view, custom);
   const multi = sections.length > 1;
   const blocks = sections.map((sec, i) => {
@@ -173,7 +184,7 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
         </div>
         ${moreRight}
       </div>
-      <div data-section-grid data-edit-products class="${GRID_CLS}">${cards}${empty}</div>
+      <div data-section-grid data-edit-products class="${gridCls}">${cards}${empty}</div>
       ${moreBottom}
     </section>`;
   }).join("");
@@ -187,10 +198,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
   const cta = custom?.hero?.ctaLabel || DEFAULT_CTA;
   const heroImg = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
 
-  return `
-  <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b]" style="font-family:'Manrope',sans-serif">
-    ${headerHtml(view, menuLabels)}
-
+  const nativeHero = `
     <!-- Hero -->
     <section data-edit-hero class="relative min-h-[60vh] md:h-[620px] flex items-center overflow-hidden bg-[#f6f3f2]">
       <img src="${esc(heroImg)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
@@ -205,7 +213,17 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
           </a>
         </div>
       </div>
-    </section>
+    </section>`;
+
+  const hero = custom?.hero?.variant
+    ? renderHero(custom.hero.variant, view, custom, { container: CONTAINER, brand: `var(--brand,${DEFAULT_BRAND})` }, "split")
+    : nativeHero;
+
+  return `
+  <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b]" style="font-family:'Manrope',sans-serif">
+    ${headerHtml(view, menuLabels)}
+
+    ${hero}
 
     <!-- Galeria de produtos -->
     <section id="produtos" class="py-20 ${CONTAINER} flex-grow">

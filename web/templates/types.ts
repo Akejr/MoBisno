@@ -23,9 +23,16 @@ export interface StoreCustomization {
     subtitle?: string;
     ctaLabel?: string;
     imageUrl?: string;
+    /** Variante de hero escolhida ("imagem" | "split" | "arco"). */
+    variant?: "imagem" | "split" | "arco";
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];
+  /** Disposição da lista de produtos (Fase 3). Se ausente, usa o formato do modelo. */
+  productGrid?: {
+    /** "retrato" (3:4) | "quadrado" | "alto" (4:5). */
+    variant?: "retrato" | "quadrado" | "alto";
+  };
   /** Altura do logótipo no cabeçalho, em píxeis (por omissão depende do modelo). */
   logoScale?: number;
   /** Mostrar o bloco editorial abaixo dos produtos (Galeria). Por omissão visível. */

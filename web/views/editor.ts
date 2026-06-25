@@ -16,6 +16,8 @@ import type { StorefrontResult } from "../../src/services/storefrontResolver.js"
 import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
 import { newBlock } from "../templates/blocks.js";
+import { HERO_VARIANTS, heroPreview, type HeroVariant } from "../templates/heroes.js";
+import { PRODUCT_VARIANTS, productPreview, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
 import { openMapPicker } from "../lib/mapPicker.js";
@@ -135,6 +137,8 @@ export async function renderEditor(): Promise<void> {
               ${THEME_STYLES.map((s) => `<option value="${s.id}" ${custom.theme?.style === s.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
             </select>
           </label>
+          <button id="pick-hero" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors" title="Modelo do hero"><span class="material-symbols-outlined text-[18px]">wallpaper</span><span class="hidden sm:inline">Hero</span></button>
+          <button id="pick-grid" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors" title="Disposição dos produtos"><span class="material-symbols-outlined text-[18px]">grid_view</span><span class="hidden sm:inline">Produtos</span></button>
           <button id="undo" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">undo</span><span class="hidden sm:inline">Desfazer</span></button>
           <button id="tutorial" class="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-full transition-colors" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">school</span><span class="hidden sm:inline">Tutorial</span></button>
           <a id="ver-loja" href="${esc(storeUrl)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
@@ -677,6 +681,57 @@ export async function renderEditor(): Promise<void> {
     snapshot();
     setPath(custom as Record<string, any>, "theme.style", themeSelect.value);
     applyTheme($("#preview"), custom);
+  });
+
+  // --- Seletores de variantes (Hero / Disposição dos produtos) ---
+  interface PickItem { id: string; label: string; preview: string; }
+  function openVariantPicker(anchor: HTMLElement, title: string, items: PickItem[], current: string | undefined, onPick: (id: string) => void): void {
+    document.getElementById("mb-picker")?.remove();
+    const layer = document.createElement("div");
+    layer.id = "mb-picker";
+    layer.style.cssText = "position:fixed;inset:0;z-index:120";
+    const panel = document.createElement("div");
+    panel.className = "absolute bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 w-[300px]";
+    const r = anchor.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - 308);
+    panel.style.top = `${r.bottom + 8}px`;
+    panel.style.left = `${left}px`;
+    panel.innerHTML = `
+      <p class="text-xs font-bold text-gray-500 uppercase tracking-wider px-1 mb-2">${esc(title)}</p>
+      <div class="grid grid-cols-3 gap-2">
+        ${items.map((it) => `
+          <button data-pick="${esc(it.id)}" class="group text-left rounded-xl border-2 ${it.id === current ? "border-[color:var(--mb-accent)]" : "border-gray-200"} hover:border-gray-400 overflow-hidden transition-colors" style="--mb-accent:${ACCENT}">
+            <div class="aspect-[4/3] overflow-hidden bg-gray-100">${it.preview}</div>
+            <span class="block text-[11px] font-medium text-gray-700 px-2 py-1.5 leading-tight">${esc(it.label)}</span>
+          </button>`).join("")}
+      </div>`;
+    layer.appendChild(panel);
+    layer.addEventListener("click", (e) => { if (e.target === layer) layer.remove(); });
+    panel.querySelectorAll<HTMLElement>("[data-pick]").forEach((b) =>
+      b.addEventListener("click", (e) => { e.preventDefault(); layer.remove(); onPick(b.dataset.pick!); }));
+    document.body.appendChild(layer);
+  }
+
+  $("#pick-hero")?.addEventListener("click", () => {
+    if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
+    openVariantPicker(
+      $("#pick-hero")!,
+      "Modelo do hero",
+      HERO_VARIANTS.map((v) => ({ id: v.id, label: v.label, preview: heroPreview(v.id) })),
+      custom.hero?.variant,
+      (id) => { snapshot(); setPath(custom as Record<string, any>, "hero.variant", id as HeroVariant); void rebuild(); toast("Hero atualizado."); },
+    );
+  });
+
+  $("#pick-grid")?.addEventListener("click", () => {
+    if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
+    openVariantPicker(
+      $("#pick-grid")!,
+      "Disposição dos produtos",
+      PRODUCT_VARIANTS.map((v) => ({ id: v.id, label: v.label, preview: productPreview(v.id) })),
+      custom.productGrid?.variant,
+      (id) => { snapshot(); setPath(custom as Record<string, any>, "productGrid.variant", id as ProductVariant); void rebuild(); toast("Disposição atualizada."); },
+    );
   });
 
   // Upload do logótipo.
