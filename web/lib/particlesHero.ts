@@ -15,6 +15,17 @@ function hexToRgb(hex: string): RGB {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
+/** Lê a cor principal (`--brand`) começando no elemento e subindo na árvore. */
+function readBrand(el: HTMLElement): string {
+  let node: HTMLElement | null = el;
+  while (node) {
+    const v = getComputedStyle(node).getPropertyValue("--brand").trim();
+    if (v) return v;
+    node = node.parentElement;
+  }
+  return "#7c3aed";
+}
+
 interface P { x: number; y: number; dx: number; dy: number; size: number; }
 
 function initCanvas(canvas: HTMLCanvasElement): void {
@@ -26,12 +37,12 @@ function initCanvas(canvas: HTMLCanvasElement): void {
   let particles: P[] = [];
   const mouse = { x: null as number | null, y: null as number | null, radius: 160 };
 
-  const brandVar = getComputedStyle(canvas).getPropertyValue("--brand") || "#7c3aed";
+  const brandVar = readBrand(canvas);
   const { r, g, b } = hexToRgb(brandVar);
 
   function build(): void {
     particles = [];
-    const count = Math.min(Math.floor((w * h) / 9000), 150);
+    const count = Math.min(Math.floor((w * h) / 5000), 280);
     for (let i = 0; i < count; i++) {
       const size = Math.random() * 2 + 1;
       particles.push({
