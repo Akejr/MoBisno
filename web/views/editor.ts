@@ -401,6 +401,23 @@ export async function renderEditor(): Promise<void> {
       // Bloco "testemunhos" — adicionar/remover pessoa.
       const testis = blk.querySelector<HTMLElement>("[data-edit-testimonials]");
       if (testis) {
+        // Trocar modelo de testemunhos (cartões / editorial).
+        const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
+        const cur = (custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined)?.variant ?? defVariant;
+        const modelBtn = document.createElement("button");
+        modelBtn.type = "button";
+        modelBtn.className = "mb-model-btn mx-auto mb-8 flex";
+        modelBtn.innerHTML = `<span class="material-symbols-outlined">style</span> Modelo: ${cur === "editorial" ? "Editorial" : "Cartões"}`;
+        modelBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const bb = custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined;
+          if (!bb) return;
+          snapshot();
+          bb.variant = cur === "editorial" ? "cards" : "editorial";
+          void rebuild();
+        });
+        (testis.parentElement ?? blk).insertBefore(modelBtn, testis);
+
         testis.querySelectorAll<HTMLElement>("[data-testi-item]").forEach((card, j) => {
           const rm = document.createElement("button");
           rm.className = "mb-ov-btn absolute top-2 right-2 text-neutral-300 hover:text-red-600";

@@ -65,7 +65,9 @@ function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: B
 }
 
 function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
-  if (ctx.variant === "galeria") return testimonialsGaleria(b, i, ctx);
+  // Modelo escolhido no bloco; se ausente, usa o padrão do template (galeria = editorial).
+  const variant = b.variant ?? (ctx.variant === "galeria" ? "editorial" : "cards");
+  if (variant === "editorial") return testimonialsGaleria(b, i, ctx);
   const items = b.items ?? [];
   const cards = items.map((t, j) => {
     const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
