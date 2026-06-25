@@ -123,7 +123,7 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
   const phone = custom?.footer?.phone || DEFAULT_PHONE;
   const email = custom?.footer?.email || "geral@minhaloja.ao";
   return `
-    <footer class="bg-neutral-900 text-neutral-400 mt-auto">
+    <footer class="mb-dark bg-neutral-900 text-neutral-400 mt-auto">
       <div class="${CONTAINER} py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div class="space-y-3">
           <div data-edit-footer-logo class="relative inline-block">${footerBrandHtml(view, custom)}</div>
@@ -217,7 +217,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     ${headerHtml(view, menuLabels)}
 
     <!-- Hero -->
-    <section data-edit-hero class="relative h-[420px] md:h-[520px] overflow-hidden bg-neutral-900">
+    <section data-edit-hero class="mb-dark text-white relative h-[420px] md:h-[520px] overflow-hidden bg-neutral-900">
       <img src="${esc(heroImg)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
       <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent"></div>
       <div class="relative h-full ${CONTAINER} flex items-center">

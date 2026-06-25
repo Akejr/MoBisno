@@ -274,7 +274,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} py-10 md:py-14">
       ${sectionsArea(view, custom)}
     </main>
-    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" })}
+    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)", variant: "galeria" })}
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
 }

@@ -10,6 +10,8 @@ export interface StoreCustomization {
   colors?: {
     /** Cor de destaque principal (botões, acentos). */
     primary?: string;
+    /** Cor dos textos e ícones da loja. */
+    text?: string;
   };
   hero?: {
     title?: string;
@@ -72,7 +74,7 @@ export type ContentBlock =
   | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right" }
   | { type: "text"; title?: string; text?: string }
   | { type: "testimonials"; title?: string; items?: { name?: string; role?: string; text?: string }[] }
-  | { type: "location"; title?: string; address?: string };
+  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number };
 
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */

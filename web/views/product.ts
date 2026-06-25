@@ -5,6 +5,7 @@ import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
 import { productSlugPath } from "../lib/slug.js";
+import { applyInk } from "../lib/ink.js";
 
 function notFound(message: string): void {
   render(`
@@ -45,6 +46,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
 
   const app = render(html);
   app.style.setProperty("--brand", brandOf(custom, view.templateId));
+  applyInk(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
 

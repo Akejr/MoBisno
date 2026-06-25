@@ -16,6 +16,8 @@ import type { StorefrontResult } from "../../src/services/storefrontResolver.js"
 import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
 import { newBlock } from "../templates/blocks.js";
+import { applyInk } from "../lib/ink.js";
+import { openMapPicker } from "../lib/mapPicker.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -116,10 +118,15 @@ export async function renderEditor(): Promise<void> {
           </div>
         </div>
         <div class="flex items-center gap-1 md:gap-2">
-          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative">
+          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor de destaque">
             <span class="w-6 h-6 rounded-full border border-gray-200" id="color-dot" style="background:${esc(custom.colors?.primary ?? defaultColor)}"></span>
             <span class="hidden sm:inline">Cor</span>
             <input id="color" type="color" value="${esc(custom.colors?.primary ?? defaultColor)}" class="absolute inset-0 opacity-0 cursor-pointer" />
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor dos textos">
+            <span class="w-6 h-6 rounded-full border border-gray-200" id="ink-dot" style="background:${esc(custom.colors?.text ?? "#111827")}"></span>
+            <span class="hidden sm:inline">Texto</span>
+            <input id="ink" type="color" value="${esc(custom.colors?.text ?? "#111827")}" class="absolute inset-0 opacity-0 cursor-pointer" />
           </label>
           <button id="undo" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">undo</span><span class="hidden sm:inline">Desfazer</span></button>
           <button id="tutorial" class="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-full transition-colors" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">school</span><span class="hidden sm:inline">Tutorial</span></button>
@@ -160,6 +167,7 @@ export async function renderEditor(): Promise<void> {
 
   function bind(preview: HTMLElement): void {
     preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
+    applyInk(preview, custom);
 
     // Não navegar ao clicar em links do preview.
     preview.addEventListener("click", (e) => {
@@ -384,6 +392,26 @@ export async function renderEditor(): Promise<void> {
       // Bloco "localização" — atualizar mapa ao sair do campo da morada.
       const addr = blk.querySelector<HTMLElement>("[data-edit-loc-address]");
       if (addr) addr.addEventListener("blur", () => { void rebuild(); });
+
+      // Bloco "localização" — botão para definir o pin no mapa.
+      if (blk.dataset.blockType === "location") {
+        const mapBtn = document.createElement("button");
+        mapBtn.className = "mb-ov-btn mt-4 mx-auto flex items-center gap-1.5 text-sm font-semibold text-white px-4 py-2 rounded-full shadow";
+        mapBtn.style.background = ACCENT;
+        mapBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">location_searching</span> Definir no mapa`;
+        mapBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const b = custom.blocks?.[i] as { lat?: number; lng?: number; address?: string } | undefined;
+          if (!b) return;
+          void openMapPicker({
+            lat: b.lat,
+            lng: b.lng,
+            address: b.address,
+            onSave: (lat, lng) => { snapshot(); b.lat = lat; b.lng = lng; void rebuild(); },
+          });
+        });
+        blk.appendChild(mapBtn);
+      }
     });
 
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
@@ -623,6 +651,16 @@ export async function renderEditor(): Promise<void> {
     setPath(custom as Record<string, any>, "colors.primary", value);
     $("#preview")!.style.setProperty("--brand", value);
     const dot = $("#color-dot"); if (dot) dot.style.background = value;
+  });
+
+  // Cor dos textos/ícones (ink) — aplica ao vivo.
+  const inkInput = $("#ink") as HTMLInputElement;
+  inkInput?.addEventListener("focus", () => snapshot());
+  inkInput?.addEventListener("input", (e) => {
+    const value = (e.target as HTMLInputElement).value;
+    setPath(custom as Record<string, any>, "colors.text", value);
+    const dot = $("#ink-dot"); if (dot) dot.style.background = value;
+    applyInk($("#preview"), custom);
   });
 
   // Upload do logótipo.

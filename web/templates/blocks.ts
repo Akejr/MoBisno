@@ -35,6 +35,8 @@ export interface BlockCtx {
   container: string;
   /** Cor de destaque (ex.: "var(--brand,#4f46e5)"). */
   brand: string;
+  /** Variante visual (ex.: "galeria" para um estilo de testemunhos próprio). */
+  variant?: "default" | "galeria";
 }
 
 function infoBlock(b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: BlockCtx): string {
@@ -63,6 +65,7 @@ function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: B
 }
 
 function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  if (ctx.variant === "galeria") return testimonialsGaleria(b, i, ctx);
   const items = b.items ?? [];
   const cards = items.map((t, j) => {
     const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
@@ -88,7 +91,14 @@ function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i
 
 function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
   const address = (b.address ?? "").trim() || "Luanda, Angola";
-  const src = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
+  let src: string;
+  if (typeof b.lat === "number" && typeof b.lng === "number") {
+    const d = 0.008;
+    const bbox = `${b.lng - d},${b.lat - d},${b.lng + d},${b.lat + d}`;
+    src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${b.lat},${b.lng}`;
+  } else {
+    src = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
+  }
   return `<section data-edit-block="${i}" data-block-type="location" class="relative ${ctx.container} py-12 md:py-16">
     <div class="text-center max-w-2xl mx-auto mb-8">
       <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
@@ -97,6 +107,28 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
     <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
       <iframe title="Mapa" class="w-full h-[320px] md:h-[400px] border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(src)}"></iframe>
     </div>
+  </section>`;
+}
+
+/** Variante de testemunhos para o modelo Galeria (editorial, minimalista). */
+function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  const items = b.items ?? [];
+  const cards = items.map((t, j) => {
+    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+    return `<div data-testi-item="${j}" class="relative pt-6" style="border-top:2px solid ${ctx.brand}">
+      <p data-edit="blocks.${i}.items.${j}.text" class="text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
+      <div class="mt-6 flex items-center gap-3">
+        <span class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        <div class="leading-tight">
+          <p data-edit="blocks.${i}.items.${j}.name" class="text-sm font-semibold text-gray-900">${esc(t.name ?? "")}</p>
+          <p data-edit="blocks.${i}.items.${j}.role" class="text-[11px] uppercase tracking-widest text-gray-400 mt-0.5">${esc(t.role ?? "")}</p>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative ${ctx.container} py-16 md:py-24">
+    <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl">${esc(b.title ?? "")}</h2>
+    <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12">${cards}</div>
   </section>`;
 }
 
