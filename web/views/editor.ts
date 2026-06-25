@@ -137,8 +137,6 @@ export async function renderEditor(): Promise<void> {
               ${THEME_STYLES.map((s) => `<option value="${s.id}" ${custom.theme?.style === s.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
             </select>
           </label>
-          <button id="pick-hero" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors" title="Modelo do hero"><span class="material-symbols-outlined text-[18px]">wallpaper</span><span class="hidden sm:inline">Hero</span></button>
-          <button id="pick-grid" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors" title="Disposição dos produtos"><span class="material-symbols-outlined text-[18px]">grid_view</span><span class="hidden sm:inline">Produtos</span></button>
           <button id="undo" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">undo</span><span class="hidden sm:inline">Desfazer</span></button>
           <button id="tutorial" class="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-full transition-colors" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">school</span><span class="hidden sm:inline">Tutorial</span></button>
           <a id="ver-loja" href="${esc(storeUrl)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
@@ -174,6 +172,10 @@ export async function renderEditor(): Promise<void> {
     [data-edit-whatsapp]:hover .mb-wa-ov{opacity:1}
     .mb-chip{transition:transform .15s ease, background .15s ease}
     .mb-chip:hover{transform:translateY(-1px)}
+    .mb-model-btn{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9999px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#F95901,#ff8a3d);box-shadow:0 8px 22px -6px rgba(249,89,1,.6);border:1.5px solid rgba(255,255,255,.55);backdrop-filter:blur(4px);cursor:pointer;transition:transform .15s ease, box-shadow .15s ease;animation:mbModelIn .4s ease both}
+    .mb-model-btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 12px 28px -6px rgba(249,89,1,.7)}
+    .mb-model-btn .material-symbols-outlined{font-size:18px}
+    @keyframes mbModelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
   </style>`);
 
   function bind(preview: HTMLElement): void {
@@ -242,6 +244,20 @@ export async function renderEditor(): Promise<void> {
       ov.innerHTML = `<button class="mb-ov-btn bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Trocar imagem</button>`;
       ov.querySelector("button")!.addEventListener("click", (e) => { e.preventDefault(); ($("#hero-input") as HTMLInputElement).click(); });
       hero.appendChild(ov);
+    }
+
+    // Botão chamativo "Trocar modelo do hero" — em qualquer variante de hero (só no início).
+    if (currentScreen === "home") {
+      const heroSection = preview.querySelector<HTMLElement>("section");
+      if (heroSection) {
+        heroSection.style.position = heroSection.style.position || "relative";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mb-model-btn absolute bottom-4 left-4 z-30";
+        btn.innerHTML = `<span class="material-symbols-outlined">wallpaper</span> Trocar modelo do hero`;
+        btn.addEventListener("click", (e) => { e.preventDefault(); openHeroPicker(btn); });
+        heroSection.appendChild(btn);
+      }
     }
 
     // Bloco editorial (Galeria) — trocar imagem por hover.
@@ -499,6 +515,17 @@ export async function renderEditor(): Promise<void> {
     const sectionsWrap = preview.querySelector<HTMLElement>("[data-edit-sections]");
     const sectionEls = preview.querySelectorAll<HTMLElement>("[data-edit-section]");
     if (sectionsWrap && sectionEls.length) {
+      // Botão chamativo "Mudar disposição dos produtos" acima das secções.
+      const gridBar = document.createElement("div");
+      gridBar.className = "mb-ov-btn flex justify-center mb-6";
+      const gridBtn = document.createElement("button");
+      gridBtn.type = "button";
+      gridBtn.className = "mb-model-btn";
+      gridBtn.innerHTML = `<span class="material-symbols-outlined">grid_view</span> Mudar disposição dos produtos`;
+      gridBtn.addEventListener("click", (e) => { e.preventDefault(); openGridPicker(gridBtn); });
+      gridBar.appendChild(gridBtn);
+      sectionsWrap.prepend(gridBar);
+
       if (!custom.sections || !custom.sections.length) custom.sections = [{ category: "__all__" }];
       const cats = currentCategories();
       const baseOpts: { v: string; l: string }[] = [
@@ -712,27 +739,27 @@ export async function renderEditor(): Promise<void> {
     document.body.appendChild(layer);
   }
 
-  $("#pick-hero")?.addEventListener("click", () => {
+  function openHeroPicker(anchor: HTMLElement): void {
     if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
     openVariantPicker(
-      $("#pick-hero")!,
+      anchor,
       "Modelo do hero",
       HERO_VARIANTS.map((v) => ({ id: v.id, label: v.label, preview: heroPreview(v.id) })),
       custom.hero?.variant,
       (id) => { snapshot(); setPath(custom as Record<string, any>, "hero.variant", id as HeroVariant); void rebuild(); toast("Hero atualizado."); },
     );
-  });
+  }
 
-  $("#pick-grid")?.addEventListener("click", () => {
+  function openGridPicker(anchor: HTMLElement): void {
     if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
     openVariantPicker(
-      $("#pick-grid")!,
+      anchor,
       "Disposição dos produtos",
       PRODUCT_VARIANTS.map((v) => ({ id: v.id, label: v.label, preview: productPreview(v.id) })),
       custom.productGrid?.variant,
       (id) => { snapshot(); setPath(custom as Record<string, any>, "productGrid.variant", id as ProductVariant); void rebuild(); toast("Disposição atualizada."); },
     );
-  });
+  }
 
   // Upload do logótipo.
   $("#logo-input")?.addEventListener("change", async (e) => {

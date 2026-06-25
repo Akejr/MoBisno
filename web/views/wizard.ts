@@ -2,6 +2,8 @@
 import { render, $, go, esc, toast } from "../lib/dom.js";
 import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores } from "../composition.js";
 import { openTemplatePreview, mountTemplateThumb } from "../lib/templatePreview.js";
+import { saveCustomization } from "../supabase/customization.js";
+import type { StoreCustomization } from "../templates/types.js";
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, formatLimit, type PlanId } from "../../src/services/plans.js";
 import {
   validatePassoNomeTipo,
@@ -15,13 +17,14 @@ import type { Session } from "../../src/services/authService.js";
 
 const ACCENT = "#F95901";
 
-const wiz: { step: number; data: Record<string, unknown>; subdomain: string; session: Session | null; preAuth: boolean; plan: PlanId } = {
+const wiz: { step: number; data: Record<string, unknown>; subdomain: string; session: Session | null; preAuth: boolean; plan: PlanId; fromScratch: boolean } = {
   step: 1,
   data: {},
   subdomain: "",
   session: null,
   preAuth: false,
   plan: DEFAULT_PLAN,
+  fromScratch: false,
 };
 
 /** Lê o plano escolhido na página de preços (ex.: /criar?plano=profissional). */
@@ -253,10 +256,28 @@ function renderStep2(): void {
       </div>
     </div>`).join("");
 
+  // Cartão extra: "Começar do zero" (base neutra, montada por blocos no editor).
+  const scratchBase = options[0]?.id ?? "galeria";
+  const scratchIdx = options.length;
+  const scratchPanel = `
+    <div data-acc data-index="${scratchIdx}" data-id="${esc(scratchBase)}" data-scratch="1" class="tpl-acc-item relative h-full rounded-2xl overflow-hidden cursor-pointer border-2 transition-all duration-700 ease-in-out" style="flex:1 1 0%;min-width:54px;border-color:#e5e7eb;animation-delay:${scratchIdx * 110}ms;background:linear-gradient(135deg,#fff,#fff7f2)">
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="w-16 h-16 rounded-2xl flex items-center justify-center border-2 border-dashed" style="border-color:rgba(249,89,1,.4);color:${ACCENT}"><span class="material-symbols-outlined text-3xl">add</span></div>
+      </div>
+      <div class="absolute inset-0 pointer-events-none" style="background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,.02) 55%)"></div>
+      <div class="absolute left-0 right-0 bottom-0 p-4 flex items-center gap-3 pointer-events-none">
+        <div class="w-11 h-11 rounded-full flex items-center justify-center shrink-0 border-2 border-white/30 backdrop-blur" style="background:${ACCENT}"><span class="material-symbols-outlined text-white text-[22px]">draw</span></div>
+        <div data-info="${scratchIdx}" class="overflow-hidden whitespace-nowrap transition-all duration-500" style="opacity:0;transform:translateX(20px)">
+          <div class="text-white font-bold text-lg leading-tight">Começar do zero</div>
+          <div class="text-white/75 text-sm">Monte o site por blocos</div>
+        </div>
+      </div>
+    </div>`;
+
   render(shell(`
-    ${header("dashboard_customize", "Escolher modelo", "Toque num modelo para o expandir. Use \"Ver completo\" para o navegar como uma loja pronta.")}
+    ${header("dashboard_customize", "Escolha um ponto de partida", "Use um modelo pronto como ponto de partida, ou comece do zero e monte o site por blocos. Pode trocar tudo no editor depois.")}
     <div id="errs"></div>
-    <div id="tpl-acc" class="flex w-full h-[320px] sm:h-[440px] gap-2 mb-7 items-stretch">${panels}</div>
+    <div id="tpl-acc" class="flex w-full h-[320px] sm:h-[440px] gap-2 mb-7 items-stretch">${panels}${scratchPanel}</div>
     <div class="flex justify-between">
       ${btnBack("back")}
       ${btnPrimary("next", "Próximo")}
@@ -277,7 +298,9 @@ function renderStep2(): void {
       const prev = el.querySelector<HTMLElement>(`[data-prevbtn="${idx}"]`);
       if (prev) { prev.style.display = on ? "inline-flex" : "none"; prev.style.pointerEvents = on ? "auto" : "none"; }
     });
-    wiz.data = { ...wiz.data, [WIZARD_FIELDS.templateId]: panelEls[active]?.dataset.id };
+    const activeEl = panelEls[active];
+    wiz.fromScratch = activeEl?.dataset.scratch === "1";
+    wiz.data = { ...wiz.data, [WIZARD_FIELDS.templateId]: activeEl?.dataset.id };
   }
 
   panelEls.forEach((el, idx) =>
@@ -416,12 +439,21 @@ function renderStep4(): void {
     }
     // Publica a loja (passa de Rascunho a Publicada).
     await publishStore(result.store.ownerId, result.store.id);
+    // "Começar do zero": semeia uma base neutra (hero dividido + grelha quadrada).
+    if (wiz.fromScratch) {
+      const seed: StoreCustomization = {
+        theme: { style: "moderno" },
+        hero: { variant: "split" },
+        productGrid: { variant: "quadrado" },
+      };
+      try { await saveCustomization(result.store.ownerId, result.store.id, seed); } catch { /* não bloqueia a criação */ }
+    }
     appState.storeId = result.store.id;
     appState.storeIdentifier = result.store.identifier;
     appState.templateId = result.store.templateId;
     toast("Loja criada e publicada!");
     // Reinicia o estado do assistente para uma próxima criação.
-    wiz.step = 1; wiz.data = {}; wiz.subdomain = ""; wiz.session = null; wiz.preAuth = false; wiz.plan = DEFAULT_PLAN;
+    wiz.step = 1; wiz.data = {}; wiz.subdomain = ""; wiz.session = null; wiz.preAuth = false; wiz.plan = DEFAULT_PLAN; wiz.fromScratch = false;
     go("#/painel");
   });
 }
