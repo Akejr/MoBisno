@@ -33,7 +33,7 @@ export interface RenderSection {
 }
 
 function identifier(view: StoreRenderView): string {
-  return view.subdomain.replace(/\.mobisno\.com$/i, "");
+  return view.subdomain.split(".")[0] ?? view.subdomain;
 }
 function catHref(view: StoreRenderView, label: string): string {
   return `#/loja/${encodeURIComponent(identifier(view))}/categoria/${encodeURIComponent(label)}`;
