@@ -7,12 +7,13 @@
 import { esc } from "../lib/dom.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
-export type HeroVariant = "imagem" | "split" | "arco";
+export type HeroVariant = "imagem" | "split" | "arco" | "mosaico";
 
 export const HERO_VARIANTS: { id: HeroVariant; label: string }[] = [
   { id: "imagem", label: "Imagem destaque" },
   { id: "split", label: "Dividido (foto + texto)" },
   { id: "arco", label: "Galeria em arco" },
+  { id: "mosaico", label: "Mosaico 3D" },
 ];
 
 export const HERO_FALLBACK = "https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=1600";
@@ -131,6 +132,82 @@ function heroArco(view: StoreRenderView, custom: StoreCustomization | undefined,
   </section>`;
 }
 
+/* -------------------------------- Mosaico 3D ------------------------------- */
+
+/** Pseudo-aleatório determinístico (estável entre renders) a partir de uma semente. */
+function rnd(seed: number): number {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * Hero "Mosaico 3D" — adaptação CSS (sem JS) de um hero com morph por scroll.
+ * As imagens entram espalhadas, passam por um círculo e assentam num arco, com
+ * flip 3D no hover e o título a surgir por cima. Reutiliza os hooks de edição de
+ * imagens em arco (`data-edit-arc` / `data-edit-arc-item`).
+ */
+function heroMosaico(view: StoreRenderView, custom: StoreCustomization | undefined, ctx: HeroCtx): string {
+  const { title, subtitle, cta } = texts(view, custom);
+  const imgs = arcImages(view, custom);
+  const n = Math.max(imgs.length, 1);
+  const CARD_W = 64, CARD_H = 90;
+
+  const cards = imgs.map((src, i) => {
+    const t = n > 1 ? i / (n - 1) : 0.5;
+    // Espalhado (início) — determinístico.
+    const sx = ((rnd(i + 1) - 0.5) * 720).toFixed(0);
+    const sy = ((rnd(i + 41) - 0.5) * 420).toFixed(0);
+    const srot = ((rnd(i + 7) - 0.5) * 140).toFixed(0);
+    // Círculo (meio).
+    const ca = (i / n) * Math.PI * 2;
+    const cx = (Math.cos(ca) * 175).toFixed(0);
+    const cy = (Math.sin(ca) * 175).toFixed(0);
+    const crot = ((ca * 180) / Math.PI).toFixed(0);
+    // Arco final (arco-íris): x espalhado, y mais alto ao centro.
+    const ax = ((t - 0.5) * 560).toFixed(0);
+    const ay = (120 - Math.sin(t * Math.PI) * 150).toFixed(0);
+    const arot = ((t - 0.5) * 36).toFixed(0);
+    const kf = `@keyframes mbMc${i}{`
+      + `0%{transform:translate(${sx}px,${sy}px) rotate(${srot}deg) scale(.6);opacity:0}`
+      + `12%{opacity:1}`
+      + `42%{transform:translate(${cx}px,${cy}px) rotate(${crot}deg) scale(1);opacity:1}`
+      + `78%,100%{transform:translate(${ax}px,${ay}px) rotate(${arot}deg) scale(1.06);opacity:1}}`;
+    const card = `<div class="mb-mc-card" data-edit-arc-item="${i}" style="animation:mbMc${i} 3.4s cubic-bezier(.2,.8,.2,1) ${i * 35}ms forwards">
+      <div class="mb-mc-flip">
+        <div class="mb-mc-face"><img src="${esc(src)}" alt="" class="w-full h-full object-cover" draggable="false" onerror="this.onerror=null;this.src='https://placehold.co/120x170/eef2ff/64748b?text=Foto'" /></div>
+        <div class="mb-mc-face mb-mc-back"><span class="material-symbols-outlined" style="color:${ctx.brand}">visibility</span></div>
+      </div>
+    </div>`;
+    return { kf, card };
+  });
+
+  return `
+  <section class="relative overflow-hidden bg-white">
+    <style>
+      ${cards.map((c) => c.kf).join("\n")}
+      @keyframes mbMcText{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+      .mb-mc-stage{position:relative;height:480px}
+      @media (min-width:768px){.mb-mc-stage{height:600px}}
+      .mb-mc-card{position:absolute;left:50%;top:50%;width:${CARD_W}px;height:${CARD_H}px;margin-left:-${CARD_W / 2}px;margin-top:-${CARD_H / 2}px;opacity:0;transform-style:preserve-3d;perspective:1000px;cursor:pointer}
+      .mb-mc-flip{position:relative;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.8,.2,1);transform-style:preserve-3d}
+      .mb-mc-card:hover .mb-mc-flip{transform:rotateY(180deg)}
+      .mb-mc-face{position:absolute;inset:0;border-radius:12px;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 12px 26px -10px rgba(0,0,0,.45);background:#e5e7eb}
+      .mb-mc-back{transform:rotateY(180deg);background:#0f172a;display:flex;align-items:center;justify-content:center}
+      .mb-mc-text{opacity:0;animation:mbMcText .9s ease-out forwards;animation-delay:2.9s}
+    </style>
+    <div class="mb-mc-stage" data-edit-arc>
+      ${cards.map((c) => c.card).join("")}
+      <div class="absolute inset-x-0 top-0 z-10 flex flex-col items-center text-center px-4 pt-10 md:pt-14 pointer-events-none">
+        <div class="mb-mc-text max-w-2xl">
+          <h1 data-edit="hero.title" class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 leading-[1.05]">${esc(title)}</h1>
+          <p data-edit="hero.subtitle" class="mt-4 text-base md:text-lg text-gray-500 max-w-xl mx-auto">${esc(subtitle)}</p>
+          <a href="#produtos" class="pointer-events-auto mt-7 inline-flex items-center gap-2 text-white font-semibold px-7 py-3 rounded-full shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span></a>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 /** Renderiza o hero da variante escolhida (ou `fallback`). */
 export function renderHero(
   variant: HeroVariant | undefined,
@@ -142,6 +219,7 @@ export function renderHero(
   const v = variant ?? fallback;
   if (v === "arco") return heroArco(view, custom, ctx);
   if (v === "split") return heroSplit(view, custom, ctx);
+  if (v === "mosaico") return heroMosaico(view, custom, ctx);
   return heroImagem(view, custom, ctx);
 }
 
