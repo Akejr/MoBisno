@@ -23,8 +23,8 @@ export interface StoreCustomization {
     subtitle?: string;
     ctaLabel?: string;
     imageUrl?: string;
-    /** Variante de hero escolhida ("imagem" | "split" | "arco"). */
-    variant?: "imagem" | "split" | "arco";
+    /** Variante de hero escolhida ("imagem" | "split" | "arco" | "particulas"). */
+    variant?: "imagem" | "split" | "arco" | "particulas";
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];

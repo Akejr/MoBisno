@@ -7,12 +7,13 @@
 import { esc } from "../lib/dom.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
-export type HeroVariant = "imagem" | "split" | "arco";
+export type HeroVariant = "imagem" | "split" | "arco" | "particulas";
 
 export const HERO_VARIANTS: { id: HeroVariant; label: string }[] = [
   { id: "imagem", label: "Imagem destaque" },
   { id: "split", label: "Dividido (foto + texto)" },
   { id: "arco", label: "Galeria em arco" },
+  { id: "particulas", label: "Partículas (rede)" },
 ];
 
 export const HERO_FALLBACK = "https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=1600";
@@ -131,6 +132,29 @@ function heroArco(view: StoreRenderView, custom: StoreCustomization | undefined,
   </section>`;
 }
 
+/* ----------------------------- Partículas (rede) --------------------------- */
+
+/**
+ * Hero "Partículas" — fundo escuro com rede de partículas animadas (canvas) que
+ * reage ao rato, com título/subtítulo/CTA por cima. A animação é inicializada
+ * por `mountParticlesHeroes` (a loja corre JS após o render); sem JS mostra um
+ * hero escuro limpo. Partículas na cor da marca.
+ */
+function heroParticulas(view: StoreRenderView, custom: StoreCustomization | undefined, ctx: HeroCtx): string {
+  const { title, subtitle, cta } = texts(view, custom);
+  return `
+  <section class="mb-dark relative overflow-hidden bg-[#0a0a12] text-white">
+    <div class="relative h-[520px] md:h-[640px]">
+      <canvas data-particles-hero class="absolute inset-0 block w-full h-full"></canvas>
+      <div class="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6">
+        <h1 data-edit="hero.title" class="text-4xl md:text-7xl font-black tracking-tight leading-[1.03] bg-clip-text text-transparent" style="background-image:linear-gradient(to bottom,#ffffff,#9ca3af)">${esc(title)}</h1>
+        <p data-edit="hero.subtitle" class="mt-5 max-w-2xl text-base md:text-lg text-gray-300">${esc(subtitle)}</p>
+        <a href="#produtos" class="mt-9 inline-flex items-center gap-2 font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity text-white" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+      </div>
+    </div>
+  </section>`;
+}
+
 /** Renderiza o hero da variante escolhida (ou `fallback`). */
 export function renderHero(
   variant: HeroVariant | undefined,
@@ -142,6 +166,7 @@ export function renderHero(
   const v = variant ?? fallback;
   if (v === "arco") return heroArco(view, custom, ctx);
   if (v === "split") return heroSplit(view, custom, ctx);
+  if (v === "particulas") return heroParticulas(view, custom, ctx);
   return heroImagem(view, custom, ctx);
 }
 
