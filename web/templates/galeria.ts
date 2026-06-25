@@ -11,6 +11,8 @@
 import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
+import { blocksHtml } from "./blocks.js";
+import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -252,7 +254,7 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
       </div>
       <div class="border-t border-gray-100">
         <div class="${CONTAINER} py-5 text-xs text-gray-400 text-center">
-          ${esc(view.subdomain)} · Loja criada com <a href="#/" style="color:var(--brand,#4f46e5)">MôBisno</a>
+          ${esc(view.subdomain)} · Loja criada com <a href="${platformHomeUrl()}" style="color:var(--brand,#4f46e5)">MôBisno</a>
         </div>
       </div>
     </footer>`;
@@ -293,6 +295,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
       ${sectionsArea(view, custom)}
     </main>
     <div data-feature-slot>${custom?.featureEnabled === false ? "" : featureSection(custom)}</div>
+    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" })}
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
 }

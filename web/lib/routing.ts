@@ -57,6 +57,11 @@ export function cleanPath(route: string): string {
   return p;
 }
 
+/** URL da home da plataforma MôBisno (apex), a partir de qualquer contexto. */
+export function platformHomeUrl(): string {
+  return storeSubdomain() ? `https://${PLATFORM_APEX}` : "/";
+}
+
 /** Navega para uma rota (push no histórico) e notifica o router. */
 export function navigate(route: string): void {
   const target = cleanPath(route);

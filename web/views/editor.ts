@@ -15,6 +15,7 @@ import { renderStore, type StoreViewModel } from "../../src/storefront/storeRend
 import type { StorefrontResult } from "../../src/services/storefrontResolver.js";
 import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
+import { newBlock } from "../templates/blocks.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -68,6 +69,7 @@ export async function renderEditor(): Promise<void> {
   const history: string[] = [];
   let currentScreen: "home" | "product" = "home";
   let arcTarget: number | "add" = "add";
+  let blockImgTarget = 0;
   function snapshot(): void {
     const json = JSON.stringify(custom);
     if (history[history.length - 1] !== json) history.push(json);
@@ -129,6 +131,7 @@ export async function renderEditor(): Promise<void> {
     <input id="hero-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="feature-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="arc-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+    <input id="block-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
   </div>
   <style>
@@ -297,6 +300,64 @@ export async function renderEditor(): Promise<void> {
       perks.appendChild(add);
     }
 
+    // Blocos de conteúdo (info / texto / testemunhos / localização) — gerir.
+    preview.querySelectorAll<HTMLElement>("[data-edit-block]").forEach((blk) => {
+      const i = Number(blk.dataset.editBlock);
+      blk.style.position = blk.style.position || "relative";
+      const bar = document.createElement("div");
+      bar.className = "mb-ov-btn absolute top-3 right-3 z-20 flex items-center gap-0.5 bg-white/95 rounded-full shadow px-1 py-1";
+      bar.innerHTML = `
+        <button data-up title="Subir" class="w-7 h-7 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-600"><span class="material-symbols-outlined text-[18px]">arrow_upward</span></button>
+        <button data-down title="Descer" class="w-7 h-7 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-600"><span class="material-symbols-outlined text-[18px]">arrow_downward</span></button>
+        <button data-rm title="Remover" class="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center text-red-600"><span class="material-symbols-outlined text-[18px]">delete</span></button>`;
+      bar.querySelector("[data-up]")!.addEventListener("click", (e) => { e.preventDefault(); const a = custom.blocks; if (a && i > 0) { snapshot(); [a[i - 1], a[i]] = [a[i]!, a[i - 1]!]; void rebuild(); } });
+      bar.querySelector("[data-down]")!.addEventListener("click", (e) => { e.preventDefault(); const a = custom.blocks; if (a && i < a.length - 1) { snapshot(); [a[i + 1], a[i]] = [a[i]!, a[i + 1]!]; void rebuild(); } });
+      bar.querySelector("[data-rm]")!.addEventListener("click", (e) => { e.preventDefault(); const a = custom.blocks; if (a) { snapshot(); a.splice(i, 1); void rebuild(); } });
+      blk.appendChild(bar);
+
+      // Bloco "info" — trocar imagem + inverter lado.
+      const imgBox = blk.querySelector<HTMLElement>("[data-edit-block-image]");
+      if (imgBox) {
+        imgBox.style.cursor = "pointer";
+        const ov = document.createElement("div");
+        ov.className = "mb-ov-btn absolute top-3 left-3 z-20 flex gap-1.5 transition-opacity";
+        ov.style.opacity = "0";
+        ov.innerHTML = `
+          <button data-img class="bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Trocar</button>
+          <button data-flip class="bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">swap_horiz</span> Lado</button>`;
+        imgBox.appendChild(ov);
+        imgBox.addEventListener("mouseenter", () => { ov.style.opacity = "1"; });
+        imgBox.addEventListener("mouseleave", () => { ov.style.opacity = "0"; });
+        ov.querySelector("[data-img]")!.addEventListener("click", (e) => { e.preventDefault(); blockImgTarget = i; ($("#block-input") as HTMLInputElement).click(); });
+        ov.querySelector("[data-flip]")!.addEventListener("click", (e) => { e.preventDefault(); const b = custom.blocks?.[i] as { imageSide?: string } | undefined; if (b) { snapshot(); b.imageSide = b.imageSide === "right" ? "left" : "right"; void rebuild(); } });
+      }
+
+      // Bloco "testemunhos" — adicionar/remover pessoa.
+      const testis = blk.querySelector<HTMLElement>("[data-edit-testimonials]");
+      if (testis) {
+        testis.querySelectorAll<HTMLElement>("[data-testi-item]").forEach((card, j) => {
+          const rm = document.createElement("button");
+          rm.className = "mb-ov-btn absolute top-2 right-2 text-neutral-300 hover:text-red-600";
+          rm.innerHTML = `<span class="material-symbols-outlined text-[18px]">close</span>`;
+          rm.addEventListener("click", (e) => { e.preventDefault(); const b = custom.blocks?.[i] as { items?: unknown[] } | undefined; if (b?.items) { snapshot(); b.items.splice(j, 1); void rebuild(); } });
+          card.appendChild(rm);
+        });
+        const add2 = document.createElement("button");
+        add2.className = "mb-ov-btn mt-6 mx-auto flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900 border border-dashed border-neutral-300 rounded-full px-4 py-2";
+        add2.innerHTML = `<span class="material-symbols-outlined text-[16px]">add</span> Adicionar testemunho`;
+        add2.addEventListener("click", (e) => {
+          e.preventDefault();
+          const b = custom.blocks?.[i] as { items?: { name?: string; role?: string; text?: string }[] } | undefined;
+          if (b) { snapshot(); (b.items ?? (b.items = [])).push({ name: "Cliente", role: "", text: "Escreva aqui o testemunho." }); void rebuild(); }
+        });
+        testis.parentElement?.appendChild(add2);
+      }
+
+      // Bloco "localização" — atualizar mapa ao sair do campo da morada.
+      const addr = blk.querySelector<HTMLElement>("[data-edit-loc-address]");
+      if (addr) addr.addEventListener("blur", () => { void rebuild(); });
+    });
+
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
     const footerLogo = preview.querySelector<HTMLElement>("[data-edit-footer-logo]");
     if (footerLogo) {
@@ -402,17 +463,38 @@ export async function renderEditor(): Promise<void> {
         }
         head.appendChild(wrap);
       });
-      const addSec = document.createElement("button");
-      addSec.className = "mb-ov-btn mt-10 w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors";
-      addSec.innerHTML = `<span class="material-symbols-outlined">add</span> Adicionar secção`;
-      addSec.addEventListener("click", (e) => {
-        e.preventDefault();
-        snapshot();
-        const used = new Set((custom.sections ?? []).map((s) => s.category));
-        const next = !used.has("__featured__") ? "__featured__" : (cats.find((c) => !used.has(c)) ?? "__all__");
-        (custom.sections ?? (custom.sections = [])).push({ category: next });
-        void rebuild();
-      });
+      const addSec = document.createElement("div");
+      addSec.className = "mb-ov-btn mt-10 relative";
+      const menuItem = (icon: string, title: string, desc: string, val: string): string =>
+        `<button data-add="${val}" class="w-full flex items-start gap-3 text-left px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors">
+          <span class="material-symbols-outlined text-[20px] text-neutral-500 mt-0.5">${icon}</span>
+          <span><span class="block text-sm font-semibold text-neutral-900">${title}</span><span class="block text-xs text-neutral-500">${desc}</span></span>
+        </button>`;
+      addSec.innerHTML = `
+        <button data-add-toggle class="w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors"><span class="material-symbols-outlined">add</span> Adicionar secção</button>
+        <div data-add-menu class="hidden absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 z-[70]">
+          ${menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto")}
+          ${menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info")}
+          ${menuItem("title", "Título e texto", "Texto centrado de destaque", "text")}
+          ${menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials")}
+          ${menuItem("location_on", "Localização", "Mapa com a morada da loja", "location")}
+        </div>`;
+      const menu = addSec.querySelector<HTMLElement>("[data-add-menu]")!;
+      addSec.querySelector("[data-add-toggle]")!.addEventListener("click", (e) => { e.preventDefault(); menu.classList.toggle("hidden"); });
+      addSec.querySelectorAll<HTMLElement>("[data-add]").forEach((b) =>
+        b.addEventListener("click", (e) => {
+          e.preventDefault();
+          snapshot();
+          const val = b.dataset.add!;
+          if (val === "produto") {
+            const used = new Set((custom.sections ?? []).map((s) => s.category));
+            const next = !used.has("__featured__") ? "__featured__" : (cats.find((c) => !used.has(c)) ?? "__all__");
+            (custom.sections ?? (custom.sections = [])).push({ category: next });
+          } else {
+            (custom.blocks ?? (custom.blocks = [])).push(newBlock(val as "info" | "text" | "testimonials" | "location"));
+          }
+          void rebuild();
+        }));
       sectionsWrap.appendChild(addSec);
     }
 
@@ -577,6 +659,26 @@ export async function renderEditor(): Promise<void> {
     if (arcTarget === "add") imgs.push(stored.url);
     else if (typeof arcTarget === "number" && arcTarget < imgs.length) imgs[arcTarget] = stored.url;
     toast("Foto do hero atualizada.");
+    await rebuild();
+    input.value = "";
+  });
+
+  // Upload de imagem de um bloco "info".
+  $("#block-input")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const content = await fileToUint8Array(file);
+    const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
+    if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
+    const stored = await withBusy(
+      () => panel.services.fileService.store(store!.id, "banner", validation.value),
+      "A carregar imagem…",
+    );
+    snapshot();
+    const b = custom.blocks?.[blockImgTarget] as { imageUrl?: string } | undefined;
+    if (b) b.imageUrl = stored.url;
+    toast("Imagem atualizada.");
     await rebuild();
     input.value = "";
   });

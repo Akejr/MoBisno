@@ -9,6 +9,8 @@
 import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
+import { blocksHtml } from "./blocks.js";
+import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -140,7 +142,7 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
       </div>
       <div class="border-t border-neutral-800">
         <div class="${CONTAINER} py-5 text-xs text-neutral-500 text-center">
-          ${esc(view.subdomain)} · Loja criada com <a href="#/" class="text-white">MôBisno</a>
+          ${esc(view.subdomain)} · Loja criada com <a href="${platformHomeUrl()}" class="text-white">MôBisno</a>
         </div>
       </div>
     </footer>`;
@@ -236,6 +238,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} py-12 md:py-16 flex-grow">
       ${sectionsArea(view, custom)}
     </main>
+    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#DC2626)" })}
 
     ${footerHtml(view, custom, menuLabels)}
   </div>`;

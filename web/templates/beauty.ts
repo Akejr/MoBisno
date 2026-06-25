@@ -12,6 +12,8 @@
 import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
+import { blocksHtml } from "./blocks.js";
+import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -119,7 +121,7 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
         </div>
       </div>
       <div class="${CONTAINER} mt-16 pt-8 text-center" style="border-top:1px solid rgba(214,194,196,.4)">
-        <p class="text-[#685b5f] text-[10px] tracking-widest uppercase">${esc(view.subdomain)} · Loja criada com <a href="#/" style="color:var(--brand,${DEFAULT_BRAND})">MôBisno</a></p>
+        <p class="text-[#685b5f] text-[10px] tracking-widest uppercase">${esc(view.subdomain)} · Loja criada com <a href="${platformHomeUrl()}" style="color:var(--brand,${DEFAULT_BRAND})">MôBisno</a></p>
       </div>
     </footer>`;
 }
@@ -215,6 +217,8 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
         <a href="#produtos" style="background:var(--brand,${DEFAULT_BRAND});color:#fff" class="inline-block px-12 py-5 rounded-lg font-bold hover:opacity-90 transition-all">Ver todos os produtos</a>
       </div>
     </section>
+
+    ${blocksHtml(custom, { container: CONTAINER, brand: `var(--brand,${DEFAULT_BRAND})` })}
 
     ${footerHtml(view, custom, menuLabels)}
   </div>`;

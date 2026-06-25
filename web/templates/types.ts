@@ -58,7 +58,19 @@ export interface StoreCustomization {
      */
     messageTemplate?: string;
   };
+  /**
+   * Blocos de conteúdo adicionais, renderizados abaixo dos produtos, na ordem
+   * definida. O dono pode adicionar/remover/reordenar no editor.
+   */
+  blocks?: ContentBlock[];
 }
+
+/** Bloco de conteúdo de uma loja (secção adicional editável). */
+export type ContentBlock =
+  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right" }
+  | { type: "text"; title?: string; text?: string }
+  | { type: "testimonials"; title?: string; items?: { name?: string; role?: string; text?: string }[] }
+  | { type: "location"; title?: string; address?: string };
 
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */
