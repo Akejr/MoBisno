@@ -65,6 +65,7 @@ export async function renderEditor(): Promise<void> {
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---
   const history: string[] = [];
   let currentScreen: "home" | "product" = "home";
+  let arcTarget: number | "add" = "add";
   function snapshot(): void {
     const json = JSON.stringify(custom);
     if (history[history.length - 1] !== json) history.push(json);
@@ -124,6 +125,7 @@ export async function renderEditor(): Promise<void> {
     <input id="logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
     <input id="hero-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="feature-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+    <input id="arc-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
   </div>
   <style>
@@ -136,6 +138,8 @@ export async function renderEditor(): Promise<void> {
     [data-edit-hero]:hover .mb-hero-ov{opacity:1}
     [data-edit-feature-image]{cursor:pointer}
     [data-edit-feature-image]:hover .mb-feat-ov{opacity:1}
+    [data-edit-arc-item]{cursor:pointer}
+    [data-edit-arc-item]:hover .mb-arc-ov{opacity:1}
     [data-edit-logo]:hover .mb-logo-ov{opacity:1}
     [data-edit-footer-logo]{cursor:pointer}
     [data-edit-footer-logo]:hover .mb-flogo-ov{opacity:1}
@@ -194,6 +198,63 @@ export async function renderEditor(): Promise<void> {
       ov.innerHTML = `<button class="mb-ov-btn bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Trocar imagem</button>`;
       ov.querySelector("button")!.addEventListener("click", (e) => { e.preventDefault(); ($("#feature-input") as HTMLInputElement).click(); });
       feature.appendChild(ov);
+    }
+
+    // Hero em arco (Galeria) — trocar/remover cada foto + adicionar.
+    const arc = preview.querySelector<HTMLElement>("[data-edit-arc]");
+    if (arc) {
+      const ensureHeroImages = (): string[] => {
+        if (!Array.isArray(custom.heroImages) || custom.heroImages.length === 0) {
+          custom.heroImages = Array.from(preview.querySelectorAll<HTMLImageElement>("[data-edit-arc-item] img"))
+            .map((img) => img.getAttribute("src") || "")
+            .filter(Boolean);
+        }
+        return custom.heroImages;
+      };
+      arc.querySelectorAll<HTMLElement>("[data-edit-arc-item]").forEach((card) => {
+        const i = Number(card.dataset.editArcItem);
+        const ov = document.createElement("div");
+        ov.className = "mb-ov mb-arc-ov absolute inset-0 flex items-center justify-center gap-1.5 rounded-2xl";
+        ov.style.background = "rgba(0,0,0,.45)";
+        ov.innerHTML = `
+          <button data-act="rep" class="mb-ov-btn bg-white text-neutral-900 rounded-full p-1.5 shadow" title="Trocar foto"><span class="material-symbols-outlined text-[16px]">photo_camera</span></button>
+          <button data-act="rem" class="mb-ov-btn bg-white text-red-600 rounded-full p-1.5 shadow" title="Remover foto"><span class="material-symbols-outlined text-[16px]">close</span></button>`;
+        ov.querySelector('[data-act="rep"]')!.addEventListener("click", (e) => { e.preventDefault(); arcTarget = i; ($("#arc-input") as HTMLInputElement).click(); });
+        ov.querySelector('[data-act="rem"]')!.addEventListener("click", (e) => {
+          e.preventDefault();
+          const imgs = ensureHeroImages();
+          if (imgs.length <= 1) { toast("Mantenha pelo menos uma foto no hero.", "error"); return; }
+          snapshot();
+          imgs.splice(i, 1);
+          void rebuild();
+        });
+        card.appendChild(ov);
+      });
+      const addBtn = document.createElement("button");
+      addBtn.className = "mb-ov-btn absolute top-3 right-3 z-20 bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow";
+      addBtn.innerHTML = `<span class="material-symbols-outlined text-[16px]">add_photo_alternate</span> Adicionar foto`;
+      addBtn.addEventListener("click", (e) => { e.preventDefault(); arcTarget = "add"; ($("#arc-input") as HTMLInputElement).click(); });
+      arc.closest("section")?.appendChild(addBtn);
+    }
+
+    // Secção editorial (Galeria) — remover; ou adicionar quando ausente.
+    const featSlot = preview.querySelector<HTMLElement>("[data-feature-slot]");
+    if (featSlot) {
+      const feat = featSlot.querySelector<HTMLElement>("[data-edit-feature]");
+      if (feat) {
+        feat.style.position = feat.style.position || "relative";
+        const rm = document.createElement("button");
+        rm.className = "mb-ov-btn absolute top-3 left-3 z-10 bg-white/90 hover:bg-white text-red-600 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow";
+        rm.innerHTML = `<span class="material-symbols-outlined text-[16px]">delete</span> Remover secção`;
+        rm.addEventListener("click", (e) => { e.preventDefault(); snapshot(); setPath(custom as Record<string, any>, "featureEnabled", false); void rebuild(); });
+        feat.appendChild(rm);
+      } else {
+        const add = document.createElement("button");
+        add.className = "mb-ov-btn block mx-auto my-8 border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 px-8 flex items-center justify-center gap-2 transition-colors";
+        add.innerHTML = `<span class="material-symbols-outlined">add</span> Adicionar secção (foto + texto)`;
+        add.addEventListener("click", (e) => { e.preventDefault(); snapshot(); setPath(custom as Record<string, any>, "featureEnabled", true); void rebuild(); });
+        featSlot.appendChild(add);
+      }
     }
 
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
@@ -450,6 +511,33 @@ export async function renderEditor(): Promise<void> {
     snapshot();
     setPath(custom as Record<string, any>, "feature.imageUrl", stored.url);
     toast("Imagem da secção atualizada.");
+    await rebuild();
+    input.value = "";
+  });
+
+  // Upload de foto do hero em arco (Galeria → heroImages[]).
+  $("#arc-input")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const content = await fileToUint8Array(file);
+    const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
+    if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
+    const stored = await withBusy(
+      () => panel.services.fileService.store(store!.id, "banner", validation.value),
+      "A carregar foto…",
+    );
+    snapshot();
+    let imgs = custom.heroImages;
+    if (!Array.isArray(imgs) || imgs.length === 0) {
+      imgs = Array.from($("#preview")!.querySelectorAll<HTMLImageElement>("[data-edit-arc-item] img"))
+        .map((img) => img.getAttribute("src") || "")
+        .filter(Boolean);
+      custom.heroImages = imgs;
+    }
+    if (arcTarget === "add") imgs.push(stored.url);
+    else if (typeof arcTarget === "number" && arcTarget < imgs.length) imgs[arcTarget] = stored.url;
+    toast("Foto do hero atualizada.");
     await rebuild();
     input.value = "";
   });

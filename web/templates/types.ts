@@ -17,6 +17,10 @@ export interface StoreCustomization {
     ctaLabel?: string;
     imageUrl?: string;
   };
+  /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
+  heroImages?: string[];
+  /** Mostrar o bloco editorial abaixo dos produtos (Galeria). Por omissão visível. */
+  featureEnabled?: boolean;
   /** Rótulos dos itens de menu (cabeçalho/rodapé). */
   menu?: string[];
   /**

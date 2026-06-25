@@ -112,17 +112,16 @@ function headerHtml(view: StoreRenderView, menuLabels: string[]): string {
 
 /* --------------------------------- Hero --------------------------------- */
 
-/** Imagens para o arco: fotos dos produtos, depois banners, depois reserva.
- *  Repete (cicla) as imagens disponíveis para encher o arco (11–13 cartões). */
-function arcImages(view: StoreRenderView): string[] {
+/** Imagens para o arco. Usa as definidas pelo dono (heroImages); caso contrário
+ *  as fotos dos produtos/banners; por fim imagens de reserva. Sem ciclar, para
+ *  o mapeamento 1:1 com o editor. */
+function arcImages(view: StoreRenderView, custom?: StoreCustomization): string[] {
+  const fromCustom = (custom?.heroImages ?? []).filter((u): u is string => !!u);
+  if (fromCustom.length) return fromCustom.slice(0, 13);
   const fromProducts = view.products.map((p) => p.imageUrl).filter((u): u is string => !!u);
   const fromBanners = view.banners.map((b) => b.imageUrl);
-  let base = [...fromProducts, ...fromBanners];
-  if (base.length === 0) base = [...ARC_FALLBACK];
-  const target = Math.min(13, Math.max(11, base.length));
-  const out: string[] = [];
-  for (let i = 0; i < target; i++) out.push(base[i % base.length]!);
-  return out;
+  const base = [...fromProducts, ...fromBanners];
+  return (base.length ? base : ARC_FALLBACK).slice(0, 13);
 }
 
 /** Hero com galeria em arco (cartões curvados) + título/subtítulo/CTA. */
@@ -131,7 +130,7 @@ function arcHero(view: StoreRenderView, custom?: StoreCustomization): string {
   const subtitle = custom?.hero?.subtitle || DEFAULT_SUBTITLE;
   const cta = custom?.hero?.ctaLabel || DEFAULT_CTA;
 
-  const imgs = arcImages(view);
+  const imgs = arcImages(view, custom);
   const startAngle = 18;
   const endAngle = 162;
   const count = Math.max(imgs.length, 2);
@@ -143,7 +142,7 @@ function arcHero(view: StoreRenderView, custom?: StoreCustomization): string {
     const cos = Math.cos(rad).toFixed(4);
     const sin = Math.sin(rad).toFixed(4);
     const rot = (angle / 4 - 22).toFixed(2);
-    return `<div class="mb-arc-card" style="left:calc(50% + (${cos} * var(--arc-r)));bottom:calc(${sin} * var(--arc-r));z-index:${count - i};animation-delay:${i * 80}ms">
+    return `<div class="mb-arc-card" data-edit-arc-item="${i}" style="left:calc(50% + (${cos} * var(--arc-r)));bottom:calc(${sin} * var(--arc-r));z-index:${count - i};animation-delay:${i * 80}ms">
       <div class="mb-arc-inner" style="transform:rotate(${rot}deg)">
         <img src="${esc(src)}" alt="" class="block w-full h-full object-cover" draggable="false" onerror="this.onerror=null;this.src='https://placehold.co/300x300/eef2ff/4f46e5?text=Foto'" />
       </div>
@@ -162,7 +161,7 @@ function arcHero(view: StoreRenderView, custom?: StoreCustomization): string {
       .mb-arc-inner:hover{transform:scale(1.06) !important}
       .mb-hero-text{opacity:0;animation:mbHeroIn .8s ease-out forwards;animation-delay:.7s}
     </style>
-    <div class="mb-arc">
+    <div class="mb-arc" data-edit-arc>
       <div class="mb-arc-pivot">${cards}</div>
     </div>
     <div class="relative z-10 ${CONTAINER} text-center -mt-28 sm:-mt-36 lg:-mt-44 pb-14">
@@ -292,7 +291,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} py-10 md:py-14">
       ${sectionsArea(view, custom)}
     </main>
-    ${featureSection(custom)}
+    <div data-feature-slot>${custom?.featureEnabled === false ? "" : featureSection(custom)}</div>
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
 }
