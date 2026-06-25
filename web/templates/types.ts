@@ -85,7 +85,7 @@ export interface StoreCustomization {
 export type ContentBlock =
   | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right" }
   | { type: "text"; title?: string; text?: string }
-  | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee" | "destaque"; items?: { name?: string; role?: string; text?: string }[] }
+  | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee" | "destaque"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
   | { type: "location"; title?: string; address?: string; lat?: number; lng?: number };
 
 export interface StoreTemplate {

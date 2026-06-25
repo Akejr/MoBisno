@@ -6,7 +6,7 @@
  * produtos (adicionar/editar com foto). Inclui "Desfazer" e "Ver loja" noutra
  * janela.
  */
-import { render, $, go, esc, toast, fileToUint8Array, withBusy, withButton, fadeInImages } from "../lib/dom.js";
+import { render, $, go, esc, toast, fileToUint8Array, withBusy, withButton, fadeInImages, formatKz } from "../lib/dom.js";
 import {
   appState, currentOwnerId, publicStoreUrl,
   storeRepository, assetRepository, bannerRepository, productRepository, adminPanelFor,
@@ -16,14 +16,15 @@ import type { StorefrontResult } from "../../src/services/storefrontResolver.js"
 import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
 import { newBlock } from "../templates/blocks.js";
-import { HERO_VARIANTS, heroPreview, type HeroVariant } from "../templates/heroes.js";
-import { PRODUCT_VARIANTS, productPreview, type ProductVariant } from "../templates/productGrid.js";
+import { testimonialsByVariant, TESTIMONIAL_VARIANTS } from "../templates/blocks.js";
+import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes.js";
+import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
 import { openMapPicker } from "../lib/mapPicker.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
-import type { StoreCustomization } from "../templates/types.js";
+import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { openProductForm } from "../lib/productForm.js";
 import { openWhatsappForm } from "../lib/whatsappForm.js";
@@ -76,8 +77,10 @@ export async function renderEditor(): Promise<void> {
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---
   const history: string[] = [];
   let currentScreen: "home" | "product" = "home";
+  let lastView: StoreViewModel | null = null;
   let arcTarget: number | "add" = "add";
   let blockImgTarget = 0;
+  let testiTarget: { i: number; j: number } = { i: 0, j: 0 };
   function snapshot(): void {
     const json = JSON.stringify(custom);
     if (history[history.length - 1] !== json) history.push(json);
@@ -151,6 +154,7 @@ export async function renderEditor(): Promise<void> {
     <input id="feature-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="arc-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="block-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+    <input id="testi-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
   </div>
   <style>
@@ -393,6 +397,30 @@ export async function renderEditor(): Promise<void> {
           rm.innerHTML = `<span class="material-symbols-outlined text-[18px]">close</span>`;
           rm.addEventListener("click", (e) => { e.preventDefault(); const b = custom.blocks?.[i] as { items?: unknown[] } | undefined; if (b?.items) { snapshot(); b.items.splice(j, 1); void rebuild(); } });
           card.appendChild(rm);
+
+          // Avatar — trocar foto (câmara) ou, se tiver foto, removê-la (volta à letra editável).
+          const av = card.querySelector<HTMLElement>("[data-testi-avatar]");
+          if (av) {
+            av.style.position = "relative";
+            const cam = document.createElement("button");
+            cam.className = "mb-ov-btn absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-neutral-700 hover:text-neutral-900";
+            cam.title = "Trocar foto";
+            cam.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px">photo_camera</span>`;
+            cam.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); testiTarget = { i, j }; ($("#testi-avatar-input") as HTMLInputElement).click(); });
+            av.appendChild(cam);
+            if (av.querySelector("img")) {
+              const rmImg = document.createElement("button");
+              rmImg.className = "mb-ov-btn absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-red-600";
+              rmImg.title = "Remover foto";
+              rmImg.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px">close</span>`;
+              rmImg.addEventListener("click", (e) => {
+                e.preventDefault(); e.stopPropagation();
+                const it = (custom.blocks?.[i] as { items?: { avatarUrl?: string }[] } | undefined)?.items?.[j];
+                if (it) { snapshot(); delete it.avatarUrl; void rebuild(); }
+              });
+              av.appendChild(rmImg);
+            }
+          }
         });
         const add2 = document.createElement("button");
         add2.className = "mb-ov-btn mt-6 mx-auto flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900 border border-dashed border-neutral-300 rounded-full px-4 py-2";
@@ -660,17 +688,10 @@ export async function renderEditor(): Promise<void> {
         blk.parentElement?.insertBefore(mkDiv(blockLabel[type] ?? "Secção"), blk);
         if (type === "testimonials") {
           const i = Number(blk.dataset.editBlock);
-          const order: Array<"cards" | "editorial" | "marquee" | "destaque"> = ["cards", "editorial", "marquee", "destaque"];
           const labels: Record<string, string> = { cards: "Cartões", editorial: "Editorial", marquee: "Carrossel", destaque: "Destaque" };
           const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
-          const cur = (custom.blocks?.[i] as { variant?: "cards" | "editorial" | "marquee" | "destaque" } | undefined)?.variant ?? defVariant;
-          const bar = mkModelBar(`Modelo: ${labels[cur]}`, "style", () => {
-            const bb = custom.blocks?.[i] as { variant?: "cards" | "editorial" | "marquee" | "destaque" } | undefined;
-            if (!bb) return;
-            snapshot();
-            bb.variant = order[(order.indexOf(cur) + 1) % order.length];
-            void rebuild();
-          });
+          const cur = (custom.blocks?.[i] as { variant?: string } | undefined)?.variant ?? defVariant;
+          const bar = mkModelBar(`Modelo: ${labels[cur] ?? "Cartões"}`, "style", (anchor) => openTestimonialsPicker(anchor, i));
           blk.parentElement?.insertBefore(bar, blk);
         }
       });
@@ -679,6 +700,7 @@ export async function renderEditor(): Promise<void> {
 
   async function rebuild(): Promise<void> {
     const view = await buildView();
+    lastView = view;
     const preview = $("#preview")!;
     if (view.kind !== "render") { preview.innerHTML = ""; return; }
     const template = getTemplate(store!.templateId);
@@ -752,43 +774,76 @@ export async function renderEditor(): Promise<void> {
     applyTheme($("#preview"), custom);
   });
 
-  // --- Seletores de variantes (Hero / Disposição dos produtos) ---
-  interface PickItem { id: string; label: string; preview: string; }
-  function openVariantPicker(anchor: HTMLElement, title: string, items: PickItem[], current: string | undefined, onPick: (id: string) => void): void {
+  // --- Seletores de variantes (com miniatura escalada real) ---
+  interface PickItem { id: string; label: string; }
+  const PREVIEW_W = 1180;
+  function openVariantPicker(
+    anchor: HTMLElement,
+    title: string,
+    items: PickItem[],
+    current: string | undefined,
+    onPick: (id: string) => void,
+    renderPreview?: (id: string) => string,
+  ): void {
     document.getElementById("mb-picker")?.remove();
     const layer = document.createElement("div");
     layer.id = "mb-picker";
     layer.style.cssText = "position:fixed;inset:0;z-index:120";
     const panel = document.createElement("div");
-    panel.className = "absolute bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 w-[300px]";
-    const r = anchor.getBoundingClientRect();
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - 308);
-    panel.style.top = `${r.bottom + 8}px`;
-    panel.style.left = `${left}px`;
+    panel.className = "absolute bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 w-[320px]";
+
+    const brand = custom.colors?.primary ?? defaultColor;
+    const ink = custom.colors?.text ?? "#111827";
+    const innerW = 296; // 320 - 2*12 (padding)
+    const scale = innerW / PREVIEW_W;
+    const previewArea = renderPreview
+      ? `<div class="rounded-xl overflow-hidden border border-gray-200 bg-white mb-3" style="height:188px">
+           <div class="mb-pick-stage" style="width:${PREVIEW_W}px;transform:scale(${scale});transform-origin:top left;--brand:${esc(brand)};--ink:${esc(ink)}"></div>
+         </div>`
+      : "";
+    const cols = items.length <= 3 ? items.length : 2;
     panel.innerHTML = `
+      ${previewArea}
       <p class="text-xs font-bold text-gray-500 uppercase tracking-wider px-1 mb-2">${esc(title)}</p>
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-${cols} gap-2">
         ${items.map((it) => `
-          <button data-pick="${esc(it.id)}" class="group text-left rounded-xl border-2 ${it.id === current ? "border-[color:var(--mb-accent)]" : "border-gray-200"} hover:border-gray-400 overflow-hidden transition-colors" style="--mb-accent:${ACCENT}">
-            <div class="aspect-[4/3] overflow-hidden bg-gray-100">${it.preview}</div>
-            <span class="block text-[11px] font-medium text-gray-700 px-2 py-1.5 leading-tight">${esc(it.label)}</span>
-          </button>`).join("")}
+          <button data-pick="${esc(it.id)}" class="rounded-xl border-2 ${it.id === current ? "border-[color:var(--mb-accent)] text-[color:var(--mb-accent)]" : "border-gray-200 text-gray-700"} hover:border-gray-400 px-2 py-2.5 text-[12px] font-semibold text-center transition-colors" style="--mb-accent:${ACCENT}">${esc(it.label)}</button>`).join("")}
       </div>`;
+
+    // Posição: por baixo da âncora; se não couber, por cima.
+    const r = anchor.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - 328);
+    const estH = (renderPreview ? 200 : 0) + 90;
+    const top = r.bottom + estH > window.innerHeight ? Math.max(8, r.top - estH) : r.bottom + 8;
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+
     layer.appendChild(panel);
     layer.addEventListener("click", (e) => { if (e.target === layer) layer.remove(); });
-    panel.querySelectorAll<HTMLElement>("[data-pick]").forEach((b) =>
-      b.addEventListener("click", (e) => { e.preventDefault(); layer.remove(); onPick(b.dataset.pick!); }));
+
+    const stage = panel.querySelector<HTMLElement>(".mb-pick-stage");
+    const showPrev = (id: string): void => { if (stage && renderPreview) stage.innerHTML = renderPreview(id); };
+    showPrev(current ?? items[0]!.id);
+
+    panel.querySelectorAll<HTMLElement>("[data-pick]").forEach((b) => {
+      b.addEventListener("mouseenter", () => showPrev(b.dataset.pick!));
+      b.addEventListener("mouseleave", () => showPrev(current ?? items[0]!.id));
+      b.addEventListener("click", (e) => { e.preventDefault(); layer.remove(); onPick(b.dataset.pick!); });
+    });
     document.body.appendChild(layer);
   }
+
+  const PREV_CTX = { container: "w-full max-w-[1180px] mx-auto px-8", brand: "var(--brand,#4f46e5)" };
 
   function openHeroPicker(anchor: HTMLElement): void {
     if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
     openVariantPicker(
       anchor,
       "Modelo do hero",
-      HERO_VARIANTS.map((v) => ({ id: v.id, label: v.label, preview: heroPreview(v.id) })),
+      HERO_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
       custom.hero?.variant,
       (id) => { snapshot(); setPath(custom as Record<string, any>, "hero.variant", id as HeroVariant); void rebuild(); toast("Hero atualizado."); },
+      (id) => lastView ? renderHero(id as HeroVariant, lastView, custom, PREV_CTX) : "",
     );
   }
 
@@ -797,9 +852,49 @@ export async function renderEditor(): Promise<void> {
     openVariantPicker(
       anchor,
       "Disposição dos produtos",
-      PRODUCT_VARIANTS.map((v) => ({ id: v.id, label: v.label, preview: productPreview(v.id) })),
+      PRODUCT_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
       custom.productGrid?.variant,
       (id) => { snapshot(); setPath(custom as Record<string, any>, "productGrid.variant", id as ProductVariant); void rebuild(); toast("Disposição atualizada."); },
+      (id) => gridPreviewHtml(id as ProductVariant),
+    );
+  }
+
+  function gridPreviewHtml(v: ProductVariant): string {
+    const items = (lastView?.products ?? []).slice(0, 8);
+    if (!items.length) return `<div class="p-8 text-center text-gray-400">Adicione produtos para pré-visualizar.</div>`;
+    const cards = items.map((p) => `<div class="group block">
+      <div class="relative ${cardAspectClass(v)} bg-gray-100 overflow-hidden rounded-2xl border border-gray-100">
+        ${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="" class="w-full h-full object-cover" />` : ""}
+      </div>
+      <p class="mt-2 text-sm font-semibold text-gray-900 truncate">${esc(p.name)}</p>
+      <p class="text-sm font-bold" style="color:var(--brand,#4f46e5)">${esc(formatKz(p.price))}</p>
+    </div>`).join("");
+    return `<div class="w-full max-w-[1180px] mx-auto px-8 py-6"><div class="${gridColsClass(v)}">${cards}</div></div>`;
+  }
+
+  function openTestimonialsPicker(anchor: HTMLElement, i: number): void {
+    const b = custom.blocks?.[i] as { variant?: "cards" | "editorial" | "marquee" | "destaque"; title?: string; items?: unknown[] } | undefined;
+    if (!b) return;
+    const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
+    openVariantPicker(
+      anchor,
+      "Modelo de testemunhos",
+      TESTIMONIAL_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
+      b.variant ?? defVariant,
+      (id) => {
+        const bb = custom.blocks?.[i] as { variant?: string } | undefined;
+        if (!bb) return;
+        snapshot();
+        bb.variant = id;
+        void rebuild();
+        toast("Modelo de testemunhos atualizado.");
+      },
+      (id) => testimonialsByVariant(
+        id as "cards" | "editorial" | "marquee" | "destaque",
+        (custom.blocks?.[i] ?? { type: "testimonials" }) as Extract<ContentBlock, { type: "testimonials" }>,
+        i,
+        PREV_CTX,
+      ),
     );
   }
 
@@ -903,6 +998,26 @@ export async function renderEditor(): Promise<void> {
     const b = custom.blocks?.[blockImgTarget] as { imageUrl?: string } | undefined;
     if (b) b.imageUrl = stored.url;
     toast("Imagem atualizada.");
+    await rebuild();
+    input.value = "";
+  });
+
+  // Upload de foto de avatar de um testemunho.
+  $("#testi-avatar-input")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const content = await fileToUint8Array(file);
+    const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
+    if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
+    const stored = await withBusy(
+      () => panel.services.fileService.store(store!.id, "banner", validation.value),
+      "A carregar foto…",
+    );
+    snapshot();
+    const it = (custom.blocks?.[testiTarget.i] as { items?: { avatarUrl?: string }[] } | undefined)?.items?.[testiTarget.j];
+    if (it) it.avatarUrl = stored.url;
+    toast("Foto do testemunho atualizada.");
     await rebuild();
     input.value = "";
   });

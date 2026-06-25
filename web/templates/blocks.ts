@@ -64,20 +64,58 @@ function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: B
   </section>`;
 }
 
+/** Tipo de avatar usado nos testemunhos. */
+type TestiItem = { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string };
+
+export const TESTIMONIAL_VARIANTS: { id: "cards" | "editorial" | "marquee" | "destaque"; label: string }[] = [
+  { id: "cards", label: "Cartões" },
+  { id: "editorial", label: "Editorial" },
+  { id: "marquee", label: "Carrossel" },
+  { id: "destaque", label: "Destaque" },
+];
+
+/**
+ * Avatar do testemunho: foto (avatarUrl) ou letra editável (avatarText / inicial
+ * do nome). `clone` omite os hooks de edição (usado nas cópias do carrossel).
+ */
+function testiAvatar(t: TestiItem, i: number, j: number, ctx: BlockCtx, sizeCls = "w-10 h-10", clone = false): string {
+  if (t.avatarUrl) {
+    return `<span ${clone ? "" : `data-testi-avatar="${j}"`} class="relative ${sizeCls} rounded-full overflow-hidden shrink-0 bg-gray-100">
+      <img src="${esc(t.avatarUrl)}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'" />
+    </span>`;
+  }
+  const letter = esc((((t.avatarText && t.avatarText.trim()) || (t.name ?? "?").trim().charAt(0) || "?").slice(0, 2)).toUpperCase());
+  const edit = clone ? "" : `data-edit="blocks.${i}.items.${j}.avatarText"`;
+  return `<span ${clone ? "" : `data-testi-avatar="${j}"`} class="relative ${sizeCls} rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}"><span ${edit}>${letter}</span></span>`;
+}
+
 function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   // Modelo escolhido no bloco; se ausente, usa o padrão do template (galeria = editorial).
   const variant = b.variant ?? (ctx.variant === "galeria" ? "editorial" : "cards");
+  return testimonialsByVariant(variant, b, i, ctx);
+}
+
+/** Renderiza os testemunhos numa variante específica (usado também nas miniaturas). */
+export function testimonialsByVariant(
+  variant: "cards" | "editorial" | "marquee" | "destaque",
+  b: Extract<ContentBlock, { type: "testimonials" }>,
+  i: number,
+  ctx: BlockCtx,
+): string {
   if (variant === "editorial") return testimonialsGaleria(b, i, ctx);
   if (variant === "marquee") return testimonialsMarquee(b, i, ctx);
   if (variant === "destaque") return testimonialsDestaque(b, i, ctx);
+  return testimonialsCards(b, i, ctx);
+}
+
+function testimonialsCards(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   const items = b.items ?? [];
   const cards = items.map((t, j) => {
-    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
     return `<div data-testi-item="${j}" class="relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
       <span class="material-symbols-outlined text-[28px]" style="color:${ctx.brand}">format_quote</span>
       <p data-edit="blocks.${i}.items.${j}.text" class="mt-2 text-gray-600 leading-relaxed">${esc(t.text ?? "")}</p>
       <div class="mt-5 flex items-center gap-3">
-        <span class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        ${testiAvatar(t, i, j, ctx)}
         <div>
           <p data-edit="blocks.${i}.items.${j}.name" class="font-semibold text-gray-900 text-sm">${esc(t.name ?? "")}</p>
           <p data-edit="blocks.${i}.items.${j}.role" class="text-gray-400 text-xs">${esc(t.role ?? "")}</p>
@@ -118,11 +156,10 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
 function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   const items = b.items ?? [];
   const cards = items.map((t, j) => {
-    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
     return `<div data-testi-item="${j}" class="relative pt-6" style="border-top:2px solid ${ctx.brand}">
       <p data-edit="blocks.${i}.items.${j}.text" class="text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
       <div class="mt-6 flex items-center gap-3">
-        <span class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        ${testiAvatar(t, i, j, ctx)}
         <div class="leading-tight">
           <p data-edit="blocks.${i}.items.${j}.name" class="text-sm font-semibold text-gray-900">${esc(t.name ?? "")}</p>
           <p data-edit="blocks.${i}.items.${j}.role" class="text-[11px] uppercase tracking-widest text-gray-400 mt-0.5">${esc(t.role ?? "")}</p>
@@ -139,8 +176,7 @@ function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>,
 /** Variante "Carrossel" — faixa horizontal com scroll infinito (pausa ao passar o rato). */
 function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   const items = b.items ?? [];
-  const card = (t: { name?: string; role?: string; text?: string }, j: number, clone: boolean): string => {
-    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
+  const card = (t: TestiItem, j: number, clone: boolean): string => {
     const attrs = clone ? `aria-hidden="true"` : `data-testi-item="${j}"`;
     const te = clone ? "" : `data-edit="blocks.${i}.items.${j}.text"`;
     const ne = clone ? "" : `data-edit="blocks.${i}.items.${j}.name"`;
@@ -149,7 +185,7 @@ function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>,
       <span class="material-symbols-outlined text-[26px]" style="color:${ctx.brand}">format_quote</span>
       <p ${te} class="mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5">${esc(t.text ?? "")}</p>
       <div class="mt-5 flex items-center gap-3">
-        <span class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        ${testiAvatar(t, i, j, ctx, "w-10 h-10", clone)}
         <div>
           <p ${ne} class="font-semibold text-gray-900 text-sm">${esc(t.name ?? "")}</p>
           <p ${re} class="text-gray-400 text-xs">${esc(t.role ?? "")}</p>
@@ -181,11 +217,10 @@ function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>,
 function testimonialsDestaque(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   const items = b.items ?? [];
   const rows = items.map((t, j) => {
-    const initial = (t.name ?? "?").trim().charAt(0).toUpperCase() || "?";
     return `<figure data-testi-item="${j}" class="mb-dq-item relative max-w-3xl mx-auto text-center" style="animation-delay:${j * 130}ms">
       <p data-edit="blocks.${i}.items.${j}.text" class="text-2xl md:text-[2rem] font-light leading-snug tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
       <figcaption class="mt-7 flex items-center justify-center gap-3">
-        <span class="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}">${esc(initial)}</span>
+        ${testiAvatar(t, i, j, ctx, "w-11 h-11")}
         <div class="text-left leading-tight">
           <p data-edit="blocks.${i}.items.${j}.name" class="text-sm font-semibold text-gray-900">${esc(t.name ?? "")}</p>
           <p data-edit="blocks.${i}.items.${j}.role" class="text-[11px] uppercase tracking-widest text-gray-400 mt-0.5">${esc(t.role ?? "")}</p>
