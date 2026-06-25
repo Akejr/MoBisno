@@ -11,6 +11,7 @@
  */
 import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
+import { perksItemsHtml } from "./perks.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -285,10 +286,8 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
                 <span class="material-symbols-outlined">payments</span>
                 <h3 style="${SERIF}" class="font-bold">Pagamento & Entrega</h3>
               </div>
-              <ul class="text-sm text-[#524345] space-y-2">
-                <li class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand,${DEFAULT_BRAND})">local_shipping</span> Entrega em toda Angola</li>
-                <li class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand,${DEFAULT_BRAND})">verified_user</span> Produto original garantido</li>
-                <li class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand,${DEFAULT_BRAND})">payments</span> Multicaixa Express ou na entrega</li>
+              <ul data-edit-perks class="text-sm text-[#524345] space-y-2">
+                ${perksItemsHtml(custom, `var(--brand,${DEFAULT_BRAND})`)}
               </ul>
             </div>
           </div>

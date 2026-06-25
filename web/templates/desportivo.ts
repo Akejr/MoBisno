@@ -8,6 +8,7 @@
  */
 import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
+import { perksItemsHtml } from "./perks.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -304,10 +305,8 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
           </div>
 
           <!-- Garantias -->
-          <ul class="mt-8 space-y-2 text-sm text-neutral-600 border-t border-neutral-100 pt-6">
-            <li class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand,#DC2626)">local_shipping</span> Entrega em toda Angola</li>
-            <li class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand,#DC2626)">verified</span> Produto original garantido</li>
-            <li class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand,#DC2626)">payments</span> Pagamento na entrega ou Multicaixa</li>
+          <ul data-edit-perks class="mt-8 space-y-2 text-sm text-neutral-600 border-t border-neutral-100 pt-6">
+            ${perksItemsHtml(custom, "var(--brand,#DC2626)")}
           </ul>
         </div>
       </div>

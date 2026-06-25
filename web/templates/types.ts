@@ -21,6 +21,8 @@ export interface StoreCustomization {
   heroImages?: string[];
   /** Mostrar o bloco editorial abaixo dos produtos (Galeria). Por omissão visível. */
   featureEnabled?: boolean;
+  /** Garantias/benefícios na página de produto (ícone + texto). Editáveis. */
+  productPerks?: { icon?: string; text?: string }[];
   /** Rótulos dos itens de menu (cabeçalho/rodapé). */
   menu?: string[];
   /**
