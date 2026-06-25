@@ -248,20 +248,6 @@ export async function renderEditor(): Promise<void> {
       hero.appendChild(ov);
     }
 
-    // Botão chamativo "Trocar modelo do hero" — em qualquer variante de hero (só no início).
-    if (currentScreen === "home") {
-      const heroSection = preview.querySelector<HTMLElement>("section");
-      if (heroSection) {
-        heroSection.style.position = heroSection.style.position || "relative";
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "mb-model-btn absolute bottom-4 left-4 z-30";
-        btn.innerHTML = `<span class="material-symbols-outlined">wallpaper</span> Trocar modelo do hero`;
-        btn.addEventListener("click", (e) => { e.preventDefault(); openHeroPicker(btn); });
-        heroSection.appendChild(btn);
-      }
-    }
-
     // Bloco editorial (Galeria) — trocar imagem por hover.
     const feature = preview.querySelector<HTMLElement>("[data-edit-feature-image]");
     if (feature) {
@@ -401,23 +387,6 @@ export async function renderEditor(): Promise<void> {
       // Bloco "testemunhos" — adicionar/remover pessoa.
       const testis = blk.querySelector<HTMLElement>("[data-edit-testimonials]");
       if (testis) {
-        // Trocar modelo de testemunhos (cartões / editorial).
-        const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
-        const cur = (custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined)?.variant ?? defVariant;
-        const modelBtn = document.createElement("button");
-        modelBtn.type = "button";
-        modelBtn.className = "mb-model-btn mx-auto mb-8 flex";
-        modelBtn.innerHTML = `<span class="material-symbols-outlined">style</span> Modelo: ${cur === "editorial" ? "Editorial" : "Cartões"}`;
-        modelBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          const bb = custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined;
-          if (!bb) return;
-          snapshot();
-          bb.variant = cur === "editorial" ? "cards" : "editorial";
-          void rebuild();
-        });
-        (testis.parentElement ?? blk).insertBefore(modelBtn, testis);
-
         testis.querySelectorAll<HTMLElement>("[data-testi-item]").forEach((card, j) => {
           const rm = document.createElement("button");
           rm.className = "mb-ov-btn absolute top-2 right-2 text-neutral-300 hover:text-red-600";
@@ -534,17 +503,6 @@ export async function renderEditor(): Promise<void> {
     const sectionsWrap = preview.querySelector<HTMLElement>("[data-edit-sections]");
     const sectionEls = preview.querySelectorAll<HTMLElement>("[data-edit-section]");
     if (sectionsWrap && sectionEls.length) {
-      // Botão chamativo "Mudar disposição dos produtos" acima das secções.
-      const gridBar = document.createElement("div");
-      gridBar.className = "mb-ov-btn flex justify-center mb-6";
-      const gridBtn = document.createElement("button");
-      gridBtn.type = "button";
-      gridBtn.className = "mb-model-btn";
-      gridBtn.innerHTML = `<span class="material-symbols-outlined">grid_view</span> Mudar disposição dos produtos`;
-      gridBtn.addEventListener("click", (e) => { e.preventDefault(); openGridPicker(gridBtn); });
-      gridBar.appendChild(gridBtn);
-      sectionsWrap.prepend(gridBar);
-
       if (!custom.sections || !custom.sections.length) custom.sections = [{ category: "__all__" }];
       const cats = currentCategories();
       const baseOpts: { v: string; l: string }[] = [
@@ -654,7 +612,7 @@ export async function renderEditor(): Promise<void> {
       });
     }
 
-    // Linhas tracejadas a separar as secções (apenas no editor) para dar noção da estrutura.
+    // Linhas tracejadas a separar as secções (apenas no editor) + botão de modelo logo abaixo do nome.
     if (currentScreen === "home") {
       const blockLabel: Record<string, string> = {
         info: "Informação", text: "Texto", testimonials: "Testemunhos", location: "Localização",
@@ -665,13 +623,54 @@ export async function renderEditor(): Promise<void> {
         d.innerHTML = `<span>${esc(label)}</span>`;
         return d;
       };
+      const mkModelBar = (label: string, icon: string, onClick: (anchor: HTMLElement) => void): HTMLElement => {
+        const bar = document.createElement("div");
+        bar.className = "mb-ov-btn flex justify-center -mt-3 mb-6";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mb-model-btn";
+        btn.innerHTML = `<span class="material-symbols-outlined">${icon}</span> ${esc(label)}`;
+        btn.addEventListener("click", (e) => { e.preventDefault(); onClick(btn); });
+        bar.appendChild(btn);
+        return bar;
+      };
+
+      // Hero — nome + botão de modelo, antes do hero (primeira secção).
+      const heroSection = preview.querySelector<HTMLElement>("section");
+      if (heroSection?.parentElement) {
+        heroSection.parentElement.insertBefore(mkDiv("Hero"), heroSection);
+        heroSection.parentElement.insertBefore(mkModelBar("Trocar modelo do hero", "wallpaper", openHeroPicker), heroSection);
+      }
+
+      // Produtos — nome + botão de disposição.
       const sw = preview.querySelector<HTMLElement>("[data-edit-sections]");
-      if (sw) sw.parentElement?.insertBefore(mkDiv("Produtos"), sw);
+      if (sw?.parentElement) {
+        sw.parentElement.insertBefore(mkDiv("Produtos"), sw);
+        sw.parentElement.insertBefore(mkModelBar("Mudar disposição dos produtos", "grid_view", openGridPicker), sw);
+      }
+
+      // Secções de produtos adicionais.
       preview.querySelectorAll<HTMLElement>("[data-edit-section]").forEach((sec, i) => {
         if (i > 0) sec.parentElement?.insertBefore(mkDiv("Secção de produtos"), sec);
       });
+
+      // Blocos de conteúdo — nome + (testemunhos) botão de modelo.
       preview.querySelectorAll<HTMLElement>("[data-edit-block]").forEach((blk) => {
-        blk.parentElement?.insertBefore(mkDiv(blockLabel[blk.dataset.blockType ?? ""] ?? "Secção"), blk);
+        const type = blk.dataset.blockType ?? "";
+        blk.parentElement?.insertBefore(mkDiv(blockLabel[type] ?? "Secção"), blk);
+        if (type === "testimonials") {
+          const i = Number(blk.dataset.editBlock);
+          const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
+          const cur = (custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined)?.variant ?? defVariant;
+          const bar = mkModelBar(`Modelo: ${cur === "editorial" ? "Editorial" : "Cartões"}`, "style", () => {
+            const bb = custom.blocks?.[i] as { variant?: "cards" | "editorial" } | undefined;
+            if (!bb) return;
+            snapshot();
+            bb.variant = cur === "editorial" ? "cards" : "editorial";
+            void rebuild();
+          });
+          blk.parentElement?.insertBefore(bar, blk);
+        }
       });
     }
   }
