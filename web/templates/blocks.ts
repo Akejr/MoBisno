@@ -213,34 +213,49 @@ function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>,
   </section>`;
 }
 
-/** Variante "Destaque" — citações grandes, centradas, com entrada animada escalonada. */
+/** Variante "Destaque" — carrossel de um testemunho centrado, com auto-rotação (CSS), ícone de aspas, avatar, fades laterais e indicadores. */
 function testimonialsDestaque(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
   const items = b.items ?? [];
-  const rows = items.map((t, j) => {
-    return `<figure data-testi-item="${j}" class="mb-dq-item relative max-w-3xl mx-auto text-center" style="animation-delay:${j * 130}ms">
-      <p data-edit="blocks.${i}.items.${j}.text" class="text-2xl md:text-[2rem] font-light leading-snug tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
-      <figcaption class="mt-7 flex items-center justify-center gap-3">
-        ${testiAvatar(t, i, j, ctx, "w-11 h-11")}
-        <div class="text-left leading-tight">
-          <p data-edit="blocks.${i}.items.${j}.name" class="text-sm font-semibold text-gray-900">${esc(t.name ?? "")}</p>
-          <p data-edit="blocks.${i}.items.${j}.role" class="text-[11px] uppercase tracking-widest text-gray-400 mt-0.5">${esc(t.role ?? "")}</p>
-        </div>
-      </figcaption>
+  const n = items.length;
+  const per = 4.5;            // segundos por testemunho
+  const total = (n * per).toFixed(2);
+  const v = 100 / Math.max(n, 1);
+  const f1 = (v * 0.06).toFixed(3);
+  const f2 = (v * 0.94).toFixed(3);
+  const f3 = v.toFixed(3);
+  const anim = n > 1;
+  const kf = anim
+    ? `@keyframes mbHl${i}{0%{opacity:0;transform:translateY(12px)}${f1}%{opacity:1;transform:translateY(0)}${f2}%{opacity:1;transform:translateY(0)}${f3}%{opacity:0;transform:translateY(-12px)}100%{opacity:0}}
+       @keyframes mbHlDot${i}{0%{opacity:.35;transform:scale(1)}${f1}%{opacity:1;transform:scale(1.35)}${f2}%{opacity:1;transform:scale(1.35)}${f3}%{opacity:.35;transform:scale(1)}100%{opacity:.35}}`
+    : "";
+
+  const slides = items.map((t, j) => {
+    const style = anim ? `position:absolute;inset:0;opacity:0;animation:mbHl${i} ${total}s ${(j * per).toFixed(2)}s infinite` : "";
+    return `<figure data-testi-item="${j}" class="mb-hl-slide flex flex-col items-center justify-center text-center px-6" style="${style}">
+      <span class="material-symbols-outlined" style="font-size:42px;color:${ctx.brand}">format_quote</span>
+      <p data-edit="blocks.${i}.items.${j}.text" class="mt-3 text-xl md:text-2xl font-semibold leading-relaxed text-gray-900 max-w-xl">${esc(t.text ?? "")}</p>
+      <div class="mt-7">${testiAvatar(t, i, j, ctx, "w-14 h-14")}</div>
+      <p data-edit="blocks.${i}.items.${j}.name" class="mt-3 text-base font-semibold text-gray-900">${esc(t.name ?? "")}</p>
+      <p data-edit="blocks.${i}.items.${j}.role" class="text-sm text-gray-400">${esc(t.role ?? "")}</p>
     </figure>`;
-  }).join(`<div class="mb-dq-sep"></div>`);
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative ${ctx.container} py-16 md:py-24">
-    <style>
-      @keyframes mbDqIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-      @keyframes mbDqFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-      .mb-dq-item{opacity:0;animation:mbDqIn .7s cubic-bezier(.16,1,.3,1) forwards}
-      .mb-dq-sep{height:1px;max-width:90px;margin:44px auto;background:linear-gradient(90deg,transparent,#d4d4d8,transparent)}
-      .mb-dq-quote{animation:mbDqFloat 4s ease-in-out infinite}
-    </style>
-    <div class="text-center">
-      <span class="mb-dq-quote material-symbols-outlined inline-block" style="font-size:64px;color:${ctx.brand}">format_quote</span>
-      <h2 data-edit="blocks.${i}.title" class="mt-1 text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
+  }).join("");
+
+  const dots = anim
+    ? `<div class="flex items-center justify-center gap-2 mt-6">${items.map((_, j) =>
+        `<span style="width:8px;height:8px;border-radius:9999px;background:${ctx.brand};opacity:.35;animation:mbHlDot${i} ${total}s ${(j * per).toFixed(2)}s infinite"></span>`).join("")}</div>`
+    : "";
+
+  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="destaque" class="relative ${ctx.container} py-16 md:py-24">
+    <style>${kf}</style>
+    <div class="text-center mb-10">
+      <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
     </div>
-    <div data-edit-testimonials="${i}" class="mt-14">${rows}</div>
+    <div class="relative mx-auto max-w-2xl">
+      <div class="mb-hl-stage relative" data-edit-testimonials="${i}" style="min-height:300px">${slides || `<p class="text-center text-gray-400 py-10">Sem testemunhos.</p>`}</div>
+      ${dots}
+      <div class="pointer-events-none absolute inset-y-0 left-0 w-2/12 bg-gradient-to-r from-white"></div>
+      <div class="pointer-events-none absolute inset-y-0 right-0 w-2/12 bg-gradient-to-l from-white"></div>
+    </div>
   </section>`;
 }
 
