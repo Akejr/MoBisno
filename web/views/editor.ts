@@ -702,11 +702,17 @@ export async function renderEditor(): Promise<void> {
         return bar;
       };
 
-      // Hero — nome + botão de modelo (sem cor de fundo).
+      // Hero — nome + botão de modelo + cor de fundo (split/arco; ignorado se tiver imagem inteira).
       const heroSection = preview.querySelector<HTMLElement>("section");
       if (heroSection?.parentElement) {
         heroSection.parentElement.insertBefore(mkDiv("Hero"), heroSection);
-        heroSection.parentElement.insertBefore(mkBar({ label: "Trocar modelo do hero", icon: "wallpaper", onClick: openHeroPicker }, null), heroSection);
+        const heroDots = mkDots(custom.hero?.bg, (hex) => {
+          snapshot();
+          if (hex) setPath(custom as Record<string, any>, "hero.bg", hex);
+          else if (custom.hero) delete custom.hero.bg;
+          void rebuild();
+        });
+        heroSection.parentElement.insertBefore(mkBar({ label: "Trocar modelo do hero", icon: "wallpaper", onClick: openHeroPicker }, heroDots), heroSection);
       }
 
       // Produtos — nome + botão de disposição + cor de fundo da 1.ª secção.

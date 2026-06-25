@@ -25,6 +25,8 @@ export interface StoreCustomization {
     imageUrl?: string;
     /** Variante de hero escolhida ("imagem" | "split" | "arco" | "particulas"). */
     variant?: "imagem" | "split" | "arco" | "particulas";
+    /** Cor de fundo do hero (aplica-se a variantes sem imagem inteira: split/arco). */
+    bg?: string;
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];

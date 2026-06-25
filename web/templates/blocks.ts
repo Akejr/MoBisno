@@ -66,19 +66,23 @@ function infoBlock(b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: B
   </div>`;
   const left = b.imageSide !== "right";
   const sb = secBg(b);
-  return `<section data-edit-block="${i}" data-block-type="info"${sb.style}${sb.dark} class="relative ${ctx.container} py-12 md:py-16">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
-      ${left ? img + txt : txt + img}
+  return `<section data-edit-block="${i}" data-block-type="info"${sb.style}${sb.dark} class="relative py-12 md:py-16">
+    <div class="${ctx.container}">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
+        ${left ? img + txt : txt + img}
+      </div>
     </div>
   </section>`;
 }
 
 function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: BlockCtx): string {
   const sb = secBg(b);
-  return `<section data-edit-block="${i}" data-block-type="text"${sb.style}${sb.dark} class="relative ${ctx.container} py-12 md:py-16">
-    <div class="max-w-3xl mx-auto text-center">
-      <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-      <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${esc(b.text ?? "")}</p>
+  return `<section data-edit-block="${i}" data-block-type="text"${sb.style}${sb.dark} class="relative py-12 md:py-16">
+    <div class="${ctx.container}">
+      <div class="max-w-3xl mx-auto text-center">
+        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
+        <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${esc(b.text ?? "")}</p>
+      </div>
     </div>
   </section>`;
 }
@@ -162,13 +166,15 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
     src = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
   }
   const sb = secBg(b);
-  return `<section data-edit-block="${i}" data-block-type="location"${sb.style}${sb.dark} class="relative ${ctx.container} py-12 md:py-16">
-    <div class="text-center max-w-2xl mx-auto mb-8">
-      <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-      <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> <span data-edit-loc-address data-edit="blocks.${i}.address">${esc(address)}</span></p>
-    </div>
-    <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-      <iframe title="Mapa" class="w-full h-[320px] md:h-[400px] border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(src)}"></iframe>
+  return `<section data-edit-block="${i}" data-block-type="location"${sb.style}${sb.dark} class="relative py-12 md:py-16">
+    <div class="${ctx.container}">
+      <div class="text-center max-w-2xl mx-auto mb-8">
+        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
+        <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> <span data-edit-loc-address data-edit="blocks.${i}.address">${esc(address)}</span></p>
+      </div>
+      <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+        <iframe title="Mapa" class="w-full h-[320px] md:h-[400px] border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(src)}"></iframe>
+      </div>
     </div>
   </section>`;
 }
@@ -189,9 +195,11 @@ function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>,
       </div>
     </div>`;
   }).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials"${sb.style}${sb.dark} class="relative ${ctx.container} py-16 md:py-24">
-    <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl">${esc(b.title ?? "")}</h2>
-    <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12">${cards}</div>
+  return `<section data-edit-block="${i}" data-block-type="testimonials"${sb.style}${sb.dark} class="relative py-16 md:py-24">
+    <div class="${ctx.container}">
+      <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl">${esc(b.title ?? "")}</h2>
+      <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12">${cards}</div>
+    </div>
   </section>`;
 }
 
@@ -268,16 +276,18 @@ function testimonialsDestaque(b: Extract<ContentBlock, { type: "testimonials" }>
         `<span style="width:8px;height:8px;border-radius:9999px;background:${ctx.brand};opacity:.35;animation:mbHlDot${i} ${total}s ${(j * per).toFixed(2)}s infinite"></span>`).join("")}</div>`
     : "";
 
-  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="destaque"${secBg(b).style}${secBg(b).dark} class="relative ${ctx.container} py-16 md:py-24">
+  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="destaque"${secBg(b).style}${secBg(b).dark} class="relative py-16 md:py-24">
     <style>${kf}</style>
-    <div class="text-center mb-10">
-      <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-    </div>
-    <div class="relative mx-auto max-w-2xl">
-      <div class="mb-hl-stage relative" data-edit-testimonials="${i}" style="min-height:300px">${slides || `<p class="text-center text-gray-400 py-10">Sem testemunhos.</p>`}</div>
-      ${dots}
-      <div class="pointer-events-none absolute inset-y-0 left-0 w-2/12 bg-gradient-to-r from-white"></div>
-      <div class="pointer-events-none absolute inset-y-0 right-0 w-2/12 bg-gradient-to-l from-white"></div>
+    <div class="${ctx.container}">
+      <div class="text-center mb-10">
+        <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
+      </div>
+      <div class="relative mx-auto max-w-2xl">
+        <div class="mb-hl-stage relative" data-edit-testimonials="${i}" style="min-height:300px">${slides || `<p class="text-center text-gray-400 py-10">Sem testemunhos.</p>`}</div>
+        ${dots}
+        <div class="pointer-events-none absolute inset-y-0 left-0 w-2/12 bg-gradient-to-r from-white"></div>
+        <div class="pointer-events-none absolute inset-y-0 right-0 w-2/12 bg-gradient-to-l from-white"></div>
+      </div>
     </div>
   </section>`;
 }

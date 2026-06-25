@@ -178,9 +178,7 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
       ? `<div class="text-center mt-12"><button type="button" data-load-more data-step="${TWO_ROWS}" class="inline-flex items-center gap-1 font-bold px-10 py-4 rounded-lg transition-all hover:opacity-90" style="background:var(--brand,${DEFAULT_BRAND});color:#fff">Ver mais <span class="material-symbols-outlined text-[18px]">expand_more</span></button></div>`
       : "";
     const empty = items.length === 0 ? `<p class="text-[#685b5f] col-span-full py-8 text-center">Sem produtos nesta secção.</p>` : "";
-    const secStyle = sec.bg ? ` style="background:${sec.bg}"` : "";
-    const secPad = sec.bg ? "rounded-2xl p-6 md:p-8" : "";
-    return `<section data-section data-edit-section="${i}"${secStyle}${sec.bg && isDarkColor(sec.bg) ? " data-sec-dark" : ""} class="${i > 0 ? "mt-16" : ""} ${secPad}">
+    const inner = `
       <div data-edit-section-head class="flex items-end justify-between gap-3 mb-10">
         <div class="min-w-0">
           <h2 style="${SERIF}" class="text-3xl md:text-4xl text-[#1c1b1b] truncate">${esc(sec.title)}</h2>
@@ -188,8 +186,13 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
         ${moreRight}
       </div>
       <div data-section-grid data-edit-products class="${gridCls}">${cards}${empty}</div>
-      ${moreBottom}
-    </section>`;
+      ${moreBottom}`;
+    if (sec.bg) {
+      return `<section data-section data-edit-section="${i}"${isDarkColor(sec.bg) ? " data-sec-dark" : ""} style="background:${sec.bg};position:relative;width:100vw;left:50%;margin-left:-50vw" class="${i > 0 ? "mt-10" : ""} py-14 md:py-20">
+        <div class="${CONTAINER}">${inner}</div>
+      </section>`;
+    }
+    return `<section data-section data-edit-section="${i}" class="${i > 0 ? "mt-16" : ""}">${inner}</section>`;
   }).join("");
   return `<div data-edit-sections>${blocks}</div>`;
 }
@@ -223,7 +226,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     : nativeHero;
 
   return `
-  <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b]" style="font-family:'Manrope',sans-serif">
+  <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b] overflow-x-hidden" style="font-family:'Manrope',sans-serif">
     ${headerHtml(view, menuLabels)}
 
     ${hero}
