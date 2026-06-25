@@ -650,8 +650,7 @@ export async function renderEditor(): Promise<void> {
 
     const close = () => layer.remove();
 
-    function paint(el: Element | null): void {
-      const step = TOUR[idx]!;
+    function position(el: Element | null): void {
       const vw = window.innerWidth, vh = window.innerHeight;
       if (el) {
         const r = el.getBoundingClientRect();
@@ -660,15 +659,21 @@ export async function renderEditor(): Promise<void> {
         hole.style.left = `${Math.max(0, r.left - pad)}px`;
         hole.style.width = `${r.width + pad * 2}px`;
         hole.style.height = `${r.height + pad * 2}px`;
+        hole.style.transform = "none";
         let top = r.bottom + 14;
-        if (top + 200 > vh) top = Math.max(12, r.top - 200);
+        if (top + 210 > vh) top = Math.max(12, r.top - 210);
         const left = Math.min(Math.max(12, r.left), vw - 332);
         tip.style.top = `${top}px`;
         tip.style.left = `${left}px`;
+        tip.style.transform = "none";
       } else {
         hole.style.width = "0"; hole.style.height = "0"; hole.style.top = "50%"; hole.style.left = "50%";
         tip.style.top = "50%"; tip.style.left = "50%"; tip.style.transform = "translate(-50%,-50%)";
       }
+    }
+
+    function renderContent(): void {
+      const step = TOUR[idx]!;
       const last = idx === TOUR.length - 1;
       tip.innerHTML = `
         <div class="flex items-center justify-between gap-2 mb-1.5">
@@ -686,6 +691,16 @@ export async function renderEditor(): Promise<void> {
       tip.querySelector("[data-next]")?.addEventListener("click", () => { if (last) { close(); return; } idx++; void show(); });
     }
 
+    /** Reposiciona o destaque enquanto o scroll suave decorre (≈750ms). */
+    function track(el: Element): void {
+      const start = performance.now();
+      const tick = (): void => {
+        position(el);
+        if (performance.now() - start < 750) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
     async function show(): Promise<void> {
       const step = TOUR[idx]!;
       if (step.screen && step.screen !== currentScreen) {
@@ -693,12 +708,15 @@ export async function renderEditor(): Promise<void> {
         updateScreenTabs();
         await rebuild();
       }
+      renderContent();
       const el = document.querySelector(step.sel);
       if (el) {
+        // Garante que a área aparece: faz scroll no contentor de pré-visualização.
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-        window.setTimeout(() => paint(el), 280);
+        position(el);
+        track(el);
       } else {
-        paint(null);
+        position(null);
       }
     }
 
