@@ -123,6 +123,7 @@ export async function renderEditor(): Promise<void> {
     <div id="preview" class="flex-grow overflow-auto"></div>
     <input id="logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
     <input id="hero-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+    <input id="feature-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
   </div>
   <style>
@@ -133,6 +134,8 @@ export async function renderEditor(): Promise<void> {
     .mb-ov-btn{pointer-events:auto}
     [data-edit-logo]{cursor:pointer}
     [data-edit-hero]:hover .mb-hero-ov{opacity:1}
+    [data-edit-feature-image]{cursor:pointer}
+    [data-edit-feature-image]:hover .mb-feat-ov{opacity:1}
     [data-edit-logo]:hover .mb-logo-ov{opacity:1}
     [data-edit-footer-logo]{cursor:pointer}
     [data-edit-footer-logo]:hover .mb-flogo-ov{opacity:1}
@@ -181,6 +184,16 @@ export async function renderEditor(): Promise<void> {
       ov.innerHTML = `<button class="mb-ov-btn bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Trocar imagem</button>`;
       ov.querySelector("button")!.addEventListener("click", (e) => { e.preventDefault(); ($("#hero-input") as HTMLInputElement).click(); });
       hero.appendChild(ov);
+    }
+
+    // Bloco editorial (Galeria) — trocar imagem por hover.
+    const feature = preview.querySelector<HTMLElement>("[data-edit-feature-image]");
+    if (feature) {
+      const ov = document.createElement("div");
+      ov.className = "mb-ov mb-feat-ov absolute top-3 right-3 z-10";
+      ov.innerHTML = `<button class="mb-ov-btn bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Trocar imagem</button>`;
+      ov.querySelector("button")!.addEventListener("click", (e) => { e.preventDefault(); ($("#feature-input") as HTMLInputElement).click(); });
+      feature.appendChild(ov);
     }
 
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
@@ -420,6 +433,25 @@ export async function renderEditor(): Promise<void> {
     toast("Imagem do hero atualizada.");
     await rebuild();
     (e.target as HTMLInputElement).value = "";
+  });
+
+  // Upload da imagem do bloco editorial (Galeria → feature.imageUrl).
+  $("#feature-input")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const content = await fileToUint8Array(file);
+    const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
+    if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
+    const stored = await withBusy(
+      () => panel.services.fileService.store(store!.id, "banner", validation.value),
+      "A carregar imagem…",
+    );
+    snapshot();
+    setPath(custom as Record<string, any>, "feature.imageUrl", stored.url);
+    toast("Imagem da secção atualizada.");
+    await rebuild();
+    input.value = "";
   });
 
   // Upload do logótipo do rodapé (versão clara/alternativa).

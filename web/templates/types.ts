@@ -25,6 +25,15 @@ export interface StoreCustomization {
    * Se ausente, mostra uma única secção com todos os produtos.
    */
   sections?: { category: string }[];
+  /**
+   * Secção de destaque editorial (foto + título + subtítulo), apresentada
+   * abaixo dos produtos. Usada pelo modelo "Galeria".
+   */
+  feature?: {
+    imageUrl?: string;
+    title?: string;
+    subtitle?: string;
+  };
   footer?: {
     about?: string;
     location?: string;

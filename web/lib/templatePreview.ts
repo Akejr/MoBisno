@@ -20,6 +20,14 @@ const SAMPLE_PRODUCTS: StoreProductView[] = [
   { id: "s6", name: "Garrafa Térmica", description: "750ml", category: "Acessórios", price: 6500, imageUrl: SAMPLE_IMG("photo-1602143407151-7111542de6e8") },
   { id: "s7", name: "Casaco Corta-Vento", description: "Unissexo", category: "Vestuário", price: 30000, imageUrl: SAMPLE_IMG("photo-1551028719-00167b16eac5") },
   { id: "s8", name: "Meias (3 pares)", description: "Algodão", category: "Vestuário", price: 4500, imageUrl: SAMPLE_IMG("photo-1586350977771-b3b0abd50c82") },
+  { id: "s9", name: "Boné Clássico", description: "Ajustável", category: "Acessórios", price: 7500, imageUrl: SAMPLE_IMG("photo-1517466787929-bc90951d0974") },
+  { id: "s10", name: "Sapatilhas Urbanas", description: "Conforto diário", category: "Calçado", price: 38000, imageUrl: SAMPLE_IMG("photo-1542291026-7eec264c27ff") },
+  { id: "s11", name: "Camisola Treino", description: "Tecido técnico", category: "Vestuário", price: 16000, imageUrl: SAMPLE_IMG("photo-1556906781-9a412961c28c") },
+  { id: "s12", name: "Bola de Basquete", description: "Tamanho 7", category: "Acessórios", price: 11000, imageUrl: SAMPLE_IMG("photo-1614632537190-23e4146777db") },
+  { id: "s13", name: "Casaco Impermeável", description: "À prova de água", category: "Vestuário", price: 34000, imageUrl: SAMPLE_IMG("photo-1551028719-00167b16eac5") },
+  { id: "s14", name: "Mochila Compacta", description: "20L", category: "Acessórios", price: 15000, imageUrl: SAMPLE_IMG("photo-1553062407-98eeb64c6a62") },
+  { id: "s15", name: "Garrafa Inox 1L", description: "Mantém a temperatura", category: "Acessórios", price: 8000, imageUrl: SAMPLE_IMG("photo-1602143407151-7111542de6e8") },
+  { id: "s16", name: "Camisola Alternativa", description: "Edição 2024/25", category: "Camisolas", price: 25000, imageUrl: SAMPLE_IMG("photo-1517466787929-bc90951d0974") },
 ];
 
 function sampleView(templateId: string): StoreRenderView {
@@ -34,6 +42,11 @@ function sampleView(templateId: string): StoreRenderView {
     banners: [],
     products: SAMPLE_PRODUCTS,
   };
+}
+
+/** Vista de exemplo (produtos demo) para pré-visualizar um modelo em página inteira. */
+export function sampleStoreView(templateId: string): StoreRenderView {
+  return sampleView(templateId);
 }
 
 /** Documento HTML completo (srcdoc) com Tailwind + fontes + a marca aplicada. */

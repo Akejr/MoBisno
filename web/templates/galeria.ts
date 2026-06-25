@@ -21,6 +21,7 @@ const CONTAINER = "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8";
 const DEFAULT_SUBTITLE = "Produtos selecionados, entrega em toda Angola e checkout simples.";
 const DEFAULT_CTA = "Ver produtos";
 const DEFAULT_PHONE = "+244 900 000 000";
+const DEFAULT_FEATURE_IMG = "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?q=80&w=1000";
 
 /** Imagens de reserva para o arco (quando a loja ainda tem poucas fotos). */
 const ARC_FALLBACK = [
@@ -111,13 +112,17 @@ function headerHtml(view: StoreRenderView, menuLabels: string[]): string {
 
 /* --------------------------------- Hero --------------------------------- */
 
-/** Imagens para o arco: fotos dos produtos, depois banners, depois reserva. */
+/** Imagens para o arco: fotos dos produtos, depois banners, depois reserva.
+ *  Repete (cicla) as imagens disponíveis para encher o arco (11–13 cartões). */
 function arcImages(view: StoreRenderView): string[] {
   const fromProducts = view.products.map((p) => p.imageUrl).filter((u): u is string => !!u);
   const fromBanners = view.banners.map((b) => b.imageUrl);
-  let imgs = [...fromProducts, ...fromBanners];
-  if (imgs.length < 7) imgs = [...imgs, ...ARC_FALLBACK];
-  return imgs.slice(0, 13);
+  let base = [...fromProducts, ...fromBanners];
+  if (base.length === 0) base = [...ARC_FALLBACK];
+  const target = Math.min(13, Math.max(11, base.length));
+  const out: string[] = [];
+  for (let i = 0; i < target; i++) out.push(base[i % base.length]!);
+  return out;
 }
 
 /** Hero com galeria em arco (cartões curvados) + título/subtítulo/CTA. */
@@ -146,11 +151,11 @@ function arcHero(view: StoreRenderView, custom?: StoreCustomization): string {
   }).join("");
 
   return `
-  <section data-edit-hero class="relative overflow-hidden bg-white">
+  <section class="relative overflow-hidden bg-white">
     <style>
       @keyframes mbArcIn{from{opacity:0;transform:translate(-50%,62%)}to{opacity:1;transform:translate(-50%,50%)}}
       @keyframes mbHeroIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-      .mb-arc{position:relative;width:100%;height:calc(var(--arc-r) * 0.82);--arc-r:clamp(180px,42vw,460px);--arc-card:clamp(62px,11vw,118px)}
+      .mb-arc{position:relative;width:100%;height:calc(var(--arc-r) + var(--arc-card));--arc-r:clamp(170px,40vw,440px);--arc-card:clamp(60px,10vw,112px)}
       .mb-arc-pivot{position:absolute;left:50%;bottom:0;transform:translateX(-50%)}
       .mb-arc-card{position:absolute;width:var(--arc-card);height:var(--arc-card);transform:translate(-50%,50%);opacity:0;animation:mbArcIn .8s ease-out forwards}
       .mb-arc-inner{width:100%;height:100%;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 14px 30px -12px rgba(0,0,0,.3);outline:1px solid rgba(0,0,0,.05);transition:transform .3s ease}
@@ -160,7 +165,7 @@ function arcHero(view: StoreRenderView, custom?: StoreCustomization): string {
     <div class="mb-arc">
       <div class="mb-arc-pivot">${cards}</div>
     </div>
-    <div class="relative z-10 ${CONTAINER} text-center -mt-24 sm:-mt-32 lg:-mt-40 pb-14">
+    <div class="relative z-10 ${CONTAINER} text-center -mt-28 sm:-mt-36 lg:-mt-44 pb-14">
       <div class="mb-hero-text max-w-2xl mx-auto">
         <h1 data-edit="hero.title" class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 leading-[1.05]">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-4 text-base md:text-lg text-gray-500 max-w-xl mx-auto">${esc(subtitle)}</p>
@@ -255,15 +260,39 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
 
 /* -------------------------------- Páginas -------------------------------- */
 
+/** Secção editorial: foto à esquerda, título + subtítulo à direita. */
+function featureSection(custom?: StoreCustomization): string {
+  const f = custom?.feature ?? {};
+  const img = f.imageUrl || DEFAULT_FEATURE_IMG;
+  const title = f.title || "Qualidade que se vê e se sente";
+  const subtitle = f.subtitle || "Selecionamos cada produto a pensar em si: materiais de confiança, entrega rápida em toda Angola e atendimento próximo pelo WhatsApp.";
+  return `
+  <section data-edit-feature class="bg-gray-50 border-t border-gray-100">
+    <div class="${CONTAINER} py-14 md:py-20">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14 items-center">
+        <div data-edit-feature-image class="relative aspect-[4/3] rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
+          <img src="${esc(img)}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/4f46e5?text=Imagem'" />
+        </div>
+        <div>
+          <span class="inline-block w-10 h-1.5 rounded-full mb-5" style="background:var(--brand,#4f46e5)"></span>
+          <h2 data-edit="feature.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900 leading-tight">${esc(title)}</h2>
+          <p data-edit="feature.subtitle" class="mt-4 text-gray-500 text-lg leading-relaxed">${esc(subtitle)}</p>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 function render(view: StoreRenderView, custom?: StoreCustomization): string {
   const menuLabels = menuFor(view, custom);
   return `
   <div class="min-h-screen flex flex-col bg-white text-gray-900 font-sans">
     ${headerHtml(view, menuLabels)}
     ${arcHero(view, custom)}
-    <main id="produtos" class="${CONTAINER} py-10 md:py-14 flex-grow">
+    <main id="produtos" class="${CONTAINER} py-10 md:py-14">
       ${sectionsArea(view, custom)}
     </main>
+    ${featureSection(custom)}
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
 }

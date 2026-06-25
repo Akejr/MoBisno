@@ -12,6 +12,7 @@ import { renderProductPage } from "./views/product.js";
 import { renderCategoryPage } from "./views/category.js";
 import { renderCartPage } from "./views/cart.js";
 import { renderEditor } from "./views/editor.js";
+import { renderTemplatePreview } from "./views/preview.js";
 import { mountCartUI } from "./lib/cartDrawer.js";
 import { mountSearchUI } from "./lib/search.js";
 import { mountSectionsUI } from "./lib/sections.js";
@@ -43,6 +44,9 @@ function resetBranding(): void {
 function route(): void {
   const path = location.pathname || "/";
   window.scrollTo(0, 0);
+  if (path !== "/preview" && !path.startsWith("/preview/")) {
+    document.getElementById("mb-preview-bar")?.remove();
+  }
 
   // --- Modo subdomínio: nomedaloja.mobisno.store ---
   const sub = storeSubdomain();
@@ -58,7 +62,10 @@ function route(): void {
   }
 
   // --- Domínio principal (mobisno.store / localhost / *.vercel.app) ---
-  if (path.startsWith("/criar")) {
+  if (path.startsWith("/preview/") || path === "/preview") {
+    resetBranding();
+    renderTemplatePreview(decodeURIComponent(path.replace(/^\/preview\/?/, "")) || "galeria");
+  } else if (path.startsWith("/criar")) {
     resetBranding();
     renderWizard();
   } else if (path.startsWith("/login")) {
