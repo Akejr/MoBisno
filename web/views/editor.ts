@@ -172,10 +172,11 @@ export async function renderEditor(): Promise<void> {
     [data-edit-whatsapp]:hover .mb-wa-ov{opacity:1}
     .mb-chip{transition:transform .15s ease, background .15s ease}
     .mb-chip:hover{transform:translateY(-1px)}
-    .mb-model-btn{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9999px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,#F95901,#ff8a3d);box-shadow:0 8px 22px -6px rgba(249,89,1,.6);border:1.5px solid rgba(255,255,255,.55);backdrop-filter:blur(4px);cursor:pointer;transition:transform .15s ease, box-shadow .15s ease;animation:mbModelIn .4s ease both}
-    .mb-model-btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 12px 28px -6px rgba(249,89,1,.7)}
+    .mb-model-btn{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9999px;font-size:13px;font-weight:600;color:#F95901;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 2px 10px rgba(0,0,0,.10);cursor:pointer;transition:background .15s ease, border-color .15s ease}
+    .mb-model-btn:hover{background:#fff7f2;border-color:#F95901}
     .mb-model-btn .material-symbols-outlined{font-size:18px}
-    @keyframes mbModelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .mb-sec-divider{display:flex;align-items:center;gap:12px;margin:8px 0 24px;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;pointer-events:none}
+    .mb-sec-divider::before,.mb-sec-divider::after{content:"";flex:1;border-top:2px dashed #d4d4d8}
   </style>`);
 
   function bind(preview: HTMLElement): void {
@@ -632,6 +633,27 @@ export async function renderEditor(): Promise<void> {
             toast("Botão de WhatsApp atualizado.");
           },
         });
+      });
+    }
+
+    // Linhas tracejadas a separar as secções (apenas no editor) para dar noção da estrutura.
+    if (currentScreen === "home") {
+      const blockLabel: Record<string, string> = {
+        info: "Informação", text: "Texto", testimonials: "Testemunhos", location: "Localização",
+      };
+      const mkDiv = (label: string): HTMLElement => {
+        const d = document.createElement("div");
+        d.className = "mb-sec-divider";
+        d.innerHTML = `<span>${esc(label)}</span>`;
+        return d;
+      };
+      const sw = preview.querySelector<HTMLElement>("[data-edit-sections]");
+      if (sw) sw.parentElement?.insertBefore(mkDiv("Produtos"), sw);
+      preview.querySelectorAll<HTMLElement>("[data-edit-section]").forEach((sec, i) => {
+        if (i > 0) sec.parentElement?.insertBefore(mkDiv("Secção de produtos"), sec);
+      });
+      preview.querySelectorAll<HTMLElement>("[data-edit-block]").forEach((blk) => {
+        blk.parentElement?.insertBefore(mkDiv(blockLabel[blk.dataset.blockType ?? ""] ?? "Secção"), blk);
       });
     }
   }
