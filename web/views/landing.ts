@@ -7,11 +7,11 @@ const ACCENT = "#F95901";
 interface AccordionItem { title: string; imageUrl: string; }
 
 const accordionItems: AccordionItem[] = [
-  { title: "Modelos prontos", imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Sem código", imageUrl: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?q=80&w=1200&auto=format&fit=crop" },
   { title: "Editor visual ao vivo", imageUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Produtos & categorias", imageUrl: "https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Carrinho & WhatsApp", imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=1200&auto=format&fit=crop" },
-  { title: "A sua loja .mobisno.store", imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Pagamentos integrados", imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Vendas no WhatsApp", imageUrl: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Domínio .mobisno.store", imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
 ];
 
 const CAP_BASE = "absolute text-white text-base font-semibold whitespace-nowrap transition-all duration-500 ease-in-out drop-shadow";
@@ -75,10 +75,10 @@ export async function renderLanding(): Promise<void> {
           <div class="mb-bento">
             ${bento({ span: "bento-col-2 bento-row-2", icon: "palette", title: "Editor visual ao vivo", body: "Edite a sua loja diretamente no preview — logótipo, cores, textos, secções e produtos. Sem código.", big: true })}
             ${bento({ icon: "dashboard_customize", title: "Modelos prontos", body: "Designs profissionais e responsivos, prontos a usar." })}
-            ${bento({ icon: "payments", title: "Pagamentos locais", body: "Multicaixa e finalização rápida por WhatsApp." })}
+            ${bento({ icon: "payments", title: "Pagamentos locais", body: "Multicaixa, Referência bancária e finalização rápida por WhatsApp." })}
             ${bento({ span: "bento-row-2", icon: "category", title: "Categorias & Destaques", body: "Organize os produtos por categorias e realce os melhores na secção Destaques." })}
-            ${bento({ span: "bento-col-2", icon: "shopping_cart", title: "Carrinho completo", body: "Os seus clientes escolhem, somam quantidades e finalizam a compra sem complicações." })}
-            ${bento({ icon: "public", title: "Morada própria", body: "Receba o seu endereço nome.mobisno.store." })}
+            ${bento({ span: "bento-col-2", icon: "shopping_cart", title: "Fluxo totalmente automático", body: "Os seus clientes escolhem, somam quantidades e finalizam a compra sem complicações." })}
+            ${bento({ icon: "public", title: "Endereço próprio", body: "Receba o seu endereço nome.mobisno.store, ou use o seu próprio." })}
           </div>
         </div>
       </section>
