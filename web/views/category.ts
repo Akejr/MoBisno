@@ -5,6 +5,7 @@ import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyTheme } from "../lib/theme.js";
 
 export async function renderCategoryPage(identifier: string, category: string): Promise<void> {
   const { result, view, custom } = await loadStorefront(identifier);
@@ -28,6 +29,7 @@ export async function renderCategoryPage(identifier: string, category: string): 
   const app = render(html);
   app.style.setProperty("--brand", brandOf(custom, view.templateId));
   applyInk(app, custom);
+  applyTheme(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
 }

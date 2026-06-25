@@ -17,6 +17,7 @@ import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
 import { newBlock } from "../templates/blocks.js";
 import { applyInk } from "../lib/ink.js";
+import { applyTheme, THEME_STYLES } from "../lib/theme.js";
 import { openMapPicker } from "../lib/mapPicker.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization } from "../templates/types.js";
@@ -128,6 +129,12 @@ export async function renderEditor(): Promise<void> {
             <span class="hidden sm:inline">Texto</span>
             <input id="ink" type="color" value="${esc(custom.colors?.text ?? "#111827")}" class="absolute inset-0 opacity-0 cursor-pointer" />
           </label>
+          <label class="flex items-center gap-1.5 text-sm text-gray-600 rounded-full hover:bg-gray-100 px-2 py-1.5" title="Estilo da loja">
+            <span class="material-symbols-outlined text-[18px]">style</span>
+            <select id="theme-style" class="bg-transparent text-sm text-gray-700 outline-none cursor-pointer">
+              ${THEME_STYLES.map((s) => `<option value="${s.id}" ${custom.theme?.style === s.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
+            </select>
+          </label>
           <button id="undo" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">undo</span><span class="hidden sm:inline">Desfazer</span></button>
           <button id="tutorial" class="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-full transition-colors" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">school</span><span class="hidden sm:inline">Tutorial</span></button>
           <a id="ver-loja" href="${esc(storeUrl)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
@@ -168,6 +175,7 @@ export async function renderEditor(): Promise<void> {
   function bind(preview: HTMLElement): void {
     preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
     applyInk(preview, custom);
+    applyTheme(preview, custom);
 
     // Não navegar ao clicar em links do preview.
     preview.addEventListener("click", (e) => {
@@ -661,6 +669,14 @@ export async function renderEditor(): Promise<void> {
     setPath(custom as Record<string, any>, "colors.text", value);
     const dot = $("#ink-dot"); if (dot) dot.style.background = value;
     applyInk($("#preview"), custom);
+  });
+
+  // Estilo global (tema) — aplica ao vivo.
+  const themeSelect = $("#theme-style") as HTMLSelectElement | null;
+  themeSelect?.addEventListener("change", () => {
+    snapshot();
+    setPath(custom as Record<string, any>, "theme.style", themeSelect.value);
+    applyTheme($("#preview"), custom);
   });
 
   // Upload do logótipo.

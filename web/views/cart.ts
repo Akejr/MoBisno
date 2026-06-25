@@ -5,6 +5,7 @@ import { getCart, setQuantity, removeFromCart, cartTotal, updateCartBadge, type 
 import { resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyTheme } from "../lib/theme.js";
 
 function itemRow(it: CartItem): string {
   const thumb = it.imageUrl
@@ -73,6 +74,7 @@ export async function renderCartPage(identifier: string): Promise<void> {
       </div>`);
     app.style.setProperty("--brand", brand);
     applyInk(app, custom);
+    applyTheme(app, custom);
     fadeInImages(app);
     bind();
     updateCartBadge(storeId);

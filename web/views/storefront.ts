@@ -5,6 +5,7 @@ import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyTheme } from "../lib/theme.js";
 
 export async function renderStorefront(identifier: string): Promise<void> {
   const host = `${identifier}.mobisno.store`;
@@ -25,6 +26,7 @@ export async function renderStorefront(identifier: string): Promise<void> {
   const app = render(template.render(view, custom));
   app.style.setProperty("--brand", brandOf(custom, view.templateId));
   applyInk(app, custom);
+  applyTheme(app, custom);
   fadeInImages(app);
   if (result.kind === "render") updateCartBadge(result.store.id);
 }

@@ -13,6 +13,11 @@ export interface StoreCustomization {
     /** Cor dos textos e ícones da loja. */
     text?: string;
   };
+  /** Tema global (coerência): estilo visual aplicado a toda a loja. */
+  theme?: {
+    /** "moderno" (cantos suaves), "classico" (serif), "minimal" (reto). */
+    style?: "moderno" | "classico" | "minimal";
+  };
   hero?: {
     title?: string;
     subtitle?: string;
