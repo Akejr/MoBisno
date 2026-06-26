@@ -86,7 +86,6 @@ export async function renderEditor(): Promise<void> {
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---
   const history: string[] = [];
   let currentScreen: "home" | "product" = "home";
-  let currentViewport: "desktop" | "mobile" = "desktop";
   let lastView: StoreViewModel | null = null;
   let arcTarget: number | "add" = "add";
   let blockImgTarget = 0;
@@ -120,12 +119,6 @@ export async function renderEditor(): Promise<void> {
   render(`
   <div class="min-h-screen flex flex-col bg-gray-100 font-sans text-gray-900">
     <header class="sticky top-0 z-[60] bg-white/95 backdrop-blur border-b border-gray-200">
-      <div class="flex justify-center px-4 py-2" style="background:#3b2417">
-        <div class="inline-flex rounded-full p-1 gap-1 text-sm" style="background:rgba(255,255,255,.14)">
-          <button data-viewport="desktop" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">computer</span> Computador</button>
-          <button data-viewport="mobile" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">smartphone</span> Telemóvel</button>
-        </div>
-      </div>
       <div class="flex justify-center px-4 pt-2 pb-1.5 border-b border-gray-100">
         <div class="inline-flex bg-gray-100 rounded-full p-1 gap-1 text-sm">
           <button data-screen="home" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">home</span> Início</button>
@@ -159,6 +152,7 @@ export async function renderEditor(): Promise<void> {
           </label>
           <button id="undo" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">undo</span><span class="hidden sm:inline">Desfazer</span></button>
           <button id="tutorial" class="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-full transition-colors" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">school</span><span class="hidden sm:inline">Tutorial</span></button>
+          <button id="open-preview" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">visibility</span><span class="hidden sm:inline">Abrir preview</span></button>
           <a id="ver-loja" href="${esc(storeUrl)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
           <button id="save" class="text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-1 shadow-sm transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>
         </div>
@@ -172,6 +166,24 @@ export async function renderEditor(): Promise<void> {
     <input id="block-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="testi-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
+  </div>
+  <!-- Painel de pré-visualização (desliza da direita) -->
+  <div id="mb-preview" class="fixed inset-0 z-[80]" style="display:none">
+    <div id="mb-preview-backdrop" class="absolute inset-0 bg-black/40" style="opacity:0;transition:opacity .3s ease"></div>
+    <div id="mb-preview-panel" class="absolute top-0 right-0 h-full bg-neutral-100 shadow-2xl flex flex-col" style="width:min(1100px,96vw);transform:translateX(100%);transition:transform .32s cubic-bezier(.16,1,.3,1)">
+      <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-200 bg-white shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="material-symbols-outlined" style="color:${ACCENT}">visibility</span>
+          <span class="font-bold truncate">Pré-visualização</span>
+        </div>
+        <div class="inline-flex bg-neutral-100 rounded-full p-1 gap-1 text-sm">
+          <button data-pvp="desktop" class="px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">computer</span><span class="hidden sm:inline">Computador</span></button>
+          <button data-pvp="mobile" class="px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">smartphone</span><span class="hidden sm:inline">Telemóvel</span></button>
+        </div>
+        <button id="mb-preview-close" class="w-9 h-9 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-500 transition-colors shrink-0" title="Esconder pré-visualização"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div id="mb-preview-body" class="flex-1 overflow-auto" style="background:#ece8e3"></div>
+    </div>
   </div>
   <style>
     #preview [data-edit]{outline:1px dashed transparent;transition:outline-color .15s;cursor:text;border-radius:4px}
@@ -754,47 +766,31 @@ export async function renderEditor(): Promise<void> {
     }
   }
 
+  /** HTML da loja para o ecrã atual (home ou página de produto). `null` se não houver produto. */
+  function storeHtmlFor(view: StoreViewModel): string | null {
+    if (view.kind !== "render") return "";
+    const template = getTemplate(store!.templateId);
+    if (currentScreen === "product") {
+      const sample = view.products[0] ?? null;
+      if (!sample) return null;
+      return template.renderProduct ? template.renderProduct(view, sample, custom) : template.render(view, custom);
+    }
+    return template.render(view, custom);
+  }
+
   async function rebuild(): Promise<void> {
     const view = await buildView();
     lastView = view;
     const preview = $("#preview")!;
     if (view.kind !== "render") { preview.innerHTML = ""; return; }
-    const template = getTemplate(store!.templateId);
 
-    let html: string;
-    if (currentScreen === "product") {
-      const sample = view.products[0] ?? null;
-      if (!sample) {
-        preview.innerHTML = `<div class="min-h-[60vh] flex flex-col items-center justify-center text-center gap-3 p-8 text-neutral-500">
-          <span class="material-symbols-outlined" style="font-size:48px;">production_quantity_limits</span>
-          <p class="max-w-sm">Adicione um produto na página inicial para pré-visualizar e editar a página de produto.</p>
-        </div>`;
-        return;
-      }
-      html = template.renderProduct
-        ? template.renderProduct(view, sample, custom)
-        : template.render(view, custom);
-    } else {
-      html = template.render(view, custom);
-    }
-
-    // Modo "Telemóvel": pré-visualização fiel num iframe com largura de telefone
-    // (os breakpoints do Tailwind respondem ao viewport interno). Edição apenas
-    // no modo "Computador".
-    if (currentViewport === "mobile") {
-      preview.innerHTML = `<div class="flex flex-col items-center gap-3 py-8 px-4 min-h-full" style="background:#ece8e3">
-        <p class="text-xs font-medium text-neutral-500 flex items-center gap-1"><span class="material-symbols-outlined text-[15px]">visibility</span> Pré-visualização — para editar volte a <b style="color:#3b2417">Computador</b></p>
-        <div style="width:390px;max-width:100%;background:#0c0c0c;border-radius:48px;padding:12px;box-shadow:0 30px 70px -20px rgba(0,0,0,.55)">
-          <div style="position:relative;height:780px;border-radius:36px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
-            <div style="height:34px;flex:none;position:relative;background:#fff">
-              <div style="position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:26px;background:#0c0c0c;border-radius:9999px"></div>
-            </div>
-            <iframe class="mb-phone-frame" style="flex:1;width:100%;border:0;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
-          </div>
-        </div>
+    const html = storeHtmlFor(view);
+    if (html === null) {
+      preview.innerHTML = `<div class="min-h-[60vh] flex flex-col items-center justify-center text-center gap-3 p-8 text-neutral-500">
+        <span class="material-symbols-outlined" style="font-size:48px;">production_quantity_limits</span>
+        <p class="max-w-sm">Adicione um produto na página inicial para pré-visualizar e editar a página de produto.</p>
       </div>`;
-      const iframe = preview.querySelector<HTMLIFrameElement>("iframe.mb-phone-frame");
-      if (iframe) iframe.srcdoc = buildIframeDoc(html);
+      if (previewOpen) renderPreviewDrawer(view);
       return;
     }
 
@@ -802,9 +798,10 @@ export async function renderEditor(): Promise<void> {
     bind(preview);
     fadeInImages(preview);
     mountParticlesHeroes(preview);
+    if (previewOpen) renderPreviewDrawer(view);
   }
 
-  /** Documento completo (Tailwind + fontes + marca) para o iframe de pré-visualização mobile. */
+  /** Documento completo (Tailwind + fontes + marca) para o iframe de pré-visualização. */
   function buildIframeDoc(innerHtml: string): string {
     const brand = custom.colors?.primary ?? defaultColor;
     const ink = custom.colors?.text?.trim();
@@ -845,6 +842,82 @@ ${themeCss}
 </head><body ${bodyAttrs} style="${bodyStyle}">${innerHtml}</body></html>`;
   }
 
+  /* ----------------------- Painel de pré-visualização ----------------------- */
+
+  let previewOpen = false;
+  let previewMode: "desktop" | "mobile" = "desktop";
+
+  function updatePreviewModeTabs(): void {
+    document.querySelectorAll<HTMLElement>("[data-pvp]").forEach((b) => {
+      const active = b.dataset.pvp === previewMode;
+      b.style.background = active ? ACCENT : "transparent";
+      b.style.color = active ? "#fff" : "#52525b";
+      b.style.fontWeight = active ? "700" : "500";
+    });
+  }
+
+  function renderPreviewDrawer(view: StoreViewModel): void {
+    const body = document.getElementById("mb-preview-body");
+    if (!body || view.kind !== "render") return;
+    const html = storeHtmlFor(view);
+    if (html === null) {
+      body.innerHTML = `<div class="h-full flex items-center justify-center text-neutral-400 text-sm p-8 text-center">Adicione um produto para pré-visualizar a página de produto.</div>`;
+      return;
+    }
+    const doc = buildIframeDoc(html);
+    if (previewMode === "mobile") {
+      body.innerHTML = `<div class="min-h-full flex items-start justify-center py-8 px-4">
+        <div style="width:390px;max-width:100%;background:#0c0c0c;border-radius:48px;padding:12px;box-shadow:0 30px 70px -20px rgba(0,0,0,.55)">
+          <div style="position:relative;height:760px;border-radius:36px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+            <div style="height:34px;flex:none;position:relative;background:#fff"><div style="position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:26px;background:#0c0c0c;border-radius:9999px"></div></div>
+            <iframe class="mb-pv-frame" style="flex:1;width:100%;border:0;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      const W = body.clientWidth || 1000;
+      const H = body.clientHeight || 700;
+      const logical = 1280;
+      const scale = Math.min(1, W / logical);
+      const fh = Math.round(H / scale);
+      body.innerHTML = `<div style="width:${W}px;height:${H}px;overflow:hidden;background:#fff;margin:0 auto">
+        <iframe class="mb-pv-frame" style="width:${logical}px;height:${fh}px;border:0;background:#fff;transform:scale(${scale});transform-origin:top left;display:block" title="Pré-visualização no computador"></iframe>
+      </div>`;
+    }
+    const iframe = body.querySelector<HTMLIFrameElement>("iframe.mb-pv-frame");
+    if (iframe) iframe.srcdoc = doc;
+  }
+
+  function openPreview(): void {
+    const root = document.getElementById("mb-preview");
+    const panel = document.getElementById("mb-preview-panel");
+    const back = document.getElementById("mb-preview-backdrop");
+    if (!root || !panel || !back) return;
+    root.style.display = "block";
+    previewOpen = true;
+    updatePreviewModeTabs();
+    if (lastView) renderPreviewDrawer(lastView);
+    requestAnimationFrame(() => {
+      back.style.opacity = "1";
+      panel.style.transform = "translateX(0)";
+    });
+  }
+
+  function closePreview(): void {
+    const root = document.getElementById("mb-preview");
+    const panel = document.getElementById("mb-preview-panel");
+    const back = document.getElementById("mb-preview-backdrop");
+    if (!root || !panel || !back) return;
+    previewOpen = false;
+    back.style.opacity = "0";
+    panel.style.transform = "translateX(100%)";
+    window.setTimeout(() => {
+      root.style.display = "none";
+      const body = document.getElementById("mb-preview-body");
+      if (body) body.innerHTML = "";
+    }, 340);
+  }
+
   function updateScreenTabs(): void {
     document.querySelectorAll<HTMLElement>("[data-screen]").forEach((b) => {
       const active = b.dataset.screen === currentScreen;
@@ -853,29 +926,25 @@ ${themeCss}
     });
   }
 
-  function updateViewportTabs(): void {
-    document.querySelectorAll<HTMLElement>("[data-viewport]").forEach((b) => {
-      const active = b.dataset.viewport === currentViewport;
-      b.className = "px-4 py-1.5 rounded-full transition-colors flex items-center gap-1 " + (active ? "font-bold" : "");
-      b.style.background = active ? "#fff" : "transparent";
-      b.style.color = active ? "#3b2417" : "rgba(255,255,255,.85)";
-    });
-  }
-
   await rebuild();
   updateScreenTabs();
-  updateViewportTabs();
   mountAiAgent($("#preview")?.parentElement);
 
-  // Seletor de visualização (Computador / Telemóvel).
-  document.querySelectorAll<HTMLElement>("[data-viewport]").forEach((b) =>
-    b.addEventListener("click", async () => {
-      const next = b.dataset.viewport === "mobile" ? "mobile" : "desktop";
-      if (next === currentViewport) return;
-      currentViewport = next;
-      updateViewportTabs();
-      await rebuild();
+  // Painel de pré-visualização (Abrir / esconder + alternar Computador/Telemóvel).
+  $("#open-preview")?.addEventListener("click", () => openPreview());
+  $("#mb-preview-close")?.addEventListener("click", () => closePreview());
+  $("#mb-preview-backdrop")?.addEventListener("click", () => closePreview());
+  document.querySelectorAll<HTMLElement>("[data-pvp]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const next = b.dataset.pvp === "mobile" ? "mobile" : "desktop";
+      if (next === previewMode) return;
+      previewMode = next;
+      updatePreviewModeTabs();
+      if (lastView) renderPreviewDrawer(lastView);
     }));
+  window.addEventListener("resize", () => {
+    if (previewOpen && previewMode === "desktop" && lastView) renderPreviewDrawer(lastView);
+  });
 
   // Seletor de telas (Início / Página de produto).
   document.querySelectorAll<HTMLElement>("[data-screen]").forEach((b) =>
@@ -1288,7 +1357,7 @@ ${themeCss}
 
   async function startTutorial(): Promise<void> {
     document.getElementById("mb-tour")?.remove();
-    if (currentViewport !== "desktop") { currentViewport = "desktop"; updateViewportTabs(); await rebuild(); }
+    if (previewOpen) closePreview();
     let idx = 0;
     const layer = document.createElement("div");
     layer.id = "mb-tour";
