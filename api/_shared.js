@@ -28,6 +28,23 @@ export function admin() {
   return createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+/** Estado da configuração no servidor (booleanos, sem expor segredos). */
+export function configStatus() {
+  return {
+    supabaseUrl: !!SUPABASE_URL,
+    serviceRole: !!SERVICE_ROLE,
+    platformApiKey: !!PLATFORM_API_KEY,
+  };
+}
+
+/** Mensagem acionável quando faltam variáveis de ambiente no servidor. */
+export function missingEnvMessage() {
+  const missing = [];
+  if (!SUPABASE_URL) missing.push("SUPABASE_URL");
+  if (!SERVICE_ROLE) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  return `Pagamentos não configurados no servidor. Defina ${missing.join(", ")} no Vercel (Settings → Environment Variables) e faça redeploy.`;
+}
+
 export function round2(v) {
   return Math.round((Number(v) + Number.EPSILON) * 100) / 100;
 }

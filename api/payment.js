@@ -20,14 +20,14 @@
 import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
-  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY,
+  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, error: "Método não permitido." });
 
   const db = admin();
-  if (!db) return send(res, 500, { success: false, error: "Pagamentos não configurados no servidor.", code: "SERVER_NOT_CONFIGURED" });
+  if (!db) return send(res, 500, { success: false, error: missingEnvMessage(), code: "SERVER_NOT_CONFIGURED" });
 
   let body;
   try { body = await readBody(req); } catch { return send(res, 400, { success: false, error: "Corpo inválido." }); }
