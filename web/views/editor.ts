@@ -25,6 +25,7 @@ import {
 import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes.js";
 import { HEADER_VARIANTS, renderHeader, type HeaderVariant } from "../templates/headers.js";
 import { FOOTER_VARIANTS, renderFooter, type FooterVariant } from "../templates/footers.js";
+import { PRODUCTPAGE_VARIANTS, renderProductPage, type ProductPageVariant } from "../templates/productPage.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
@@ -728,6 +729,25 @@ export async function renderEditor(): Promise<void> {
         footerEl.parentElement.insertBefore(mkDiv("Rodapé"), footerEl);
         footerEl.parentElement.insertBefore(mkBar({ label: "Trocar modelo do rodapé", icon: "splitscreen_bottom", onClick: openFooterPicker, id: "tour-footer" }), footerEl);
       }
+    } else if (currentScreen === "product") {
+      // Página de produto — botão para trocar o modelo, antes do conteúdo.
+      const main = preview.querySelector<HTMLElement>("main");
+      if (main?.parentElement) {
+        const div = document.createElement("div");
+        div.className = "mb-sec-divider";
+        div.innerHTML = `<span>Página de produto</span>`;
+        const bar = document.createElement("div");
+        bar.className = "mb-ov-btn flex justify-center -mt-3 mb-6";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mb-model-btn";
+        btn.id = "tour-productpage";
+        btn.innerHTML = `<span class="material-symbols-outlined">sell</span> Trocar modelo da página de produto`;
+        btn.addEventListener("click", (e) => { e.preventDefault(); openProductPagePicker(btn); });
+        bar.appendChild(btn);
+        main.parentElement.insertBefore(div, main);
+        main.parentElement.insertBefore(bar, main);
+      }
     }
   }
 
@@ -890,6 +910,20 @@ export async function renderEditor(): Promise<void> {
       custom.footer?.variant ?? "colunas",
       (id) => { snapshot(); setPath(custom as Record<string, any>, "footer.variant", id as FooterVariant); void rebuild(); toast("Rodapé atualizado."); },
       (id) => lastView ? renderFooter(id as FooterVariant, lastView, custom, PREV_CTX) : "",
+    );
+  }
+
+  function openProductPagePicker(anchor: HTMLElement): void {
+    openVariantPicker(
+      anchor,
+      "Modelo da página de produto",
+      PRODUCTPAGE_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
+      custom.productPage?.variant ?? "classico",
+      (id) => { snapshot(); setPath(custom as Record<string, any>, "productPage.variant", id as ProductPageVariant); void rebuild(); toast("Página de produto atualizada."); },
+      (id) => {
+        const sample = lastView?.products[0];
+        return sample ? renderProductPage(id as ProductPageVariant, lastView!, sample, custom, PREV_CTX) : `<div class="p-8 text-center text-gray-400">Adicione um produto para pré-visualizar.</div>`;
+      },
     );
   }
 

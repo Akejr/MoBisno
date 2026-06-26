@@ -38,6 +38,10 @@ export interface StoreCustomization {
     /** "retrato" (3:4) | "quadrado" | "alto" (4:5). */
     variant?: "retrato" | "quadrado" | "alto";
   };
+  /** Variante de layout da página de produto. */
+  productPage?: {
+    variant?: "classico" | "galeria" | "minimal";
+  };
   /** Altura do logótipo no cabeçalho, em píxeis (por omissão depende do modelo). */
   logoScale?: number;
   /** Mostrar o bloco editorial abaixo dos produtos (Galeria). Por omissão visível. */

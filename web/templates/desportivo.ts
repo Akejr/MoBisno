@@ -13,6 +13,7 @@ import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
 import { renderHeader } from "./headers.js";
 import { renderFooter } from "./footers.js";
+import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -272,6 +273,14 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
 /** Página individual de produto (detalhe + compra). */
 function renderProduct(view: StoreRenderView, product: StoreProductView, custom?: StoreCustomization): string {
   const menuLabels = menuFor(view, custom);
+  if (custom?.productPage?.variant) {
+    return `
+  <div class="min-h-screen flex flex-col bg-white text-neutral-900">
+    ${headerHtml(view, menuLabels, custom)}
+    ${renderProductPage(custom.productPage.variant, view, product, custom, { container: CONTAINER, brand: "var(--brand,#DC2626)" })}
+    ${footerHtml(view, custom, menuLabels)}
+  </div>`;
+  }
   const phone = resolveWaPhone(custom);
   const img = product.imageUrl
     ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.name)}" class="w-full h-full object-cover" />`
