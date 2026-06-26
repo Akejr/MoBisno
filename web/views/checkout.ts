@@ -16,6 +16,7 @@ import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
 import { initPayment, checkStatus } from "../lib/paymentsApi.js";
+import { getTemplate } from "../templates/registry.js";
 import { renderCheckout, type CheckoutVariant, type CheckoutMethodId } from "../templates/checkoutLayouts.js";
 import type { PaymentProduct } from "../../src/services/payments.js";
 
@@ -32,6 +33,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
 
   const storeId = result.store.id;
   const storeName = view.storeName;
+  const template = getTemplate(result.store.templateId);
   const brand = brandOf(custom, result.store.templateId);
   const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
   const cartHref = `${homeHref}/carrinho`;
@@ -51,17 +53,14 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     }));
   }
 
+  /** Envolve o conteúdo no cromo da loja (cabeçalho, rodapé, tema, fontes). */
   function shell(inner: string): void {
-    const app = render(`
-      <div class="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
-        <header class="sticky top-0 z-50 bg-white border-b border-neutral-100">
-          <div class="w-full max-w-[1080px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-            <a href="${esc(cartHref)}" class="flex items-center gap-1 text-neutral-600 hover:text-neutral-900"><span class="material-symbols-outlined">arrow_back</span> Voltar</a>
-            <span class="font-bold truncate">${esc(storeName)}</span>
-          </div>
-        </header>
-        <main class="w-full max-w-[1080px] mx-auto px-4 sm:px-6 py-8 flex-grow">${inner}</main>
-      </div>`);
+    const back = `<a href="${esc(cartHref)}" class="inline-flex items-center gap-1 text-sm opacity-70 hover:opacity-100 mb-5"><span class="material-symbols-outlined text-[18px]">arrow_back</span> Voltar ao carrinho</a>`;
+    const content = `<div data-checkout-root>${back}${inner}</div>`;
+    const wrapped = template.renderCheckout
+      ? template.renderCheckout(view, content, custom)
+      : `<div class="min-h-screen bg-neutral-50"><div class="max-w-[1080px] mx-auto px-4 sm:px-6 py-8">${content}</div></div>`;
+    const app = render(wrapped);
     app.style.setProperty("--brand", brand);
     applyInk(app, custom);
     applyTheme(app, custom);

@@ -820,15 +820,18 @@ export async function renderEditor(): Promise<void> {
     return renderCheckout(variant, { storeName: store!.name, items, total, online, selected: online ? "mcx" : "whatsapp" });
   }
 
-  /** Pré-visualização do ecrã de checkout dentro do editor (sem edição inline). */
+  /** Pré-visualização do ecrã de checkout dentro do editor (com o cromo da loja). */
   function renderCheckoutEditorPreview(view: StoreViewModel): void {
+    if (view.kind !== "render") return;
     const preview = $("#preview")!;
     const variant = (custom.checkout?.variant ?? "dividido") as CheckoutVariant;
-    preview.innerHTML = `<div class="max-w-[1080px] mx-auto px-4 sm:px-6 py-8">
-      <div class="mb-sec-divider"><span>Checkout</span></div>
-      <div class="mb-ov-btn flex justify-center -mt-3 mb-6"><button id="tour-checkout" class="mb-model-btn"><span class="material-symbols-outlined">shopping_bag</span> Trocar modelo do checkout</button></div>
-      ${checkoutPreviewHtml(variant)}
-    </div>`;
+    const template = getTemplate(store!.templateId);
+    const inner = `<a class="inline-flex items-center gap-1 text-sm opacity-70 mb-5"><span class="material-symbols-outlined text-[18px]">arrow_back</span> Voltar ao carrinho</a>${checkoutPreviewHtml(variant)}`;
+    const wrapped = template.renderCheckout ? template.renderCheckout(view, inner, custom) : inner;
+    preview.innerHTML = `<div class="sticky top-0 z-10 flex items-center justify-center gap-3 py-2 bg-white/85 backdrop-blur border-b border-gray-100">
+        <span class="mb-sec-divider !my-0 !mb-0" style="flex:0"><span>Checkout</span></span>
+        <button id="tour-checkout" class="mb-model-btn"><span class="material-symbols-outlined">shopping_bag</span> Trocar modelo do checkout</button>
+      </div>${wrapped}`;
     preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
     applyInk(preview, custom);
     applyTheme(preview, custom);

@@ -407,4 +407,15 @@ export const desportivoTemplate: StoreTemplate = {
   render,
   renderProduct,
   renderCategory,
+  renderCheckout,
 };
+
+function renderCheckout(view: StoreRenderView, innerHtml: string, custom?: StoreCustomization): string {
+  const menuLabels = menuFor(view, custom);
+  return `
+  <div class="min-h-screen flex flex-col bg-white text-neutral-900">
+    ${headerHtml(view, menuLabels, custom)}
+    <main class="${CONTAINER} py-8 md:py-12 flex-grow">${innerHtml}</main>
+    ${footerHtml(view, custom, menuLabels)}
+  </div>`;
+}

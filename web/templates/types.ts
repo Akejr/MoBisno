@@ -135,6 +135,11 @@ export interface StoreTemplate {
    * categoria). Opcional.
    */
   renderCategory?(view: StoreRenderView, category: string, custom?: StoreCustomization): string;
+  /**
+   * Produz o HTML do checkout dentro do cromo da loja (cabeçalho/rodapé/tema),
+   * recebendo o conteúdo interior (formulário + métodos + resumo). Opcional.
+   */
+  renderCheckout?(view: StoreRenderView, innerHtml: string, custom?: StoreCustomization): string;
 }
 
 export type { StoreRenderView };
