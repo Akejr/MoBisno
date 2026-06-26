@@ -59,6 +59,10 @@ export function openProductForm(opts: ProductFormOptions): void {
           <input data-featured type="checkbox" ${product?.featured ? "checked" : ""} class="w-4 h-4 accent-primary" />
           <span class="text-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[18px] text-primary">star</span> Destacar na loja (categoria "Destaques")</span>
         </label>
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input data-physical type="checkbox" ${product ? (product.physical !== false ? "checked" : "") : "checked"} class="w-4 h-4 accent-primary" />
+          <span class="text-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[18px] text-primary">local_shipping</span> Produto físico (precisa de entrega/morada)</span>
+        </label>
         <div data-errs></div>
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" data-close class="px-4 py-2 rounded-full text-on-surface-variant hover:bg-surface-container-high text-label-md">Cancelar</button>
@@ -102,8 +106,9 @@ export function openProductForm(opts: ProductFormOptions): void {
     const description = host.querySelector<HTMLTextAreaElement>("[data-desc]")!.value;
     const category = host.querySelector<HTMLInputElement>("[data-category]")!.value;
     const featured = host.querySelector<HTMLInputElement>("[data-featured]")!.checked;
+    const physical = host.querySelector<HTMLInputElement>("[data-physical]")!.checked;
     const price = priceRaw === "" ? Number.NaN : Number(priceRaw);
-    const input = { name, price, description, category, featured, imageUrl, available: true };
+    const input = { name, price, description, category, featured, physical, imageUrl, available: true };
 
     const res = await withButton(
       submitBtn,

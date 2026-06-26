@@ -98,6 +98,8 @@ export interface Product {
   category?: string;
   /** Produto destacado (aparece na categoria "Destaques"). */
   featured?: boolean;
+  /** Produto físico (precisa de entrega/morada). Por omissão `true`. */
+  physical?: boolean;
   /** Preço: 0,00 a 999.999.999,99. */
   price: number;
   imageUrl?: string;

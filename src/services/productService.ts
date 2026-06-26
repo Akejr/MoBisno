@@ -48,6 +48,8 @@ export interface ProductInput {
   category?: string;
   /** Produto destacado (categoria "Destaques"). */
   featured?: boolean;
+  /** Produto físico (precisa de entrega/morada). Por omissão `true`. */
+  physical?: boolean;
   /** Preço do Produto (0,00 a 999.999.999,99). */
   price: number;
   /** URL da imagem do Produto (opcional). */
@@ -90,6 +92,7 @@ export interface NormalizedProductInput {
   description: string;
   category?: string;
   featured: boolean;
+  physical: boolean;
   price: number;
   imageUrl?: string;
   available: boolean;
@@ -214,6 +217,7 @@ export function validateProduct(
       ? input.category.trim()
       : undefined,
     featured: input.featured === true,
+    physical: input.physical !== false,
     price,
     imageUrl: input.imageUrl,
     available: input.available ?? true,
@@ -276,6 +280,7 @@ export function createProductService(deps: ProductServiceDeps): ProductService {
         description: v.description,
         category: v.category,
         featured: v.featured,
+        physical: v.physical,
         price: v.price,
         imageUrl: v.imageUrl,
         available: v.available,
@@ -319,6 +324,7 @@ export function createProductService(deps: ProductServiceDeps): ProductService {
         description: v.description,
         category: v.category,
         featured: v.featured,
+        physical: v.physical,
         price: v.price,
         imageUrl: v.imageUrl,
         available: input.available ?? existing.available,

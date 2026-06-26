@@ -12,6 +12,7 @@ import { getPaymentConfig, savePaymentConfig, getOrderStats, type PaymentConfig,
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
+import { LUANDA_AREAS } from "../lib/areas.js";
 
 const ACCENT = "#F95901";
 const ACCENT_TINT = "rgba(249,89,1,.1)";
@@ -305,7 +306,7 @@ export async function renderDashboard(): Promise<void> {
   async function renderConfig(): Promise<void> {
     const c = await getCustomization(store!.id);
     const canDomain = plan.features.customDomain;
-    const zones = c.delivery?.zones ?? [];
+    const fees = c.delivery?.fees ?? {};
     const inp = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#F95901]";
 
     const toggle = (id: string, on: boolean, label: string): string => `
@@ -318,13 +319,10 @@ export async function renderDashboard(): Promise<void> {
       </label>`;
 
     const deliveryBody = `
-      <p class="text-sm text-gray-500 mb-4">Defina as suas zonas de entrega e as respetivas taxas. Estes valores aparecem ao cliente no checkout.</p>
-      <div class="mb-4">${toggle("del-enabled", !!c.delivery?.enabled, "Cobrar taxa de entrega")}</div>
-      <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Zonas e taxas</p>
-      <div id="zones" class="space-y-2">${zones.map((z) => zoneRowHtml(z.name, z.fee)).join("")}</div>
-      <button id="add-zone" type="button" class="mt-2 w-full border-2 border-dashed border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-400 rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-1 transition-colors"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar zona</button>
-      <label class="block mt-4"><span class="text-sm font-semibold text-gray-700">Entrega grátis acima de (Kz) — opcional</span>
-        <input id="del-free" type="number" min="0" value="${c.delivery?.freeAbove ?? ""}" placeholder="ex.: 20000" class="${inp} mt-1.5" /></label>
+      <p class="text-sm text-gray-500 mb-4">Ative as áreas onde entrega e defina a taxa de cada uma (Província: <b>Luanda</b>). As áreas que não ativar não aparecem ao cliente. A taxa é somada ao total no checkout.</p>
+      <div class="rounded-xl border border-gray-100 divide-y divide-gray-50">
+        ${LUANDA_AREAS.map((a) => areaRowHtml(a, typeof fees[a] === "number" ? fees[a] : null)).join("")}
+      </div>
       <button id="save-delivery" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar entregas</button>`;
 
     const smsBody = `
@@ -360,25 +358,24 @@ export async function renderDashboard(): Promise<void> {
       </section>`));
     bindShell();
 
-    // Entregas
-    const zonesEl = $("#zones");
-    $("#add-zone")?.addEventListener("click", () => {
-      const wrap = document.createElement("div");
-      wrap.innerHTML = zoneRowHtml("", "");
-      zonesEl?.appendChild(wrap.firstElementChild!);
-    });
-    zonesEl?.addEventListener("click", (e) => {
-      const del = (e.target as HTMLElement).closest("[data-z-del]");
-      if (del) del.closest(".mb-zone")?.remove();
+    // Entregas (áreas fixas)
+    document.querySelectorAll<HTMLElement>(".mb-area").forEach((row) => {
+      const on = row.querySelector("[data-a-on]") as HTMLInputElement | null;
+      const fee = row.querySelector("[data-a-fee]") as HTMLInputElement | null;
+      on?.addEventListener("change", () => {
+        if (!fee) return;
+        fee.disabled = !on.checked;
+        if (on.checked) fee.focus();
+      });
     });
     $("#save-delivery")?.addEventListener("click", async () => {
-      const enabled = ($("#del-enabled") as HTMLInputElement)?.checked ?? false;
-      const newZones = Array.from(document.querySelectorAll<HTMLElement>(".mb-zone")).map((row) => ({
-        name: (row.querySelector("[data-z-name]") as HTMLInputElement)?.value.trim() ?? "",
-        fee: Math.max(0, Number((row.querySelector("[data-z-fee]") as HTMLInputElement)?.value) || 0),
-      })).filter((z) => z.name !== "");
-      const freeRaw = Number(($("#del-free") as HTMLInputElement)?.value);
-      c.delivery = { enabled, zones: newZones, freeAbove: Number.isFinite(freeRaw) && freeRaw > 0 ? freeRaw : undefined };
+      const feesOut: Record<string, number> = {};
+      document.querySelectorAll<HTMLElement>(".mb-area").forEach((row) => {
+        const area = row.dataset.area ?? "";
+        const on = (row.querySelector("[data-a-on]") as HTMLInputElement | null)?.checked ?? false;
+        if (area && on) feesOut[area] = Math.max(0, Number((row.querySelector("[data-a-fee]") as HTMLInputElement | null)?.value) || 0);
+      });
+      c.delivery = { fees: feesOut };
       const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
       ok ? toast("Entregas guardadas.") : toast("Não foi possível guardar.", "error");
     });
@@ -542,13 +539,18 @@ function settingsAccordion(o: { icon: string; title: string; desc: string; body:
   </details>`;
 }
 
-/** Linha editável de zona de entrega (nome + taxa + remover). */
-function zoneRowHtml(name: string, fee: number | string): string {
-  const cls = "bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901]";
-  return `<div class="mb-zone flex items-center gap-2">
-    <input data-z-name type="text" value="${esc(name)}" placeholder="Zona (ex.: Luanda - Centro)" class="flex-1 ${cls}" />
-    <input data-z-fee type="number" min="0" value="${esc(String(fee))}" placeholder="Taxa Kz" class="w-28 ${cls}" />
-    <button type="button" data-z-del class="w-9 h-9 shrink-0 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+/** Linha de área de entrega (toggle + taxa). `fee` null = não entrega. */
+function areaRowHtml(area: string, fee: number | null): string {
+  const on = fee !== null;
+  return `<div class="mb-area flex items-center gap-3 px-3 py-2.5" data-area="${esc(area)}">
+    <label class="flex items-center gap-2.5 flex-1 cursor-pointer select-none">
+      <input data-a-on type="checkbox" ${on ? "checked" : ""} class="w-4 h-4 accent-[#F95901]" />
+      <span class="text-sm font-medium text-gray-800">${esc(area)}</span>
+    </label>
+    <div class="flex items-center gap-1.5">
+      <input data-a-fee type="number" min="0" value="${on ? esc(String(fee)) : ""}" placeholder="Taxa" ${on ? "" : "disabled"} class="w-28 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-right outline-none focus:border-[#F95901] disabled:bg-gray-50 disabled:text-gray-300" />
+      <span class="text-xs text-gray-400 w-5">Kz</span>
+    </div>
   </div>`;
 }
 

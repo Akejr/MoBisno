@@ -16,6 +16,7 @@
  *  - `#coupon` / `#coupon-apply` — cupão (decorativo, opcional)
  */
 import { esc, formatKz } from "../lib/dom.js";
+import { DELIVERY_PROVINCE } from "../lib/areas.js";
 
 export type CheckoutVariant = "dividido" | "moderno" | "compacto" | "minimal";
 
@@ -33,11 +34,38 @@ interface MethodInfo { id: CheckoutMethodId; logo: string; title: string; subtit
 export interface CheckoutLayoutCtx {
   storeName: string;
   items: { name: string; price: number; quantity: number; imageUrl?: string }[];
+  /** Subtotal dos artigos (sem entrega). */
   total: number;
   /** Mostrar Multicaixa Express + Referência (loja com pagamentos online). */
   online: boolean;
   /** Método atualmente selecionado (estado ativo). */
   selected: CheckoutMethodId | null;
+  /** O carrinho tem ≥1 produto físico (mostra morada + entrega). */
+  physical: boolean;
+  /** Áreas onde a loja entrega (nome + taxa). */
+  areas: { name: string; fee: number }[];
+  /** Área de entrega escolhida. */
+  selectedArea: string | null;
+  /** Taxa de entrega da área escolhida (Kz). */
+  deliveryFee: number;
+}
+
+/** Total a pagar (subtotal + entrega, quando aplicável). */
+function grandTotal(ctx: CheckoutLayoutCtx): number {
+  return ctx.total + (ctx.physical ? ctx.deliveryFee : 0);
+}
+
+/** Linhas de totais (subtotal + entrega + total) para os resumos. */
+function orderTotals(ctx: CheckoutLayoutCtx): string {
+  const grand = grandTotal(ctx);
+  const show = ctx.physical && ctx.selectedArea !== null;
+  const feeTxt = ctx.deliveryFee > 0 ? esc(formatKz(ctx.deliveryFee)) : "Grátis";
+  return `<div class="space-y-2.5 text-sm">
+    ${show ? `<div class="flex justify-between"><span class="text-neutral-500">Subtotal</span><span class="font-medium text-neutral-900">${esc(formatKz(ctx.total))}</span></div>
+      <div class="flex justify-between"><span class="text-neutral-500">Entrega · ${esc(ctx.selectedArea ?? "")}</span><span class="font-medium text-neutral-900">${feeTxt}</span></div>` : ""}
+    ${ctx.physical && ctx.selectedArea === null ? `<p class="text-xs text-neutral-400">Selecione a área para calcular a entrega.</p>` : ""}
+    <div class="flex items-baseline justify-between ${show ? "pt-3 border-t border-neutral-100" : ""}"><span class="font-bold text-neutral-900">Total</span><span class="text-2xl font-black tracking-tight" style="color:var(--brand)">${esc(formatKz(grand))}</span></div>
+  </div>`;
 }
 
 /** Texto de apoio do telefone, com destaques na cor da marca. */
@@ -100,11 +128,32 @@ function field(id: string, label: string, ph: string, type = "text", hintHtml = 
     ${hintHtml ? `<span class="block text-xs text-neutral-500 mt-1.5 leading-snug">${hintHtml}</span>` : ""}</label>`;
 }
 
-function customerFields(opts: { email?: boolean; compact?: boolean } = {}): string {
+interface AddressOpts { areas: { name: string; fee: number }[]; selected: string | null; }
+
+function addressBlock(address: AddressOpts): string {
+  const areaField = address.areas.length
+    ? `<select id="c-area" class="${INPUT_CLS}">
+        <option value="" ${address.selected ? "" : "selected"} disabled>Selecione a área</option>
+        ${address.areas.map((a) => `<option value="${esc(a.name)}" ${address.selected === a.name ? "selected" : ""}>${esc(a.name)} — ${a.fee > 0 ? esc(formatKz(a.fee)) : "Grátis"}</option>`).join("")}
+      </select>`
+    : `<input disabled placeholder="A loja ainda não definiu zonas" class="${INPUT_CLS} bg-neutral-50 text-neutral-400" />`;
+  return `<div class="pt-1">
+    <h3 class="text-sm font-bold text-neutral-900 mb-3 flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:var(--brand)">local_shipping</span> Endereço de entrega</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block"><span class="text-sm font-semibold text-neutral-700">Província</span>
+        <input value="${esc(DELIVERY_PROVINCE)}" disabled class="${INPUT_CLS} bg-neutral-50 text-neutral-500" /></label>
+      <label class="block"><span class="text-sm font-semibold text-neutral-700">Área</span>${areaField}</label>
+    </div>
+  </div>`;
+}
+
+function customerFields(opts: { email?: boolean; compact?: boolean; address?: AddressOpts } = {}): string {
+  const addr = opts.address ? addressBlock(opts.address) : "";
   if (opts.compact) {
     return `<div class="space-y-3">
       ${field("c-name", "Nome", "O seu nome")}
       ${field("c-phone", "Telemóvel", "9XX XXX XXX", "tel", PHONE_HINT)}
+      ${addr}
     </div>`;
   }
   return `<div class="space-y-4">
@@ -114,6 +163,7 @@ function customerFields(opts: { email?: boolean; compact?: boolean } = {}): stri
       ${field("c-phone", "Telefone", "923456789", "tel", PHONE_HINT)}
     </div>
     ${opts.email ? `<label class="block"><span class="text-sm font-semibold text-neutral-700">NIF (opcional)</span><input id="c-nif" type="text" placeholder="Para a fatura" class="${INPUT_CLS}" /></label>` : ""}
+    ${addr}
   </div>`;
 }
 
@@ -168,7 +218,8 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
   const methods = methodList(ctx.online);
   const tiles = methods.map((m) => methodTile(m, ctx.selected === m.id)).join("");
   const rows = methods.map((m) => methodRow(m, ctx.selected === m.id)).join("");
-  const totalKz = esc(formatKz(ctx.total));
+  const grand = esc(formatKz(grandTotal(ctx)));
+  const addr: AddressOpts | undefined = ctx.physical ? { areas: ctx.areas, selected: ctx.selectedArea } : undefined;
   const cols = Math.min(methods.length, 3);
 
   if (variant === "moderno") {
@@ -190,7 +241,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
         <div class="lg:col-span-7 order-2 lg:order-1">
           <h1 class="text-2xl md:text-3xl font-black text-neutral-900">Detalhes de Pagamento</h1>
           <p class="text-neutral-500 mt-1 mb-6 text-sm">Conclua a compra escolhendo a forma de pagamento.</p>
-          ${customerFields({ email: true })}
+          ${customerFields({ email: true, address: addr })}
           <h2 class="mt-8 mb-3 font-bold text-neutral-900">Forma de pagamento</h2>
           <div class="grid grid-cols-${cols} gap-2 sm:gap-3">${tiles}</div>
           <div class="mt-6">${payButton(ctx.selected)}</div>
@@ -203,10 +254,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
               <input id="coupon" type="text" placeholder="Código promocional" class="flex-1 bg-white border border-neutral-300 rounded-xl px-3.5 py-3 text-[16px] outline-none focus:border-[color:var(--brand)]" />
               <button id="coupon-apply" type="button" class="px-5 rounded-xl text-white font-semibold text-sm shrink-0" style="background:var(--brand)">Aplicar</button>
             </div>
-            <div class="mt-5 space-y-2.5 text-sm">
-              <div class="flex justify-between"><span class="text-neutral-500">Subtotal</span><span class="font-medium text-neutral-900">${totalKz}</span></div>
-              <div class="flex items-baseline justify-between pt-3 border-t border-neutral-100"><span class="font-bold text-neutral-900">Total</span><span class="text-2xl font-black tracking-tight" style="color:var(--brand)">${totalKz}</span></div>
-            </div>
+            <div class="mt-5">${orderTotals(ctx)}</div>
           </div>
         </div>
       </div>
@@ -228,13 +276,13 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
         </div>
         <div class="text-right shrink-0">
           <p class="text-xs text-neutral-400">Total</p>
-          <p class="font-black text-xl sm:text-2xl tracking-tight" style="color:var(--brand)">${totalKz}</p>
+          <p class="font-black text-xl sm:text-2xl tracking-tight" style="color:var(--brand)">${grand}</p>
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
         <div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
           <h2 class="font-black text-neutral-900 mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]" style="color:var(--brand)">person</span> Dados</h2>
-          ${customerFields({})}
+          ${customerFields({ address: addr })}
         </div>
         <div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
           <h2 class="font-black text-neutral-900 mb-1 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]" style="color:var(--brand)">credit_card</span> Pagamento</h2>
@@ -251,7 +299,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
       <div class="order-2 lg:order-1">
         <section class="mb-10 sm:mb-12">
           <h2 class="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-400 mb-5">Os seus dados</h2>
-          ${customerFields({})}
+          ${customerFields({ address: addr })}
         </section>
         <section>
           <h2 class="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-400 mb-1">Forma de pagamento</h2>
@@ -261,10 +309,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
       <div class="order-1 lg:order-2 lg:border-l lg:border-neutral-200 lg:pl-20 lg:sticky lg:top-6">
         <h2 class="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-400 mb-5">Resumo</h2>
         <div class="divide-y divide-neutral-100">${summaryLines(ctx)}</div>
-        <div class="flex items-baseline justify-between mt-6 pt-6 border-t-2 border-neutral-900">
-          <span class="font-bold text-neutral-900">Total</span>
-          <span class="text-3xl font-black tracking-tight" style="color:var(--brand)">${totalKz}</span>
-        </div>
+        <div class="mt-6 pt-6 border-t-2 border-neutral-900">${orderTotals(ctx)}</div>
         <div class="mt-7">${payButton(ctx.selected)}</div>
         ${secureNote()}
       </div>
@@ -276,7 +321,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
     <div class="lg:col-span-3 space-y-6 order-2 lg:order-1">
       <div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
         <h2 class="font-black text-neutral-900 mb-5 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">person</span> Dados Pessoais</h2>
-        ${customerFields({ email: true })}
+        ${customerFields({ email: true, address: addr })}
       </div>
       <div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
         <h2 class="font-black text-neutral-900 mb-5 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">lock</span> Forma de Pagamento</h2>
@@ -289,10 +334,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
       <div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6 lg:sticky lg:top-6">
         <h2 class="font-black text-neutral-900 mb-4">Resumo do Pedido</h2>
         <div class="divide-y divide-neutral-100">${summaryLines(ctx)}</div>
-        <div class="flex items-center justify-between mt-4 pt-4 border-t border-neutral-200">
-          <span class="font-bold text-neutral-900">Total</span>
-          <span class="font-black text-2xl" style="color:var(--brand)">${totalKz}</span>
-        </div>
+        <div class="mt-4 pt-4 border-t border-neutral-200">${orderTotals(ctx)}</div>
         ${couponBlock()}
         <p class="text-center text-xs text-neutral-400 mt-5 flex items-center justify-center gap-1"><span class="material-symbols-outlined text-[15px]">help</span> Precisa de ajuda com o pedido?</p>
       </div>
@@ -322,7 +364,6 @@ export function renderStepper(active: number): string {
 
 /** Cartão "Resumo do Pedido" (itens com visto + cupão + subtotal/total). */
 export function renderOrderSummaryCard(ctx: CheckoutLayoutCtx): string {
-  const totalKz = esc(formatKz(ctx.total));
   const checkItems = ctx.items.map((i) => `<div class="flex items-center gap-2.5 py-3">
     <span class="material-symbols-outlined text-[20px] shrink-0" style="color:#16a34a">check_circle</span>
     <span class="flex-1 min-w-0 text-sm font-medium text-neutral-800 truncate">${i.quantity}× ${esc(i.name)}</span>
@@ -335,9 +376,6 @@ export function renderOrderSummaryCard(ctx: CheckoutLayoutCtx): string {
       <input id="coupon" type="text" placeholder="Código promocional" class="flex-1 bg-white border border-neutral-300 rounded-xl px-3.5 py-3 text-[16px] outline-none focus:border-[color:var(--brand)]" />
       <button id="coupon-apply" type="button" class="px-5 rounded-xl text-white font-semibold text-sm shrink-0" style="background:var(--brand)">Aplicar</button>
     </div>
-    <div class="mt-5 space-y-2.5 text-sm">
-      <div class="flex justify-between"><span class="text-neutral-500">Subtotal</span><span class="font-medium text-neutral-900">${totalKz}</span></div>
-      <div class="flex items-baseline justify-between pt-3 border-t border-neutral-100"><span class="font-bold text-neutral-900">Total</span><span class="text-2xl font-black tracking-tight" style="color:var(--brand)">${totalKz}</span></div>
-    </div>
+    <div class="mt-5">${orderTotals(ctx)}</div>
   </div>`;
 }

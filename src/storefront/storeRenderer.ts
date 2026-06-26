@@ -128,6 +128,8 @@ export interface StoreProductView {
   readonly category: string | null;
   /** Produto destacado (categoria "Destaques"). */
   readonly featured: boolean;
+  /** Produto físico (precisa de entrega/morada). */
+  readonly physical: boolean;
   readonly price: number;
   /** URL da imagem do Produto, ou `null` se não existir. */
   readonly imageUrl: string | null;
@@ -244,6 +246,7 @@ export function renderStore(result: StorefrontResult): StoreViewModel {
     description: product.description,
     category: product.category ?? null,
     featured: product.featured === true,
+    physical: product.physical !== false,
     price: product.price,
     imageUrl: product.imageUrl ?? null,
   }));

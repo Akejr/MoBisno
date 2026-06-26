@@ -37,6 +37,7 @@ function toProduct(r: any): Product {
     id: r.id, storeId: r.store_id, name: r.name, description: r.description ?? "",
     category: r.category ?? undefined,
     featured: r.featured === true,
+    physical: r.physical !== false,
     price: Number(r.price), imageUrl: r.image_url ?? undefined,
     available: r.available, createdAt: r.created_at,
   };
@@ -99,6 +100,7 @@ export function createSupabaseProductRepository(): ProductRepository {
       const row = { id: product.id, store_id: storeId, name: product.name, description: product.description,
         category: product.category ?? null,
         featured: product.featured === true,
+        physical: product.physical !== false,
         price: product.price, image_url: product.imageUrl ?? null, available: product.available, created_at: product.createdAt };
       const { data, error } = await supabase.from("products").insert(row).select().single();
       if (error) throw new Error(error.message);
@@ -108,6 +110,7 @@ export function createSupabaseProductRepository(): ProductRepository {
       const row = { name: product.name, description: product.description, price: product.price,
         category: product.category ?? null,
         featured: product.featured === true,
+        physical: product.physical !== false,
         image_url: product.imageUrl ?? null, available: product.available };
       const { data } = await supabase.from("products").update(row).eq("id", product.id).eq("store_id", storeId).select().maybeSingle();
       return data ? toProduct(data) : null;

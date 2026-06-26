@@ -41,9 +41,9 @@ A Vercel emite SSL automático, incluindo para o wildcard.
 
 ## 4. Supabase
 
-1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0008_payments.sql`
+1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0009_product_physical.sql`
    (a `0007` muda a coerência do subdomínio para `.mobisno.store`; a `0008`
-   cria as tabelas de pagamentos: `store_payments`, `orders`, `plan_payments`).
+   cria as tabelas de pagamentos; a `0009` adiciona o indicador de produto físico).
 2. **Authentication → URL Configuration**:
    - **Site URL**: `https://mobisno.store`
    - **Redirect URLs**: `https://mobisno.store/**`, `https://www.mobisno.store/**`

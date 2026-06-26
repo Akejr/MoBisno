@@ -18,6 +18,7 @@ import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
 import { initPayment, checkStatus } from "../lib/paymentsApi.js";
 import { getTemplate } from "../templates/registry.js";
+import { deliveredAreas } from "../lib/areas.js";
 import {
   renderCheckout, renderStepper, renderCustomerFields, renderMethodTile,
   checkoutMethods, renderPayButton, renderOrderSummaryCard,
@@ -49,15 +50,32 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   let selected: CheckoutMethodId | null = null;
   const cust: { name?: string; email?: string; nif?: string; phone?: string } = {};
 
+  // Entrega: áreas servidas + se o carrinho tem produtos físicos.
+  const areas = deliveredAreas(custom.delivery?.fees);
+  const physical = getCart(storeId).some((ci) => {
+    const p = view.products.find((pp) => pp.id === ci.productId);
+    return p ? p.physical : false;
+  });
+  let selectedArea: string | null = null;
+  let deliveryFee = 0;
+  function setArea(name: string | null): void {
+    selectedArea = name && name.trim() ? name : null;
+    deliveryFee = selectedArea ? (areas.find((a) => a.name === selectedArea)?.fee ?? 0) : 0;
+  }
+
   function products(): PaymentProduct[] {
-    return getCart(storeId).map((i: CartItem) => ({
+    const base = getCart(storeId).map((i: CartItem) => ({
       id: i.productId, productName: i.name, productPrice: i.price, productQuantity: i.quantity,
     }));
+    if (physical && selectedArea && deliveryFee > 0) {
+      base.push({ productName: `Entrega - ${selectedArea}`, productPrice: deliveryFee, productQuantity: 1 });
+    }
+    return base;
   }
 
   function ctx(): CheckoutLayoutCtx {
     const items = getCart(storeId).map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, imageUrl: i.imageUrl }));
-    return { storeName, items, total: cartTotal(storeId), online, selected };
+    return { storeName, items, total: cartTotal(storeId), online, selected, physical, areas, selectedArea, deliveryFee };
   }
 
   /** Envolve o conteúdo no cromo da loja (cabeçalho, rodapé, tema, fontes). */
@@ -87,8 +105,11 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
 
   function drawForm(): void {
     if (getCart(storeId).length === 0) { shell(emptyCart()); return; }
+    captureCustomer();
     shell(renderCheckout(variant, ctx()) + qaNote);
+    prefillCustomer();
     bindMethods();
+    $("#c-area")?.addEventListener("change", (e) => { setArea((e.target as HTMLSelectElement).value || null); drawForm(); });
     $("#pay")?.addEventListener("click", () => void pay());
     $("#coupon-apply")?.addEventListener("click", () => toast("Sem cupões disponíveis de momento."));
   }
@@ -117,7 +138,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       return `<div class="max-w-xl mx-auto">
         <h1 class="text-2xl md:text-3xl font-black text-neutral-900">Os seus dados</h1>
         <p class="text-neutral-500 mt-1 mb-6 text-sm">Precisamos destes dados para concluir a encomenda.</p>
-        ${renderCustomerFields({ email: true })}
+        ${renderCustomerFields({ email: true, address: physical ? { areas, selected: selectedArea } : undefined })}
         <button id="step-next" class="w-full mt-6 py-4 rounded-xl font-bold text-white inline-flex items-center justify-center gap-2 active:scale-[.99]" style="background:var(--brand);box-shadow:0 10px 24px -10px var(--brand)">Continuar <span class="material-symbols-outlined">arrow_forward</span></button>
       </div>`;
     }
@@ -142,6 +163,8 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     cust.email = ($("#c-email") as HTMLInputElement)?.value.trim() || undefined;
     cust.nif = ($("#c-nif") as HTMLInputElement)?.value.trim() || undefined;
     cust.phone = ($("#c-phone") as HTMLInputElement)?.value.trim() || undefined;
+    const areaEl = $("#c-area") as HTMLSelectElement | null;
+    if (areaEl) setArea(areaEl.value || null);
   }
 
   function prefillCustomer(): void {
@@ -177,6 +200,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   function bindStep(): void {
     // Passo 1
     prefillCustomer();
+    $("#c-area")?.addEventListener("change", (e) => setArea((e.target as HTMLSelectElement).value || null));
     $("#step-next")?.addEventListener("click", () => { captureCustomer(); gotoStep(2); });
     // Passo 2
     document.querySelectorAll<HTMLElement>("[data-method]").forEach((b) =>
@@ -226,15 +250,20 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     if (!items.length) { toast("O carrinho está vazio.", "error"); return; }
 
     // No fluxo por etapas os dados já foram capturados; na página única, lê agora.
-    if (variant !== "moderno") {
-      cust.name = ($("#c-name") as HTMLInputElement)?.value.trim() || cust.name;
-      cust.nif = ($("#c-nif") as HTMLInputElement)?.value.trim() || cust.nif;
-      cust.phone = ($("#c-phone") as HTMLInputElement)?.value.trim() || cust.phone;
+    if (variant !== "moderno") captureCustomer();
+
+    if (physical && areas.length && !selectedArea) {
+      toast("Selecione a área de entrega.", "error");
+      if (variant === "moderno" && $("#mb-step")) gotoStep(1);
+      return;
     }
+
+    const grand = cartTotal(storeId) + (physical ? deliveryFee : 0);
 
     if (selected === "whatsapp") {
       const lines = items.map((i) => `• ${i.quantity}x ${i.name} (${formatKz(i.price * i.quantity)})`).join("\n");
-      const msg = `Olá! Gostaria de encomendar:\n${lines}\n\nTotal: ${formatKz(cartTotal(storeId))}`;
+      const areaLine = physical && selectedArea ? `\nEntrega: ${selectedArea}${deliveryFee > 0 ? ` (${formatKz(deliveryFee)})` : " (grátis)"}` : "";
+      const msg = `Olá! Gostaria de encomendar:\n${lines}${areaLine}\n\nTotal: ${formatKz(grand)}`;
       window.open(waLink(waPhone, msg), "_blank", "noopener");
       toast("A abrir o WhatsApp para finalizar…");
       return;

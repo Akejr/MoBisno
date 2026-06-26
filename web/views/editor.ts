@@ -27,6 +27,7 @@ import { HEADER_VARIANTS, renderHeader, type HeaderVariant } from "../templates/
 import { FOOTER_VARIANTS, renderFooter, type FooterVariant } from "../templates/footers.js";
 import { PRODUCTPAGE_VARIANTS, renderProductPage, type ProductPageVariant } from "../templates/productPage.js";
 import { CHECKOUT_VARIANTS, renderCheckout, type CheckoutVariant } from "../templates/checkoutLayouts.js";
+import { deliveredAreas } from "../lib/areas.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
@@ -817,7 +818,14 @@ export async function renderEditor(): Promise<void> {
     const items = checkoutSampleItems();
     const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const online = !!custom.payments?.onlineEnabled;
-    return renderCheckout(variant, { storeName: store!.name, items, total, online, selected: online ? "mcx" : "whatsapp" });
+    const areas = deliveredAreas(custom.delivery?.fees);
+    const selectedArea = areas[0]?.name ?? null;
+    const deliveryFee = areas[0]?.fee ?? 0;
+    return renderCheckout(variant, {
+      storeName: store!.name, items, total, online,
+      selected: online ? "mcx" : "whatsapp",
+      physical: true, areas, selectedArea, deliveryFee,
+    });
   }
 
   /** Pré-visualização do ecrã de checkout dentro do editor (com o cromo da loja). */

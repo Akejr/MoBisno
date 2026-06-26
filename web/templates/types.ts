@@ -98,12 +98,9 @@ export interface StoreCustomization {
   checkout?: {
     variant?: "dividido" | "moderno" | "compacto" | "minimal";
   };
-  /** Taxas de entrega declaradas pela loja (mostradas no checkout). */
+  /** Taxas de entrega por área (Kz). A presença de uma área = a loja entrega lá. */
   delivery?: {
-    enabled?: boolean;
-    zones?: { name: string; fee: number }[];
-    /** Entrega grátis acima deste valor (Kz). 0/ausente = desativado. */
-    freeAbove?: number;
+    fees?: Record<string, number>;
   };
   /** SMS de confirmação de compra enviado ao cliente. */
   sms?: {
