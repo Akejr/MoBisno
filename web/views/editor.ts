@@ -214,6 +214,8 @@ export async function renderEditor(): Promise<void> {
     // Logótipo — trocar imagem + aumentar/diminuir tamanho.
     const logo = preview.querySelector<HTMLElement>("[data-edit-logo]");
     if (logo) {
+      // Garante que o overlay ancora ao logótipo (e não ao header sticky).
+      logo.style.position = logo.style.position || "relative";
       logo.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).closest("[data-logo-ctrl]")) return;
         e.preventDefault();
