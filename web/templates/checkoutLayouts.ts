@@ -134,7 +134,7 @@ function addressBlock(address: AddressOpts): string {
   const areaField = address.areas.length
     ? `<select id="c-area" class="${INPUT_CLS}">
         <option value="" ${address.selected ? "" : "selected"} disabled>Selecione a área</option>
-        ${address.areas.map((a) => `<option value="${esc(a.name)}" ${address.selected === a.name ? "selected" : ""}>${esc(a.name)} — ${a.fee > 0 ? esc(formatKz(a.fee)) : "Grátis"}</option>`).join("")}
+        ${address.areas.map((a) => `<option value="${esc(a.name)}" ${address.selected === a.name ? "selected" : ""}>${esc(a.name)}</option>`).join("")}
       </select>`
     : `<input disabled placeholder="A loja ainda não definiu zonas" class="${INPUT_CLS} bg-neutral-50 text-neutral-400" />`;
   return `<div class="pt-1">
@@ -218,7 +218,6 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
   const methods = methodList(ctx.online);
   const tiles = methods.map((m) => methodTile(m, ctx.selected === m.id)).join("");
   const rows = methods.map((m) => methodRow(m, ctx.selected === m.id)).join("");
-  const grand = esc(formatKz(grandTotal(ctx)));
   const addr: AddressOpts | undefined = ctx.physical ? { areas: ctx.areas, selected: ctx.selectedArea } : undefined;
   const cols = Math.min(methods.length, 3);
 
@@ -274,10 +273,6 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
           <p class="font-bold text-neutral-900 leading-tight truncate">A sua encomenda</p>
           <p class="text-sm text-neutral-400">${ctx.items.length} artigo(s)</p>
         </div>
-        <div class="text-right shrink-0">
-          <p class="text-xs text-neutral-400">Total</p>
-          <p class="font-black text-xl sm:text-2xl tracking-tight" style="color:var(--brand)">${grand}</p>
-        </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
         <div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
@@ -289,6 +284,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
           <div class="divide-y divide-neutral-100">${rowsBoxed}</div>
         </div>
       </div>
+      <div class="rounded-2xl border border-neutral-200 bg-white p-5">${orderTotals(ctx)}</div>
       ${payButton(ctx.selected)}
       ${secureNote()}
     </div>`;
