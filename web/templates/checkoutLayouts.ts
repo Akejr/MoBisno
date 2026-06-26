@@ -69,14 +69,7 @@ function methodRow(m: MethodInfo, active: boolean): string {
   </button>`;
 }
 
-/** Pílula compacta (logótipo pequeno) — usado em Compacto. */
-function methodPill(m: MethodInfo, active: boolean): string {
-  return `<button type="button" data-method="${m.id}" class="flex items-center gap-2 rounded-full border-2 px-3 py-2 transition-colors" style="border-color:${active ? "var(--brand)" : "#e5e7eb"};background:${active ? "rgba(0,0,0,.02)" : "#fff"}">
-    ${logoBox(m, 24)}
-    <span class="text-sm font-semibold text-neutral-800 whitespace-nowrap">${esc(m.title)}</span>
-  </button>`;
-}
-
+/** Rótulo do botão de pagamento conforme o método selecionado. */
 function payLabel(selected: CheckoutMethodId | null): string {
   if (selected === null) return "Selecione um método";
   if (selected === "whatsapp") return "Finalizar via WhatsApp";
@@ -146,69 +139,90 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
   const methods = methodList(ctx.online);
   const tiles = methods.map((m) => methodTile(m, ctx.selected === m.id)).join("");
   const rows = methods.map((m) => methodRow(m, ctx.selected === m.id)).join("");
-  const pills = methods.map((m) => methodPill(m, ctx.selected === m.id)).join("");
   const totalKz = esc(formatKz(ctx.total));
 
   if (variant === "moderno") {
-    return `<div class="max-w-xl mx-auto">
-      <div class="rounded-3xl overflow-hidden shadow-xl border border-neutral-100 bg-white">
-        <div class="p-6 text-white" style="background:linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #000))">
-          <p class="text-white/80 text-sm">Total a pagar</p>
-          <p class="text-4xl font-black mt-1">${totalKz}</p>
+    return `<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div class="lg:col-span-7 space-y-6">
+        <div class="rounded-2xl border border-neutral-200 bg-white p-6 md:p-8">
+          <h2 class="font-black text-neutral-900 mb-5 flex items-center gap-2"><span class="material-symbols-outlined" style="color:var(--brand)">person</span> Os seus dados</h2>
+          ${customerFields({ email: true })}
         </div>
-        <div class="p-6 space-y-6">
-          <div>
-            <h2 class="font-black text-neutral-900 mb-3 flex items-center gap-2"><span class="material-symbols-outlined" style="color:var(--brand)">person</span> Os seus dados</h2>
-            ${customerFields({ email: true })}
+        <div class="rounded-2xl border border-neutral-200 bg-white p-6 md:p-8">
+          <h2 class="font-black text-neutral-900 mb-5 flex items-center gap-2"><span class="material-symbols-outlined" style="color:var(--brand)">credit_card</span> Forma de pagamento</h2>
+          <div class="grid grid-cols-${Math.min(methods.length, 3)} gap-3">${tiles}</div>
+        </div>
+      </div>
+      <div class="lg:col-span-5">
+        <div class="rounded-3xl overflow-hidden shadow-xl border border-neutral-100 lg:sticky lg:top-6">
+          <div class="p-7 text-white" style="background:linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #000))">
+            <p class="text-white/80 text-sm font-medium">Total a pagar</p>
+            <p class="text-4xl font-black mt-1 tracking-tight">${totalKz}</p>
           </div>
-          <div>
-            <h2 class="font-black text-neutral-900 mb-3 flex items-center gap-2"><span class="material-symbols-outlined" style="color:var(--brand)">credit_card</span> Forma de pagamento</h2>
-            <div class="grid grid-cols-${Math.min(methods.length, 3)} gap-3">${tiles}</div>
+          <div class="bg-white p-6">
+            <div class="divide-y divide-neutral-100">${summaryLines(ctx)}</div>
+            <div class="mt-6">${payButton(ctx.selected)}</div>
+            ${secureNote()}
           </div>
-          ${payButton(ctx.selected)}
-          ${secureNote()}
         </div>
       </div>
     </div>`;
   }
 
   if (variant === "compacto") {
-    return `<div class="max-w-md mx-auto space-y-5">
-      <div class="rounded-2xl border border-neutral-200 bg-white p-5">
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-neutral-500">${ctx.items.length} artigo(s)</span>
-          <span class="font-black text-xl" style="color:var(--brand)">${totalKz}</span>
+    const thumbs = ctx.items.slice(0, 4).map((i) => i.imageUrl
+      ? `<img src="${esc(i.imageUrl)}" class="w-11 h-11 rounded-xl object-cover border-2 border-white shadow-sm" />`
+      : `<div class="w-11 h-11 rounded-xl bg-neutral-100 border-2 border-white shadow-sm flex items-center justify-center"><span class="material-symbols-outlined text-neutral-400 text-[18px]">image</span></div>`).join("");
+    const rowsBoxed = methods.map((m) => methodRow(m, ctx.selected === m.id)).join("");
+    return `<div class="max-w-5xl mx-auto space-y-5">
+      <div class="rounded-2xl border border-neutral-200 bg-white px-5 py-4 flex items-center gap-4">
+        <div class="flex -space-x-3 shrink-0">${thumbs}</div>
+        <div class="flex-1 min-w-0">
+          <p class="font-bold text-neutral-900 leading-tight">A sua encomenda</p>
+          <p class="text-sm text-neutral-400">${ctx.items.length} artigo(s)</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-xs text-neutral-400">Total</p>
+          <p class="font-black text-2xl tracking-tight" style="color:var(--brand)">${totalKz}</p>
         </div>
       </div>
-      <div class="rounded-2xl border border-neutral-200 bg-white p-5 space-y-4">
-        ${customerFields({ compact: true })}
-        <div>
-          <p class="text-sm font-semibold text-neutral-700 mb-2">Como quer pagar?</p>
-          <div class="flex flex-wrap gap-2">${pills}</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+        <div class="rounded-2xl border border-neutral-200 bg-white p-6">
+          <h2 class="font-black text-neutral-900 mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]" style="color:var(--brand)">person</span> Dados</h2>
+          ${customerFields({})}
         </div>
-        ${payButton(ctx.selected)}
+        <div class="rounded-2xl border border-neutral-200 bg-white p-6">
+          <h2 class="font-black text-neutral-900 mb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]" style="color:var(--brand)">credit_card</span> Pagamento</h2>
+          <div class="divide-y divide-neutral-100">${rowsBoxed}</div>
+        </div>
       </div>
+      ${payButton(ctx.selected)}
       ${secureNote()}
     </div>`;
   }
 
   if (variant === "minimal") {
-    return `<div class="max-w-lg mx-auto">
-      <h1 class="text-3xl font-black mb-8">Finalizar</h1>
-      <section class="mb-8">
-        <h2 class="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3">Os seus dados</h2>
-        ${customerFields({})}
-      </section>
-      <section class="mb-8">
-        <h2 class="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">Forma de pagamento</h2>
-        <div class="divide-y divide-neutral-100">${rows}</div>
-      </section>
-      <div class="flex items-center justify-between py-4 border-t-2 border-neutral-900 mb-6">
-        <span class="font-bold text-neutral-900">Total</span>
-        <span class="font-black text-2xl" style="color:var(--brand)">${totalKz}</span>
+    return `<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start max-w-5xl mx-auto">
+      <div>
+        <section class="mb-12">
+          <h2 class="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-400 mb-5">Os seus dados</h2>
+          ${customerFields({})}
+        </section>
+        <section>
+          <h2 class="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-400 mb-1">Forma de pagamento</h2>
+          <div class="divide-y divide-neutral-200">${rows}</div>
+        </section>
       </div>
-      ${payButton(ctx.selected)}
-      ${secureNote()}
+      <div class="lg:border-l lg:border-neutral-200 lg:pl-20 lg:sticky lg:top-6">
+        <h2 class="text-[11px] font-bold uppercase tracking-[0.22em] text-neutral-400 mb-5">Resumo</h2>
+        <div class="divide-y divide-neutral-100">${summaryLines(ctx)}</div>
+        <div class="flex items-baseline justify-between mt-6 pt-6 border-t-2 border-neutral-900">
+          <span class="font-bold text-neutral-900">Total</span>
+          <span class="text-3xl font-black tracking-tight" style="color:var(--brand)">${totalKz}</span>
+        </div>
+        <div class="mt-7">${payButton(ctx.selected)}</div>
+        ${secureNote()}
+      </div>
     </div>`;
   }
 
