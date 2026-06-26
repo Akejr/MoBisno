@@ -98,9 +98,19 @@ function metaTags({ title, description, canonical, image, type, siteName, noinde
   return tags.filter(Boolean).join("\n    ");
 }
 
-/** Injeta as meta no shell: substitui o <title> e acrescenta tags antes de </head>. */
+/** Injeta as meta no shell: remove as meta por omissão, substitui o <title> e
+ * acrescenta as tags da loja antes de </head> (evita duplicados). */
 function inject(shell, title, tagsHtml) {
-  let out = shell.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`);
+  let out = shell
+    // Remove as meta/SEO por omissão da plataforma (para não duplicar/conflituar).
+    .replace(/\s*<meta\s+name="description"[^>]*>/gi, "")
+    .replace(/\s*<meta\s+name="keywords"[^>]*>/gi, "")
+    .replace(/\s*<meta\s+name="robots"[^>]*>/gi, "")
+    .replace(/\s*<link\s+rel="canonical"[^>]*>/gi, "")
+    .replace(/\s*<meta\s+property="og:[^"]*"[^>]*>/gi, "")
+    .replace(/\s*<meta\s+name="twitter:[^"]*"[^>]*>/gi, "")
+    .replace(/\s*<script\s+type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/gi, "");
+  out = out.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`);
   if (!/<title>/i.test(out)) out = out.replace(/<head>/i, `<head>\n    <title>${esc(title)}</title>`);
   return out.replace(/<\/head>/i, `    ${tagsHtml}\n  </head>`);
 }
