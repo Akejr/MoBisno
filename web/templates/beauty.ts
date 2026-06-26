@@ -15,7 +15,6 @@ import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
-import { isDarkColor } from "./blocks.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
@@ -178,7 +177,7 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
       ? `<div class="text-center mt-12"><button type="button" data-load-more data-step="${TWO_ROWS}" class="inline-flex items-center gap-1 font-bold px-10 py-4 rounded-lg transition-all hover:opacity-90" style="background:var(--brand,${DEFAULT_BRAND});color:#fff">Ver mais <span class="material-symbols-outlined text-[18px]">expand_more</span></button></div>`
       : "";
     const empty = items.length === 0 ? `<p class="text-[#685b5f] col-span-full py-8 text-center">Sem produtos nesta secção.</p>` : "";
-    const inner = `
+    return `<section data-section data-edit-section="${i}" class="${i > 0 ? "mt-16" : ""}">
       <div data-edit-section-head class="flex items-end justify-between gap-3 mb-10">
         <div class="min-w-0">
           <h2 style="${SERIF}" class="text-3xl md:text-4xl text-[#1c1b1b] truncate">${esc(sec.title)}</h2>
@@ -186,13 +185,8 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
         ${moreRight}
       </div>
       <div data-section-grid data-edit-products class="${gridCls}">${cards}${empty}</div>
-      ${moreBottom}`;
-    if (sec.bg) {
-      return `<section data-section data-edit-section="${i}"${isDarkColor(sec.bg) ? " data-sec-dark" : ""} style="background:${sec.bg};position:relative;width:100vw;left:50%;margin-left:-50vw" class="${i > 0 ? "mt-10" : ""} py-14 md:py-20">
-        <div class="${CONTAINER}">${inner}</div>
-      </section>`;
-    }
-    return `<section data-section data-edit-section="${i}" class="${i > 0 ? "mt-16" : ""}">${inner}</section>`;
+      ${moreBottom}
+    </section>`;
   }).join("");
   return `<div data-edit-sections>${blocks}</div>`;
 }

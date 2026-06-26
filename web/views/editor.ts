@@ -647,124 +647,61 @@ export async function renderEditor(): Promise<void> {
       });
     }
 
-    // Linhas tracejadas a separar as secções (apenas no editor) + botão de modelo + cores de fundo.
+    // Linhas tracejadas a separar as secções (apenas no editor) + botão de modelo.
     if (currentScreen === "home") {
       const blockLabel: Record<string, string> = {
         info: "Informação", text: "Texto", testimonials: "Testemunhos", location: "Localização",
       };
-      // Paleta neutra coesa (claro → escuro) para o fundo das secções.
-      const BG_PALETTE: { label: string; hex: string }[] = [
-        { label: "Branco", hex: "#ffffff" },
-        { label: "Cinza", hex: "#f3f4f6" },
-        { label: "Cinza escuro", hex: "#94a3b8" },
-        { label: "Preto claro", hex: "#334155" },
-        { label: "Preto", hex: "#0b0f19" },
-      ];
       const mkDiv = (label: string): HTMLElement => {
         const d = document.createElement("div");
         d.className = "mb-sec-divider";
         d.innerHTML = `<span>${esc(label)}</span>`;
         return d;
       };
-      const mkDots = (current: string | undefined, onPick: (hex: string | undefined) => void, id?: string): HTMLElement => {
-        const wrap = document.createElement("div");
-        wrap.className = "flex items-center gap-1.5";
-        if (id) wrap.id = id;
-        BG_PALETTE.forEach((c) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.title = `Fundo: ${c.label}`;
-          b.style.cssText = `width:18px;height:18px;border-radius:9999px;background:${c.hex};border:1px solid rgba(0,0,0,.18);cursor:pointer`;
-          if (current === c.hex) b.style.boxShadow = `0 0 0 2px #fff,0 0 0 4px ${ACCENT}`;
-          b.addEventListener("click", (e) => { e.preventDefault(); onPick(current === c.hex ? undefined : c.hex); });
-          wrap.appendChild(b);
-        });
-        return wrap;
-      };
-      // Barra (sob a divisória): botão de modelo ao centro + bolinhas de cor à direita.
-      const mkBar = (model: { label: string; icon: string; onClick: (a: HTMLElement) => void; id?: string } | null, dots: HTMLElement | null): HTMLElement => {
+      const mkBar = (model: { label: string; icon: string; onClick: (a: HTMLElement) => void; id?: string }): HTMLElement => {
         const bar = document.createElement("div");
-        bar.className = "mb-ov-btn relative -mt-3 mb-6 min-h-[34px]";
-        if (model) {
-          const center = document.createElement("div");
-          center.className = "absolute left-1/2 -translate-x-1/2";
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "mb-model-btn";
-          if (model.id) btn.id = model.id;
-          btn.innerHTML = `<span class="material-symbols-outlined">${model.icon}</span> ${esc(model.label)}`;
-          btn.addEventListener("click", (e) => { e.preventDefault(); model.onClick(btn); });
-          center.appendChild(btn);
-          bar.appendChild(center);
-        }
-        if (dots) {
-          const right = document.createElement("div");
-          right.className = "absolute right-2 top-1/2 -translate-y-1/2";
-          right.appendChild(dots);
-          bar.appendChild(right);
-        }
+        bar.className = "mb-ov-btn flex justify-center -mt-3 mb-6";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mb-model-btn";
+        if (model.id) btn.id = model.id;
+        btn.innerHTML = `<span class="material-symbols-outlined">${model.icon}</span> ${esc(model.label)}`;
+        btn.addEventListener("click", (e) => { e.preventDefault(); model.onClick(btn); });
+        bar.appendChild(btn);
         return bar;
       };
 
-      // Hero — nome + botão de modelo + cor de fundo (split/arco; ignorado se tiver imagem inteira).
+      // Hero — nome + botão de modelo.
       const heroSection = preview.querySelector<HTMLElement>("section");
       if (heroSection?.parentElement) {
         heroSection.parentElement.insertBefore(mkDiv("Hero"), heroSection);
-        const heroDots = mkDots(custom.hero?.bg, (hex) => {
-          snapshot();
-          if (hex) setPath(custom as Record<string, any>, "hero.bg", hex);
-          else if (custom.hero) delete custom.hero.bg;
-          void rebuild();
-        }, "tour-bg");
-        heroSection.parentElement.insertBefore(mkBar({ label: "Trocar modelo do hero", icon: "wallpaper", onClick: openHeroPicker, id: "tour-hero" }, heroDots), heroSection);
+        heroSection.parentElement.insertBefore(mkBar({ label: "Trocar modelo do hero", icon: "wallpaper", onClick: openHeroPicker, id: "tour-hero" }), heroSection);
       }
 
-      // Produtos — nome + botão de disposição + cor de fundo da 1.ª secção.
+      // Produtos — nome + botão de disposição.
       const sw = preview.querySelector<HTMLElement>("[data-edit-sections]");
       if (sw?.parentElement) {
         sw.parentElement.insertBefore(mkDiv("Produtos"), sw);
-        const dots0 = mkDots(custom.sections?.[0]?.bg, (hex) => {
-          if (!custom.sections || !custom.sections.length) custom.sections = [{ category: "__all__" }];
-          snapshot();
-          if (hex) custom.sections[0]!.bg = hex; else delete custom.sections[0]!.bg;
-          void rebuild();
-        });
-        sw.parentElement.insertBefore(mkBar({ label: "Mudar disposição dos produtos", icon: "grid_view", onClick: openGridPicker, id: "tour-grid" }, dots0), sw);
+        sw.parentElement.insertBefore(mkBar({ label: "Mudar disposição dos produtos", icon: "grid_view", onClick: openGridPicker, id: "tour-grid" }), sw);
       }
 
-      // Secções de produtos adicionais — nome + cor de fundo.
+      // Secções de produtos adicionais — nome.
       preview.querySelectorAll<HTMLElement>("[data-edit-section]").forEach((sec, i) => {
         if (i === 0) return;
         sec.parentElement?.insertBefore(mkDiv("Secção de produtos"), sec);
-        const dots = mkDots(custom.sections?.[i]?.bg, (hex) => {
-          if (!custom.sections?.[i]) return;
-          snapshot();
-          if (hex) custom.sections[i]!.bg = hex; else delete custom.sections[i]!.bg;
-          void rebuild();
-        });
-        sec.parentElement?.insertBefore(mkBar(null, dots), sec);
       });
 
-      // Blocos de conteúdo — nome + (testemunhos) botão de modelo + cor de fundo.
+      // Blocos de conteúdo — nome + (testemunhos) botão de modelo.
       preview.querySelectorAll<HTMLElement>("[data-edit-block]").forEach((blk) => {
         const type = blk.dataset.blockType ?? "";
         const i = Number(blk.dataset.editBlock);
         blk.parentElement?.insertBefore(mkDiv(blockLabel[type] ?? "Secção"), blk);
-        const dots = mkDots((custom.blocks?.[i] as { bg?: string } | undefined)?.bg, (hex) => {
-          const bb = custom.blocks?.[i] as { bg?: string } | undefined;
-          if (!bb) return;
-          snapshot();
-          if (hex) bb.bg = hex; else delete bb.bg;
-          void rebuild();
-        });
-        let model: { label: string; icon: string; onClick: (a: HTMLElement) => void } | null = null;
         if (type === "testimonials") {
           const labels: Record<string, string> = { cards: "Cartões", editorial: "Editorial", marquee: "Carrossel", destaque: "Destaque" };
           const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
           const cur = (custom.blocks?.[i] as { variant?: string } | undefined)?.variant ?? defVariant;
-          model = { label: `Modelo: ${labels[cur] ?? "Cartões"}`, icon: "style", onClick: (anchor) => openTestimonialsPicker(anchor, i) };
+          blk.parentElement?.insertBefore(mkBar({ label: `Modelo: ${labels[cur] ?? "Cartões"}`, icon: "style", onClick: (anchor) => openTestimonialsPicker(anchor, i) }), blk);
         }
-        blk.parentElement?.insertBefore(mkBar(model, dots), blk);
       });
     }
   }
@@ -1157,7 +1094,6 @@ export async function renderEditor(): Promise<void> {
     { sel: "#ink-dot", title: "Cor dos textos", text: "Muda a cor dos textos e ícones da loja." },
     { sel: "#theme-style", title: "Estilo geral", text: "Escolhe um estilo (moderno, clássico ou minimal) para dar coerência a tudo." },
     { sel: "#tour-hero", title: "Modelo do cabeçalho (hero)", text: "Troca o topo da loja entre vários modelos — passa o rato em cada opção para pré-visualizar.", screen: "home" },
-    { sel: "#tour-bg", title: "Cor de fundo da secção", text: "Cada secção pode ter a sua cor de fundo. Escolhe nestes pontinhos (claro a escuro).", screen: "home" },
     { sel: "#tour-grid", title: "Disposição dos produtos", text: "Muda a forma como os produtos aparecem: retrato, quadrado ou alto.", screen: "home" },
     { sel: "[data-edit-products]", title: "Os teus produtos", text: "Adiciona e edita produtos aqui. Passa o rato num produto para o editar.", screen: "home" },
     { sel: "[data-add-toggle]", title: "Adicionar secções", text: "Monta a página por blocos: produtos, informação, texto, testemunhos ou localização.", screen: "home" },

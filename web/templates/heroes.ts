@@ -5,7 +5,6 @@
  * para a galeria em arco). Qualquer modelo pode usar qualquer hero.
  */
 import { esc } from "../lib/dom.js";
-import { isDarkColor } from "./blocks.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
 export type HeroVariant = "imagem" | "split" | "arco" | "particulas";
@@ -66,11 +65,8 @@ function heroImagem(view: StoreRenderView, custom: StoreCustomization | undefine
 function heroSplit(view: StoreRenderView, custom: StoreCustomization | undefined, ctx: HeroCtx): string {
   const { title, subtitle, cta } = texts(view, custom);
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
-  const bg = custom?.hero?.bg;
-  const bgStyle = bg ? ` style="background:${esc(bg)}"` : "";
-  const darkAttr = bg && isDarkColor(bg) ? " data-sec-dark" : "";
   return `
-  <section data-edit-hero${bgStyle}${darkAttr} class="relative overflow-hidden">
+  <section data-edit-hero class="relative overflow-hidden">
     <div class="${ctx.container} py-10 md:py-16">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
         <div>
@@ -113,11 +109,8 @@ function heroArco(view: StoreRenderView, custom: StoreCustomization | undefined,
       <div class="mb-arc-inner" style="transform:rotate(${rot}deg)"><img src="${esc(src)}" alt="" class="block w-full h-full object-cover" draggable="false" onerror="this.onerror=null;this.src='https://placehold.co/300x300/eef2ff/64748b?text=Foto'" /></div>
     </div>`;
   }).join("");
-  const arcBg = custom?.hero?.bg;
-  const arcBgStyle = arcBg ? ` style="background:${esc(arcBg)}"` : "";
-  const arcDark = arcBg && isDarkColor(arcBg) ? " data-sec-dark" : "";
   return `
-  <section${arcBgStyle}${arcDark} class="relative overflow-hidden ${arcBg ? "" : "bg-white"}">
+  <section class="relative overflow-hidden bg-white">
     <style>
       @keyframes mbArcIn{from{opacity:0;transform:translate(-50%,62%)}to{opacity:1;transform:translate(-50%,50%)}}
       @keyframes mbHeroIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}

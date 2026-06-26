@@ -25,8 +25,6 @@ export interface StoreCustomization {
     imageUrl?: string;
     /** Variante de hero escolhida ("imagem" | "split" | "arco" | "particulas"). */
     variant?: "imagem" | "split" | "arco" | "particulas";
-    /** Cor de fundo do hero (aplica-se a variantes sem imagem inteira: split/arco). */
-    bg?: string;
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];
@@ -48,7 +46,7 @@ export interface StoreCustomization {
    * Tokens especiais: "__all__" (todos), "__featured__" (Destaques).
    * Se ausente, mostra uma única secção com todos os produtos.
    */
-  sections?: { category: string; bg?: string }[];
+  sections?: { category: string }[];
   /**
    * Secção de destaque editorial (foto + título + subtítulo), apresentada
    * abaixo dos produtos. Usada pelo modelo "Galeria".
@@ -85,10 +83,10 @@ export interface StoreCustomization {
 
 /** Bloco de conteúdo de uma loja (secção adicional editável). */
 export type ContentBlock =
-  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; bg?: string }
-  | { type: "text"; title?: string; text?: string; bg?: string }
-  | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee" | "destaque"; bg?: string; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
-  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; bg?: string };
+  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right" }
+  | { type: "text"; title?: string; text?: string }
+  | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee" | "destaque"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
+  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number };
 
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */
