@@ -28,6 +28,11 @@ export interface StoreCustomization {
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];
+  /** Cabeçalho: variante de layout + texto da faixa promo. */
+  header?: {
+    variant?: "classico" | "centrado" | "promo";
+    promo?: string;
+  };
   /** Disposição da lista de produtos (Fase 3). Se ausente, usa o formato do modelo. */
   productGrid?: {
     /** "retrato" (3:4) | "quadrado" | "alto" (4:5). */

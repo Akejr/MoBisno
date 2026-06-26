@@ -14,6 +14,7 @@ import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
+import { renderHeader } from "./headers.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -79,7 +80,8 @@ function footerBrandHtml(view: StoreRenderView, custom?: StoreCustomization): st
   return `<span style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-xl font-bold">${esc(view.storeName)}</span>`;
 }
 
-function headerHtml(view: StoreRenderView, menuLabels: string[]): string {
+function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreCustomization): string {
+  if (custom?.header?.variant) return renderHeader(custom.header.variant, view, custom, { container: CONTAINER, brand: `var(--brand,${DEFAULT_BRAND})` });
   const menu = menuLabels
     .map((label, i) => `<a href="${storeHomeHref(view)}" data-edit-menu-item="${i}" class="text-[#524345] hover:text-[color:var(--brand,${DEFAULT_BRAND})] transition-colors font-medium tracking-widest text-xs uppercase">${esc(label)}</a>`)
     .join("");
@@ -221,7 +223,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
 
   return `
   <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b] overflow-x-hidden" style="font-family:'Manrope',sans-serif">
-    ${headerHtml(view, menuLabels)}
+    ${headerHtml(view, menuLabels, custom)}
 
     ${hero}
 
@@ -260,7 +262,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
 
   return `
   <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b]" style="font-family:'Manrope',sans-serif">
-    ${headerHtml(view, menuLabels)}
+    ${headerHtml(view, menuLabels, custom)}
 
     <main class="${CONTAINER} pt-10 pb-20 flex-grow">
       <nav class="mb-10">
@@ -339,7 +341,7 @@ function renderCategory(view: StoreRenderView, category: string, custom?: StoreC
     : `<div class="py-20 text-center text-[#685b5f]"><span class="material-symbols-outlined" style="font-size:48px;">category</span><p class="mt-2">Ainda não há produtos nesta categoria.</p></div>`;
   return `
   <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b]" style="font-family:'Manrope',sans-serif">
-    ${headerHtml(view, menuLabels)}
+    ${headerHtml(view, menuLabels, custom)}
     <main class="${CONTAINER} pt-10 pb-20 flex-grow">
       <nav class="mb-8 flex items-center gap-2 text-xs tracking-widest text-[#685b5f] uppercase">
         <a href="${esc(storeHomeHref(view))}" class="hover:text-[color:var(--brand,${DEFAULT_BRAND})]">Início</a>

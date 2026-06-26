@@ -23,6 +23,7 @@ import {
   locationByVariant, LOCATION_VARIANTS,
 } from "../templates/blocks.js";
 import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes.js";
+import { HEADER_VARIANTS, renderHeader, type HeaderVariant } from "../templates/headers.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
@@ -676,6 +677,14 @@ export async function renderEditor(): Promise<void> {
         return bar;
       };
 
+      // Cabeçalho — nome + botão de modelo (antes do header).
+      const rootDiv = preview.firstElementChild as HTMLElement | null;
+      const headerEl = rootDiv?.firstElementChild as HTMLElement | null;
+      if (headerEl && rootDiv) {
+        rootDiv.insertBefore(mkDiv("Cabeçalho"), headerEl);
+        rootDiv.insertBefore(mkBar({ label: "Trocar modelo do cabeçalho", icon: "view_carousel", onClick: openHeaderPicker, id: "tour-header" }), headerEl);
+      }
+
       // Hero — nome + botão de modelo.
       const heroSection = preview.querySelector<HTMLElement>("section");
       if (heroSection?.parentElement) {
@@ -851,6 +860,18 @@ export async function renderEditor(): Promise<void> {
   }
 
   const PREV_CTX = { container: "w-full max-w-[1180px] mx-auto px-8", brand: "var(--brand,#4f46e5)" };
+
+  function openHeaderPicker(anchor: HTMLElement): void {
+    if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
+    openVariantPicker(
+      anchor,
+      "Modelo do cabeçalho",
+      HEADER_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
+      custom.header?.variant ?? "classico",
+      (id) => { snapshot(); setPath(custom as Record<string, any>, "header.variant", id as HeaderVariant); void rebuild(); toast("Cabeçalho atualizado."); },
+      (id) => lastView ? renderHeader(id as HeaderVariant, lastView, custom, PREV_CTX) : "",
+    );
+  }
 
   function openHeroPicker(anchor: HTMLElement): void {
     if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }

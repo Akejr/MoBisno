@@ -293,7 +293,6 @@ export function locationByVariant(variant: "classico" | "cartao" | "escuro", b: 
     </div>
   </section>`;
 }
-}
 
 /** Variante de testemunhos para o modelo Galeria (editorial, minimalista). */
 function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {

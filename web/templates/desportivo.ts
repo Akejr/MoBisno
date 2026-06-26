@@ -11,6 +11,7 @@ import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
+import { renderHeader } from "./headers.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -91,7 +92,8 @@ function footerBrandHtml(view: StoreRenderView, custom?: StoreCustomization): st
 }
 
 /** Cabeçalho partilhado (home e página de produto). */
-function headerHtml(view: StoreRenderView, menuLabels: string[]): string {
+function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreCustomization): string {
+  if (custom?.header?.variant) return renderHeader(custom.header.variant, view, custom, { container: CONTAINER, brand: "var(--brand,#DC2626)" });
   const menu = menuLabels
     .map((label, i) => `<a href="${storeHomeHref(view)}" data-edit-menu-item="${i}" class="hover:text-neutral-900 cursor-pointer transition-colors">${esc(label)}</a>`)
     .join("");
@@ -245,7 +247,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
 
   return `
   <div class="min-h-screen flex flex-col bg-white text-neutral-900 overflow-x-hidden">
-    ${headerHtml(view, menuLabels)}
+    ${headerHtml(view, menuLabels, custom)}
 
     ${hero}
 
@@ -284,7 +286,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
 
   return `
   <div class="min-h-screen flex flex-col bg-white text-neutral-900">
-    ${headerHtml(view, menuLabels)}
+    ${headerHtml(view, menuLabels, custom)}
 
     <main class="${CONTAINER} py-6 md:py-10 flex-grow">
       <!-- Migalhas -->
@@ -362,7 +364,7 @@ function renderCategory(view: StoreRenderView, category: string, custom?: StoreC
        </div>`;
   return `
   <div class="min-h-screen flex flex-col bg-white text-neutral-900">
-    ${headerHtml(view, menuLabels)}
+    ${headerHtml(view, menuLabels, custom)}
     <main class="${CONTAINER} py-8 md:py-12 flex-grow">
       <nav class="text-sm text-neutral-500 mb-6 flex items-center gap-1.5">
         <a href="${esc(storeHomeHref(view))}" class="hover:text-neutral-900">Início</a>
