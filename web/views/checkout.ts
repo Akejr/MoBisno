@@ -51,7 +51,8 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   const cust: { name?: string; email?: string; nif?: string; phone?: string } = {};
 
   // Entrega: áreas servidas + se o carrinho tem produtos físicos.
-  const areas = deliveredAreas(custom.delivery?.fees);
+  const areas = deliveredAreas(custom.delivery);
+  const freeAbove = Math.max(0, Number(custom.delivery?.freeAbove) || 0);
   const physical = getCart(storeId).some((ci) => {
     const p = view.products.find((pp) => pp.id === ci.productId);
     return p ? p.physical : false;
@@ -60,7 +61,8 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   let deliveryFee = 0;
   function setArea(name: string | null): void {
     selectedArea = name && name.trim() ? name : null;
-    deliveryFee = selectedArea ? (areas.find((a) => a.name === selectedArea)?.fee ?? 0) : 0;
+    const base = selectedArea ? (areas.find((a) => a.name === selectedArea)?.fee ?? 0) : 0;
+    deliveryFee = freeAbove > 0 && cartTotal(storeId) >= freeAbove ? 0 : base;
   }
 
   function products(): PaymentProduct[] {

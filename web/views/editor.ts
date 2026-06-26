@@ -818,7 +818,7 @@ export async function renderEditor(): Promise<void> {
     const items = checkoutSampleItems();
     const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const online = !!custom.payments?.onlineEnabled;
-    const areas = deliveredAreas(custom.delivery?.fees);
+    const areas = deliveredAreas(custom.delivery);
     const selectedArea = areas[0]?.name ?? null;
     const deliveryFee = areas[0]?.fee ?? 0;
     return renderCheckout(variant, {

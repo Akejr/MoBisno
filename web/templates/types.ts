@@ -98,9 +98,15 @@ export interface StoreCustomization {
   checkout?: {
     variant?: "dividido" | "moderno" | "compacto" | "minimal";
   };
-  /** Taxas de entrega por área (Kz). A presença de uma área = a loja entrega lá. */
+  /** Taxas de entrega. `mode`: "single" (valor único) ou "perArea" (por área). */
   delivery?: {
+    mode?: "single" | "perArea";
+    /** Taxa única para todas as áreas (modo "single"). */
+    flatFee?: number;
+    /** Taxa por área (modo "perArea"). A presença da área = entrega lá. */
     fees?: Record<string, number>;
+    /** Entrega grátis em pedidos com subtotal igual/acima deste valor (Kz). */
+    freeAbove?: number;
   };
   /** SMS de confirmação de compra enviado ao cliente. */
   sms?: {

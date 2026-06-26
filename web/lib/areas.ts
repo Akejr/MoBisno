@@ -27,8 +27,22 @@ export const LUANDA_AREAS: readonly string[] = [
   "Zango",
 ];
 
+/** Configuração de entrega (subconjunto de StoreCustomization.delivery). */
+export interface DeliveryConfig {
+  mode?: "single" | "perArea";
+  flatFee?: number;
+  fees?: Record<string, number>;
+  freeAbove?: number;
+}
+
 /** Áreas que a loja serve, na ordem canónica, com a respetiva taxa. */
-export function deliveredAreas(fees: Record<string, number> | undefined): { name: string; fee: number }[] {
-  if (!fees) return [];
+export function deliveredAreas(delivery: DeliveryConfig | undefined): { name: string; fee: number }[] {
+  if (!delivery) return [];
+  const mode = delivery.mode ?? (delivery.flatFee != null ? "single" : "perArea");
+  if (mode === "single") {
+    const fee = Math.max(0, Number(delivery.flatFee) || 0);
+    return LUANDA_AREAS.map((a) => ({ name: a, fee }));
+  }
+  const fees = delivery.fees ?? {};
   return LUANDA_AREAS.filter((a) => typeof fees[a] === "number").map((a) => ({ name: a, fee: Number(fees[a]) }));
 }

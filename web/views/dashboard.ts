@@ -318,11 +318,28 @@ export async function renderDashboard(): Promise<void> {
         </span>
       </label>`;
 
+    const dmodeInit = c.delivery?.mode ?? (c.delivery?.flatFee != null ? "single" : "perArea");
     const deliveryBody = `
-      <p class="text-sm text-gray-500 mb-4">Ative as áreas onde entrega e defina a taxa de cada uma (Província: <b>Luanda</b>). As áreas que não ativar não aparecem ao cliente. A taxa é somada ao total no checkout.</p>
-      <div class="rounded-xl border border-gray-100 divide-y divide-gray-50">
-        ${LUANDA_AREAS.map((a) => areaRowHtml(a, typeof fees[a] === "number" ? fees[a] : null)).join("")}
+      <p class="text-sm text-gray-500 mb-4">Defina como cobra a entrega (Província: <b>Luanda</b>). A taxa é somada ao total no checkout.</p>
+      <div class="inline-flex bg-gray-100 rounded-xl p-1 gap-1 text-sm mb-5">
+        <button type="button" data-dmode="single" class="px-4 py-2 rounded-lg font-semibold transition-colors">Valor único</button>
+        <button type="button" data-dmode="perArea" class="px-4 py-2 rounded-lg font-semibold transition-colors">Por área</button>
       </div>
+      <div id="del-single" class="${dmodeInit === "single" ? "" : "hidden"}">
+        <label class="block max-w-xs"><span class="text-sm font-semibold text-gray-700">Taxa de entrega (todas as áreas)</span>
+          <input id="del-flat" type="number" min="0" value="${c.delivery?.flatFee ?? ""}" placeholder="ex.: 2000" class="${inp} mt-1.5" /></label>
+        <p class="text-xs text-gray-400 mt-2">O cliente continua a escolher a área (para a morada), mas a taxa é igual para todas.</p>
+      </div>
+      <div id="del-perarea" class="${dmodeInit === "perArea" ? "" : "hidden"}">
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Áreas e taxas</p>
+        <p class="text-xs text-gray-400 mb-3">Ative só as áreas onde entrega. As desativadas não aparecem ao cliente.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ${LUANDA_AREAS.map((a) => areaRowHtml(a, typeof fees[a] === "number" ? fees[a] : null)).join("")}
+        </div>
+      </div>
+      <label class="block mt-5 max-w-xs"><span class="text-sm font-semibold text-gray-700">Entrega grátis acima de (Kz) — opcional</span>
+        <input id="del-free" type="number" min="0" value="${c.delivery?.freeAbove ?? ""}" placeholder="ex.: 20000" class="${inp} mt-1.5" />
+        <span class="block text-xs text-gray-400 mt-1">Em pedidos com subtotal igual ou acima deste valor, a entrega fica grátis.</span></label>
       <button id="save-delivery" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar entregas</button>`;
 
     const smsBody = `
@@ -358,24 +375,41 @@ export async function renderDashboard(): Promise<void> {
       </section>`));
     bindShell();
 
-    // Entregas (áreas fixas)
+    // Entregas (modo + áreas)
+    let dmode: "single" | "perArea" = dmodeInit === "single" ? "single" : "perArea";
+    const applyDmode = (): void => {
+      document.querySelectorAll<HTMLElement>("[data-dmode]").forEach((b) => {
+        const active = b.dataset.dmode === dmode;
+        b.style.background = active ? "#fff" : "transparent";
+        b.style.color = active ? ACCENT : "#6b7280";
+        b.style.boxShadow = active ? "0 1px 2px rgba(0,0,0,.08)" : "none";
+      });
+      $("#del-single")?.classList.toggle("hidden", dmode !== "single");
+      $("#del-perarea")?.classList.toggle("hidden", dmode !== "perArea");
+    };
+    applyDmode();
+    document.querySelectorAll<HTMLElement>("[data-dmode]").forEach((b) =>
+      b.addEventListener("click", () => { dmode = b.dataset.dmode === "single" ? "single" : "perArea"; applyDmode(); }));
     document.querySelectorAll<HTMLElement>(".mb-area").forEach((row) => {
       const on = row.querySelector("[data-a-on]") as HTMLInputElement | null;
       const fee = row.querySelector("[data-a-fee]") as HTMLInputElement | null;
-      on?.addEventListener("change", () => {
-        if (!fee) return;
-        fee.disabled = !on.checked;
-        if (on.checked) fee.focus();
-      });
+      on?.addEventListener("change", () => { if (!fee) return; fee.disabled = !on.checked; if (on.checked) fee.focus(); });
     });
     $("#save-delivery")?.addEventListener("click", async () => {
-      const feesOut: Record<string, number> = {};
-      document.querySelectorAll<HTMLElement>(".mb-area").forEach((row) => {
-        const area = row.dataset.area ?? "";
-        const on = (row.querySelector("[data-a-on]") as HTMLInputElement | null)?.checked ?? false;
-        if (area && on) feesOut[area] = Math.max(0, Number((row.querySelector("[data-a-fee]") as HTMLInputElement | null)?.value) || 0);
-      });
-      c.delivery = { fees: feesOut };
+      const freeRaw = Number(($("#del-free") as HTMLInputElement)?.value);
+      const freeAbove = Number.isFinite(freeRaw) && freeRaw > 0 ? freeRaw : undefined;
+      if (dmode === "single") {
+        const flat = Math.max(0, Number(($("#del-flat") as HTMLInputElement)?.value) || 0);
+        c.delivery = { mode: "single", flatFee: flat, freeAbove };
+      } else {
+        const feesOut: Record<string, number> = {};
+        document.querySelectorAll<HTMLElement>(".mb-area").forEach((row) => {
+          const area = row.dataset.area ?? "";
+          const on = (row.querySelector("[data-a-on]") as HTMLInputElement | null)?.checked ?? false;
+          if (area && on) feesOut[area] = Math.max(0, Number((row.querySelector("[data-a-fee]") as HTMLInputElement | null)?.value) || 0);
+        });
+        c.delivery = { mode: "perArea", fees: feesOut, freeAbove };
+      }
       const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
       ok ? toast("Entregas guardadas.") : toast("Não foi possível guardar.", "error");
     });
@@ -539,18 +573,15 @@ function settingsAccordion(o: { icon: string; title: string; desc: string; body:
   </details>`;
 }
 
-/** Linha de área de entrega (toggle + taxa). `fee` null = não entrega. */
+/** Célula compacta de área de entrega (toggle + taxa), para grelha de 2 colunas. */
 function areaRowHtml(area: string, fee: number | null): string {
   const on = fee !== null;
-  return `<div class="mb-area flex items-center gap-3 px-3 py-2.5" data-area="${esc(area)}">
-    <label class="flex items-center gap-2.5 flex-1 cursor-pointer select-none">
-      <input data-a-on type="checkbox" ${on ? "checked" : ""} class="w-4 h-4 accent-[#F95901]" />
-      <span class="text-sm font-medium text-gray-800">${esc(area)}</span>
+  return `<div class="mb-area flex items-center gap-2 rounded-lg border border-gray-100 px-3 py-2" data-area="${esc(area)}">
+    <label class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer select-none">
+      <input data-a-on type="checkbox" ${on ? "checked" : ""} class="w-4 h-4 accent-[#F95901] shrink-0" />
+      <span class="text-sm font-medium text-gray-800 truncate">${esc(area)}</span>
     </label>
-    <div class="flex items-center gap-1.5">
-      <input data-a-fee type="number" min="0" value="${on ? esc(String(fee)) : ""}" placeholder="Taxa" ${on ? "" : "disabled"} class="w-28 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-right outline-none focus:border-[#F95901] disabled:bg-gray-50 disabled:text-gray-300" />
-      <span class="text-xs text-gray-400 w-5">Kz</span>
-    </div>
+    <input data-a-fee type="number" min="0" value="${on ? esc(String(fee)) : ""}" placeholder="Kz" ${on ? "" : "disabled"} class="w-20 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right outline-none focus:border-[#F95901] disabled:bg-gray-50 disabled:text-gray-300" />
   </div>`;
 }
 
