@@ -63,3 +63,16 @@ A Vercel emite SSL automático, incluindo para o wildcard.
 - GitHub Pages **não** serve para o produto final por não suportar wildcard de
   subdomínios; a Vercel suporta. Por isso o deploy é na Vercel.
 - O `web/dist` é gerado no build e está no `.gitignore` (via `dist/`).
+
+## Assistente de IA (olhinho do editor)
+
+O chat do assistente usa uma função serverless em `api/assistant.js` que guarda a
+chave da OpenAI **apenas no servidor**. Configura no Vercel (Project → Settings →
+Environment Variables):
+
+- `OPENAI_API_KEY` — a chave secreta da OpenAI (obrigatória).
+- `OPENAI_MODEL` — opcional; por omissão `gpt-5.4-mini`.
+
+Nunca coloques a chave no frontend nem a faças commit. Em desenvolvimento local,
+o chat só funciona com `vercel dev` (a função `/api/assistant` não corre com o
+`vite` puro).

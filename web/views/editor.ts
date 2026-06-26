@@ -1161,7 +1161,7 @@ export async function renderEditor(): Promise<void> {
     { sel: "#tour-grid", title: "Disposição dos produtos", text: "Muda a forma como os produtos aparecem: retrato, quadrado ou alto.", screen: "home" },
     { sel: "[data-edit-products]", title: "Os teus produtos", text: "Adiciona e edita produtos aqui. Passa o rato num produto para o editar.", screen: "home" },
     { sel: "[data-add-toggle]", title: "Adicionar secções", text: "Monta a página por blocos: produtos, informação, texto, testemunhos ou localização.", screen: "home" },
-    { sel: "#mb-ai-agent", title: "O teu assistente", text: "Este robô vai estar sempre por perto — em breve poderás pedir-lhe ajuda enquanto editas." },
+    { sel: "#mb-ai-agent", title: "O teu assistente", text: "Clica neste robô para abrir o chat e tirar dúvidas sobre o editor a qualquer momento." },
     { sel: "[data-edit-perks]", title: "Garantias do produto", text: "Na página de produto podes editar, adicionar ou remover estas garantias.", screen: "product" },
     { sel: "#ver-loja", title: "Ver a loja", text: "Abre a tua loja publicada numa nova aba para a veres como um cliente." },
     { sel: "#save", title: "Guardar", text: "Quando terminares, clica em Guardar para publicar as alterações." },
