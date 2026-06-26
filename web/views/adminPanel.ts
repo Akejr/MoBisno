@@ -41,6 +41,22 @@ function activeBadge(active: boolean): string {
   return active ? badge("Ativa", "#ecfdf5", "#047857") : badge("Inativa", "#f3f4f6", "#9ca3af");
 }
 
+/** Chips das funcionalidades ativas de uma loja. `compact` mostra só as ativas. */
+function featureChips(f: AdminStore["features"], compact = false): string {
+  const defs: { on: boolean; icon: string; label: string }[] = [
+    { on: f.online, icon: "credit_card", label: "Express + Ref." },
+    { on: f.sms, icon: "sms", label: "SMS" },
+    { on: f.whatsapp, icon: "chat", label: "WhatsApp" },
+    { on: f.delivery, icon: "local_shipping", label: "Entregas" },
+  ];
+  const list = compact ? defs.filter((d) => d.on) : defs;
+  if (compact && list.length === 0) return `<span class="text-xs text-gray-300">Sem funcionalidades ativas</span>`;
+  return `<div class="flex flex-wrap gap-1.5">${list.map((d) => {
+    const style = d.on ? `background:${ACCENT_TINT};color:${ACCENT}` : "background:#f3f4f6;color:#9ca3af";
+    return `<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" style="${style}" title="${esc(d.label)}${d.on ? " (ativo)" : " (inativo)"}"><span class="material-symbols-outlined text-[14px]">${d.icon}</span>${esc(d.label)}</span>`;
+  }).join("")}</div>`;
+}
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -258,7 +274,10 @@ export async function renderAdminPanel(): Promise<void> {
             ${recentStores.map((s) => `
               <div class="flex items-center gap-3 px-5 py-3">
                 <span class="material-symbols-outlined text-gray-300">storefront</span>
-                <div class="flex-1 min-w-0"><p class="font-semibold text-gray-900 truncate">${esc(s.name)}</p><p class="text-xs text-gray-400 truncate">${esc(s.subdomain)}</p></div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-gray-900 truncate">${esc(s.name)}</p>
+                  <div class="mt-1">${featureChips(s.features, true)}</div>
+                </div>
                 ${stateBadge(s.state)}
               </div>`).join("") || `<p class="px-5 py-10 text-center text-gray-400 text-sm">Sem lojas.</p>`}
           </div>
@@ -374,6 +393,7 @@ export async function renderAdminPanel(): Promise<void> {
                 <button data-edit-store="${esc(s.id)}" data-owner="${esc(a.id)}" class="inline-flex items-center gap-1 text-xs font-semibold text-white px-2.5 py-1 rounded-lg hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[16px]">palette</span> Editar</button>
                 <a href="${esc(publicStoreUrl(s.identifier))}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 border border-gray-200 px-2.5 py-1 rounded-lg hover:bg-gray-50"><span class="material-symbols-outlined text-[16px]">open_in_new</span> Ver</a>
               </div>
+              <div class="w-full pl-7">${featureChips(s.features)}</div>
             </div>`).join("")
         : `<p class="text-sm text-gray-400 py-2">Esta conta ainda não tem lojas.</p>`;
 
@@ -472,12 +492,20 @@ export async function renderAdminPanel(): Promise<void> {
           <button data-st="published" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Publicadas</button>
           <button data-st="draft" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Rascunho</button>
         </div>
+        <select id="store-feat" class="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901] sm:w-52 shrink-0">
+          <option value="">Todas as funcionalidades</option>
+          <option value="online">Com Express + Referência</option>
+          <option value="sms">Com SMS de confirmação</option>
+          <option value="whatsapp">Com WhatsApp</option>
+          <option value="delivery">Com entregas</option>
+        </select>
       </div>
       <div id="store-list"></div>`));
     bindShell();
 
     let q = "";
     let st: "all" | "published" | "draft" = "all";
+    let feat: "" | "online" | "sms" | "whatsapp" | "delivery" = "";
     const applySt = (): void => {
       document.querySelectorAll<HTMLElement>("[data-st]").forEach((b) => {
         const active = b.dataset.st === st;
@@ -494,6 +522,7 @@ export async function renderAdminPanel(): Promise<void> {
       const rows = stores.filter((s) => {
         if (st === "published" && s.state !== "Publicada") return false;
         if (st === "draft" && s.state === "Publicada") return false;
+        if (feat && !s.features[feat]) return false;
         if (ql && !`${s.name} ${s.ownerEmail} ${s.ownerName} ${s.subdomain}`.toLowerCase().includes(ql)) return false;
         return true;
       });
@@ -508,6 +537,7 @@ export async function renderAdminPanel(): Promise<void> {
     applySt();
     draw();
     ($("#store-search") as HTMLInputElement | null)?.addEventListener("input", (e) => { q = (e.target as HTMLInputElement).value; draw(); });
+    ($("#store-feat") as HTMLSelectElement | null)?.addEventListener("change", (e) => { feat = (e.target as HTMLSelectElement).value as typeof feat; draw(); });
     document.querySelectorAll<HTMLElement>("[data-st]").forEach((b) =>
       b.addEventListener("click", () => { st = b.dataset.st as typeof st; applySt(); draw(); }));
 
@@ -548,6 +578,10 @@ export async function renderAdminPanel(): Promise<void> {
           <p class="text-xs text-gray-300 mt-0.5">Criada ${esc(fmtDate(s.createdAt))}</p>
         </div>
         <div class="flex flex-col items-end gap-1.5 shrink-0">${stateBadge(s.state)}${planBadge(s.plan)}</div>
+      </div>
+      <div class="mt-3 pt-3 border-t border-gray-100">
+        <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Funcionalidades</p>
+        ${featureChips(s.features)}
       </div>
       <div class="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100 flex-wrap">
         <button data-edit-store="${esc(s.id)}" class="inline-flex items-center gap-1 text-sm font-semibold text-white px-3 py-1.5 rounded-lg transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">palette</span> Editar</button>

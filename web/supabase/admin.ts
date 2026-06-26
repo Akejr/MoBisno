@@ -17,6 +17,18 @@ export interface AdminAccount {
   storeCount: number;
 }
 
+/** Funcionalidades ativas numa loja (vistas pelo admin). */
+export interface StoreFeatures {
+  /** Pagamentos online (Multicaixa Express + Referência Bancária). */
+  online: boolean;
+  /** SMS de confirmação de compra ao cliente. */
+  sms: boolean;
+  /** Checkout por WhatsApp configurado (número definido). */
+  whatsapp: boolean;
+  /** Taxas de entrega configuradas. */
+  delivery: boolean;
+}
+
 export interface AdminStore {
   id: string;
   name: string;
@@ -29,6 +41,7 @@ export interface AdminStore {
   templateId: string;
   plan: string;
   createdAt: string;
+  features: StoreFeatures;
 }
 
 export interface AdminWithdrawal {
@@ -107,14 +120,27 @@ export async function listAccounts(): Promise<AdminAccount[]> {
   }));
 }
 
-/** Lista de todas as lojas, com o dono e plano. */
+/** Lista de todas as lojas, com o dono, plano e funcionalidades ativas. */
 export async function listStores(): Promise<AdminStore[]> {
-  const [{ data: stores }, pm] = await Promise.all([
-    supabase.from("stores").select("id, name, owner_id, state, subdomain, identifier, template_id, created_at").order("created_at", { ascending: false }),
+  const [{ data: stores }, { data: pays }, pm] = await Promise.all([
+    supabase.from("stores").select("id, name, owner_id, state, subdomain, identifier, template_id, customization, created_at").order("created_at", { ascending: false }),
+    supabase.from("store_payments").select("store_id, online_enabled"),
     profilesMap(),
   ]);
+  const onlineByStore = new Map<string, boolean>();
+  (pays ?? []).forEach((p) => onlineByStore.set(p.store_id, !!p.online_enabled));
+
   return (stores ?? []).map((s) => {
     const o = pm.get(s.owner_id);
+    const c = (s.customization ?? {}) as {
+      sms?: { enabled?: boolean };
+      whatsapp?: { phone?: string };
+      delivery?: { mode?: string; flatFee?: number; fees?: Record<string, number> };
+    };
+    const deliveryActive = !!c.delivery && (
+      (c.delivery.mode === "single" && Number(c.delivery.flatFee) > 0) ||
+      (c.delivery.mode === "perArea" && !!c.delivery.fees && Object.keys(c.delivery.fees).length > 0)
+    );
     return {
       id: s.id,
       name: s.name,
@@ -127,6 +153,12 @@ export async function listStores(): Promise<AdminStore[]> {
       templateId: s.template_id,
       plan: o?.plan ?? "basico",
       createdAt: s.created_at,
+      features: {
+        online: onlineByStore.get(s.id) ?? false,
+        sms: !!c.sms?.enabled,
+        whatsapp: !!(c.whatsapp?.phone && c.whatsapp.phone.trim()),
+        delivery: deliveryActive,
+      },
     };
   });
 }
