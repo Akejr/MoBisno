@@ -14,6 +14,7 @@ import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
 import { renderHeader } from "./headers.js";
+import { renderFooter } from "./footers.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -163,6 +164,7 @@ function sectionsArea(view: StoreRenderView, custom?: StoreCustomization): strin
 /* -------------------------------- Rodapé -------------------------------- */
 
 function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefined, menuLabels: string[]): string {
+  if (custom?.footer?.variant) return renderFooter(custom.footer.variant, view, custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" });
   const about = custom?.footer?.about || "A sua loja online em Angola. Produtos selecionados e entrega rápida.";
   const location = custom?.footer?.location || "Luanda, Angola";
   const phone = custom?.footer?.phone || DEFAULT_PHONE;

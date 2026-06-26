@@ -24,6 +24,7 @@ import {
 } from "../templates/blocks.js";
 import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes.js";
 import { HEADER_VARIANTS, renderHeader, type HeaderVariant } from "../templates/headers.js";
+import { FOOTER_VARIANTS, renderFooter, type FooterVariant } from "../templates/footers.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
@@ -720,6 +721,13 @@ export async function renderEditor(): Promise<void> {
           blk.parentElement?.insertBefore(mkBar({ label: `Modelo: ${label}`, icon: "style", onClick: (anchor) => openBlockPicker(anchor, i) }), blk);
         }
       });
+
+      // Rodapé — nome + botão de modelo (antes do footer).
+      const footerEl = preview.querySelector<HTMLElement>("footer");
+      if (footerEl?.parentElement) {
+        footerEl.parentElement.insertBefore(mkDiv("Rodapé"), footerEl);
+        footerEl.parentElement.insertBefore(mkBar({ label: "Trocar modelo do rodapé", icon: "splitscreen_bottom", onClick: openFooterPicker, id: "tour-footer" }), footerEl);
+      }
     }
   }
 
@@ -870,6 +878,18 @@ export async function renderEditor(): Promise<void> {
       custom.header?.variant ?? "classico",
       (id) => { snapshot(); setPath(custom as Record<string, any>, "header.variant", id as HeaderVariant); void rebuild(); toast("Cabeçalho atualizado."); },
       (id) => lastView ? renderHeader(id as HeaderVariant, lastView, custom, PREV_CTX) : "",
+    );
+  }
+
+  function openFooterPicker(anchor: HTMLElement): void {
+    if (currentScreen !== "home") { currentScreen = "home"; updateScreenTabs(); void rebuild(); }
+    openVariantPicker(
+      anchor,
+      "Modelo do rodapé",
+      FOOTER_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
+      custom.footer?.variant ?? "colunas",
+      (id) => { snapshot(); setPath(custom as Record<string, any>, "footer.variant", id as FooterVariant); void rebuild(); toast("Rodapé atualizado."); },
+      (id) => lastView ? renderFooter(id as FooterVariant, lastView, custom, PREV_CTX) : "",
     );
   }
 

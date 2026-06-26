@@ -68,6 +68,8 @@ export interface StoreCustomization {
     email?: string;
     /** Logótipo específico do rodapé (ex.: versão clara). Se ausente, usa o do cabeçalho. */
     logoUrl?: string;
+    /** Variante de layout do rodapé. */
+    variant?: "colunas" | "centrado" | "escuro";
   };
   /** Configuração do botão "Comprar via WhatsApp" na página de produto. */
   whatsapp?: {
