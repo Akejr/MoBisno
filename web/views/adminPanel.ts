@@ -209,6 +209,13 @@ export async function renderAdminPanel(): Promise<void> {
     const recentAccounts = vms.slice(0, 6);
     const recentStores = stores.slice(0, 6);
 
+    const DAY = 86400000;
+    const expiring = accounts
+      .filter((a) => a.planExpiresAt && a.plan !== "basico")
+      .map((a) => ({ a, days: Math.ceil((Date.parse(a.planExpiresAt as string) - Date.now()) / DAY) }))
+      .filter((x) => Number.isFinite(x.days) && x.days <= 7)
+      .sort((x, y) => x.days - y.days);
+
     render(shell(`
       <section class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         ${metric("group", "Contas", String(o.accounts), true)}
@@ -252,6 +259,23 @@ export async function renderAdminPanel(): Promise<void> {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-black text-gray-900 flex items-center gap-2"><span class="material-symbols-outlined" style="color:${ACCENT}">hourglass_bottom</span> Planos a expirar</h3>
+            <a href="#/adminPainel/contas" class="text-sm font-semibold hover:underline" style="color:${ACCENT}">Contas</a>
+          </div>
+          ${expiring.length
+            ? `<div class="divide-y divide-gray-50">${expiring.slice(0, 8).map(({ a, days }) => {
+                const tone = days <= 0 ? { bg: "#fef2f2", color: "#b91c1c", txt: "Expirado" } : days <= 2 ? { bg: "#fff7ed", color: "#c2410c", txt: `${days} dia(s)` } : { bg: "#eff6ff", color: "#1d4ed8", txt: `${days} dias` };
+                return `<div class="flex items-center gap-3 px-5 py-3">
+                  <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ACCENT}">${esc(initials(a.name || a.email))}</div>
+                  <div class="flex-1 min-w-0"><p class="font-semibold text-gray-900 truncate">${esc(a.name || a.email)}</p><p class="text-xs text-gray-400 truncate">${esc(getPlan(a.plan).name)}${a.nextPlan ? ` → ${esc(getPlan(a.nextPlan).name)}` : ""}</p></div>
+                  ${badge(tone.txt, tone.bg, tone.color)}
+                </div>`;
+              }).join("")}</div>`
+            : `<p class="px-5 py-10 text-center text-gray-400 text-sm">Nenhum plano a expirar nos próximos 7 dias.</p>`}
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 class="font-black text-gray-900">Contas recentes</h3>
             <a href="#/adminPainel/contas" class="text-sm font-semibold hover:underline" style="color:${ACCENT}">Gerir</a>
           </div>
@@ -264,7 +288,9 @@ export async function renderAdminPanel(): Promise<void> {
               </div>`).join("") || `<p class="px-5 py-10 text-center text-gray-400 text-sm">Sem contas.</p>`}
           </div>
         </div>
+      </div>
 
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 class="font-black text-gray-900">Lojas recentes</h3>

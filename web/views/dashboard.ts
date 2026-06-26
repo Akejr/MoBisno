@@ -4,9 +4,10 @@
  * vivem no ecrã "Personalizar".
  */
 import { render, $, go, esc, toast, formatKz, withBusy, fadeInImages } from "../lib/dom.js";
-import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, countPublishedStores, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
+import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerBilling, countPublishedStores, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
 import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
+import { PLAN_PERIOD_DAYS, type BillingState } from "../../src/services/billing.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
@@ -60,7 +61,8 @@ export async function renderDashboard(): Promise<void> {
   appState.ownerId = ownerId; appState.storeId = store.id;
 
   const panel = adminPanelFor(store.id);
-  const plan = getPlan(await getOwnerPlan(ownerId));
+  const billing = await getOwnerBilling(ownerId);
+  const plan = getPlan(billing.effectivePlan);
   const tab = currentTab();
   const storeUrl = publicStoreUrl(store.identifier);
 
@@ -155,7 +157,8 @@ export async function renderDashboard(): Promise<void> {
           <button id="toggle-state" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">${published ? "Despublicar" : "Publicar"}</button>
           <a href="#/painel/plano" class="inline-flex items-center gap-1.5 font-semibold px-3 py-1.5 rounded-full text-sm" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> ${esc(plan.name)}</a>
         </div>
-      </section>`;
+      </section>
+      ${planStatusCard(billing, plan.name)}`;
 
     function bindInicio(): void {
       $("#toggle-state")?.addEventListener("click", async () => {
@@ -827,6 +830,39 @@ function planCard(p: Plan, current: Plan): string {
     </ul>
     ${btn}
   </div>`;
+}
+
+/** Placar do estado do plano (renovação / agendamento / expiração). */
+function planStatusCard(b: BillingState, planName: string): string {
+  // Plano agendado para o próximo período (carry-over).
+  if (b.daysRemaining != null) {
+    const pct = Math.max(0, Math.min(100, Math.round((b.daysRemaining / PLAN_PERIOD_DAYS) * 100)));
+    const sched = b.nextPlan ? getPlan(b.nextPlan).name : null;
+    return `<section class="rounded-2xl border border-gray-200 bg-white p-5 mb-6">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">event_repeat</span></div>
+          <div class="min-w-0">
+            <p class="font-black text-gray-900">Renovação do plano em ${b.daysRemaining} dia(s)</p>
+            <p class="text-sm text-gray-500">${esc(planName)}${sched ? ` · muda para <b style="color:${ACCENT}">${esc(sched)}</b> quando terminar` : ""}</p>
+          </div>
+        </div>
+        <a href="#/painel/plano" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors shrink-0">Gerir plano</a>
+      </div>
+      <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div class="h-full rounded-full" style="width:${pct}%;background:${ACCENT}"></div></div>
+    </section>`;
+  }
+  // Plano pago temporizado expirou → caiu para básico.
+  if (b.expired) {
+    return `<section class="rounded-2xl border border-red-200 bg-red-50 p-5 mb-6 flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="material-symbols-outlined text-red-500 shrink-0">error</span>
+        <div class="min-w-0"><p class="font-black text-red-700">O seu plano expirou</p><p class="text-sm text-red-600/80">As funcionalidades pagas foram desativadas. Renove para as reativar.</p></div>
+      </div>
+      <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Renovar plano</a>
+    </section>`;
+  }
+  return "";
 }
 
 /** Secção em acordeão (Configurações). */

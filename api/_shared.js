@@ -122,6 +122,42 @@ export function send(res, code, obj) {
   res.status(code).json(obj);
 }
 
+/** Duração de um período de subscrição (30 dias), em ms. */
+const PLAN_PERIOD_MS = 30 * 24 * 3600 * 1000;
+const VALID_PLANS = ["basico", "profissional", "empresarial"];
+
+/**
+ * Ativa/renova/agenda um plano após pagamento confirmado. Espelha
+ * `src/services/billing.ts:planActivationPatch`:
+ *  - renova o mesmo plano (estende o período);
+ *  - agenda um plano diferente quando ainda há tempo (carry-over);
+ *  - ativa já quando não há período em curso.
+ */
+export async function activatePlan(db, ownerId, newPlan) {
+  if (!ownerId || !VALID_PLANS.includes(String(newPlan))) return;
+  const now = Date.now();
+  const { data: prof } = await db
+    .from("profiles")
+    .select("plan, plan_expires_at, next_plan")
+    .eq("id", ownerId)
+    .maybeSingle();
+  const cur = prof?.plan || "basico";
+  const expMs = prof?.plan_expires_at ? Date.parse(prof.plan_expires_at) : NaN;
+  const activeTimed = cur !== "basico" && Number.isFinite(expMs) && expMs > now;
+
+  let patch;
+  if (activeTimed) {
+    if (newPlan === cur) {
+      patch = { plan_expires_at: new Date(expMs + PLAN_PERIOD_MS).toISOString(), next_plan: null };
+    } else {
+      patch = { next_plan: newPlan };
+    }
+  } else {
+    patch = { plan: newPlan, plan_expires_at: new Date(now + PLAN_PERIOD_MS).toISOString(), next_plan: null };
+  }
+  await db.from("profiles").update(patch).eq("id", ownerId);
+}
+
 /** Chamada à API MoMenu. `body` ausente → GET. */
 export async function momenu(path, apiKey, body, qa) {
   const headers = { "Content-Type": "application/json", "x-api-key": apiKey };

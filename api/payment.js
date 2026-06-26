@@ -20,7 +20,7 @@
 import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
-  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage,
+  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
@@ -112,9 +112,9 @@ export default async function handler(req, res) {
         paid_at: status === "paid" ? nowIso : null,
       }).select("id").maybeSingle();
       orderId = ins.data?.id || null;
-      // MCX pago → ativar o plano imediatamente.
+      // MCX pago → ativar o plano imediatamente (com expiração/carry-over).
       if (status === "paid" && body.ownerId && body.plan) {
-        await db.from("profiles").update({ plan: String(body.plan) }).eq("id", String(body.ownerId));
+        await activatePlan(db, String(body.ownerId), String(body.plan));
       }
     } else {
       const ins = await db.from("orders").insert({

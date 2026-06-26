@@ -13,7 +13,8 @@ import { createFileService } from "../src/services/fileService.js";
 import { createWizardFlow } from "../src/app/wizardFlow.js";
 import { createAdminPanel, type AdminPanel } from "../src/app/adminPanel.js";
 import type { Session } from "../src/services/authService.js";
-import { DEFAULT_PLAN, isPlanId, type PlanId } from "../src/services/plans.js";
+import { DEFAULT_PLAN, type PlanId } from "../src/services/plans.js";
+import { resolveBilling, type BillingState } from "../src/services/billing.js";
 import { templateOptions } from "./templates/registry.js";
 
 import { supabase } from "./supabase/client.js";
@@ -133,8 +134,42 @@ export async function getOwnerName(ownerId: string): Promise<string> {
 export async function getOwnerPlan(ownerId?: string | null): Promise<PlanId> {
   const id = ownerId ?? (await currentOwnerId());
   if (!id) return DEFAULT_PLAN;
-  const { data } = await supabase.from("profiles").select("plan").eq("id", id).maybeSingle();
-  return isPlanId(data?.plan) ? data!.plan : DEFAULT_PLAN;
+  const billing = await getOwnerBilling(id);
+  return billing.effectivePlan;
+}
+
+/**
+ * Estado de faturação completo da conta (plano efetivo, dias para renovação,
+ * plano agendado). Quando `id` é o utilizador autenticado e um período terminou,
+ * persiste a transição (promoção do plano agendado ou queda para básico).
+ */
+export async function getOwnerBilling(ownerId?: string | null): Promise<BillingState> {
+  const id = ownerId ?? (await currentOwnerId());
+  if (!id) {
+    return resolveBilling({ plan: DEFAULT_PLAN, planExpiresAt: null, nextPlan: null });
+  }
+  const { data } = await supabase
+    .from("profiles")
+    .select("plan, plan_expires_at, next_plan")
+    .eq("id", id)
+    .maybeSingle();
+  const state = resolveBilling({
+    plan: data?.plan,
+    planExpiresAt: data?.plan_expires_at,
+    nextPlan: data?.next_plan,
+  });
+  // Persiste a transição apenas para a própria conta (RLS permite-o).
+  if (state.transition) {
+    const me = await currentOwnerId();
+    if (me === id) {
+      await supabase.from("profiles").update({
+        plan: state.transition.plan,
+        plan_expires_at: state.transition.planExpiresAt,
+        next_plan: state.transition.nextPlan,
+      }).eq("id", id);
+    }
+  }
+  return state;
 }
 
 /** Define o plano de subscrição da conta autenticada. Devolve `true` em sucesso. */

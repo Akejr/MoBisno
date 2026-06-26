@@ -15,6 +15,10 @@ export interface AdminAccount {
   isAdmin: boolean;
   createdAt: string;
   storeCount: number;
+  /** Fim do período de subscrição pago (ISO) ou null. */
+  planExpiresAt: string | null;
+  /** Plano agendado para o próximo período, ou null. */
+  nextPlan: string | null;
 }
 
 /** Funcionalidades ativas numa loja (vistas pelo admin). */
@@ -106,7 +110,7 @@ export async function adminOverview(): Promise<AdminOverview> {
 /** Lista de contas com o nº de lojas. */
 export async function listAccounts(): Promise<AdminAccount[]> {
   const [{ data: profiles }, { data: stores }] = await Promise.all([
-    supabase.from("profiles").select("id, email, name, plan, is_admin, created_at").order("created_at", { ascending: false }),
+    supabase.from("profiles").select("id, email, name, plan, is_admin, created_at, plan_expires_at, next_plan").order("created_at", { ascending: false }),
     supabase.from("stores").select("owner_id"),
   ]);
   const counts = new Map<string, number>();
@@ -119,6 +123,8 @@ export async function listAccounts(): Promise<AdminAccount[]> {
     isAdmin: p.is_admin === true,
     createdAt: p.created_at,
     storeCount: counts.get(p.id) ?? 0,
+    planExpiresAt: p.plan_expires_at ?? null,
+    nextPlan: p.next_plan ?? null,
   }));
 }
 

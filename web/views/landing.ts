@@ -107,7 +107,7 @@ export async function renderLanding(): Promise<void> {
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
             ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Começar agora", features: ["1 loja publicada", "100 produtos cadastrados", "Checkout via WhatsApp", "Endereço .mobisno.store"] })}
             ${priceCard({ plan: "profissional", name: "Profissional", desc: "Para vender a sério, sem limites.", featured: true, monthly: "11.000", yearly: "105.600", cta: "Escolher Profissional", features: ["Tudo do plano Básico", "Produtos ilimitados", "Checkout Multicaixa Express e referência bancária", "3 lojas publicadas", "Domínio próprio (opcional)"] })}
-            ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Falar connosco", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
+            ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Escolher Empresarial", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
           </div>
         </div>
       </section>
@@ -214,8 +214,8 @@ function priceCard(o: { plan: string; name: string; desc: string; monthly: strin
   const btn = o.featured
     ? `style="background:${ACCENT};color:#fff" class="w-full mt-8 text-center font-bold rounded-lg py-3 hover:opacity-90 transition-opacity"`
     : `class="w-full mt-8 text-center font-bold rounded-lg py-3 bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors"`;
-  const href = o.name === "Empresarial" ? "https://wa.me/244900000000" : `#/criar?plano=${esc(o.plan)}`;
-  const target = o.name === "Empresarial" ? ` target="_blank" rel="noopener"` : "";
+  const href = `#/criar?plano=${esc(o.plan)}`;
+  const target = "";
   return `<div data-card data-free="${o.free ? "1" : "0"}" data-monthly="${esc(o.monthly)}" data-yearly="${esc(o.yearly)}" class="relative rounded-2xl ${border} bg-white p-8 flex flex-col text-left overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl" ${style}>
     ${o.featured ? `<div class="absolute top-0 right-0 text-[11px] font-bold text-white px-4 py-1.5 rounded-bl-xl" style="background:${ACCENT}">MAIS POPULAR</div>` : ""}
     <h3 class="text-2xl font-bold text-gray-900">${esc(o.name)}</h3>

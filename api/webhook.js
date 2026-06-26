@@ -12,7 +12,7 @@
  * Entrega fire-and-forget: respondemos sempre 200.
  */
 
-import { admin, readBody, send, mapMomenuStatus } from "./_shared.js";
+import { admin, readBody, send, mapMomenuStatus, activatePlan } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { received: false });
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       await db.from("plan_payments").update(patch).eq("merchant_transaction_id", mtx);
       if (status === "paid") {
         const { data: pp } = await db.from("plan_payments").select("owner_id, plan").eq("merchant_transaction_id", mtx).maybeSingle();
-        if (pp?.owner_id && pp?.plan) await db.from("profiles").update({ plan: pp.plan }).eq("id", pp.owner_id);
+        if (pp?.owner_id && pp?.plan) await activatePlan(db, pp.owner_id, pp.plan);
       }
     }
   } catch (e) {
