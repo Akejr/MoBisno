@@ -10,12 +10,14 @@ import { perksItemsHtml } from "./perks.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import type { StoreRenderView, StoreCustomization, StoreProductView } from "./types.js";
 
-export type ProductPageVariant = "classico" | "galeria" | "minimal";
+export type ProductPageVariant = "classico" | "galeria" | "minimal" | "imersivo" | "vitrine";
 
 export const PRODUCTPAGE_VARIANTS: { id: ProductPageVariant; label: string }[] = [
   { id: "classico", label: "Clássico" },
   { id: "galeria", label: "Galeria" },
   { id: "minimal", label: "Minimal" },
+  { id: "imersivo", label: "Imersivo" },
+  { id: "vitrine", label: "Vitrine" },
 ];
 
 export interface ProductPageCtx { container: string; brand: string; }
@@ -72,15 +74,18 @@ function relatedHtml(view: StoreRenderView, product: StoreProductView, ctx: Prod
   </section>`;
 }
 
-function breadcrumb(view: StoreRenderView, product: StoreProductView): string {
+function breadcrumb(view: StoreRenderView, product: StoreProductView, light = false): string {
+  const t = light ? "text-white/80" : "text-gray-500";
+  const hov = light ? "hover:text-white" : "hover:text-gray-900";
+  const cur = light ? "text-white" : "text-gray-900";
   const crumbCat = product.category
-    ? `<a href="${esc(categoryHref(view, product.category))}" class="hover:text-gray-900">${esc(product.category)}</a><span class="material-symbols-outlined text-[16px]">chevron_right</span>`
+    ? `<a href="${esc(categoryHref(view, product.category))}" class="${hov}">${esc(product.category)}</a><span class="material-symbols-outlined text-[16px]">chevron_right</span>`
     : "";
-  return `<nav class="text-sm text-gray-500 mb-6 flex items-center gap-1.5 flex-wrap">
-    <a href="${esc(homeHref(view))}" class="hover:text-gray-900">Início</a>
+  return `<nav class="text-sm ${t} mb-6 flex items-center gap-1.5 flex-wrap">
+    <a href="${esc(homeHref(view))}" class="${hov}">Início</a>
     <span class="material-symbols-outlined text-[16px]">chevron_right</span>
     ${crumbCat}
-    <span class="text-gray-900 font-medium truncate">${esc(product.name)}</span>
+    <span class="${cur} font-medium truncate">${esc(product.name)}</span>
   </nav>`;
 }
 
@@ -99,17 +104,74 @@ export function renderProductPage(
   const perks = `<ul data-edit-perks class="mt-8 space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-6">${perksItemsHtml(custom, ctx.brand)}</ul>`;
 
   if (variant === "minimal") {
-    return `<main class="${ctx.container} py-8 md:py-12 flex-grow">
+    return `<main class="${ctx.container} py-12 md:py-20 flex-grow">
       ${breadcrumb(view, product)}
-      <div class="max-w-2xl mx-auto text-center">
-        <div class="relative aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 mb-8" data-edit-product="${esc(product.id)}">${imgHtml(product, "w-full h-full object-cover")}</div>
-        <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
-        ${price}
-        <div class="text-gray-600">${descHtml(product)}</div>
-        <div class="mt-8 flex items-center justify-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
-        <div class="max-w-md mx-auto">${actionsHtml(product, ctx, waHref)}${perks}</div>
+      <div class="max-w-3xl mx-auto">
+        <div class="relative aspect-[4/3] bg-gray-50 rounded-3xl overflow-hidden" data-edit-product="${esc(product.id)}">${imgHtml(product, "w-full h-full object-cover")}</div>
+        <div class="text-center mt-10">
+          <h1 class="text-3xl md:text-5xl font-black tracking-tight leading-tight text-gray-900">${esc(product.name)}</h1>
+          <p class="mt-3 text-2xl font-semibold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
+          <div class="mx-auto my-7 h-px w-16 bg-gray-200"></div>
+          ${product.description ? `<p class="text-gray-500 text-lg leading-relaxed max-w-xl mx-auto whitespace-pre-line">${esc(product.description)}</p>` : ""}
+          <div class="mt-8 flex items-center justify-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
+          <div class="max-w-md mx-auto">${actionsHtml(product, ctx, waHref)}</div>
+          <div class="max-w-md mx-auto">${perks}</div>
+        </div>
       </div>
       ${relatedHtml(view, product, ctx)}
+    </main>`;
+  }
+
+  if (variant === "imersivo") {
+    return `<main class="flex-grow">
+      <section class="relative min-h-[58vh] md:min-h-[68vh] flex items-end overflow-hidden bg-neutral-900" data-edit-product="${esc(product.id)}">
+        ${imgHtml(product, "absolute inset-0 w-full h-full object-cover")}
+        <div class="absolute inset-0" style="background:linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,.25) 55%, rgba(0,0,0,.35))"></div>
+        <div class="relative ${ctx.container} pb-10 md:pb-14 text-white w-full">
+          ${breadcrumb(view, product, true)}
+          <h1 class="text-4xl md:text-6xl font-black tracking-tight leading-[1.04] max-w-3xl">${esc(product.name)}</h1>
+          <p class="mt-3 text-3xl font-bold">${esc(formatKz(product.price))}</p>
+        </div>
+      </section>
+      <div class="${ctx.container} py-10 md:py-14">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start">
+          <div class="lg:col-span-2">
+            ${product.description ? `<p class="text-gray-600 text-lg leading-relaxed whitespace-pre-line">${esc(product.description)}</p>` : `<p class="text-gray-400 italic">Sem descrição.</p>`}
+            ${perks}
+          </div>
+          <div class="lg:col-span-1 lg:sticky lg:top-24 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <p class="text-2xl font-bold mb-4" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
+            <div class="flex items-center gap-4 mb-2"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
+            ${actionsHtml(product, ctx, waHref)}
+          </div>
+        </div>
+      </div>
+      <div class="${ctx.container}">${relatedHtml(view, product, ctx)}</div>
+    </main>`;
+  }
+
+  if (variant === "vitrine") {
+    return `<main class="flex-grow">
+      <section class="relative py-12 md:py-20 bg-gray-50">
+        <div class="${ctx.container}">
+          ${breadcrumb(view, product)}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16 items-center">
+            <div class="relative" data-edit-product="${esc(product.id)}">
+              <div class="absolute -inset-5 rounded-[2.5rem]" style="background:${ctx.brand};opacity:.18;filter:blur(8px)"></div>
+              <div class="relative aspect-square rounded-[2rem] overflow-hidden shadow-2xl bg-white">${imgHtml(product, "w-full h-full object-cover")}</div>
+            </div>
+            <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 md:p-10">
+              <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight text-gray-900">${esc(product.name)}</h1>
+              <p class="mt-3 text-3xl font-bold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
+              ${descHtml(product)}
+              <div class="mt-8 flex items-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
+              ${actionsHtml(product, ctx, waHref)}
+              ${perks}
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="${ctx.container} py-10">${relatedHtml(view, product, ctx)}</div>
     </main>`;
   }
 

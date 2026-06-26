@@ -227,10 +227,10 @@ function testimonialsCards(b: Extract<ContentBlock, { type: "testimonials" }>, i
   </section>`;
 }
 
-export const LOCATION_VARIANTS: { id: "classico" | "cartao" | "escuro"; label: string }[] = [
+export const LOCATION_VARIANTS: { id: "classico" | "cartao" | "estilizado"; label: string }[] = [
   { id: "classico", label: "Clássico" },
   { id: "cartao", label: "Com cartão" },
-  { id: "escuro", label: "Escuro" },
+  { id: "estilizado", label: "Estilizado" },
 ];
 
 function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
@@ -238,7 +238,7 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
 }
 
 /** Renderiza o bloco "localização" numa variante específica. */
-export function locationByVariant(variant: "classico" | "cartao" | "escuro", b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
+export function locationByVariant(variant: "classico" | "cartao" | "estilizado", b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
   const address = (b.address ?? "").trim() || "Luanda, Angola";
   let src: string;
   if (typeof b.lat === "number" && typeof b.lng === "number") {
@@ -268,15 +268,20 @@ export function locationByVariant(variant: "classico" | "cartao" | "escuro", b: 
     </section>`;
   }
 
-  if (variant === "escuro") {
-    return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="escuro" class="relative py-12 md:py-16">
+  if (variant === "estilizado") {
+    return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="estilizado" class="relative py-12 md:py-16">
       <div class="${ctx.container}">
-        <div class="relative rounded-3xl overflow-hidden border border-neutral-800 shadow-lg" style="background:#0b0f19">
-          <div class="text-center pt-8 px-6">
-            <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-white">${title}</h2>
-            <p class="mt-2 text-neutral-300 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${addrLine}</p>
+        <div class="text-center max-w-2xl mx-auto mb-8">
+          <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+          <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${addrLine}</p>
+        </div>
+        <div class="relative rounded-3xl overflow-hidden border border-gray-100 shadow-md">
+          <div style="filter:grayscale(1) contrast(1.05) brightness(1.02)">${iframe("height:420px")}</div>
+          <div class="pointer-events-none absolute inset-0" style="background:${ctx.brand};mix-blend-mode:multiply;opacity:.28"></div>
+          <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl"></div>
+          <div class="pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800">
+            <span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">pin_drop</span> Estamos aqui
           </div>
-          <div class="mt-6" style="filter:invert(0.92) hue-rotate(180deg) saturate(.8) contrast(.9)">${iframe("height:360px")}</div>
         </div>
       </div>
     </section>`;

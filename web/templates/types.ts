@@ -30,7 +30,7 @@ export interface StoreCustomization {
   heroImages?: string[];
   /** Cabeçalho: variante de layout + texto da faixa promo. */
   header?: {
-    variant?: "classico" | "centrado" | "promo";
+    variant?: "classico" | "centrado" | "promo" | "transparente";
     promo?: string;
   };
   /** Disposição da lista de produtos (Fase 3). Se ausente, usa o formato do modelo. */

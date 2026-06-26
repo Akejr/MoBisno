@@ -8,12 +8,13 @@ import { esc } from "../lib/dom.js";
 import { headerCategories } from "./sectionsModel.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
-export type HeaderVariant = "classico" | "centrado" | "promo";
+export type HeaderVariant = "classico" | "centrado" | "promo" | "transparente";
 
 export const HEADER_VARIANTS: { id: HeaderVariant; label: string }[] = [
   { id: "classico", label: "Clássico" },
   { id: "centrado", label: "Logo ao centro" },
   { id: "promo", label: "Com faixa promo" },
+  { id: "transparente", label: "Transparente (sobre o hero)" },
 ];
 
 export interface HeaderCtx { container: string; brand: string; }
@@ -72,11 +73,24 @@ export function renderHeader(variant: HeaderVariant | undefined, view: StoreRend
     return `<header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 text-gray-700">
       <div class="${ctx.container}">
         <div class="grid grid-cols-3 items-center h-16">
-          <div class="flex items-center gap-3">${searchBtn()}</div>
+          <nav data-edit-menu class="hidden lg:flex items-center gap-6 text-sm font-medium">${menuLinks(view, labels)}${categoriesDropdown(view)}</nav>
           <div class="flex justify-center">${logo}</div>
-          <div class="flex items-center justify-end gap-3">${cartBtn(view, ctx.brand)}</div>
+          <div class="flex items-center justify-end gap-3">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
         </div>
-        <div class="hidden lg:flex items-center justify-center gap-7 text-sm font-medium pb-3 -mt-1">${menuLinks(view, labels)}${categoriesDropdown(view)}</div>
+      </div>
+    </header>`;
+  }
+
+  if (variant === "transparente") {
+    // Sobreposto ao hero: fora do fluxo, transparente, texto claro.
+    return `<header class="absolute top-0 inset-x-0 z-50 text-white">
+      <div class="absolute inset-0 pointer-events-none" style="background:linear-gradient(to bottom, rgba(0,0,0,.35), transparent)"></div>
+      <div class="relative ${ctx.container}">
+        <div class="flex items-center justify-between h-16">
+          ${logo}
+          ${nav("hidden lg:flex items-center gap-7 text-sm font-medium")}
+          <div class="flex items-center gap-3">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
+        </div>
       </div>
     </header>`;
   }

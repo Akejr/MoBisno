@@ -7,12 +7,12 @@ import { esc } from "../lib/dom.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
-export type FooterVariant = "colunas" | "centrado" | "escuro";
+export type FooterVariant = "colunas" | "centrado" | "moderno";
 
 export const FOOTER_VARIANTS: { id: FooterVariant; label: string }[] = [
   { id: "colunas", label: "Colunas" },
   { id: "centrado", label: "Centrado" },
-  { id: "escuro", label: "Escuro" },
+  { id: "moderno", label: "Moderno" },
 ];
 
 export interface FooterCtx { container: string; brand: string; }
@@ -60,27 +60,27 @@ export function renderFooter(variant: FooterVariant | undefined, view: StoreRend
     </footer>`;
   }
 
-  if (variant === "escuro") {
-    return `<footer class="bg-neutral-900 text-neutral-400 mt-auto">
-      <div class="${ctx.container} py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="space-y-3">
-          <div data-edit-footer-logo class="relative inline-block">${footerBrandHtml(view, custom, true)}</div>
-          <p data-edit="footer.about" class="text-sm max-w-xs leading-relaxed">${esc(d.about)}</p>
+  if (variant === "moderno") {
+    return `<footer class="mt-auto bg-gray-50 border-t-4" style="border-color:${ctx.brand}">
+      <div class="${ctx.container} py-14">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:items-center">
+          <div class="space-y-3">
+            <div data-edit-footer-logo class="relative inline-block">${footerBrandHtml(view, custom, false)}</div>
+            <p data-edit="footer.about" class="text-sm text-gray-500 max-w-md leading-relaxed">${esc(d.about)}</p>
+          </div>
+          <div class="flex flex-col gap-2 md:items-end text-sm text-gray-600">
+            <span class="inline-flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> <span data-edit="footer.location">${esc(d.location)}</span></span>
+            <span class="inline-flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">call</span> <span data-edit="footer.phone">${esc(d.phone)}</span></span>
+            <span class="inline-flex items-center gap-2"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">mail</span> <span data-edit="footer.email">${esc(d.email)}</span></span>
+          </div>
         </div>
-        <div>
-          <h3 class="text-sm font-semibold text-white mb-4">Loja</h3>
-          <ul class="space-y-2.5 text-sm">${d.menu.map((l) => `<li><a href="${esc(homeHref(view))}" class="hover:text-white transition-colors cursor-pointer">${esc(l)}</a></li>`).join("")}</ul>
-        </div>
-        <div>
-          <h3 class="text-sm font-semibold text-white mb-4">Contacto</h3>
-          <ul class="space-y-2.5 text-sm">
-            <li class="flex items-start gap-2"><span class="material-symbols-outlined text-[18px]">location_on</span> <span data-edit="footer.location">${esc(d.location)}</span></li>
-            <li class="flex items-start gap-2"><span class="material-symbols-outlined text-[18px]">call</span> <span data-edit="footer.phone">${esc(d.phone)}</span></li>
-            <li class="flex items-start gap-2"><span class="material-symbols-outlined text-[18px]">mail</span> <span data-edit="footer.email">${esc(d.email)}</span></li>
-          </ul>
+        <div class="mt-10 pt-6 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
+          <nav class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium text-gray-600">
+            ${d.menu.map((l) => `<a href="${esc(homeHref(view))}" class="hover:text-gray-900 transition-colors">${esc(l)}</a>`).join("")}
+          </nav>
+          <span class="text-xs text-gray-400">${credit}</span>
         </div>
       </div>
-      <div class="border-t border-neutral-800"><div class="${ctx.container} py-5 text-xs text-neutral-500 text-center">${credit}</div></div>
     </footer>`;
   }
 
