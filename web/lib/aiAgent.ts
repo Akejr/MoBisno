@@ -47,8 +47,9 @@ function makeEye(): { eye: HTMLElement; pupil: HTMLElement } {
  * Monta o mascote no contentor indicado (ou no #app). Remove qualquer instância
  * anterior. Devolve uma função para o desmontar.
  */
-export function mountAiAgent(host?: HTMLElement | null): () => void {
+export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor" | "site" }): () => void {
   document.getElementById(WIDGET_ID)?.remove();
+  const scope = opts?.scope ?? "editor";
 
   const root = host ?? document.getElementById("app") ?? document.body;
 
@@ -188,7 +189,9 @@ export function mountAiAgent(host?: HTMLElement | null): () => void {
       : `<div style="max-width:82%;background:#fff;color:#1c1b1b;border:1px solid #eef0f2;border-radius:14px;border-bottom-left-radius:4px;padding:9px 13px;font-size:13.5px;line-height:1.5">${renderMd(text)}</div>`;
     row.innerHTML = bubble;
     msgsEl().appendChild(row);
-    scrollMsgs();
+    // Resposta do bot: mostra o INÍCIO da mensagem; do utilizador: vai ao fim.
+    if (role === "assistant") msgsEl().scrollTop = Math.max(0, row.offsetTop - 8);
+    else scrollMsgs();
   }
 
   function addTyping(): HTMLElement {
@@ -214,7 +217,7 @@ export function mountAiAgent(host?: HTMLElement | null): () => void {
       const r = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, history: priorHistory }),
+        body: JSON.stringify({ question: q, history: priorHistory, scope }),
       });
       typing.remove();
       if (!r.ok) { addMsg("assistant", "Não consegui responder agora. Tenta novamente daqui a pouco."); return; }
@@ -264,7 +267,9 @@ export function mountAiAgent(host?: HTMLElement | null): () => void {
     panel.querySelector("[data-form]")!.addEventListener("submit", (e) => { e.preventDefault(); void send(); });
     // Repõe o histórico anterior (se houver) ou mostra a saudação.
     if (!chatHistory.length) {
-      addMsg("assistant", "Olá! Pergunta-me o que quiseres sobre o editor — por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d");
+      addMsg("assistant", scope === "site"
+        ? "Olá! Sou o assistente do MôBisno. Pergunta-me o que quiseres — o que é a plataforma, o que dá (ou não) para fazer, planos e como começar a tua loja."
+        : "Olá! Pergunta-me o que quiseres sobre o editor — por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d");
     } else {
       for (const m of chatHistory) addMsg(m.role, m.content);
     }

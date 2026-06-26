@@ -1,6 +1,7 @@
 /** Página inicial — hero com "image accordion" interativo + CTAs dinâmicos. */
 import { render, $, go, esc } from "../lib/dom.js";
 import { currentOwnerId } from "../composition.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 
 const ACCENT = "#F95901";
 
@@ -203,6 +204,7 @@ export async function renderLanding(): Promise<void> {
   mountBento();
   mountIntegrations();
   mountPricing();
+  mountAiAgent(document.getElementById("app"), { scope: "site" });
 }
 
 /** Cartão de preço. */
