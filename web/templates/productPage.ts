@@ -10,14 +10,12 @@ import { perksItemsHtml } from "./perks.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import type { StoreRenderView, StoreCustomization, StoreProductView } from "./types.js";
 
-export type ProductPageVariant = "classico" | "galeria" | "minimal" | "imersivo" | "vitrine";
+export type ProductPageVariant = "classico" | "galeria" | "imersivo";
 
 export const PRODUCTPAGE_VARIANTS: { id: ProductPageVariant; label: string }[] = [
   { id: "classico", label: "Clássico" },
   { id: "galeria", label: "Galeria" },
-  { id: "minimal", label: "Minimal" },
   { id: "imersivo", label: "Imersivo" },
-  { id: "vitrine", label: "Vitrine" },
 ];
 
 export interface ProductPageCtx { container: string; brand: string; }
@@ -103,25 +101,6 @@ export function renderProductPage(
   const price = `<p class="mt-3 text-3xl font-bold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>`;
   const perks = `<ul data-edit-perks class="mt-8 space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-6">${perksItemsHtml(custom, ctx.brand)}</ul>`;
 
-  if (variant === "minimal") {
-    return `<main class="${ctx.container} py-12 md:py-20 flex-grow">
-      ${breadcrumb(view, product)}
-      <div class="max-w-3xl mx-auto">
-        <div class="relative aspect-[4/3] bg-gray-50 rounded-3xl overflow-hidden" data-edit-product="${esc(product.id)}">${imgHtml(product, "w-full h-full object-cover")}</div>
-        <div class="text-center mt-10">
-          <h1 class="text-3xl md:text-5xl font-black tracking-tight leading-tight text-gray-900">${esc(product.name)}</h1>
-          <p class="mt-3 text-2xl font-semibold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
-          <div class="mx-auto my-7 h-px w-16 bg-gray-200"></div>
-          ${product.description ? `<p class="text-gray-500 text-lg leading-relaxed max-w-xl mx-auto whitespace-pre-line">${esc(product.description)}</p>` : ""}
-          <div class="mt-8 flex items-center justify-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
-          <div class="max-w-md mx-auto">${actionsHtml(product, ctx, waHref)}</div>
-          <div class="max-w-md mx-auto">${perks}</div>
-        </div>
-      </div>
-      ${relatedHtml(view, product, ctx)}
-    </main>`;
-  }
-
   if (variant === "imersivo") {
     return `<main class="flex-grow">
       <section class="relative min-h-[58vh] md:min-h-[68vh] flex items-end overflow-hidden bg-neutral-900" data-edit-product="${esc(product.id)}">
@@ -147,31 +126,6 @@ export function renderProductPage(
         </div>
       </div>
       <div class="${ctx.container}">${relatedHtml(view, product, ctx)}</div>
-    </main>`;
-  }
-
-  if (variant === "vitrine") {
-    return `<main class="flex-grow">
-      <section class="relative py-12 md:py-20 bg-gray-50">
-        <div class="${ctx.container}">
-          ${breadcrumb(view, product)}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16 items-center">
-            <div class="relative" data-edit-product="${esc(product.id)}">
-              <div class="absolute -inset-5 rounded-[2.5rem]" style="background:${ctx.brand};opacity:.18;filter:blur(8px)"></div>
-              <div class="relative aspect-square rounded-[2rem] overflow-hidden shadow-2xl bg-white">${imgHtml(product, "w-full h-full object-cover")}</div>
-            </div>
-            <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 md:p-10">
-              <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight text-gray-900">${esc(product.name)}</h1>
-              <p class="mt-3 text-3xl font-bold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
-              ${descHtml(product)}
-              <div class="mt-8 flex items-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
-              ${actionsHtml(product, ctx, waHref)}
-              ${perks}
-            </div>
-          </div>
-        </div>
-      </section>
-      <div class="${ctx.container} py-10">${relatedHtml(view, product, ctx)}</div>
     </main>`;
   }
 

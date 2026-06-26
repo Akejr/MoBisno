@@ -191,10 +191,6 @@ export async function renderEditor(): Promise<void> {
     .mb-model-btn .material-symbols-outlined{font-size:18px}
     .mb-sec-divider{display:flex;align-items:center;gap:12px;margin:8px 0 24px;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;pointer-events:none}
     .mb-sec-divider::before,.mb-sec-divider::after{content:"";flex:1;border-top:2px dashed #d4d4d8}
-    /* No editor, o carrossel "Destaque" fica estático para editar todos os testemunhos. */
-    #preview .mb-hl-stage{min-height:0!important}
-    #preview .mb-hl-slide{position:relative!important;inset:auto!important;opacity:1!important;transform:none!important;animation:none!important;padding-top:24px;padding-bottom:24px;border-top:1px dashed #e5e7eb}
-    #preview .mb-hl-slide:first-child{border-top:0}
   </style>`);
 
   function bind(preview: HTMLElement): void {
@@ -983,8 +979,8 @@ export async function renderEditor(): Promise<void> {
       const b = (custom.blocks?.[i] ?? { type: blk.type }) as ContentBlock;
       if (blk.type === "info") return infoByVariant(id as "lado" | "sobreposto" | "cartao", b as Extract<ContentBlock, { type: "info" }>, i, PREV_CTX);
       if (blk.type === "text") return textByVariant(id as "centrado" | "destaque" | "linha", b as Extract<ContentBlock, { type: "text" }>, i, PREV_CTX);
-      if (blk.type === "location") return locationByVariant(id as "classico" | "cartao" | "escuro", b as Extract<ContentBlock, { type: "location" }>, i, PREV_CTX);
-      return testimonialsByVariant(id as "cards" | "editorial" | "marquee" | "destaque", b as Extract<ContentBlock, { type: "testimonials" }>, i, PREV_CTX);
+      if (blk.type === "location") return locationByVariant(id as "classico" | "cartao" | "estilizado", b as Extract<ContentBlock, { type: "location" }>, i, PREV_CTX);
+      return testimonialsByVariant(id as "cards" | "editorial" | "marquee", b as Extract<ContentBlock, { type: "testimonials" }>, i, PREV_CTX);
     };
     openVariantPicker(
       anchor,

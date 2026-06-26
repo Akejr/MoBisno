@@ -225,7 +225,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     : nativeHero;
 
   return `
-  <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b] overflow-x-hidden" style="font-family:'Manrope',sans-serif">
+  <div class="relative min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b] overflow-x-hidden" style="font-family:'Manrope',sans-serif">
     ${headerHtml(view, menuLabels, custom)}
 
     ${hero}

@@ -203,7 +203,7 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
 function render(view: StoreRenderView, custom?: StoreCustomization): string {
   const menuLabels = menuFor(view, custom);
   return `
-  <div class="min-h-screen flex flex-col bg-white text-gray-900 font-sans overflow-x-hidden">
+  <div class="relative min-h-screen flex flex-col bg-white text-gray-900 font-sans overflow-x-hidden">
     ${headerHtml(view, menuLabels, custom)}
     ${renderHero(custom?.hero?.variant, view, custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" }, "arco")}
     <main id="produtos" class="${CONTAINER} py-10 md:py-14">

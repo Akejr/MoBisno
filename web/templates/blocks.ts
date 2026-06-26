@@ -163,11 +163,10 @@ export function textByVariant(variant: "centrado" | "destaque" | "linha", b: Ext
 /** Tipo de avatar usado nos testemunhos. */
 type TestiItem = { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string };
 
-export const TESTIMONIAL_VARIANTS: { id: "cards" | "editorial" | "marquee" | "destaque"; label: string }[] = [
+export const TESTIMONIAL_VARIANTS: { id: "cards" | "editorial" | "marquee"; label: string }[] = [
   { id: "cards", label: "Cartões" },
   { id: "editorial", label: "Editorial" },
   { id: "marquee", label: "Carrossel" },
-  { id: "destaque", label: "Destaque" },
 ];
 
 /**
@@ -193,14 +192,13 @@ function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i
 
 /** Renderiza os testemunhos numa variante específica (usado também nas miniaturas). */
 export function testimonialsByVariant(
-  variant: "cards" | "editorial" | "marquee" | "destaque",
+  variant: "cards" | "editorial" | "marquee",
   b: Extract<ContentBlock, { type: "testimonials" }>,
   i: number,
   ctx: BlockCtx,
 ): string {
   if (variant === "editorial") return testimonialsGaleria(b, i, ctx);
   if (variant === "marquee") return testimonialsMarquee(b, i, ctx);
-  if (variant === "destaque") return testimonialsDestaque(b, i, ctx);
   return testimonialsCards(b, i, ctx);
 }
 
@@ -358,54 +356,6 @@ function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>,
     </div>
     <div class="mb-mq-mask pb-16 md:pb-20">
       <div data-edit-testimonials="${i}" class="mb-mq-track">${originals}${clones}</div>
-    </div>
-  </section>`;
-}
-
-/** Variante "Destaque" — carrossel de um testemunho centrado, com auto-rotação (CSS), ícone de aspas, avatar, fades laterais e indicadores. */
-function testimonialsDestaque(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
-  const items = b.items ?? [];
-  const n = items.length;
-  const per = 4.5;            // segundos por testemunho
-  const total = (n * per).toFixed(2);
-  const v = 100 / Math.max(n, 1);
-  const f1 = (v * 0.06).toFixed(3);
-  const f2 = (v * 0.94).toFixed(3);
-  const f3 = v.toFixed(3);
-  const anim = n > 1;
-  const kf = anim
-    ? `@keyframes mbHl${i}{0%{opacity:0;transform:translateY(12px)}${f1}%{opacity:1;transform:translateY(0)}${f2}%{opacity:1;transform:translateY(0)}${f3}%{opacity:0;transform:translateY(-12px)}100%{opacity:0}}
-       @keyframes mbHlDot${i}{0%{opacity:.35;transform:scale(1)}${f1}%{opacity:1;transform:scale(1.35)}${f2}%{opacity:1;transform:scale(1.35)}${f3}%{opacity:.35;transform:scale(1)}100%{opacity:.35}}`
-    : "";
-
-  const slides = items.map((t, j) => {
-    const style = anim ? `position:absolute;inset:0;opacity:0;animation:mbHl${i} ${total}s ${(j * per).toFixed(2)}s infinite` : "";
-    return `<figure data-testi-item="${j}" class="mb-hl-slide flex flex-col items-center justify-center text-center px-6" style="${style}">
-      <span class="material-symbols-outlined" style="font-size:42px;color:${ctx.brand}">format_quote</span>
-      <p data-edit="blocks.${i}.items.${j}.text" class="mt-3 text-xl md:text-2xl font-semibold leading-relaxed text-gray-900 max-w-xl">${esc(t.text ?? "")}</p>
-      <div class="mt-7">${testiAvatar(t, i, j, ctx, "w-14 h-14")}</div>
-      <p data-edit="blocks.${i}.items.${j}.name" class="mt-3 text-base font-semibold text-gray-900">${esc(t.name ?? "")}</p>
-      <p data-edit="blocks.${i}.items.${j}.role" class="text-sm text-gray-400">${esc(t.role ?? "")}</p>
-    </figure>`;
-  }).join("");
-
-  const dots = anim
-    ? `<div class="flex items-center justify-center gap-2 mt-6">${items.map((_, j) =>
-        `<span style="width:8px;height:8px;border-radius:9999px;background:${ctx.brand};opacity:.35;animation:mbHlDot${i} ${total}s ${(j * per).toFixed(2)}s infinite"></span>`).join("")}</div>`
-    : "";
-
-  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="destaque" class="relative py-16 md:py-24">
-    <style>${kf}</style>
-    <div class="${ctx.container}">
-      <div class="text-center mb-10">
-        <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-      </div>
-      <div class="relative mx-auto max-w-2xl">
-        <div class="mb-hl-stage relative" data-edit-testimonials="${i}" style="min-height:300px">${slides || `<p class="text-center text-gray-400 py-10">Sem testemunhos.</p>`}</div>
-        ${dots}
-        <div class="pointer-events-none absolute inset-y-0 left-0 w-2/12 bg-gradient-to-r from-white"></div>
-        <div class="pointer-events-none absolute inset-y-0 right-0 w-2/12 bg-gradient-to-l from-white"></div>
-      </div>
     </div>
   </section>`;
 }

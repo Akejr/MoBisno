@@ -47,7 +47,7 @@ function heroImagem(view: StoreRenderView, custom: StoreCustomization | undefine
   const { title, subtitle, cta } = texts(view, custom);
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
   return `
-  <section data-edit-hero class="mb-dark text-white relative h-[440px] md:h-[560px] overflow-hidden bg-neutral-900">
+  <section data-edit-hero class="mb-dark text-white relative h-[520px] md:h-[660px] overflow-hidden bg-neutral-900">
     <img src="${esc(img)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
     <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/45 to-transparent"></div>
     <div class="relative h-full ${ctx.container} flex items-center">

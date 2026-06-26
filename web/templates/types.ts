@@ -40,7 +40,7 @@ export interface StoreCustomization {
   };
   /** Variante de layout da página de produto. */
   productPage?: {
-    variant?: "classico" | "galeria" | "minimal";
+    variant?: "classico" | "galeria" | "imersivo";
   };
   /** Altura do logótipo no cabeçalho, em píxeis (por omissão depende do modelo). */
   logoScale?: number;
@@ -73,7 +73,7 @@ export interface StoreCustomization {
     /** Logótipo específico do rodapé (ex.: versão clara). Se ausente, usa o do cabeçalho. */
     logoUrl?: string;
     /** Variante de layout do rodapé. */
-    variant?: "colunas" | "centrado" | "escuro";
+    variant?: "colunas" | "centrado" | "moderno";
   };
   /** Configuração do botão "Comprar via WhatsApp" na página de produto. */
   whatsapp?: {
@@ -96,8 +96,8 @@ export interface StoreCustomization {
 export type ContentBlock =
   | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao" }
   | { type: "text"; title?: string; text?: string; variant?: "centrado" | "destaque" | "linha" }
-  | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee" | "destaque"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
-  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "escuro" };
+  | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
+  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "estilizado" };
 
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */
