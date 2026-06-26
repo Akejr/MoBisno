@@ -63,35 +63,65 @@ function cartBtn(view: StoreRenderView, brand: string): string {
   </a>`;
 }
 
+/**
+ * Menu mobile sem JS (checkbox + CSS), para que funcione tanto no preview como
+ * na loja publicada (onde `<script>` não corre mas `<style>` sim). Devolve:
+ *  - `head`: o checkbox + o `<style>` de comportamento (colocar no topo do header);
+ *  - `button`: o botão hambúrguer (`lg:hidden`, colocar junto ao logótipo);
+ *  - `panel`: o painel deslizante com os links (colocar no fim do header).
+ */
+export function mobileMenuParts(view: StoreRenderView, labels: string[], container: string): { head: string; button: string; panel: string } {
+  const cats = headerCategories(view);
+  const linkCls = "block px-1 py-3 text-[15px] font-medium border-b border-black/5 hover:opacity-70 transition-opacity";
+  const items = labels.map((l) => `<a href="${esc(homeHref(view))}" class="${linkCls}">${esc(l)}</a>`).join("");
+  const catBlock = cats.length
+    ? `<p class="px-1 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Categorias</p>` +
+      cats.map((c) => `<a href="${esc(categoryHref(view, c))}" class="${linkCls}">${esc(c)}</a>`).join("")
+    : "";
+  const head = `<input type="checkbox" id="mb-mnav" class="mb-mnav-cb" aria-hidden="true" /><style>.mb-mnav-cb{position:absolute;width:0;height:0;opacity:0;pointer-events:none}.mb-mnav-panel{display:none}@media(max-width:1023px){#mb-mnav:checked~.mb-mnav-panel{display:block}#mb-mnav:checked~* .mb-mnav-open{display:none}#mb-mnav:checked~* .mb-mnav-close{display:inline-block}}</style>`;
+  const button = `<label for="mb-mnav" class="lg:hidden cursor-pointer inline-flex items-center justify-center w-9 h-9 -ml-1.5 rounded-full hover:bg-black/5 transition-colors shrink-0" aria-label="Abrir menu"><span class="material-symbols-outlined mb-mnav-open">menu</span><span class="material-symbols-outlined mb-mnav-close hidden">close</span></label>`;
+  const panel = `<div class="mb-mnav-panel lg:hidden border-t border-black/5 bg-white/95 backdrop-blur text-gray-800"><nav class="${container} py-2 flex flex-col">${items}${catBlock}</nav></div>`;
+  return { head, button, panel };
+}
+
 /** Renderiza o cabeçalho da variante escolhida. */
 export function renderHeader(variant: HeaderVariant | undefined, view: StoreRenderView, custom: StoreCustomization | undefined, ctx: HeaderCtx): string {
   const labels = menuLabels(view, custom);
   const logo = `<a href="${esc(homeHref(view))}" data-edit-logo class="flex items-center gap-2 min-w-0">${brandHtml(view, custom)}</a>`;
   const nav = (cls: string): string => `<nav data-edit-menu class="${cls}">${menuLinks(view, labels)}${categoriesDropdown(view)}</nav>`;
+  const m = mobileMenuParts(view, labels, ctx.container);
+  const icons = `<div class="flex items-center gap-3 shrink-0">${searchBtn()}${cartBtn(view, ctx.brand)}</div>`;
 
   if (variant === "centrado") {
     return `<header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 text-gray-700">
+      ${m.head}
       <div class="${ctx.container}">
         <div class="grid grid-cols-3 items-center h-16">
-          <nav data-edit-menu class="hidden lg:flex items-center gap-6 text-sm font-medium">${menuLinks(view, labels)}${categoriesDropdown(view)}</nav>
-          <div class="flex justify-center">${logo}</div>
-          <div class="flex items-center justify-end gap-3">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
+          <div class="flex items-center gap-1 min-w-0">
+            ${m.button}
+            <nav data-edit-menu class="hidden lg:flex items-center gap-6 text-sm font-medium">${menuLinks(view, labels)}${categoriesDropdown(view)}</nav>
+          </div>
+          <div class="flex justify-center min-w-0">${logo}</div>
+          <div class="flex items-center justify-end gap-3 shrink-0">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
         </div>
       </div>
+      ${m.panel}
     </header>`;
   }
 
   if (variant === "transparente") {
     // Sobreposto ao hero: fora do fluxo, transparente, texto claro.
     return `<header class="absolute top-0 inset-x-0 z-50 text-white">
+      ${m.head}
       <div class="absolute inset-0 pointer-events-none" style="background:linear-gradient(to bottom, rgba(0,0,0,.35), transparent)"></div>
       <div class="relative ${ctx.container}">
-        <div class="flex items-center justify-between h-16">
-          ${logo}
+        <div class="flex items-center justify-between gap-3 h-16">
+          <div class="flex items-center gap-1 min-w-0">${m.button}${logo}</div>
           ${nav("hidden lg:flex items-center gap-7 text-sm font-medium")}
-          <div class="flex items-center gap-3">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
+          ${icons}
         </div>
       </div>
+      ${m.panel}
     </header>`;
   }
 
@@ -100,25 +130,29 @@ export function renderHeader(variant: HeaderVariant | undefined, view: StoreRend
     return `<div>
       <div class="text-white text-center text-xs font-semibold py-2 px-4" style="background:${ctx.brand}"><span data-edit="header.promo">${promo}</span></div>
       <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 text-gray-700">
+        ${m.head}
         <div class="${ctx.container}">
-          <div class="relative flex items-center justify-between h-16">
-            ${logo}
+          <div class="relative flex items-center justify-between gap-3 h-16">
+            <div class="flex items-center gap-1 min-w-0">${m.button}${logo}</div>
             ${nav("hidden lg:flex items-center gap-7 text-sm font-medium")}
-            <div class="flex items-center gap-3">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
+            ${icons}
           </div>
         </div>
+        ${m.panel}
       </header>
     </div>`;
   }
 
   // "classico" (omissão).
   return `<header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100 text-gray-700">
+    ${m.head}
     <div class="${ctx.container}">
-      <div class="relative flex items-center justify-between h-16">
-        ${logo}
+      <div class="relative flex items-center justify-between gap-3 h-16">
+        <div class="flex items-center gap-1 min-w-0">${m.button}${logo}</div>
         ${nav("hidden lg:flex items-center gap-7 text-sm font-medium")}
-        <div class="flex items-center gap-3">${searchBtn()}${cartBtn(view, ctx.brand)}</div>
+        ${icons}
       </div>
     </div>
+    ${m.panel}
   </header>`;
 }

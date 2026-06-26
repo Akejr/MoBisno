@@ -13,7 +13,7 @@ import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
-import { renderHeader } from "./headers.js";
+import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
@@ -88,6 +88,7 @@ function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreC
     .map((label, i) => `<a href="${storeHomeHref(view)}" data-edit-menu-item="${i}" class="hover:text-gray-900 cursor-pointer transition-colors">${esc(label)}</a>`)
     .join("");
   const cats = categoriesOf(view);
+  const mnav = mobileMenuParts(view, menuLabels, CONTAINER);
   const categoriesMenu = cats.length
     ? `<div class="relative group" data-categories-menu>
         <button type="button" class="flex items-center gap-0.5 hover:text-gray-900 transition-colors">Categorias <span class="material-symbols-outlined text-[18px]">expand_more</span></button>
@@ -100,11 +101,15 @@ function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreC
     : "";
   return `
     <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
+      ${mnav.head}
       <div class="${CONTAINER}">
-        <div class="relative flex items-center justify-between h-16">
-          <a href="${esc(storeHomeHref(view))}" data-edit-logo class="flex items-center gap-2 min-w-0">${brandHtml(view)}</a>
+        <div class="relative flex items-center justify-between gap-3 h-16">
+          <div class="flex items-center gap-1 min-w-0">
+            ${mnav.button}
+            <a href="${esc(storeHomeHref(view))}" data-edit-logo class="flex items-center gap-2 min-w-0">${brandHtml(view)}</a>
+          </div>
           <nav data-edit-menu class="hidden lg:flex items-center gap-7 text-sm font-medium text-gray-600">${menu}${categoriesMenu}</nav>
-          <div class="flex items-center gap-3 text-gray-700">
+          <div class="flex items-center gap-3 text-gray-700 shrink-0">
             <button type="button" data-search-btn class="hover:opacity-70 transition-opacity"><span class="material-symbols-outlined">search</span></button>
             <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex">
               <span class="material-symbols-outlined">shopping_cart</span>
@@ -113,6 +118,7 @@ function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreC
           </div>
         </div>
       </div>
+      ${mnav.panel}
     </header>`;
 }
 

@@ -784,9 +784,13 @@ export async function renderEditor(): Promise<void> {
     if (currentViewport === "mobile") {
       preview.innerHTML = `<div class="flex flex-col items-center gap-3 py-8 px-4 min-h-full" style="background:#ece8e3">
         <p class="text-xs font-medium text-neutral-500 flex items-center gap-1"><span class="material-symbols-outlined text-[15px]">visibility</span> Pré-visualização — para editar volte a <b style="color:#3b2417">Computador</b></p>
-        <div style="position:relative;width:390px;max-width:100%;height:800px;background:#0c0c0c;border-radius:46px;padding:13px;box-shadow:0 30px 70px -20px rgba(0,0,0,.55)">
-          <div style="position:absolute;top:15px;left:50%;transform:translateX(-50%);width:130px;height:24px;background:#0c0c0c;border-radius:0 0 18px 18px;z-index:2"></div>
-          <iframe class="mb-phone-frame" style="width:100%;height:100%;border:0;border-radius:33px;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
+        <div style="width:390px;max-width:100%;background:#0c0c0c;border-radius:48px;padding:12px;box-shadow:0 30px 70px -20px rgba(0,0,0,.55)">
+          <div style="position:relative;height:780px;border-radius:36px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+            <div style="height:34px;flex:none;position:relative;background:#fff">
+              <div style="position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:26px;background:#0c0c0c;border-radius:9999px"></div>
+            </div>
+            <iframe class="mb-phone-frame" style="flex:1;width:100%;border:0;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
+          </div>
         </div>
       </div>`;
       const iframe = preview.querySelector<HTMLIFrameElement>("iframe.mb-phone-frame");

@@ -114,7 +114,8 @@ function heroArco(view: StoreRenderView, custom: StoreCustomization | undefined,
     <style>
       @keyframes mbArcIn{from{opacity:0;transform:translate(-50%,62%)}to{opacity:1;transform:translate(-50%,50%)}}
       @keyframes mbHeroIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-      .mb-arc{position:relative;width:100%;height:calc(var(--arc-r) + var(--arc-card));--arc-r:clamp(170px,40vw,440px);--arc-card:clamp(60px,10vw,112px)}
+      .mb-arc{position:relative;width:100%;height:calc(var(--arc-r) + var(--arc-card));--arc-r:clamp(150px,40vw,440px);--arc-card:clamp(52px,11vw,112px)}
+      @media(max-width:639px){.mb-arc-card:nth-child(2n){display:none}}
       .mb-arc-pivot{position:absolute;left:50%;bottom:0;transform:translateX(-50%)}
       .mb-arc-card{position:absolute;width:var(--arc-card);height:var(--arc-card);transform:translate(-50%,50%);opacity:0;animation:mbArcIn .8s ease-out forwards}
       .mb-arc-inner{width:100%;height:100%;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 14px 30px -12px rgba(0,0,0,.3);outline:1px solid rgba(0,0,0,.05);transition:transform .3s ease}
@@ -122,7 +123,7 @@ function heroArco(view: StoreRenderView, custom: StoreCustomization | undefined,
       .mb-hero-text{opacity:0;animation:mbHeroIn .8s ease-out forwards;animation-delay:.7s}
     </style>
     <div class="mb-arc" data-edit-arc><div class="mb-arc-pivot">${cards}</div></div>
-    <div class="relative z-10 ${ctx.container} text-center -mt-28 sm:-mt-36 lg:-mt-44 pb-14">
+    <div class="relative z-10 ${ctx.container} text-center -mt-10 sm:-mt-28 lg:-mt-44 pb-14">
       <div class="mb-hero-text max-w-2xl mx-auto">
         <h1 data-edit="hero.title" class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 leading-[1.05]">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-4 text-base md:text-lg text-gray-500 max-w-xl mx-auto">${esc(subtitle)}</p>
