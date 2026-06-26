@@ -1,0 +1,128 @@
+/**
+ * Configuração de pagamentos e encomendas (Supabase).
+ *
+ * `store_payments` guarda a ativação, a chave MoMenu do comerciante e os dados
+ * bancários. O RLS garante que só o dono lê/escreve a configuração da sua loja
+ * (não há leitura pública: a chave nunca é exposta a visitantes).
+ *
+ * `orders` é só de leitura para o dono (a criação/atualização é feita pelas
+ * funções serverless com a service role).
+ */
+import { supabase } from "./client.js";
+
+export interface PaymentConfig {
+  onlineEnabled: boolean;
+  momenuApiKey: string;
+  bankName: string;
+  beneficiaryName: string;
+  iban: string;
+}
+
+export const EMPTY_PAYMENT_CONFIG: PaymentConfig = {
+  onlineEnabled: false,
+  momenuApiKey: "",
+  bankName: "",
+  beneficiaryName: "",
+  iban: "",
+};
+
+export interface OrderRow {
+  id: string;
+  method: "mcx" | "reference" | "whatsapp";
+  status: "open" | "paid" | "failed" | "cancelled";
+  amount: number;
+  fee: number;
+  net: number;
+  invoiceUrl: string | null;
+  referenceNumber: string | null;
+  referenceEntity: string | null;
+  customer: { name?: string; nif?: string; phone?: string } | null;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+export interface OrderStats {
+  totalSales: number;   // soma de `amount` das encomendas pagas
+  netReceived: number;  // soma de `net` (transferido via levantamento instantâneo)
+  totalFees: number;    // soma das taxas (2%)
+  paidCount: number;
+  pendingCount: number; // referências por pagar
+}
+
+/** Lê a configuração de pagamentos de uma loja (valores por omissão se ausente). */
+export async function getPaymentConfig(storeId: string): Promise<PaymentConfig> {
+  const { data } = await supabase
+    .from("store_payments")
+    .select("online_enabled, momenu_api_key, bank_name, beneficiary_name, iban")
+    .eq("store_id", storeId)
+    .maybeSingle();
+  if (!data) return { ...EMPTY_PAYMENT_CONFIG };
+  return {
+    onlineEnabled: !!data.online_enabled,
+    momenuApiKey: data.momenu_api_key ?? "",
+    bankName: data.bank_name ?? "",
+    beneficiaryName: data.beneficiary_name ?? "",
+    iban: data.iban ?? "",
+  };
+}
+
+/** Grava (upsert) a configuração de pagamentos de uma loja. */
+export async function savePaymentConfig(storeId: string, cfg: PaymentConfig): Promise<boolean> {
+  const row = {
+    store_id: storeId,
+    online_enabled: cfg.onlineEnabled,
+    momenu_api_key: cfg.momenuApiKey.trim() || null,
+    bank_name: cfg.bankName.trim() || null,
+    beneficiary_name: cfg.beneficiaryName.trim() || null,
+    iban: cfg.iban.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("store_payments").upsert(row, { onConflict: "store_id" });
+  if (error) console.error("savePaymentConfig", error);
+  return !error;
+}
+
+/** Lê as encomendas de uma loja (mais recentes primeiro). */
+export async function listOrders(storeId: string, limit = 50): Promise<OrderRow[]> {
+  const { data } = await supabase
+    .from("orders")
+    .select("id, method, status, amount, fee, net, invoice_url, reference_number, reference_entity, customer, created_at, paid_at")
+    .eq("store_id", storeId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    method: r.method,
+    status: r.status,
+    amount: Number(r.amount),
+    fee: Number(r.fee),
+    net: Number(r.net),
+    invoiceUrl: r.invoice_url,
+    referenceNumber: r.reference_number,
+    referenceEntity: r.reference_entity,
+    customer: r.customer,
+    createdAt: r.created_at,
+    paidAt: r.paid_at,
+  }));
+}
+
+/** Resumo financeiro de uma loja (calculado a partir das encomendas). */
+export async function getOrderStats(storeId: string): Promise<OrderStats> {
+  const { data } = await supabase
+    .from("orders")
+    .select("status, method, amount, fee, net")
+    .eq("store_id", storeId);
+  const rows = data ?? [];
+  const stats: OrderStats = { totalSales: 0, netReceived: 0, totalFees: 0, paidCount: 0, pendingCount: 0 };
+  for (const r of rows) {
+    if (r.status === "paid") {
+      stats.totalSales += Number(r.amount);
+      stats.netReceived += Number(r.net);
+      stats.totalFees += Number(r.fee);
+      stats.paidCount += 1;
+    } else if (r.status === "open" && r.method === "reference") {
+      stats.pendingCount += 1;
+    }
+  }
+  return stats;
+}
