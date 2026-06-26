@@ -4,11 +4,12 @@
  * vivem no ecrã "Personalizar".
  */
 import { render, $, go, esc, toast, formatKz, withBusy, fadeInImages } from "../lib/dom.js";
-import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, countPublishedStores, publicStoreUrl, deleteStore } from "../composition.js";
+import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, countPublishedStores, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
 import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
 import type { Store, Product } from "../../src/models/index.js";
-import { getPaymentConfig, savePaymentConfig, getOrderStats, type PaymentConfig, type OrderStats } from "../supabase/payments.js";
+import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
+import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
@@ -121,33 +122,139 @@ export async function renderDashboard(): Promise<void> {
   if (tab === "config") { await renderConfig(); return; }
 
   // --- Início ---
-  const products = await productRepository.listByStore(store.id);
-  const prodLimit = plan.limits.maxProductsPerStore;
-  const payCfg = await getPaymentConfig(store.id);
-  const stats = payCfg.onlineEnabled ? await getOrderStats(store.id) : null;
-  const salesValue = stats ? formatKz(stats.totalSales) : "Kz 0,00";
-  render(shell(`
-    <section class="mb-8 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h3 class="text-2xl md:text-3xl font-black tracking-tight break-words">Olá, ${esc(store.name)} 👋</h3>
-        <p class="text-gray-500 mt-1 break-words">Endereço: <span class="font-semibold" style="color:${ACCENT}">${esc(store.subdomain)}</span></p>
-      </div>
-      <a href="#/painel/plano" class="inline-flex items-center gap-1.5 font-semibold px-3 py-1.5 rounded-full text-sm" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Plano ${esc(plan.name)}</a>
-    </section>
-    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-      ${metric("inventory_2", "Produtos", `${products.length}${Number.isFinite(prodLimit) ? ` / ${prodLimit}` : ""}`)}
-      ${metric("payments", "Vendas (pagas)", salesValue)}
-      ${metric("storefront", "Estado", store.state)}
-    </section>
-    ${stats ? financePanel(stats, payCfg) : ""}
-    <section class="text-white rounded-3xl p-8 flex flex-col md:flex-row md:items-center justify-between gap-4" style="background:linear-gradient(135deg,#F95901,#ff7e33)">
-      <div>
-        <h4 class="text-xl font-black">Construa a sua loja</h4>
-        <p class="opacity-90 mt-1">Edite logótipo, cores, textos, banners e produtos diretamente na loja.</p>
-      </div>
-      <a href="#/personalizar" class="bg-white font-bold px-6 py-3 rounded-xl inline-flex items-center gap-2 w-fit transition-transform active:scale-95" style="color:${ACCENT}"><span class="material-symbols-outlined">palette</span> Personalizar agora</a>
-    </section>`));
-  bindShell();
+  await renderInicio();
+  return;
+
+  async function renderInicio(): Promise<void> {
+    const products = await productRepository.listByStore(store!.id);
+    const prodLimit = plan.limits.maxProductsPerStore;
+    const payCfg = await getPaymentConfig(store!.id);
+    const online = payCfg.onlineEnabled;
+    const ownerName = (await getOwnerName(ownerId)) || store!.name;
+    const stats = online ? await getOrderStats(store!.id) : null;
+    const orders = online ? await listOrders(store!.id, 100) : [];
+    const withdrawals = online ? await listWithdrawals(store!.id) : [];
+    const committed = online ? await committedWithdrawals(store!.id) : 0;
+    const available = stats ? Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100) : 0;
+    const published = store!.state === "Publicada";
+
+    const greeting = `
+      <section class="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h3 class="text-2xl md:text-3xl font-black tracking-tight break-words">Olá, ${esc(ownerName)}</h3>
+          <p class="text-gray-500 mt-1 break-words">Endereço: <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">${esc(store!.subdomain)}</a></p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold" style="background:${published ? "#ecfdf5" : "#f3f4f6"};color:${published ? "#047857" : "#6b7280"}"><span class="w-2 h-2 rounded-full" style="background:currentColor"></span> ${published ? "Publicada" : "Não publicada"}</span>
+          <button id="toggle-state" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">${published ? "Despublicar" : "Publicar"}</button>
+          <a href="#/painel/plano" class="inline-flex items-center gap-1.5 font-semibold px-3 py-1.5 rounded-full text-sm" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> ${esc(plan.name)}</a>
+        </div>
+      </section>`;
+
+    function bindInicio(): void {
+      $("#toggle-state")?.addEventListener("click", async () => {
+        const next = published ? "Rascunho" : "Publicada";
+        const ok = await withBusy(() => setStoreState(ownerId, store!.id, next), "A atualizar…");
+        if (ok) { toast(next === "Publicada" ? "Loja publicada." : "Loja despublicada."); await renderDashboard(); }
+        else toast("Não foi possível atualizar o estado.", "error");
+      });
+      $("#request-withdraw")?.addEventListener("click", async () => {
+        if (available <= 0) return;
+        if (!payCfg.iban) { toast("Vincule a conta bancária em Pagamentos antes de levantar.", "error"); return; }
+        if (!confirm(`Solicitar o levantamento de ${formatKz(available)} para a conta ${payCfg.iban}?`)) return;
+        const ok = await withBusy(() => requestWithdrawal(store!.id, ownerId, available, payCfg), "A enviar pedido…");
+        if (ok) { toast("Pedido de levantamento enviado. Será processado pela equipa MôBisno."); await renderDashboard(); }
+        else toast("Não foi possível enviar o pedido.", "error");
+      });
+    }
+
+    if (!online) {
+      render(shell(`${greeting}
+        <section class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          ${metric("inventory_2", "Produtos", `${products.length}${Number.isFinite(prodLimit) ? ` / ${prodLimit}` : ""}`)}
+          ${metric("storefront", "Estado", published ? "Publicada" : "Não publicada")}
+        </section>
+        <div class="rounded-3xl border border-gray-200 bg-white p-8 text-center">
+          <span class="material-symbols-outlined" style="font-size:42px;color:${ACCENT}">payments</span>
+          <h3 class="text-xl font-black text-gray-900 mt-2">Ative as vendas online</h3>
+          <p class="text-gray-500 max-w-md mx-auto mt-1">Receba por Multicaixa Express e Referência Bancária e acompanhe aqui as suas vendas e levantamentos.</p>
+          <a href="#/painel/pagamentos" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">bolt</span> Ativar pagamentos</a>
+        </div>`));
+      bindShell();
+      bindInicio();
+      return;
+    }
+
+    const PAGE = 8;
+    let page = 0;
+
+    render(shell(`${greeting}
+      <section class="rounded-3xl p-6 md:p-7 text-white mb-5" style="background:linear-gradient(135deg,#F95901,#ff7e33)">
+        <div class="flex items-center justify-between gap-3 mb-5">
+          <h3 class="text-lg font-black flex items-center gap-2"><span class="material-symbols-outlined">trending_up</span> Vendas online</h3>
+          <span class="text-xs font-semibold bg-white/20 rounded-full px-3 py-1">${stats!.paidCount} venda(s)</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div><p class="text-white/80 text-sm">Valor total vendido</p><p class="text-3xl md:text-4xl font-black tracking-tight mt-1">${esc(formatKz(stats!.totalSales))}</p></div>
+          <div class="sm:text-right"><p class="text-white/80 text-sm">Disponível para levantar</p><p class="text-3xl md:text-4xl font-black tracking-tight mt-1">${esc(formatKz(available))}</p>
+            <button id="request-withdraw" ${available > 0 ? "" : "disabled"} class="mt-3 inline-flex items-center gap-1.5 bg-white font-bold px-5 py-2.5 rounded-xl text-sm transition-transform active:scale-95 ${available > 0 ? "" : "opacity-60 cursor-not-allowed"}" style="color:#F95901"><span class="material-symbols-outlined text-[18px]">account_balance_wallet</span> Solicitar levantamento</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        ${metric("savings", "Recebido (líquido)", formatKz(stats!.netReceived))}
+        ${metric("inventory_2", "Produtos", `${products.length}${Number.isFinite(prodLimit) ? ` / ${prodLimit}` : ""}`)}
+        ${metric("schedule", "Referências pendentes", String(stats!.pendingCount))}
+      </section>
+
+      <section class="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-6">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 class="font-black text-gray-900">Vendas</h3>
+          <span class="text-sm text-gray-400">${orders.length} registo(s)</span>
+        </div>
+        <div id="orders-body"></div>
+        <div id="orders-pager" class="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-sm"></div>
+      </section>
+
+      <section class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-black text-gray-900">Levantamentos</h3></div>
+        <div class="divide-y divide-gray-50">
+          ${withdrawals.length ? withdrawals.map(withdrawalRow).join("") : `<p class="px-5 py-8 text-center text-gray-400 text-sm">Ainda não há pedidos de levantamento.</p>`}
+        </div>
+      </section>`));
+    bindShell();
+    bindInicio();
+    drawOrders();
+
+    function drawOrders(): void {
+      const body = $("#orders-body");
+      const pager = $("#orders-pager");
+      if (!body || !pager) return;
+      if (!orders.length) {
+        body.innerHTML = `<p class="px-5 py-10 text-center text-gray-400 text-sm">Ainda não há vendas.</p>`;
+        pager.innerHTML = "";
+        return;
+      }
+      const pages = Math.ceil(orders.length / PAGE);
+      page = Math.max(0, Math.min(page, pages - 1));
+      const slice = orders.slice(page * PAGE, page * PAGE + PAGE);
+      body.innerHTML = slice.map(orderRow).join("");
+      pager.innerHTML = `
+        <span class="text-gray-400">Página ${page + 1} de ${pages}</span>
+        <div class="flex gap-2">
+          <button data-pg="prev" ${page === 0 ? "disabled" : ""} class="px-3 py-1.5 rounded-lg border border-gray-200 ${page === 0 ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}">Anterior</button>
+          <button data-pg="next" ${page >= pages - 1 ? "disabled" : ""} class="px-3 py-1.5 rounded-lg border border-gray-200 ${page >= pages - 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"}">Seguinte</button>
+        </div>`;
+      pager.querySelector('[data-pg="prev"]')?.addEventListener("click", () => { page--; drawOrders(); });
+      pager.querySelector('[data-pg="next"]')?.addEventListener("click", () => { page++; drawOrders(); });
+      body.querySelectorAll<HTMLElement>("[data-order-toggle]").forEach((r) =>
+        r.addEventListener("click", () => {
+          const id = r.dataset.orderToggle;
+          body.querySelector<HTMLElement>(`[data-order-detail="${id}"]`)?.classList.toggle("hidden");
+        }));
+    }
+  }
 
   async function renderProdutos(): Promise<void> {
     const list = await productRepository.listByStore(store!.id);
@@ -501,28 +608,77 @@ function maskIban(iban: string): string {
   return s.length > 8 ? `${s.slice(0, 4)}…${s.slice(-4)}` : s;
 }
 
-/** Painel financeiro do Início (apenas quando os pagamentos online estão ativos). */
-function financePanel(stats: OrderStats, cfg: PaymentConfig): string {
-  const bank = cfg.bankName || cfg.iban
-    ? `<div class="flex flex-wrap items-center gap-2 text-sm text-gray-500 mt-1"><span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">account_balance</span> ${esc(cfg.beneficiaryName || "Conta")}${cfg.bankName ? " · " + esc(cfg.bankName) : ""}${cfg.iban ? " · " + esc(maskIban(cfg.iban)) : ""}</div>`
-    : `<a href="#/painel/pagamentos" class="text-sm font-semibold inline-block mt-1" style="color:${ACCENT}">Vincular conta bancária →</a>`;
-  return `
-    <section class="mb-8">
-      <h3 class="text-lg font-black text-gray-900 mb-3 flex items-center gap-1.5"><span class="material-symbols-outlined" style="color:${ACCENT}">account_balance_wallet</span> Financeiro</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-        ${metric("trending_up", "Vendas totais", formatKz(stats.totalSales))}
-        ${metric("savings", "Recebido (líquido)", formatKz(stats.netReceived))}
-        ${metric("schedule", "Referências pendentes", String(stats.pendingCount))}
+const METHOD_LABELS: Record<string, string> = { mcx: "Multicaixa Express", reference: "Referência Bancária", whatsapp: "WhatsApp" };
+
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.toLocaleDateString("pt-PT")} · ${d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function badge(text: string, bg: string, color: string): string {
+  return `<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap" style="background:${bg};color:${color}">${esc(text)}</span>`;
+}
+
+function orderStatusBadge(status: string): string {
+  switch (status) {
+    case "paid": return badge("Paga", "#ecfdf5", "#047857");
+    case "open": return badge("Pendente", "#fff7ed", "#c2410c");
+    case "failed": return badge("Falhou", "#fef2f2", "#b91c1c");
+    case "cancelled": return badge("Cancelada", "#f3f4f6", "#6b7280");
+    default: return badge(status, "#f3f4f6", "#6b7280");
+  }
+}
+
+function withdrawalStatusBadge(status: string): string {
+  switch (status) {
+    case "requested": return badge("Pendente", "#fff7ed", "#c2410c");
+    case "approved": return badge("Aprovado", "#eff6ff", "#1d4ed8");
+    case "paid": return badge("Pago", "#ecfdf5", "#047857");
+    case "rejected": return badge("Rejeitado", "#fef2f2", "#b91c1c");
+    default: return badge(status, "#f3f4f6", "#6b7280");
+  }
+}
+
+/** Linha de venda (resumo clicável + detalhe expansível). */
+function orderRow(o: OrderRow): string {
+  const customer = o.customer?.name || o.customer?.phone || "Cliente";
+  const detailItem = (label: string, value: string): string =>
+    `<div><p class="text-xs text-gray-400">${esc(label)}</p><p class="font-medium text-gray-800">${value}</p></div>`;
+  const ref = o.referenceNumber ? `${o.referenceEntity ? o.referenceEntity + " · " : ""}${o.referenceNumber}` : "—";
+  return `<div class="border-b border-gray-50 last:border-0">
+    <div data-order-toggle="${esc(o.id)}" class="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer">
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-gray-900 text-sm truncate">${esc(customer)}</p>
+        <p class="text-xs text-gray-400">${esc(fmtDateTime(o.createdAt))} · ${esc(METHOD_LABELS[o.method] ?? o.method)}</p>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="space-y-1">
-          <p class="font-black text-gray-900 flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">bolt</span> Levantamento automático ativo</p>
-          <p class="text-sm text-gray-500 max-w-md">A cada venda confirmada, o valor (menos a taxa de 2%) é transferido automaticamente para a sua conta bancária.</p>
-          ${bank}
-        </div>
-        <a href="https://momenu.toquemedia.net/" target="_blank" rel="noopener" class="shrink-0 inline-flex items-center gap-2 border border-gray-200 text-gray-800 font-bold px-5 py-3 rounded-xl hover:bg-gray-50 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span> Portal MoMenu</a>
+      <span class="font-bold text-gray-900 text-sm whitespace-nowrap">${esc(formatKz(o.amount))}</span>
+      ${orderStatusBadge(o.status)}
+      <span class="material-symbols-outlined text-gray-300 text-[20px]">expand_more</span>
+    </div>
+    <div data-order-detail="${esc(o.id)}" class="hidden px-5 pb-4 pt-1 bg-gray-50/60">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        ${detailItem("Método", esc(METHOD_LABELS[o.method] ?? o.method))}
+        ${detailItem("Taxa (2%)", esc(formatKz(o.fee)))}
+        ${detailItem("Líquido", esc(formatKz(o.net)))}
+        ${detailItem("Referência", esc(ref))}
+        ${o.customer?.phone ? detailItem("Telefone", esc(o.customer.phone)) : ""}
+        ${o.customer?.nif ? detailItem("NIF", esc(o.customer.nif)) : ""}
       </div>
-    </section>`;
+      ${o.invoiceUrl ? `<a href="${esc(o.invoiceUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">receipt_long</span> Ver fatura</a>` : ""}
+    </div>
+  </div>`;
+}
+
+/** Linha de levantamento. */
+function withdrawalRow(w: WithdrawalRow): string {
+  return `<div class="px-5 py-3 flex items-center gap-3">
+    <div class="flex-1 min-w-0">
+      <p class="font-semibold text-gray-900 text-sm">${esc(formatKz(w.amount))}</p>
+      <p class="text-xs text-gray-400">${esc(fmtDateTime(w.createdAt))}${w.iban ? " · " + esc(maskIban(w.iban)) : ""}</p>
+    </div>
+    ${withdrawalStatusBadge(w.status)}
+  </div>`;
 }
 
 function usageCard(icon: string, label: string, value: string, ratio: number): string {

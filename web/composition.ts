@@ -107,6 +107,24 @@ export async function publishStore(ownerId: string, storeId: string): Promise<bo
   return res.ok;
 }
 
+/** Define o estado de uma Loja ("Publicada" ou "Rascunho"). */
+export async function setStoreState(
+  ownerId: string,
+  storeId: string,
+  state: "Publicada" | "Rascunho",
+): Promise<boolean> {
+  const owned = await storeRepository.findByIdForOwner(ownerId, storeId);
+  if (owned === null) return false;
+  const res = await storeRepository.update(ownerId, { ...owned, state });
+  return res.ok;
+}
+
+/** Nome do Dono (perfil) para saudação no painel. */
+export async function getOwnerName(ownerId: string): Promise<string> {
+  const { data } = await supabase.from("profiles").select("name").eq("id", ownerId).maybeSingle();
+  return (data?.name as string | undefined)?.trim() ?? "";
+}
+
 /* ------------------------------- Planos -------------------------------- */
 
 /** Lê o plano de subscrição da conta autenticada (ou o plano por omissão). */
