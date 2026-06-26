@@ -74,7 +74,7 @@ function route(): void {
   } else if (path.startsWith("/login")) {
     resetBranding();
     renderLogin();
-  } else if (path.startsWith("/adminPainel")) {
+  } else if (path.toLowerCase().startsWith("/adminpainel")) {
     resetBranding();
     void renderAdminPanel();
   } else if (path.startsWith("/painel")) {
