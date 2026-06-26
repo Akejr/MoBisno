@@ -291,6 +291,10 @@ export async function renderDashboard(): Promise<void> {
           <button data-type="physical" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Físicos</button>
           <button data-type="digital" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Digitais</button>
         </div>
+        <div class="inline-flex bg-gray-100 rounded-xl p-1 gap-1 shrink-0">
+          <button data-view="grid" title="Grelha" class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-[20px]">grid_view</span></button>
+          <button data-view="list" title="Lista" class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-[20px]">view_list</span></button>
+        </div>
       </div>
       <div id="prod-grid"></div>`));
 
@@ -299,12 +303,21 @@ export async function renderDashboard(): Promise<void> {
     let q = "";
     let cat = "";
     let type: "all" | "physical" | "digital" = "all";
+    let view: "grid" | "list" = localStorage.getItem("mb-prod-view") === "list" ? "list" : "grid";
 
     const applyType = (): void => {
       document.querySelectorAll<HTMLElement>("[data-type]").forEach((b) => {
         const active = b.dataset.type === type;
         b.style.background = active ? "#fff" : "transparent";
         b.style.color = active ? ACCENT : "#6b7280";
+        b.style.boxShadow = active ? "0 1px 2px rgba(0,0,0,.08)" : "none";
+      });
+    };
+    const applyView = (): void => {
+      document.querySelectorAll<HTMLElement>("[data-view]").forEach((b) => {
+        const active = b.dataset.view === view;
+        b.style.background = active ? "#fff" : "transparent";
+        b.style.color = active ? ACCENT : "#9ca3af";
         b.style.boxShadow = active ? "0 1px 2px rgba(0,0,0,.08)" : "none";
       });
     };
@@ -324,9 +337,13 @@ export async function renderDashboard(): Promise<void> {
         grid.innerHTML = `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Ainda não há produtos. Adicione o primeiro.</div>`;
         return;
       }
-      grid.innerHTML = filtered.length
-        ? `<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">${filtered.map(productCardAdmin).join("")}</div>`
-        : `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Nenhum produto corresponde aos filtros.</div>`;
+      if (!filtered.length) {
+        grid.innerHTML = `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Nenhum produto corresponde aos filtros.</div>`;
+        return;
+      }
+      grid.innerHTML = view === "list"
+        ? `<div class="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden">${filtered.map(productRowAdmin).join("")}</div>`
+        : `<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">${filtered.map(productCardAdmin).join("")}</div>`;
       fadeInImages(grid);
       grid.querySelectorAll<HTMLElement>("[data-edit-prod]").forEach((b) =>
         b.addEventListener("click", () => {
@@ -346,12 +363,15 @@ export async function renderDashboard(): Promise<void> {
     }
 
     applyType();
+    applyView();
     drawGrid();
 
     ($("#prod-search") as HTMLInputElement | null)?.addEventListener("input", (e) => { q = (e.target as HTMLInputElement).value; drawGrid(); });
     ($("#prod-cat") as HTMLSelectElement | null)?.addEventListener("change", (e) => { cat = (e.target as HTMLSelectElement).value; drawGrid(); });
     document.querySelectorAll<HTMLElement>("[data-type]").forEach((b) =>
       b.addEventListener("click", () => { type = (b.dataset.type as "all" | "physical" | "digital"); applyType(); drawGrid(); }));
+    document.querySelectorAll<HTMLElement>("[data-view]").forEach((b) =>
+      b.addEventListener("click", () => { view = b.dataset.view === "list" ? "list" : "grid"; localStorage.setItem("mb-prod-view", view); applyView(); drawGrid(); }));
 
     $("#add")?.addEventListener("click", () => {
       if (!canAddProducts(plan, list.length)) { toast(`Limite de ${formatLimit(plan.limits.maxProductsPerStore)} produtos atingido no plano ${plan.name}.`, "error"); return; }
@@ -638,7 +658,7 @@ function productCardAdmin(p: Product): string {
     : `<div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-gray-300 text-4xl">image</span></div>`;
   const typeBadge = p.physical === false ? badge("Digital", "#eff6ff", "#1d4ed8") : badge("Físico", "#f0fdf4", "#15803d");
   return `<div class="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col">
-    <div class="relative aspect-square bg-gray-50">
+    <div class="relative bg-gray-50 overflow-hidden" style="aspect-ratio:1/1">
       ${img}
       <div class="absolute top-2 left-2 flex flex-col items-start gap-1">
         ${p.featured ? badge("Destaque", ACCENT_TINT, ACCENT) : ""}
@@ -657,6 +677,28 @@ function productCardAdmin(p: Product): string {
         <button data-del-prod="${esc(p.id)}" class="inline-flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg w-9 h-8 transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
       </div>
     </div>
+  </div>`;
+}
+
+/** Linha de produto (vista lista). */
+function productRowAdmin(p: Product): string {
+  const img = p.imageUrl
+    ? `<img src="${esc(p.imageUrl)}" class="w-full h-full object-cover" />`
+    : `<div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-gray-300 text-[22px]">image</span></div>`;
+  const typeBadge = p.physical === false ? badge("Digital", "#eff6ff", "#1d4ed8") : badge("Físico", "#f0fdf4", "#15803d");
+  return `<div class="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
+    <div class="w-14 h-14 rounded-xl overflow-hidden bg-gray-50 shrink-0" style="aspect-ratio:1/1">${img}</div>
+    <div class="flex-1 min-w-0">
+      <p class="font-semibold text-gray-900 truncate">${esc(p.name)}${p.available ? "" : ' <span class="text-xs text-gray-400">(indisponível)</span>'}</p>
+      <div class="flex items-center gap-1.5 flex-wrap mt-1">
+        <span class="font-bold text-sm" style="color:${ACCENT}">${esc(formatKz(p.price))}</span>
+        ${p.featured ? badge("Destaque", ACCENT_TINT, ACCENT) : ""}
+        ${p.category ? badge(p.category, "#f3f4f6", "#6b7280") : ""}
+        ${typeBadge}
+      </div>
+    </div>
+    <button data-edit-prod="${esc(p.id)}" class="text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg p-2 shrink-0 transition-colors"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+    <button data-del-prod="${esc(p.id)}" class="text-red-600 hover:bg-red-50 rounded-lg p-2 shrink-0 transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
   </div>`;
 }
 
