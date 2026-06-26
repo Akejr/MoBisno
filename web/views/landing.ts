@@ -75,11 +75,12 @@ export async function renderLanding(): Promise<void> {
           </div>
           <div class="mb-bento">
             ${bento({ span: "bento-col-2 bento-row-2", icon: "palette", title: "Editor visual ao vivo", body: "Edite a sua loja diretamente no preview — logótipo, cores, textos, secções e produtos. Sem código.", big: true })}
-            ${bento({ icon: "dashboard_customize", title: "Modelos prontos", body: "Designs profissionais e responsivos, prontos a usar." })}
+            ${bento({ icon: "travel_explore", title: "SEO Otimizado", body: "A sua loja preparada para o Google — títulos, descrições e links amigáveis." })}
             ${bento({ icon: "payments", title: "Pagamentos locais", body: "Multicaixa, Referência bancária e finalização rápida por WhatsApp." })}
-            ${bento({ span: "bento-row-2", icon: "category", title: "Categorias & Destaques", body: "Organize os produtos por categorias e realce os melhores na secção Destaques." })}
-            ${bento({ span: "bento-col-2", icon: "shopping_cart", title: "Fluxo totalmente automático", body: "Os seus clientes escolhem, somam quantidades e finalizam a compra sem complicações." })}
+            ${bento({ span: "bento-row-2", icon: "sms", title: "SMS de confirmação", body: "O seu cliente recebe um SMS com a confirmação da compra — mais confiança e menos desistências." })}
+            ${bento({ span: "bento-col-2", icon: "local_shipping", title: "Cálculo automático da taxa de entrega", body: "Defina as taxas por zona de Luanda e o total é calculado automaticamente no checkout." })}
             ${bento({ icon: "public", title: "Endereço próprio", body: "Receba o seu endereço nome.sualoja.digital, ou use o seu próprio." })}
+            ${bento({ icon: "sell", title: "Códigos de desconto", body: "Crie cupões de percentagem ou valor fixo e acompanhe os usos." })}
           </div>
         </div>
       </section>
