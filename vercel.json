@@ -4,6 +4,18 @@
   "installCommand": "npm install",
   "framework": null,
   "rewrites": [
+    { "source": "/robots.txt", "destination": "/api/robots" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    {
+      "source": "/((?!api/)(?!.*\\.).*)",
+      "has": [{ "type": "host", "value": "(?<sub>(?!www\\.)[^.]+)\\.sualoja\\.digital" }],
+      "destination": "/api/prerender"
+    },
+    {
+      "source": "/((?!api/)(?!.*\\.).*)",
+      "has": [{ "type": "host", "value": "(?<sub>(?!www\\.)[^.]+)\\.mobisno\\.store" }],
+      "destination": "/api/prerender"
+    },
     { "source": "/((?!api/)(?!.*\\.).*)", "destination": "/index.html" }
   ]
 }

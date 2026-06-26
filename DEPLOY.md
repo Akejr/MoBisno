@@ -87,6 +87,31 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
   subdomínios; a Vercel suporta. Por isso o deploy é na Vercel.
 - O `web/dist` é gerado no build e está no `.gitignore` (via `dist/`).
 
+## SEO (cliente + pré-renderização para crawlers)
+
+O SEO tem duas camadas:
+
+1. **Cliente** (`web/lib/seo.ts` + `src/services/seo.ts`): em cada navegação
+   define `<title>`, descrição, canónico, Open Graph, Twitter Card e JSON-LD
+   (Product/OnlineStore/Organization). Cobre o Google (que executa JS) e a
+   experiência no navegador. Lojas aparecem como `Nome da Loja | Compras em
+   Angola`; produtos como `Produto — Nome da Loja`.
+
+2. **Servidor** (`api/prerender.js`): os crawlers sociais (WhatsApp, Facebook)
+   **não executam JS**, por isso esta função injeta as meta tags (incluindo a
+   **imagem do produto** e o **og:site_name da loja**) no HTML servido para os
+   hosts de loja. Ao partilhar um link de produto/loja, o preview mostra a
+   imagem e foca a loja, não o MôBisno. É defensiva: perante erro devolve o
+   shell estático inalterado.
+
+`api/robots.js` e `api/sitemap.js` geram `robots.txt` e `sitemap.xml` por host
+(o sitemap da loja lista os produtos; o da plataforma lista todas as lojas
+publicadas). Os rewrites estão em `vercel.json` (ordem: robots → sitemap →
+prerender por host de loja → fallback SPA).
+
+> Requer as env vars do Supabase no servidor (`SUPABASE_URL` +
+> `SUPABASE_SERVICE_ROLE_KEY`), já usadas pelos pagamentos.
+
 ## Assistente de IA (olhinho do editor)
 
 O chat do assistente usa uma função serverless em `api/assistant.js` que guarda a
