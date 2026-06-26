@@ -2,6 +2,7 @@
 import { seedDemoStore } from "./composition.js";
 import { storeSubdomain, isStoreApexRoot, navigate, cleanPath, ROUTE_EVENT, PLATFORM_APEX } from "./lib/routing.js";
 import { setDocTitle, setFavicon } from "./lib/dom.js";
+import { applyNoindexSeo } from "./lib/seo.js";
 import { loadStorefront } from "./lib/storeCache.js";
 import { renderLanding } from "./views/landing.js";
 import { renderLogin } from "./views/login.js";
@@ -70,18 +71,23 @@ function route(): void {
     renderTemplatePreview(decodeURIComponent(path.replace(/^\/preview\/?/, "")) || "galeria");
   } else if (path.startsWith("/criar")) {
     resetBranding();
+    applyNoindexSeo("Criar loja — MôBisno");
     renderWizard();
   } else if (path.startsWith("/login")) {
     resetBranding();
+    applyNoindexSeo("Entrar — MôBisno");
     renderLogin();
   } else if (path.toLowerCase().startsWith("/adminpainel")) {
     resetBranding();
+    applyNoindexSeo("Administração — MôBisno");
     void renderAdminPanel();
   } else if (path.startsWith("/painel")) {
     resetBranding();
+    applyNoindexSeo("Painel — MôBisno");
     void renderDashboard();
   } else if (path.startsWith("/personalizar")) {
     resetBranding();
+    applyNoindexSeo("Personalizar loja — MôBisno");
     void renderEditor();
   } else if (path.startsWith("/loja/")) {
     const rest = path.slice("/loja/".length);

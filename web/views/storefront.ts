@@ -7,12 +7,16 @@ import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
+import { publicStoreUrl } from "../composition.js";
+import { applySeo } from "../lib/seo.js";
+import { storeTitle, storeDescription, storeJsonLd } from "../../src/services/seo.js";
 
 export async function renderStorefront(identifier: string): Promise<void> {
   const host = `${identifier}.mobisno.store`;
   const { result, view, custom } = await loadStorefront(identifier);
 
   if (view.kind === "not_found") {
+    applySeo({ title: "Loja não encontrada | MôBisno", description: "Esta loja não existe ou não está publicada.", noindex: true });
     render(`
     <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
       <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">storefront</span>
@@ -31,4 +35,17 @@ export async function renderStorefront(identifier: string): Promise<void> {
   fadeInImages(app);
   mountParticlesHeroes(app);
   if (result.kind === "render") updateCartBadge(result.store.id);
+
+  // SEO da loja (foco na loja, não na MôBisno).
+  const url = publicStoreUrl(identifier);
+  const logoUrl = result.kind === "render" ? (result.logo?.url ?? null) : null;
+  applySeo({
+    title: storeTitle(view.storeName),
+    description: storeDescription(view.storeName),
+    canonical: url,
+    image: logoUrl,
+    type: "website",
+    siteName: view.storeName,
+    jsonLd: storeJsonLd({ storeName: view.storeName, url, logoUrl }),
+  });
 }

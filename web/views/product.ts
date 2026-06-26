@@ -1,5 +1,5 @@
 /** Página individual de produto — resolve a loja, encontra o produto e liga a compra. */
-import { render, $, esc, toast, fadeInImages } from "../lib/dom.js";
+import { render, $, esc, toast, fadeInImages, formatKz } from "../lib/dom.js";
 import { getTemplate } from "../templates/registry.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
@@ -8,6 +8,9 @@ import { productSlugPath } from "../lib/slug.js";
 import { navigate } from "../lib/routing.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
+import { publicStoreUrl } from "../composition.js";
+import { applySeo } from "../lib/seo.js";
+import { productTitle, productDescription, productJsonLd } from "../../src/services/seo.js";
 
 function notFound(message: string): void {
   render(`
@@ -52,6 +55,31 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   applyTheme(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
+
+  // SEO do produto (imagem do produto + foco na loja).
+  const productUrl = `${publicStoreUrl(identifier)}/produto/${productSlugPath(product)}`;
+  applySeo({
+    title: productTitle(product.name, view.storeName),
+    description: productDescription({
+      name: product.name,
+      description: product.description,
+      priceLabel: formatKz(product.price),
+      storeName: view.storeName,
+    }),
+    canonical: productUrl,
+    image: product.imageUrl,
+    type: "product",
+    siteName: view.storeName,
+    jsonLd: productJsonLd({
+      name: product.name,
+      description: product.description,
+      image: product.imageUrl,
+      price: product.price,
+      url: productUrl,
+      storeName: view.storeName,
+      available: true,
+    }),
+  });
 
   // Não navegar nas âncoras de menu/logo da própria página (já estamos na loja).
   // Controlo de quantidade.

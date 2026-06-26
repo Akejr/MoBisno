@@ -2,6 +2,7 @@
 import { render, $, go, esc } from "../lib/dom.js";
 import { currentOwnerId } from "../composition.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
+import { applyPlatformSeo } from "../lib/seo.js";
 
 const ACCENT = "#F95901";
 
@@ -206,6 +207,7 @@ export async function renderLanding(): Promise<void> {
   mountIntegrations();
   mountPricing();
   mountAiAgent(document.getElementById("app"), { scope: "site" });
+  applyPlatformSeo();
 }
 
 /** Cartão de preço. */

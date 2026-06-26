@@ -6,6 +6,9 @@ import { updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
+import { publicStoreUrl } from "../composition.js";
+import { applySeo } from "../lib/seo.js";
+import { storeTitle, storeDescription, truncate } from "../../src/services/seo.js";
 
 export async function renderCategoryPage(identifier: string, category: string): Promise<void> {
   const { result, view, custom } = await loadStorefront(identifier);
@@ -32,4 +35,14 @@ export async function renderCategoryPage(identifier: string, category: string): 
   applyTheme(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
+
+  const url = `${publicStoreUrl(identifier)}/categoria/${encodeURIComponent(category)}`;
+  applySeo({
+    title: `${category} — ${storeTitle(view.storeName)}`,
+    description: truncate(`${category} na ${view.storeName}. ${storeDescription(view.storeName)}`, 160),
+    canonical: url,
+    image: result.logo?.url ?? null,
+    type: "website",
+    siteName: view.storeName,
+  });
 }
