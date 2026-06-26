@@ -68,17 +68,22 @@ export async function renderDashboard(): Promise<void> {
     <div class="flex min-h-screen w-full overflow-x-hidden bg-gray-50 font-sans text-gray-900">
       <aside class="hidden md:flex flex-col py-6 bg-white border-r border-gray-100 w-64 shrink-0 sticky top-0 h-screen">
         <div class="px-6 mb-6">
-          <img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:24px" />
-          <span class="text-xs text-gray-400 uppercase tracking-wider mt-2 block">Administrador</span>
+          <img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:26px" />
         </div>
-        <div class="px-4 mb-4">
-          <label class="text-xs text-gray-400 block mb-1.5 font-medium">Loja atual</label>
+        <div class="px-4 mb-5 space-y-2">
           ${stores.length > 1
-            ? `<select id="store-switch" class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#F95901]">
-                 ${stores.map((s) => `<option value="${esc(s.id)}" ${s.id === store!.id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}
-               </select>`
-            : `<div class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 truncate">${esc(store!.name)}</div>`}
-          <a href="#/criar" class="mt-2 text-sm flex items-center gap-1 hover:underline" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add_business</span> Nova loja</a>
+            ? `<div class="relative">
+                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px] pointer-events-none">storefront</span>
+                 <select id="store-switch" class="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-9 py-2.5 text-sm font-semibold text-gray-900 outline-none focus:border-[#F95901] cursor-pointer hover:bg-gray-100 transition-colors">
+                   ${stores.map((s) => `<option value="${esc(s.id)}" ${s.id === store!.id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}
+                 </select>
+                 <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[20px] pointer-events-none">expand_more</span>
+               </div>`
+            : `<div class="flex items-center gap-2.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+                 <span class="material-symbols-outlined text-gray-400 text-[20px] shrink-0">storefront</span>
+                 <span class="text-sm font-semibold text-gray-900 truncate">${esc(store!.name)}</span>
+               </div>`}
+          <a href="#/criar" class="w-full inline-flex items-center justify-center gap-1.5 text-sm font-semibold border border-dashed border-gray-200 text-gray-500 hover:text-[#F95901] hover:border-[#F95901] rounded-xl py-2 transition-colors"><span class="material-symbols-outlined text-[18px]">add_business</span> Nova loja</a>
         </div>
         <nav class="flex flex-col gap-1 px-2">
           ${navItem("#/painel", "home", "Início", tab === "inicio")}
