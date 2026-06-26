@@ -6,15 +6,19 @@
 import type { PaymentProduct, PaymentCustomer } from "../../src/services/payments.js";
 
 export interface InitPaymentInput {
-  kind?: "store" | "plan";
+  kind?: "store" | "plan" | "sms";
   storeId?: string;
   ownerId?: string;
   plan?: string;
+  /** Quantidade de mensagens, quando kind="sms". */
+  smsQuantity?: number;
   method: "mcx" | "reference";
   products: PaymentProduct[];
   amount?: number;
   phoneNumber?: string;
   customer?: PaymentCustomer;
+  /** Id do código de desconto aplicado (incrementa os usos no servidor). */
+  discountCodeId?: string;
   qa?: boolean;
   simulateResult?: string;
 }

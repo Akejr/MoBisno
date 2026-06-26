@@ -12,7 +12,7 @@
  * Entrega fire-and-forget: respondemos sempre 200.
  */
 
-import { admin, readBody, send, mapMomenuStatus, activatePlan } from "./_shared.js";
+import { admin, readBody, send, mapMomenuStatus, activatePlan, creditSms } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { received: false });
@@ -44,6 +44,16 @@ export default async function handler(req, res) {
       if (status === "paid") {
         const { data: pp } = await db.from("plan_payments").select("owner_id, plan").eq("merchant_transaction_id", mtx).maybeSingle();
         if (pp?.owner_id && pp?.plan) await activatePlan(db, pp.owner_id, pp.plan);
+      }
+    }
+
+    // Compra de SMS (creditar uma única vez).
+    const { data: sp } = await db.from("sms_purchases").select("id, store_id, quantity, credited").eq("merchant_transaction_id", mtx).maybeSingle();
+    if (sp) {
+      await db.from("sms_purchases").update(patch).eq("id", sp.id);
+      if (status === "paid" && !sp.credited) {
+        await creditSms(db, sp.store_id, sp.quantity);
+        await db.from("sms_purchases").update({ credited: true }).eq("id", sp.id);
       }
     }
   } catch (e) {

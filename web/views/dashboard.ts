@@ -14,6 +14,9 @@ import { listWithdrawals, committedWithdrawals, requestWithdrawal, type Withdraw
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
+import { openSmsCheckout } from "../lib/smsCheckout.js";
+import { getSmsCredits, SMS_UNIT_PRICE, SMS_PACKAGES } from "../supabase/sms.js";
+import { listDiscounts, createDiscount, deleteDiscount, setDiscountActive, type DiscountCode } from "../supabase/discounts.js";
 import { LUANDA_AREAS } from "../lib/areas.js";
 
 const ACCENT = "#F95901";
@@ -494,6 +497,8 @@ export async function renderDashboard(): Promise<void> {
   async function renderConfig(): Promise<void> {
     const c = await getCustomization(store!.id);
     const canDomain = plan.features.customDomain;
+    const smsCredits = await getSmsCredits(store!.id);
+    const discounts = await listDiscounts(store!.id);
     const fees = c.delivery?.fees ?? {};
     const inp = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#F95901]";
 
@@ -531,10 +536,39 @@ export async function renderDashboard(): Promise<void> {
       <button id="save-delivery" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar entregas</button>`;
 
     const smsBody = `
-      <p class="text-sm text-gray-500 mb-4">Ative para que o seu cliente receba um <b>SMS de confirmação</b> assim que a compra for concluída, com os detalhes da encomenda.</p>
+      <p class="text-sm text-gray-500 mb-3">Quando ativo, o seu cliente recebe um <b>SMS de confirmação</b> assim que a compra é concluída, com o resumo da encomenda. Isto transmite confiança, reduz dúvidas e diminui as desistências — o cliente sente que está a comprar numa loja séria.</p>
+      <div class="rounded-xl border border-gray-200 p-4 mb-4 flex items-center justify-between gap-3 flex-wrap" style="background:#fafafa">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Saldo de mensagens</p>
+          <p class="text-2xl font-black text-gray-900 flex items-center gap-2"><span class="material-symbols-outlined" style="color:${ACCENT}">sms</span> ${smsCredits} SMS</p>
+        </div>
+        <p class="text-xs text-gray-500 max-w-[14rem]">Cada SMS custa <b style="color:${ACCENT}">${esc(formatKz(SMS_UNIT_PRICE))}</b>. Compre um pacote para ter saldo.</p>
+      </div>
+      <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Comprar pacote</p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+        ${SMS_PACKAGES.map((n) => `
+          <button type="button" data-sms-pack="${n}" class="rounded-xl border-2 border-gray-200 hover:border-[#F95901] p-3 text-center transition-colors">
+            <span class="block text-xl font-black text-gray-900">${n}</span>
+            <span class="block text-[11px] text-gray-400 mb-1">mensagens</span>
+            <span class="block text-xs font-bold" style="color:${ACCENT}">${esc(formatKz(n * SMS_UNIT_PRICE))}</span>
+          </button>`).join("")}
+      </div>
       <div class="mb-2">${toggle("sms-enabled", !!c.sms?.enabled, "Enviar SMS de confirmação ao cliente")}</div>
-      <p class="text-xs text-gray-400">O número usado é o que o cliente indica no checkout.</p>
+      <p class="text-xs text-gray-400">O número usado é o que o cliente indica no checkout. O envio consome 1 SMS do saldo.</p>
       <button id="save-sms" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>`;
+
+    const discountBody = `
+      <p class="text-sm text-gray-500 mb-4">Crie códigos que os seus clientes inserem no checkout para ganhar desconto. Pode escolher uma <b>percentagem</b> ou um <b>valor fixo</b>, e acompanhar quantas vezes cada código foi usado.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-[1fr_140px_1fr_auto] gap-2.5 items-end mb-4">
+        <label class="block"><span class="text-xs font-semibold text-gray-600">Código</span>
+          <input id="dc-code" type="text" placeholder="ex.: BEMVINDO10" class="${inp} mt-1 uppercase" /></label>
+        <label class="block"><span class="text-xs font-semibold text-gray-600">Tipo</span>
+          <select id="dc-type" class="${inp} mt-1"><option value="percent">Percentagem (%)</option><option value="fixed">Valor fixo (Kz)</option></select></label>
+        <label class="block"><span class="text-xs font-semibold text-gray-600">Valor</span>
+          <input id="dc-value" type="number" min="1" placeholder="ex.: 10" class="${inp} mt-1" /></label>
+        <button id="dc-add" class="text-white px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1 transition-opacity hover:opacity-95 h-[42px]" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Criar</button>
+      </div>
+      <div id="dc-list">${discountListHtml(discounts)}</div>`;
 
     const domainBody = canDomain ? `
       <p class="text-sm text-gray-500 mb-4">Ligue um domínio que já tenha (ex.: <b>www.minhaloja.co.ao</b>) à sua loja.</p>
@@ -558,7 +592,8 @@ export async function renderDashboard(): Promise<void> {
       <section class="space-y-4">
         ${settingsAccordion({ icon: "local_shipping", title: "Entregas", desc: "Declare as taxas de entrega da sua loja por zona.", body: deliveryBody })}
         ${settingsAccordion({ icon: "sms", title: "SMS de confirmação", desc: "Ative o SMS de confirmação de compra que o seu cliente recebe.", body: smsBody })}
-        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody })}
+        ${settingsAccordion({ icon: "sell", title: "Código de desconto", desc: "Crie e gira códigos de desconto para os seus clientes.", body: discountBody })}
+        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Profissional" })}
         ${settingsAccordion({ icon: "warning", title: "Apagar a loja", desc: "Remove a loja para sempre. Ação irreversível.", body: dangerBody, danger: true })}
       </section>`));
     bindShell();
@@ -607,6 +642,49 @@ export async function renderDashboard(): Promise<void> {
       c.sms = { enabled: ($("#sms-enabled") as HTMLInputElement)?.checked ?? false };
       const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
       ok ? toast("Preferência de SMS guardada.") : toast("Não foi possível guardar.", "error");
+    });
+    document.querySelectorAll<HTMLElement>("[data-sms-pack]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const qty = parseInt(b.dataset.smsPack || "0", 10);
+        if (qty > 0) openSmsCheckout({ ownerId, storeId: store!.id, quantity: qty, onPaid: () => { void renderConfig(); } });
+      }));
+
+    // Código de desconto
+    function redrawDiscounts(items: DiscountCode[]): void {
+      const el = $("#dc-list");
+      if (el) { el.innerHTML = discountListHtml(items); bindDiscountRows(items); }
+    }
+    function bindDiscountRows(items: DiscountCode[]): void {
+      document.querySelectorAll<HTMLElement>("[data-dc-toggle]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const id = b.dataset.dcToggle!;
+          const it = items.find((x) => x.id === id);
+          if (!it) return;
+          const ok = await withBusy(() => setDiscountActive(id, !it.active), "A atualizar…");
+          if (ok) { it.active = !it.active; redrawDiscounts(items); } else toast("Falhou.", "error");
+        }));
+      document.querySelectorAll<HTMLElement>("[data-dc-del]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const id = b.dataset.dcDel!;
+          if (!confirm("Apagar este código de desconto?")) return;
+          const ok = await withBusy(() => deleteDiscount(id), "A apagar…");
+          if (ok) { const i = items.findIndex((x) => x.id === id); if (i >= 0) items.splice(i, 1); redrawDiscounts(items); toast("Código apagado."); }
+          else toast("Falhou.", "error");
+        }));
+    }
+    bindDiscountRows(discounts);
+    $("#dc-add")?.addEventListener("click", async () => {
+      const code = ($("#dc-code") as HTMLInputElement)?.value ?? "";
+      const type = (($("#dc-type") as HTMLSelectElement)?.value === "fixed" ? "fixed" : "percent") as "percent" | "fixed";
+      const value = Number(($("#dc-value") as HTMLInputElement)?.value);
+      const err = await withBusy(() => createDiscount(store!.id, { code, type, value }), "A criar código…");
+      if (err) { toast(err, "error"); return; }
+      toast("Código criado.");
+      const updated = await listDiscounts(store!.id);
+      discounts.length = 0; discounts.push(...updated);
+      redrawDiscounts(discounts);
+      ($("#dc-code") as HTMLInputElement).value = "";
+      ($("#dc-value") as HTMLInputElement).value = "";
     });
 
     // Domínio
@@ -865,13 +943,41 @@ function planStatusCard(b: BillingState, planName: string): string {
   return "";
 }
 
+/** Lista de códigos de desconto (Configurações). */
+function discountListHtml(items: DiscountCode[]): string {
+  if (!items.length) {
+    return `<div class="bg-gray-50 border border-gray-100 rounded-xl p-6 text-center text-gray-400 text-sm">Ainda não há códigos de desconto.</div>`;
+  }
+  return `<div class="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">${items.map(discountRow).join("")}</div>`;
+}
+
+function discountRow(d: DiscountCode): string {
+  const val = d.type === "percent" ? `${d.value}%` : formatKz(d.value);
+  const status = d.active
+    ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:#ecfdf5;color:#047857">Ativo</span>`
+    : `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:#f3f4f6;color:#9ca3af">Inativo</span>`;
+  return `<div class="flex items-center gap-3 p-3.5 flex-wrap">
+    <span class="font-mono font-black px-2.5 py-1 rounded-lg" style="background:${ACCENT_TINT};color:${ACCENT}">${esc(d.code)}</span>
+    <span class="text-sm font-semibold text-gray-700">${esc(val)} de desconto</span>
+    ${status}
+    <span class="text-xs text-gray-400 flex items-center gap-1"><span class="material-symbols-outlined text-[15px]">confirmation_number</span> ${d.uses} uso(s)</span>
+    <div class="ml-auto flex items-center gap-1.5">
+      <button data-dc-toggle="${esc(d.id)}" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">${d.active ? "Desativar" : "Ativar"}</button>
+      <button data-dc-del="${esc(d.id)}" class="text-red-600 hover:bg-red-50 rounded-lg p-1.5 transition-colors" title="Apagar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+    </div>
+  </div>`;
+}
+
 /** Secção em acordeão (Configurações). */
-function settingsAccordion(o: { icon: string; title: string; desc: string; body: string; open?: boolean; danger?: boolean }): string {
+function settingsAccordion(o: { icon: string; title: string; desc: string; body: string; open?: boolean; danger?: boolean; lockedPlan?: string }): string {
   const danger = !!o.danger;
+  const lock = o.lockedPlan
+    ? `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[14px]">lock</span> ${esc(o.lockedPlan)}</span>`
+    : "";
   return `<details ${o.open ? "open" : ""} class="mb-acc rounded-2xl border ${danger ? "border-red-200" : "border-gray-200"} bg-white overflow-hidden">
     <summary class="cursor-pointer flex items-center gap-4 p-5 hover:bg-gray-50/60 transition-colors">
       <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="${danger ? "background:#fef2f2;color:#dc2626" : `background:${ACCENT_TINT};color:${ACCENT}`}"><span class="material-symbols-outlined">${o.icon}</span></div>
-      <div class="flex-1 min-w-0"><h3 class="font-black ${danger ? "text-red-700" : "text-gray-900"}">${esc(o.title)}</h3><p class="text-sm text-gray-500">${esc(o.desc)}</p></div>
+      <div class="flex-1 min-w-0"><h3 class="font-black ${danger ? "text-red-700" : "text-gray-900"} flex items-center gap-2">${esc(o.title)} ${lock}</h3><p class="text-sm text-gray-500">${esc(o.desc)}</p></div>
       <span class="material-symbols-outlined text-gray-400 mb-acc-chev transition-transform shrink-0">expand_more</span>
     </summary>
     <div class="px-5 pb-5 pt-1 border-t border-gray-100">${o.body}</div>

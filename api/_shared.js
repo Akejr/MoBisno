@@ -158,6 +158,23 @@ export async function activatePlan(db, ownerId, newPlan) {
   await db.from("profiles").update(patch).eq("id", ownerId);
 }
 
+/** Credita mensagens SMS no saldo de uma loja (idempotência gerida por quem chama). */
+export async function creditSms(db, storeId, quantity) {
+  const qty = Number(quantity);
+  if (!storeId || !Number.isFinite(qty) || qty <= 0) return;
+  const { data } = await db.from("stores").select("sms_credits").eq("id", storeId).maybeSingle();
+  const cur = Number(data?.sms_credits ?? 0);
+  await db.from("stores").update({ sms_credits: cur + qty }).eq("id", storeId);
+}
+
+/** Incrementa os usos de um código de desconto. */
+export async function bumpDiscountUse(db, discountCodeId) {
+  if (!discountCodeId) return;
+  const { data } = await db.from("discount_codes").select("uses").eq("id", discountCodeId).maybeSingle();
+  if (!data) return;
+  await db.from("discount_codes").update({ uses: Number(data.uses ?? 0) + 1 }).eq("id", discountCodeId);
+}
+
 /** Chamada à API MoMenu. `body` ausente → GET. */
 export async function momenu(path, apiKey, body, qa) {
   const headers = { "Content-Type": "application/json", "x-api-key": apiKey };

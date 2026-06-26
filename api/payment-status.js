@@ -7,7 +7,7 @@
  *   (para planos use ownerId em vez de storeId)
  */
 
-import { admin, momenu, send, mapStatusString, PLATFORM_API_KEY } from "./_shared.js";
+import { admin, momenu, send, mapStatusString, PLATFORM_API_KEY, activatePlan, creditSms } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return send(res, 405, { success: false, error: "Método não permitido." });
@@ -49,10 +49,19 @@ export default async function handler(req, res) {
         await db.from("plan_payments").update(patch).eq("operation_id", operationId);
         if (status === "paid") {
           const { data: pp } = await db.from("plan_payments").select("owner_id, plan").eq("operation_id", operationId).maybeSingle();
-          if (pp?.owner_id && pp?.plan) await db.from("profiles").update({ plan: pp.plan }).eq("id", pp.owner_id);
+          if (pp?.owner_id && pp?.plan) await activatePlan(db, pp.owner_id, pp.plan);
         }
       } else {
+        // Encomenda de loja OU compra de SMS (mesmo operationId).
         await db.from("orders").update(patch).eq("operation_id", operationId);
+        const { data: sp } = await db.from("sms_purchases").select("id, store_id, quantity, credited").eq("operation_id", operationId).maybeSingle();
+        if (sp) {
+          await db.from("sms_purchases").update(patch).eq("id", sp.id);
+          if (status === "paid" && !sp.credited) {
+            await creditSms(db, sp.store_id, sp.quantity);
+            await db.from("sms_purchases").update({ credited: true }).eq("id", sp.id);
+          }
+        }
       }
     }
   } catch (e) {

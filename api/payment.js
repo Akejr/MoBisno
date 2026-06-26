@@ -20,7 +20,7 @@
 import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
-  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan,
+  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, bumpDiscountUse,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   let body;
   try { body = await readBody(req); } catch { return send(res, 400, { success: false, error: "Corpo inválido." }); }
 
-  const kind = body.kind === "plan" ? "plan" : "store";
+  const kind = body.kind === "plan" ? "plan" : body.kind === "sms" ? "sms" : "store";
   const method = body.method === "mcx" ? "mcx" : body.method === "reference" ? "reference" : null;
   if (!method) return send(res, 400, { success: false, error: "Método inválido.", code: "INVALID_METHOD" });
 
@@ -54,21 +54,59 @@ export default async function handler(req, res) {
   let apiKey = PLATFORM_API_KEY;
   if (!apiKey) return send(res, 500, { success: false, error: "Pagamentos não configurados no servidor.", code: "PLATFORM_NOT_CONFIGURED" });
   let storeId = null;
-  if (kind !== "plan") {
+  if (kind === "store") {
     storeId = String(body.storeId || "");
     if (!storeId) return send(res, 400, { success: false, error: "Loja não identificada.", code: "MISSING_STORE" });
     const { data: cfg } = await db.from("store_payments").select("online_enabled").eq("store_id", storeId).maybeSingle();
     if (!cfg || !cfg.online_enabled) {
       return send(res, 400, { success: false, error: "Pagamentos online não ativados nesta loja.", code: "PAYMENTS_NOT_ENABLED" });
     }
+  } else if (kind === "sms") {
+    storeId = String(body.storeId || "");
+    if (!storeId) return send(res, 400, { success: false, error: "Loja não identificada.", code: "MISSING_STORE" });
+  }
+
+  // Aplicar código de desconto (só em encomendas de loja). Escala os preços dos
+  // produtos para o total com desconto (mantém soma == montante para a MoMenu).
+  let chargeProducts = products;
+  let chargeAmount = amount;
+  let discountId = null;
+  if (kind === "store" && body.discountCodeId) {
+    const { data: dc } = await db
+      .from("discount_codes")
+      .select("id, store_id, type, value, active")
+      .eq("id", String(body.discountCodeId))
+      .maybeSingle();
+    if (dc && dc.active === true && dc.store_id === storeId) {
+      const raw = dc.type === "percent" ? (amount * Number(dc.value)) / 100 : Number(dc.value);
+      const discount = Math.max(0, Math.min(amount, Math.round(raw)));
+      const target = amount - discount;
+      if (discount > 0 && target >= MIN_PAYMENT_KZ) {
+        const factor = target / amount;
+        let running = 0;
+        chargeProducts = products.map((p) => {
+          const price = Math.max(1, Math.round(Number(p.productPrice) * factor));
+          running += price * Number(p.productQuantity);
+          return { ...p, productPrice: price };
+        });
+        // Ajuste de arredondamento na primeira linha para fechar o total exato.
+        const diffQty = chargeProducts[0] ? Number(chargeProducts[0].productQuantity) : 1;
+        const adjust = Math.round((target - running) / diffQty);
+        if (chargeProducts[0] && adjust !== 0) {
+          chargeProducts[0].productPrice = Math.max(1, chargeProducts[0].productPrice + adjust);
+        }
+        chargeAmount = productsTotal(chargeProducts);
+        discountId = dc.id;
+      }
+    }
   }
 
   // Construir o payload da API.
   const qa = body.qa === true;
-  const payload = { products, instantWithdraw: true };
+  const payload = { products: chargeProducts, instantWithdraw: true };
   payload.paymentInfo = method === "mcx"
-    ? { amount, phoneNumber: String(body.phoneNumber).replace(/\D/g, "") }
-    : { amount };
+    ? { amount: chargeAmount, phoneNumber: String(body.phoneNumber).replace(/\D/g, "") }
+    : { amount: chargeAmount };
   if (body.customer && typeof body.customer === "object") payload.customer = body.customer;
   if (qa && method === "mcx" && body.simulateResult) payload.simulateResult = String(body.simulateResult);
 
@@ -90,8 +128,8 @@ export default async function handler(req, res) {
   }
 
   const d = resp.data;
-  const fee = computeFee(amount);
-  const net = computeNet(amount);
+  const fee = computeFee(chargeAmount);
+  const net = computeNet(chargeAmount);
   const status = method === "mcx" ? "paid" : "open"; // MCX é imediato; referência fica pendente.
   const nowIso = new Date().toISOString();
 
@@ -116,13 +154,30 @@ export default async function handler(req, res) {
       if (status === "paid" && body.ownerId && body.plan) {
         await activatePlan(db, String(body.ownerId), String(body.plan));
       }
+    } else if (kind === "sms") {
+      const quantity = Math.max(0, parseInt(body.smsQuantity, 10) || 0);
+      const ins = await db.from("sms_purchases").insert({
+        store_id: storeId,
+        owner_id: String(body.ownerId || ""),
+        quantity, amount, method, status,
+        merchant_transaction_id: d.transactionId || null,
+        operation_id: d.operationId || null,
+        credited: false,
+        paid_at: status === "paid" ? nowIso : null,
+      }).select("id").maybeSingle();
+      orderId = ins.data?.id || null;
+      // MCX pago → creditar de imediato.
+      if (status === "paid" && quantity > 0) {
+        await creditSms(db, storeId, quantity);
+        if (orderId) await db.from("sms_purchases").update({ credited: true }).eq("id", orderId);
+      }
     } else {
       const ins = await db.from("orders").insert({
         store_id: storeId,
-        method, status, amount, fee, net,
+        method, status, amount: chargeAmount, fee, net,
         merchant_transaction_id: d.transactionId || null,
         operation_id: d.operationId || null,
-        products,
+        products: chargeProducts,
         customer: body.customer || null,
         reference_entity: d.entity || null,
         reference_number: d.referenceNumber || null,
@@ -131,6 +186,8 @@ export default async function handler(req, res) {
         paid_at: status === "paid" ? nowIso : null,
       }).select("id").maybeSingle();
       orderId = ins.data?.id || null;
+      // Conta o uso do código de desconto aplicado (se válido).
+      if (discountId) await bumpDiscountUse(db, discountId);
     }
   } catch (e) {
     // O pagamento foi iniciado; não falhar a resposta por causa do registo.
@@ -147,6 +204,6 @@ export default async function handler(req, res) {
     entity: d.entity || null,
     referenceNumber: d.referenceNumber || null,
     dueDate: d.dueDate || null,
-    amount, fee, net,
+    amount: chargeAmount, fee, net,
   });
 }

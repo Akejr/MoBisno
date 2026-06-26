@@ -48,21 +48,28 @@ export interface CheckoutLayoutCtx {
   selectedArea: string | null;
   /** Taxa de entrega da área escolhida (Kz). */
   deliveryFee: number;
+  /** Desconto aplicado (Kz) por um código válido, ou 0. */
+  discount?: number;
+  /** Código de desconto aplicado (para exibição), ou null. */
+  discountCode?: string | null;
 }
 
-/** Total a pagar (subtotal + entrega, quando aplicável). */
+/** Total a pagar (subtotal + entrega − desconto, quando aplicável). */
 function grandTotal(ctx: CheckoutLayoutCtx): number {
-  return ctx.total + (ctx.physical ? ctx.deliveryFee : 0);
+  const gross = ctx.total + (ctx.physical ? ctx.deliveryFee : 0);
+  return Math.max(0, gross - (ctx.discount ?? 0));
 }
 
-/** Linhas de totais (subtotal + entrega + total) para os resumos. */
+/** Linhas de totais (subtotal + entrega + desconto + total) para os resumos. */
 function orderTotals(ctx: CheckoutLayoutCtx): string {
   const grand = grandTotal(ctx);
-  const show = ctx.physical && ctx.selectedArea !== null;
+  const discount = ctx.discount ?? 0;
+  const show = (ctx.physical && ctx.selectedArea !== null) || discount > 0;
   const feeTxt = ctx.deliveryFee > 0 ? esc(formatKz(ctx.deliveryFee)) : "Grátis";
   return `<div class="space-y-2.5 text-sm">
-    ${show ? `<div class="flex justify-between"><span class="text-neutral-500">Subtotal</span><span class="font-medium text-neutral-900">${esc(formatKz(ctx.total))}</span></div>
-      <div class="flex justify-between"><span class="text-neutral-500">Entrega · ${esc(ctx.selectedArea ?? "")}</span><span class="font-medium text-neutral-900">${feeTxt}</span></div>` : ""}
+    ${show ? `<div class="flex justify-between"><span class="text-neutral-500">Subtotal</span><span class="font-medium text-neutral-900">${esc(formatKz(ctx.total))}</span></div>` : ""}
+    ${show && ctx.physical && ctx.selectedArea !== null ? `<div class="flex justify-between"><span class="text-neutral-500">Entrega · ${esc(ctx.selectedArea ?? "")}</span><span class="font-medium text-neutral-900">${feeTxt}</span></div>` : ""}
+    ${discount > 0 ? `<div class="flex justify-between"><span class="text-neutral-500">Desconto${ctx.discountCode ? ` · ${esc(ctx.discountCode)}` : ""}</span><span class="font-semibold text-green-600">−${esc(formatKz(discount))}</span></div>` : ""}
     ${ctx.physical && ctx.selectedArea === null ? `<p class="text-xs text-neutral-400">Selecione a área para calcular a entrega.</p>` : ""}
     <div class="flex items-baseline justify-between ${show ? "pt-3 border-t border-neutral-100" : ""}"><span class="font-bold text-neutral-900">Total</span><span class="text-2xl font-black tracking-tight" style="color:var(--brand)">${esc(formatKz(grand))}</span></div>
   </div>`;

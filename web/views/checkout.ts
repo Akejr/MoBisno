@@ -17,6 +17,7 @@ import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
 import { initPayment, checkStatus } from "../lib/paymentsApi.js";
+import { validateDiscount, discountAmount, type DiscountCode } from "../supabase/discounts.js";
 import { getTemplate } from "../templates/registry.js";
 import { deliveredAreas } from "../lib/areas.js";
 import {
@@ -49,6 +50,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
 
   let selected: CheckoutMethodId | null = null;
   const cust: { name?: string; email?: string; nif?: string; phone?: string } = {};
+  let appliedDiscount: DiscountCode | null = null;
 
   // Entrega: áreas servidas + se o carrinho tem produtos físicos.
   const areas = deliveredAreas(custom.delivery);
@@ -77,7 +79,23 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
 
   function ctx(): CheckoutLayoutCtx {
     const items = getCart(storeId).map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, imageUrl: i.imageUrl }));
-    return { storeName, items, total: cartTotal(storeId), online, selected, physical, areas, selectedArea, deliveryFee };
+    const subtotal = cartTotal(storeId);
+    const gross = subtotal + (physical ? deliveryFee : 0);
+    const discount = appliedDiscount ? discountAmount(appliedDiscount, gross) : 0;
+    return { storeName, items, total: subtotal, online, selected, physical, areas, selectedArea, deliveryFee, discount, discountCode: appliedDiscount?.code ?? null };
+  }
+
+  /** Lê o código de cupão do input e tenta aplicá-lo. */
+  async function applyCoupon(): Promise<void> {
+    const input = $("#coupon") as HTMLInputElement | null;
+    const code = input?.value.trim() ?? "";
+    if (!code) { toast("Insira um código.", "error"); return; }
+    const found = await validateDiscount(storeId, code);
+    if (!found) { appliedDiscount = null; toast("Código inválido ou expirado.", "error"); return; }
+    appliedDiscount = found;
+    const label = found.type === "percent" ? `${found.value}%` : formatKz(found.value);
+    toast(`Código aplicado: ${label} de desconto.`);
+    if (variant === "moderno" && $("#mb-step")) refreshStep2(); else drawForm();
   }
 
   /** Envolve o conteúdo no cromo da loja (cabeçalho, rodapé, tema, fontes). */
@@ -113,7 +131,9 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     bindMethods();
     $("#c-area")?.addEventListener("change", (e) => { setArea((e.target as HTMLSelectElement).value || null); drawForm(); });
     $("#pay")?.addEventListener("click", () => void pay());
-    $("#coupon-apply")?.addEventListener("click", () => toast("Sem cupões disponíveis de momento."));
+    $("#coupon-apply")?.addEventListener("click", () => void applyCoupon());
+    const cf = $("#coupon") as HTMLInputElement | null;
+    if (cf && appliedDiscount) cf.value = appliedDiscount.code;
   }
 
   function bindMethods(): void {
@@ -209,7 +229,9 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       b.addEventListener("click", () => { selected = (b.dataset.method as CheckoutMethodId) ?? null; refreshStep2(); }));
     $("#step-back")?.addEventListener("click", () => gotoStep(1));
     $("#pay")?.addEventListener("click", () => void pay());
-    $("#coupon-apply")?.addEventListener("click", () => toast("Sem cupões disponíveis de momento."));
+    $("#coupon-apply")?.addEventListener("click", () => void applyCoupon());
+    const cf = $("#coupon") as HTMLInputElement | null;
+    if (cf && appliedDiscount) cf.value = appliedDiscount.code;
     // Passo 3 (referência)
     bindReferenceCheck();
   }
@@ -260,12 +282,15 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       return;
     }
 
-    const grand = cartTotal(storeId) + (physical ? deliveryFee : 0);
+    const gross = cartTotal(storeId) + (physical ? deliveryFee : 0);
+    const discount = appliedDiscount ? discountAmount(appliedDiscount, gross) : 0;
+    const grand = Math.max(0, gross - discount);
 
     if (selected === "whatsapp") {
       const lines = items.map((i) => `• ${i.quantity}x ${i.name} (${formatKz(i.price * i.quantity)})`).join("\n");
       const areaLine = physical && selectedArea ? `\nEntrega: ${selectedArea}${deliveryFee > 0 ? ` (${formatKz(deliveryFee)})` : " (grátis)"}` : "";
-      const msg = `Olá! Gostaria de encomendar:\n${lines}${areaLine}\n\nTotal: ${formatKz(grand)}`;
+      const discLine = discount > 0 ? `\nDesconto (${appliedDiscount?.code}): -${formatKz(discount)}` : "";
+      const msg = `Olá! Gostaria de encomendar:\n${lines}${areaLine}${discLine}\n\nTotal: ${formatKz(grand)}`;
       window.open(waLink(waPhone, msg), "_blank", "noopener");
       toast("A abrir o WhatsApp para finalizar…");
       return;
@@ -283,6 +308,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       kind: "store", storeId, method: selected, products: products(),
       phoneNumber: selected === "mcx" ? cust.phone : undefined,
       customer: { name: cust.name, nif: cust.nif, phone: cust.phone },
+      discountCodeId: appliedDiscount?.id,
       qa, simulateResult: qa && selected === "mcx" ? "success" : undefined,
     });
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
