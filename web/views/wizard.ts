@@ -47,14 +47,15 @@ function injectStyle(): void {
     ".mb-chip{transition:transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease}" +
     ".mb-chip:hover{transform:translateY(-2px)}" +
     ".mb-cinput{width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:9999px;padding:.8rem 1.1rem;outline:none;transition:border-color .2s,box-shadow .2s;font-size:1rem;color:#111827}" +
-    ".mb-cinput:focus{border-color:#F95901;box-shadow:0 0 0 3px rgba(249,89,1,.15)}";
+    ".mb-cinput:focus{border-color:#F95901;box-shadow:0 0 0 3px rgba(249,89,1,.15)}" +
+    ".mb-chat-root{height:100vh;height:100dvh}";
   document.head.appendChild(st);
 }
 
 function renderShell(): void {
   injectStyle();
   render(`
-  <div class="h-screen flex flex-col bg-gray-50 font-sans text-gray-900">
+  <div class="mb-chat-root flex flex-col bg-gray-50 font-sans text-gray-900">
     <nav class="bg-white/90 backdrop-blur border-b border-gray-100 shrink-0">
       <div class="flex justify-between items-center px-4 md:px-8 py-3.5 max-w-3xl mx-auto w-full">
         <a href="#/" class="flex items-center gap-2"><img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:24px" /></a>
