@@ -117,29 +117,7 @@ export async function renderDashboard(): Promise<void> {
   if (tab === "produtos") { await renderProdutos(); return; }
   if (tab === "plano") { await renderPlano(); return; }
   if (tab === "pagamentos") { await renderPagamentos(); return; }
-  if (tab === "config") {
-    render(shell(`
-      <section class="max-w-2xl space-y-6">
-        ${stub("settings", "Configurações gerais", "Nome da loja, subdomínio, idioma e preferências. Em breve.")}
-        <div class="rounded-2xl border-2 border-red-200 bg-red-50/50 p-6">
-          <h3 class="font-black text-red-700 flex items-center gap-2"><span class="material-symbols-outlined">warning</span> Zona de perigo</h3>
-          <p class="text-sm text-gray-600 mt-2">Apagar esta loja remove <strong>permanentemente</strong> todos os produtos, imagens, banners e personalização. Esta ação não pode ser desfeita.</p>
-          <button id="delete-store" class="mt-4 inline-flex items-center gap-2 bg-red-600 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-red-700 transition-colors"><span class="material-symbols-outlined text-[18px]">delete_forever</span> Apagar esta loja</button>
-        </div>
-      </section>`));
-    bindShell();
-    $("#delete-store")?.addEventListener("click", async () => {
-      const typed = prompt(`Esta ação é permanente. Para confirmar, escreva o nome da loja:\n\n${store!.name}`);
-      if (typed === null) return;
-      if (typed.trim() !== store!.name.trim()) { toast("Nome não corresponde. Loja não apagada.", "error"); return; }
-      const ok = await withBusy(() => deleteStore(ownerId, store!.id), "A apagar loja…");
-      if (!ok) { toast("Não foi possível apagar a loja.", "error"); return; }
-      toast("Loja apagada.");
-      appState.storeId = null;
-      void renderDashboard();
-    });
-    return;
-  }
+  if (tab === "config") { await renderConfig(); return; }
 
   // --- Início ---
   const products = await productRepository.listByStore(store.id);
@@ -324,6 +302,114 @@ export async function renderDashboard(): Promise<void> {
     });
   }
 
+  async function renderConfig(): Promise<void> {
+    const c = await getCustomization(store!.id);
+    const canDomain = plan.features.customDomain;
+    const zones = c.delivery?.zones ?? [];
+    const inp = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#F95901]";
+
+    const toggle = (id: string, on: boolean, label: string): string => `
+      <label class="flex items-center justify-between gap-3 cursor-pointer select-none">
+        <span class="text-sm font-semibold text-gray-700">${esc(label)}</span>
+        <span class="relative inline-flex items-center">
+          <input id="${id}" type="checkbox" ${on ? "checked" : ""} class="peer sr-only" />
+          <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
+        </span>
+      </label>`;
+
+    const deliveryBody = `
+      <p class="text-sm text-gray-500 mb-4">Defina as suas zonas de entrega e as respetivas taxas. Estes valores aparecem ao cliente no checkout.</p>
+      <div class="mb-4">${toggle("del-enabled", !!c.delivery?.enabled, "Cobrar taxa de entrega")}</div>
+      <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Zonas e taxas</p>
+      <div id="zones" class="space-y-2">${zones.map((z) => zoneRowHtml(z.name, z.fee)).join("")}</div>
+      <button id="add-zone" type="button" class="mt-2 w-full border-2 border-dashed border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-400 rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-1 transition-colors"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar zona</button>
+      <label class="block mt-4"><span class="text-sm font-semibold text-gray-700">Entrega grátis acima de (Kz) — opcional</span>
+        <input id="del-free" type="number" min="0" value="${c.delivery?.freeAbove ?? ""}" placeholder="ex.: 20000" class="${inp} mt-1.5" /></label>
+      <button id="save-delivery" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar entregas</button>`;
+
+    const smsBody = `
+      <p class="text-sm text-gray-500 mb-4">Ative para que o seu cliente receba um <b>SMS de confirmação</b> assim que a compra for concluída, com os detalhes da encomenda.</p>
+      <div class="mb-2">${toggle("sms-enabled", !!c.sms?.enabled, "Enviar SMS de confirmação ao cliente")}</div>
+      <p class="text-xs text-gray-400">O número usado é o que o cliente indica no checkout.</p>
+      <button id="save-sms" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>`;
+
+    const domainBody = canDomain ? `
+      <p class="text-sm text-gray-500 mb-4">Ligue um domínio que já tenha (ex.: <b>www.minhaloja.co.ao</b>) à sua loja.</p>
+      <label class="block"><span class="text-sm font-semibold text-gray-700">O seu domínio</span>
+        <input id="domain" type="text" value="${esc(c.customDomain ?? "")}" placeholder="www.minhaloja.co.ao" class="${inp} mt-1.5" /></label>
+      <div class="mt-4 rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600">
+        <p class="font-semibold text-gray-800 mb-1 flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">dns</span> Como ligar</p>
+        No painel do seu domínio, crie um registo <b>CNAME</b> a apontar para <code class="px-1.5 py-0.5 rounded bg-white border border-gray-200">cname.vercel-dns.com</code>. Depois de guardar aqui, a ligação fica ativa em minutos.
+      </div>
+      <button id="save-domain" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar domínio</button>`
+      : `
+      <p class="text-sm text-gray-500">O domínio próprio está disponível a partir do plano <b>Profissional</b>.</p>
+      <a href="#/painel/plano" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Ver planos</a>`;
+
+    const dangerBody = `
+      <p class="text-sm text-gray-600">Apagar a loja remove <b>permanentemente</b> todos os produtos, imagens, banners, personalização e configurações. <b class="text-red-600">Esta ação é irreversível.</b></p>
+      <button id="delete-store" class="mt-4 inline-flex items-center gap-2 bg-red-600 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-red-700 transition-colors"><span class="material-symbols-outlined text-[18px]">delete_forever</span> Apagar esta loja</button>`;
+
+    render(shell(`
+      <style>details.mb-acc>summary{list-style:none}details.mb-acc>summary::-webkit-details-marker{display:none}details.mb-acc[open] .mb-acc-chev{transform:rotate(180deg)}</style>
+      <section class="max-w-3xl space-y-4">
+        ${settingsAccordion({ icon: "local_shipping", title: "Entregas", desc: "Declare as taxas de entrega da sua loja por zona.", body: deliveryBody, open: true })}
+        ${settingsAccordion({ icon: "sms", title: "SMS de confirmação", desc: "Ative o SMS de confirmação de compra que o seu cliente recebe.", body: smsBody })}
+        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody })}
+        ${settingsAccordion({ icon: "warning", title: "Apagar a loja", desc: "Remove a loja para sempre. Ação irreversível.", body: dangerBody, danger: true })}
+      </section>`));
+    bindShell();
+
+    // Entregas
+    const zonesEl = $("#zones");
+    $("#add-zone")?.addEventListener("click", () => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = zoneRowHtml("", "");
+      zonesEl?.appendChild(wrap.firstElementChild!);
+    });
+    zonesEl?.addEventListener("click", (e) => {
+      const del = (e.target as HTMLElement).closest("[data-z-del]");
+      if (del) del.closest(".mb-zone")?.remove();
+    });
+    $("#save-delivery")?.addEventListener("click", async () => {
+      const enabled = ($("#del-enabled") as HTMLInputElement)?.checked ?? false;
+      const newZones = Array.from(document.querySelectorAll<HTMLElement>(".mb-zone")).map((row) => ({
+        name: (row.querySelector("[data-z-name]") as HTMLInputElement)?.value.trim() ?? "",
+        fee: Math.max(0, Number((row.querySelector("[data-z-fee]") as HTMLInputElement)?.value) || 0),
+      })).filter((z) => z.name !== "");
+      const freeRaw = Number(($("#del-free") as HTMLInputElement)?.value);
+      c.delivery = { enabled, zones: newZones, freeAbove: Number.isFinite(freeRaw) && freeRaw > 0 ? freeRaw : undefined };
+      const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
+      ok ? toast("Entregas guardadas.") : toast("Não foi possível guardar.", "error");
+    });
+
+    // SMS
+    $("#save-sms")?.addEventListener("click", async () => {
+      c.sms = { enabled: ($("#sms-enabled") as HTMLInputElement)?.checked ?? false };
+      const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
+      ok ? toast("Preferência de SMS guardada.") : toast("Não foi possível guardar.", "error");
+    });
+
+    // Domínio
+    $("#save-domain")?.addEventListener("click", async () => {
+      c.customDomain = ($("#domain") as HTMLInputElement)?.value.trim() || undefined;
+      const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
+      ok ? toast("Domínio guardado.") : toast("Não foi possível guardar.", "error");
+    });
+
+    // Apagar
+    $("#delete-store")?.addEventListener("click", async () => {
+      const typed = prompt(`Esta ação é permanente. Para confirmar, escreva o nome da loja:\n\n${store!.name}`);
+      if (typed === null) return;
+      if (typed.trim() !== store!.name.trim()) { toast("Nome não corresponde. Loja não apagada.", "error"); return; }
+      const ok = await withBusy(() => deleteStore(ownerId, store!.id), "A apagar loja…");
+      if (!ok) { toast("Não foi possível apagar a loja.", "error"); return; }
+      toast("Loja apagada.");
+      appState.storeId = null;
+      void renderDashboard();
+    });
+  }
+
   async function renderPlano(): Promise<void> {
     const published = await countPublishedStores(ownerId);
     const productCount = (await productRepository.listByStore(store!.id)).length;
@@ -440,6 +526,29 @@ function planCard(p: Plan, current: Plan): string {
       ${p.highlights.map((h) => `<li class="flex items-start gap-2 text-gray-700 text-sm"><span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">check_circle</span> ${esc(h)}</li>`).join("")}
     </ul>
     ${btn}
+  </div>`;
+}
+
+/** Secção em acordeão (Configurações). */
+function settingsAccordion(o: { icon: string; title: string; desc: string; body: string; open?: boolean; danger?: boolean }): string {
+  const danger = !!o.danger;
+  return `<details ${o.open ? "open" : ""} class="mb-acc rounded-2xl border ${danger ? "border-red-200" : "border-gray-200"} bg-white overflow-hidden">
+    <summary class="cursor-pointer flex items-center gap-4 p-5 hover:bg-gray-50/60 transition-colors">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="${danger ? "background:#fef2f2;color:#dc2626" : `background:${ACCENT_TINT};color:${ACCENT}`}"><span class="material-symbols-outlined">${o.icon}</span></div>
+      <div class="flex-1 min-w-0"><h3 class="font-black ${danger ? "text-red-700" : "text-gray-900"}">${esc(o.title)}</h3><p class="text-sm text-gray-500">${esc(o.desc)}</p></div>
+      <span class="material-symbols-outlined text-gray-400 mb-acc-chev transition-transform shrink-0">expand_more</span>
+    </summary>
+    <div class="px-5 pb-5 pt-1 border-t border-gray-100">${o.body}</div>
+  </details>`;
+}
+
+/** Linha editável de zona de entrega (nome + taxa + remover). */
+function zoneRowHtml(name: string, fee: number | string): string {
+  const cls = "bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901]";
+  return `<div class="mb-zone flex items-center gap-2">
+    <input data-z-name type="text" value="${esc(name)}" placeholder="Zona (ex.: Luanda - Centro)" class="flex-1 ${cls}" />
+    <input data-z-fee type="number" min="0" value="${esc(String(fee))}" placeholder="Taxa Kz" class="w-28 ${cls}" />
+    <button type="button" data-z-del class="w-9 h-9 shrink-0 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center"><span class="material-symbols-outlined text-[20px]">delete</span></button>
   </div>`;
 }
 

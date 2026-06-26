@@ -98,6 +98,19 @@ export interface StoreCustomization {
   checkout?: {
     variant?: "dividido" | "moderno" | "compacto" | "minimal";
   };
+  /** Taxas de entrega declaradas pela loja (mostradas no checkout). */
+  delivery?: {
+    enabled?: boolean;
+    zones?: { name: string; fee: number }[];
+    /** Entrega grátis acima deste valor (Kz). 0/ausente = desativado. */
+    freeAbove?: number;
+  };
+  /** SMS de confirmação de compra enviado ao cliente. */
+  sms?: {
+    enabled?: boolean;
+  };
+  /** Domínio próprio ligado pelo dono (ex.: "www.minhaloja.co.ao"). */
+  customDomain?: string;
   /**
    * Blocos de conteúdo adicionais, renderizados abaixo dos produtos, na ordem
    * definida. O dono pode adicionar/remover/reordenar no editor.
