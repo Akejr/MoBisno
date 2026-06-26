@@ -260,51 +260,103 @@ export async function renderDashboard(): Promise<void> {
     const list = await productRepository.listByStore(store!.id);
     const limit = plan.limits.maxProductsPerStore;
     const atLimit = !canAddProducts(plan, list.length);
-    const usage = Number.isFinite(limit) ? `${list.length} / ${limit} produto(s)` : `${list.length} produto(s)`;
+    const usage = Number.isFinite(limit) ? `${list.length} / ${limit}` : `${list.length}`;
+    const cats = [...new Set(list.map((p) => p.category).filter((c): c is string => !!c))];
+
     const addBtn = atLimit
-      ? `<a href="#/painel/plano" class="px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"><span class="material-symbols-outlined text-[18px]">lock</span> Limite atingido — fazer upgrade</a>`
-      : `<button id="add" class="text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar produto</button>`;
+      ? `<a href="#/painel/plano" class="px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1 border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors shrink-0"><span class="material-symbols-outlined text-[18px]">lock</span> Fazer upgrade</a>`
+      : `<button id="add" class="text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1 transition-opacity hover:opacity-95 shrink-0" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar produto</button>`;
+
+    const inputCls = "w-full bg-white border border-gray-200 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-[#F95901]";
     render(shell(`
-      <div class="flex items-center justify-between mb-5 gap-3 flex-wrap">
-        <p class="text-gray-500">${usage}</p>
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <div>
+          <h3 class="text-xl font-black text-gray-900">Produtos</h3>
+          <p class="text-sm text-gray-400">${usage} produto(s)</p>
+        </div>
         ${addBtn}
       </div>
       ${atLimit ? `<div class="mb-5 rounded-xl px-4 py-3 text-sm flex items-center gap-2" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">info</span> Atingiu o limite de ${formatLimit(limit)} produtos do plano ${esc(plan.name)}. Faça upgrade para adicionar mais.</div>` : ""}
-      <div class="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden">
-        ${list.length === 0
-          ? `<p class="text-gray-500 p-6 text-center">Ainda não há produtos. Adicione o primeiro.</p>`
-          : list.map((p) => productRow(p)).join("")}
-      </div>`));
+      <div class="flex flex-col sm:flex-row gap-3 mb-5">
+        <div class="relative flex-1 min-w-0">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
+          <input id="prod-search" type="search" placeholder="Pesquisar produtos…" class="${inputCls}" />
+        </div>
+        <select id="prod-cat" class="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901] sm:w-48">
+          <option value="">Todas as categorias</option>
+          ${cats.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+        </select>
+        <div class="inline-flex bg-gray-100 rounded-xl p-1 gap-1 text-sm shrink-0">
+          <button data-type="all" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Todos</button>
+          <button data-type="physical" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Físicos</button>
+          <button data-type="digital" class="px-3 py-1.5 rounded-lg font-semibold transition-colors">Digitais</button>
+        </div>
+      </div>
+      <div id="prod-grid"></div>`));
 
-    fadeInImages(document.querySelector("main") ?? document);
     bindShell();
 
-    const cats = [...new Set(list.map((p) => p.category).filter((c): c is string => !!c))];
+    let q = "";
+    let cat = "";
+    let type: "all" | "physical" | "digital" = "all";
+
+    const applyType = (): void => {
+      document.querySelectorAll<HTMLElement>("[data-type]").forEach((b) => {
+        const active = b.dataset.type === type;
+        b.style.background = active ? "#fff" : "transparent";
+        b.style.color = active ? ACCENT : "#6b7280";
+        b.style.boxShadow = active ? "0 1px 2px rgba(0,0,0,.08)" : "none";
+      });
+    };
+
+    function drawGrid(): void {
+      const grid = $("#prod-grid");
+      if (!grid) return;
+      const ql = q.trim().toLowerCase();
+      const filtered = list.filter((p) => {
+        if (cat && (p.category ?? "") !== cat) return false;
+        if (type === "physical" && p.physical === false) return false;
+        if (type === "digital" && p.physical !== false) return false;
+        if (ql && !(`${p.name} ${p.description ?? ""} ${p.category ?? ""}`.toLowerCase().includes(ql))) return false;
+        return true;
+      });
+      if (!list.length) {
+        grid.innerHTML = `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Ainda não há produtos. Adicione o primeiro.</div>`;
+        return;
+      }
+      grid.innerHTML = filtered.length
+        ? `<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">${filtered.map(productCardAdmin).join("")}</div>`
+        : `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Nenhum produto corresponde aos filtros.</div>`;
+      fadeInImages(grid);
+      grid.querySelectorAll<HTMLElement>("[data-edit-prod]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const p = list.find((x) => x.id === b.dataset.editProd);
+          if (p) openProductForm({ panel, ownerId, storeId: store!.id, product: p, categories: cats, onDone: renderProdutos });
+        }));
+      grid.querySelectorAll<HTMLElement>("[data-del-prod]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const id = b.dataset.delProd!;
+          const req = await panel.controllers.products.requestRemoval(ownerId, store!.id, id);
+          if (req.status !== "confirmation_required") { toast(req.message, "error"); return; }
+          if (!confirm(req.prompt.message)) return;
+          const done = await withBusy(() => panel.controllers.products.confirmRemoval(ownerId, store!.id, id), "A remover produto…");
+          if (done.status === "removed") { toast(done.message); await renderProdutos(); }
+          else toast(done.message, "error");
+        }));
+    }
+
+    applyType();
+    drawGrid();
+
+    ($("#prod-search") as HTMLInputElement | null)?.addEventListener("input", (e) => { q = (e.target as HTMLInputElement).value; drawGrid(); });
+    ($("#prod-cat") as HTMLSelectElement | null)?.addEventListener("change", (e) => { cat = (e.target as HTMLSelectElement).value; drawGrid(); });
+    document.querySelectorAll<HTMLElement>("[data-type]").forEach((b) =>
+      b.addEventListener("click", () => { type = (b.dataset.type as "all" | "physical" | "digital"); applyType(); drawGrid(); }));
 
     $("#add")?.addEventListener("click", () => {
       if (!canAddProducts(plan, list.length)) { toast(`Limite de ${formatLimit(plan.limits.maxProductsPerStore)} produtos atingido no plano ${plan.name}.`, "error"); return; }
       openProductForm({ panel, ownerId, storeId: store!.id, categories: cats, onDone: renderProdutos });
     });
-
-    document.querySelectorAll<HTMLElement>("[data-edit-prod]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const p = list.find((x) => x.id === b.dataset.editProd);
-        if (p) openProductForm({ panel, ownerId, storeId: store!.id, product: p, categories: cats, onDone: renderProdutos });
-      }));
-
-    document.querySelectorAll<HTMLElement>("[data-del-prod]").forEach((b) =>
-      b.addEventListener("click", async () => {
-        const id = b.dataset.delProd!;
-        const req = await panel.controllers.products.requestRemoval(ownerId, store!.id, id);
-        if (req.status !== "confirmation_required") { toast(req.message, "error"); return; }
-        if (!confirm(req.prompt.message)) return;
-        const done = await withBusy(
-          () => panel.controllers.products.confirmRemoval(ownerId, store!.id, id),
-          "A remover produto…",
-        );
-        if (done.status === "removed") { toast(done.message); await renderProdutos(); }
-        else toast(done.message, "error");
-      }));
   }
 
   async function renderPagamentos(): Promise<void> {
@@ -580,18 +632,31 @@ export async function renderDashboard(): Promise<void> {
   }
 }
 
-function productRow(p: Product): string {
-  const thumb = p.imageUrl
-    ? `<img src="${esc(p.imageUrl)}" class="w-12 h-12 rounded-xl object-cover border border-gray-200" />`
-    : `<div class="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center"><span class="material-symbols-outlined text-gray-400">image</span></div>`;
-  return `<div class="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
-    ${thumb}
-    <div class="flex flex-col min-w-0 flex-1">
-      <span class="font-semibold text-gray-900 truncate">${esc(p.name)} ${p.available ? "" : '<span class="text-xs text-gray-400">(indisponível)</span>'}</span>
-      <span class="text-xs text-gray-500 truncate">${esc(formatKz(p.price))}${p.description ? " · " + esc(p.description) : ""}</span>
+function productCardAdmin(p: Product): string {
+  const img = p.imageUrl
+    ? `<img src="${esc(p.imageUrl)}" class="w-full h-full object-cover" />`
+    : `<div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-gray-300 text-4xl">image</span></div>`;
+  const typeBadge = p.physical === false ? badge("Digital", "#eff6ff", "#1d4ed8") : badge("Físico", "#f0fdf4", "#15803d");
+  return `<div class="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col">
+    <div class="relative aspect-square bg-gray-50">
+      ${img}
+      <div class="absolute top-2 left-2 flex flex-col items-start gap-1">
+        ${p.featured ? badge("Destaque", ACCENT_TINT, ACCENT) : ""}
+        ${p.available ? "" : badge("Indisponível", "#f3f4f6", "#6b7280")}
+      </div>
     </div>
-    <button data-edit-prod="${esc(p.id)}" class="text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg p-2 transition-colors"><span class="material-symbols-outlined text-[20px]">edit</span></button>
-    <button data-del-prod="${esc(p.id)}" class="text-red-600 hover:bg-red-50 rounded-lg p-2 shrink-0 transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+    <div class="p-3 flex flex-col flex-1">
+      <p class="font-semibold text-gray-900 text-sm line-clamp-1">${esc(p.name)}</p>
+      <p class="font-black mt-0.5" style="color:${ACCENT}">${esc(formatKz(p.price))}</p>
+      <div class="flex items-center gap-1.5 flex-wrap mt-2">
+        ${p.category ? badge(p.category, "#f3f4f6", "#6b7280") : ""}
+        ${typeBadge}
+      </div>
+      <div class="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+        <button data-edit-prod="${esc(p.id)}" class="flex-1 inline-flex items-center justify-center gap-1 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg py-1.5 transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span> Editar</button>
+        <button data-del-prod="${esc(p.id)}" class="inline-flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg w-9 h-8 transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+      </div>
+    </div>
   </div>`;
 }
 
