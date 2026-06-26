@@ -4,7 +4,7 @@
  * links do menu e a ligação à plataforma. Cor de marca via `var(--brand)`.
  */
 import { esc } from "../lib/dom.js";
-import { platformHomeUrl } from "../lib/routing.js";
+import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
 export type FooterVariant = "colunas" | "centrado" | "moderno";
@@ -40,7 +40,7 @@ function readData(view: StoreRenderView, custom?: StoreCustomization): FData {
 /** Renderiza o rodapé da variante escolhida. */
 export function renderFooter(variant: FooterVariant | undefined, view: StoreRenderView, custom: StoreCustomization | undefined, ctx: FooterCtx): string {
   const d = readData(view, custom);
-  const credit = `${esc(view.subdomain)} · Loja criada com <a href="${platformHomeUrl()}" style="color:${ctx.brand}">MôBisno</a>`;
+  const credit = `${esc(storeIdentifier(view) + "." + STORE_APEX)} · Loja criada com <a href="${platformHomeUrl()}" style="color:${ctx.brand}">MôBisno</a>`;
 
   if (variant === "centrado") {
     return `<footer class="bg-white border-t border-gray-100 mt-auto">

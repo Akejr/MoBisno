@@ -18,7 +18,7 @@ import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
-import { platformHomeUrl } from "../lib/routing.js";
+import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -145,7 +145,7 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
         </div>
       </div>
       <div class="${CONTAINER} mt-16 pt-8 text-center" style="border-top:1px solid rgba(214,194,196,.4)">
-        <p class="text-[#685b5f] text-[10px] tracking-widest uppercase">${esc(view.subdomain)} · Loja criada com <a href="${platformHomeUrl()}" style="color:var(--brand,${DEFAULT_BRAND})">MôBisno</a></p>
+        <p class="text-[#685b5f] text-[10px] tracking-widest uppercase">${esc(storeIdentifier(view) + "." + STORE_APEX)} · Loja criada com <a href="${platformHomeUrl()}" style="color:var(--brand,${DEFAULT_BRAND})">MôBisno</a></p>
       </div>
     </footer>`;
 }

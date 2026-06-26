@@ -6,6 +6,7 @@
  * aqui o `render`.
  */
 import { esc } from "../lib/dom.js";
+import { STORE_APEX } from "../lib/routing.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import { brandMarkHtml, bannersHtml, productsGridHtml, menuItemsHtml } from "./shared.js";
 import { desportivoTemplate } from "./desportivo.js";
@@ -31,7 +32,7 @@ function renderDefault(view: StoreRenderView, _custom?: StoreCustomization): str
     </main>
     <footer class="bg-surface-container-low border-t border-outline-variant mt-auto">
       <div class="max-w-container-max mx-auto px-margin-mobile py-8 text-center text-on-surface-variant">
-        <p class="break-words">${esc(view.subdomain)}</p>
+        <p class="break-words">${esc((view.subdomain.split(".")[0] ?? view.subdomain) + "." + STORE_APEX)}</p>
         <p class="text-label-sm mt-1">Loja criada com MôBisno · <a href="#/" class="text-primary">criar a minha</a></p>
       </div>
     </footer>

@@ -311,7 +311,7 @@ function askSubdomainRecommend(): void {
       askSubdomainCustom();
       return;
     }
-    await botSay(`Recomendo este endereço para a tua loja: ${r.subdomain}`);
+    await botSay(`Recomendo este endereço para a tua loja: ${r.subdomain.split(".")[0]}.${STORE_APEX}`);
     await botSay("É assim que as pessoas vão ver o link da tua loja. Aprovas?");
     inputYesNo(
       () => { userSay("Sim, aprovo"); clearInput(); createStore(); },
@@ -337,7 +337,7 @@ function askSubdomainCustom(): void {
           askSubdomainCustom();
           return;
         }
-        await botSay(`Perfeito: ${r.subdomain}. Confirmas?`);
+        await botSay(`Perfeito: ${r.subdomain.split(".")[0]}.${STORE_APEX}. Confirmas?`);
         inputYesNo(
           () => { userSay("Sim, confirmo"); clearInput(); createStore(); },
           () => { userSay("Não, quero outro"); clearInput(); askSubdomainCustom(); },
