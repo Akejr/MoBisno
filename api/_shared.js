@@ -175,6 +175,23 @@ export async function bumpDiscountUse(db, discountCodeId) {
   await db.from("discount_codes").update({ uses: Number(data.uses ?? 0) + 1 }).eq("id", discountCodeId);
 }
 
+/** Plano efetivo de um perfil (espelha src/services/billing.ts). */
+export function effectivePlanId(profile, now = Date.now()) {
+  const plan = profile?.plan || "basico";
+  if (plan === "basico") return "basico";
+  const exp = profile?.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
+  if (!Number.isFinite(exp)) return plan;        // atribuição permanente (admin)
+  if (exp > now) return plan;                    // dentro do período
+  const next = profile?.next_plan;               // expirado → promove agendado?
+  if (next && next !== "basico" && (exp + PLAN_PERIOD_MS) > now) return next;
+  return "basico";
+}
+
+/** O plano permite pagamentos online (Multicaixa Express + Referência)? */
+export function planAllowsOnline(planId) {
+  return planId === "profissional" || planId === "empresarial";
+}
+
 /** Chamada à API MoMenu. `body` ausente → GET. */
 export async function momenu(path, apiKey, body, qa) {
   const headers = { "Content-Type": "application/json", "x-api-key": apiKey };

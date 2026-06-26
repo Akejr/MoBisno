@@ -21,6 +21,7 @@ import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
   mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, bumpDiscountUse,
+  effectivePlanId, planAllowsOnline,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
@@ -60,6 +61,15 @@ export default async function handler(req, res) {
     const { data: cfg } = await db.from("store_payments").select("online_enabled").eq("store_id", storeId).maybeSingle();
     if (!cfg || !cfg.online_enabled) {
       return send(res, 400, { success: false, error: "Pagamentos online não ativados nesta loja.", code: "PAYMENTS_NOT_ENABLED" });
+    }
+    // Os pagamentos online são uma funcionalidade paga: exigem plano ativo que a
+    // cubra. Se o plano da loja expirou (ou não cobre), recusa.
+    const { data: st } = await db.from("stores").select("owner_id").eq("id", storeId).maybeSingle();
+    if (st?.owner_id) {
+      const { data: prof } = await db.from("profiles").select("plan, plan_expires_at, next_plan").eq("id", st.owner_id).maybeSingle();
+      if (!planAllowsOnline(effectivePlanId(prof))) {
+        return send(res, 400, { success: false, error: "Os pagamentos online não estão disponíveis no plano atual da loja.", code: "PLAN_NOT_COVERED" });
+      }
     }
   } else if (kind === "sms") {
     storeId = String(body.storeId || "");
