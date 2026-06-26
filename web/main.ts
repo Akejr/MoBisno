@@ -7,6 +7,7 @@ import { renderLanding } from "./views/landing.js";
 import { renderLogin } from "./views/login.js";
 import { renderWizard } from "./views/wizard.js";
 import { renderDashboard } from "./views/dashboard.js";
+import { renderAdminPanel } from "./views/adminPanel.js";
 import { renderStorefront } from "./views/storefront.js";
 import { renderProductPage } from "./views/product.js";
 import { renderCategoryPage } from "./views/category.js";
@@ -73,6 +74,9 @@ function route(): void {
   } else if (path.startsWith("/login")) {
     resetBranding();
     renderLogin();
+  } else if (path.startsWith("/adminPainel")) {
+    resetBranding();
+    void renderAdminPanel();
   } else if (path.startsWith("/painel")) {
     resetBranding();
     void renderDashboard();

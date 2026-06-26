@@ -53,8 +53,10 @@ function setPath(obj: Record<string, any>, path: string, value: unknown): void {
 }
 
 export async function renderEditor(): Promise<void> {
-  const ownerId = appState.ownerId ?? (await currentOwnerId());
-  if (!ownerId) { go("#/criar"); return; }
+  const realOwner = appState.ownerId ?? (await currentOwnerId());
+  if (!realOwner) { go("#/criar"); return; }
+  // O admin pode editar a loja de outro dono (appState.editOwnerId).
+  const ownerId = appState.editOwnerId ?? realOwner;
 
   let store: Store | null = appState.storeId
     ? await storeRepository.findByIdForOwner(ownerId, appState.storeId)
@@ -64,7 +66,7 @@ export async function renderEditor(): Promise<void> {
     store = stores[0] ?? null;
   }
   if (!store) { go("#/painel"); return; }
-  appState.ownerId = ownerId;
+  appState.ownerId = realOwner;
   appState.storeId = store.id;
 
   const custom: StoreCustomization = await getCustomization(store.id);

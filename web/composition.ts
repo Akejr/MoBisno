@@ -65,9 +65,11 @@ export interface AppState {
   storeId: string | null;
   storeIdentifier: string | null;
   templateId: string | null;
+  /** Quando o admin edita a loja de outro dono: id do dono real dessa loja. */
+  editOwnerId: string | null;
 }
 export const appState: AppState = {
-  session: null, ownerId: null, storeId: null, storeIdentifier: null, templateId: null,
+  session: null, ownerId: null, storeId: null, storeIdentifier: null, templateId: null, editOwnerId: null,
 };
 
 /** Devolve o id do utilizador autenticado (ou null), lendo a sessão do Supabase. */

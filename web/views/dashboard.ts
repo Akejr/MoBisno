@@ -39,6 +39,7 @@ function emptyState(icon: string, message: string, actions: string): string {
 }
 
 export async function renderDashboard(): Promise<void> {
+  appState.editOwnerId = null;
   const ownerId = appState.ownerId ?? (await currentOwnerId());
   if (!ownerId) {
     render(emptyState("lock", "Inicie sessão para aceder ao painel.",

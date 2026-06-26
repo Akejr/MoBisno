@@ -41,13 +41,17 @@ A Vercel emite SSL automático, incluindo para o wildcard.
 
 ## 4. Supabase
 
-1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0010_withdrawals.sql`
+1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0011_admin.sql`
    (a `0007` muda o subdomínio para `.mobisno.store`; a `0008` cria pagamentos;
-   a `0009` o produto físico; a `0010` os pedidos de levantamento).
-2. **Authentication → URL Configuration**:
+   a `0009` o produto físico; a `0010` os pedidos de levantamento; a `0011`
+   adiciona `profiles.is_admin` e as políticas RLS de administração).
+2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
+   no SQL Editor, correr
+   `update public.profiles set is_admin = true where email = 'o-seu-email@exemplo.com';`
+3. **Authentication → URL Configuration**:
    - **Site URL**: `https://mobisno.store`
    - **Redirect URLs**: `https://mobisno.store/**`, `https://www.mobisno.store/**`
-3. (Testes) Em **Authentication → Providers → Email**, desativar a confirmação de
+4. (Testes) Em **Authentication → Providers → Email**, desativar a confirmação de
    email para criar contas sem caixa de entrada.
 
 ## 5. Como funciona o roteamento
