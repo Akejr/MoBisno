@@ -218,6 +218,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
   const methods = methodList(ctx.online);
   const tiles = methods.map((m) => methodTile(m, ctx.selected === m.id)).join("");
   const rows = methods.map((m) => methodRow(m, ctx.selected === m.id)).join("");
+  const grand = esc(formatKz(grandTotal(ctx)));
   const addr: AddressOpts | undefined = ctx.physical ? { areas: ctx.areas, selected: ctx.selectedArea } : undefined;
   const cols = Math.min(methods.length, 3);
 
@@ -272,6 +273,11 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
         <div class="flex-1 min-w-0">
           <p class="font-bold text-neutral-900 leading-tight truncate">A sua encomenda</p>
           <p class="text-sm text-neutral-400">${ctx.items.length} artigo(s)</p>
+          ${ctx.physical && ctx.selectedArea ? `<p class="text-xs text-neutral-400 mt-0.5">Entrega · ${esc(ctx.selectedArea)}: ${ctx.deliveryFee > 0 ? esc(formatKz(ctx.deliveryFee)) : "Grátis"}</p>` : ""}
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-xs text-neutral-400">Total</p>
+          <p class="font-black text-xl sm:text-2xl tracking-tight" style="color:var(--brand)">${grand}</p>
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
@@ -284,7 +290,6 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
           <div class="divide-y divide-neutral-100">${rowsBoxed}</div>
         </div>
       </div>
-      <div class="rounded-2xl border border-neutral-200 bg-white p-5">${orderTotals(ctx)}</div>
       ${payButton(ctx.selected)}
       ${secureNote()}
     </div>`;
