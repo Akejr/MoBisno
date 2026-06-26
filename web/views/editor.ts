@@ -26,6 +26,7 @@ import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes
 import { HEADER_VARIANTS, renderHeader, type HeaderVariant } from "../templates/headers.js";
 import { FOOTER_VARIANTS, renderFooter, type FooterVariant } from "../templates/footers.js";
 import { PRODUCTPAGE_VARIANTS, renderProductPage, type ProductPageVariant } from "../templates/productPage.js";
+import { CHECKOUT_VARIANTS, renderCheckout, type CheckoutVariant } from "../templates/checkoutLayouts.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
@@ -85,7 +86,7 @@ export async function renderEditor(): Promise<void> {
 
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---
   const history: string[] = [];
-  let currentScreen: "home" | "product" = "home";
+  let currentScreen: "home" | "product" | "checkout" = "home";
   let lastView: StoreViewModel | null = null;
   let arcTarget: number | "add" = "add";
   let blockImgTarget = 0;
@@ -123,6 +124,7 @@ export async function renderEditor(): Promise<void> {
         <div class="inline-flex bg-gray-100 rounded-full p-1 gap-1 text-sm">
           <button data-screen="home" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">home</span> Início</button>
           <button data-screen="product" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sell</span> Página de produto</button>
+          <button data-screen="checkout" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">shopping_bag</span> Checkout</button>
         </div>
       </div>
       <div class="flex items-center justify-between gap-3 px-4 md:px-6 py-2.5">
@@ -784,6 +786,8 @@ export async function renderEditor(): Promise<void> {
     const preview = $("#preview")!;
     if (view.kind !== "render") { preview.innerHTML = ""; return; }
 
+    if (currentScreen === "checkout") { renderCheckoutEditorPreview(view); return; }
+
     const html = storeHtmlFor(view);
     if (html === null) {
       preview.innerHTML = `<div class="min-h-[60vh] flex flex-col items-center justify-center text-center gap-3 p-8 text-neutral-500">
@@ -798,6 +802,38 @@ export async function renderEditor(): Promise<void> {
     bind(preview);
     fadeInImages(preview);
     mountParticlesHeroes(preview);
+    if (previewOpen) renderPreviewDrawer(view);
+  }
+
+  /** Itens de exemplo para a pré-visualização do checkout (produtos reais ou um placeholder). */
+  function checkoutSampleItems(): { name: string; price: number; quantity: number; imageUrl?: string }[] {
+    const lv = lastView;
+    const prods = lv && lv.kind === "render" ? lv.products.slice(0, 3) : [];
+    if (prods.length) return prods.map((p) => ({ name: p.name, price: p.price, quantity: 1, imageUrl: p.imageUrl ?? undefined }));
+    return [{ name: "Produto exemplo", price: 5000, quantity: 1 }];
+  }
+
+  function checkoutPreviewHtml(variant: CheckoutVariant): string {
+    const items = checkoutSampleItems();
+    const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const online = !!custom.payments?.onlineEnabled;
+    return renderCheckout(variant, { storeName: store!.name, items, total, online, selected: online ? "mcx" : "whatsapp" });
+  }
+
+  /** Pré-visualização do ecrã de checkout dentro do editor (sem edição inline). */
+  function renderCheckoutEditorPreview(view: StoreViewModel): void {
+    const preview = $("#preview")!;
+    const variant = (custom.checkout?.variant ?? "dividido") as CheckoutVariant;
+    preview.innerHTML = `<div class="max-w-[1080px] mx-auto px-4 sm:px-6 py-8">
+      <div class="mb-sec-divider"><span>Checkout</span></div>
+      <div class="mb-ov-btn flex justify-center -mt-3 mb-6"><button id="tour-checkout" class="mb-model-btn"><span class="material-symbols-outlined">shopping_bag</span> Trocar modelo do checkout</button></div>
+      ${checkoutPreviewHtml(variant)}
+    </div>`;
+    preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
+    applyInk(preview, custom);
+    applyTheme(preview, custom);
+    fadeInImages(preview);
+    $("#tour-checkout")?.addEventListener("click", () => openCheckoutPicker($("#tour-checkout") as HTMLElement));
     if (previewOpen) renderPreviewDrawer(view);
   }
 
@@ -949,7 +985,7 @@ ${themeCss}
   // Seletor de telas (Início / Página de produto).
   document.querySelectorAll<HTMLElement>("[data-screen]").forEach((b) =>
     b.addEventListener("click", async () => {
-      const next = b.dataset.screen === "product" ? "product" : "home";
+      const next = b.dataset.screen === "product" ? "product" : b.dataset.screen === "checkout" ? "checkout" : "home";
       if (next === currentScreen) return;
       currentScreen = next;
       updateScreenTabs();
@@ -1080,6 +1116,17 @@ ${themeCss}
         const sample = lastView?.products[0];
         return sample ? renderProductPage(id as ProductPageVariant, lastView!, sample, custom, PREV_CTX) : `<div class="p-8 text-center text-gray-400">Adicione um produto para pré-visualizar.</div>`;
       },
+    );
+  }
+
+  function openCheckoutPicker(anchor: HTMLElement): void {
+    openVariantPicker(
+      anchor,
+      "Modelo do checkout",
+      CHECKOUT_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
+      custom.checkout?.variant ?? "dividido",
+      (id) => { snapshot(); setPath(custom as Record<string, any>, "checkout.variant", id as CheckoutVariant); void rebuild(); toast("Checkout atualizado."); },
+      (id) => checkoutPreviewHtml(id as CheckoutVariant),
     );
   }
 

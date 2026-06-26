@@ -94,6 +94,10 @@ export interface StoreCustomization {
   payments?: {
     onlineEnabled?: boolean;
   };
+  /** Variante de layout do checkout (4 modelos). */
+  checkout?: {
+    variant?: "dividido" | "moderno" | "compacto" | "minimal";
+  };
   /**
    * Blocos de conteúdo adicionais, renderizados abaixo dos produtos, na ordem
    * definida. O dono pode adicionar/remover/reordenar no editor.
