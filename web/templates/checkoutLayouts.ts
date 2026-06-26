@@ -299,3 +299,45 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
     </div>
   </div>`;
 }
+
+/* ---- Blocos reutilizáveis (usados pelo fluxo por etapas em checkout.ts) ---- */
+
+export type CheckoutMethodInfo = MethodInfo;
+export const checkoutMethods = methodList;
+export const renderMethodTile = methodTile;
+export const renderMethodRow = methodRow;
+export const renderCustomerFields = customerFields;
+export const renderPayButton = payButton;
+
+/** Indicador de etapas (1 Dados • 2 Pagamento • 3 Confirmação). */
+export function renderStepper(active: number): string {
+  const dot = (n: number, label: string): string =>
+    stepDot(n, label, n < active ? "done" : n === active ? "active" : "todo");
+  return `<div class="flex items-center justify-center gap-2 sm:gap-4">
+    ${dot(1, "Dados")}<span class="h-px w-6 sm:w-12 bg-neutral-300"></span>
+    ${dot(2, "Pagamento")}<span class="h-px w-6 sm:w-12 bg-neutral-300"></span>
+    ${dot(3, "Confirmação")}
+  </div>`;
+}
+
+/** Cartão "Resumo do Pedido" (itens com visto + cupão + subtotal/total). */
+export function renderOrderSummaryCard(ctx: CheckoutLayoutCtx): string {
+  const totalKz = esc(formatKz(ctx.total));
+  const checkItems = ctx.items.map((i) => `<div class="flex items-center gap-2.5 py-3">
+    <span class="material-symbols-outlined text-[20px] shrink-0" style="color:#16a34a">check_circle</span>
+    <span class="flex-1 min-w-0 text-sm font-medium text-neutral-800 truncate">${i.quantity}× ${esc(i.name)}</span>
+    <span class="text-sm font-semibold text-neutral-900 whitespace-nowrap">${esc(formatKz(i.price * i.quantity))}</span>
+  </div>`).join("");
+  return `<div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm lg:sticky lg:top-6">
+    <h2 class="text-lg sm:text-xl font-black text-neutral-900 mb-4">Resumo do Pedido</h2>
+    <div class="rounded-xl bg-neutral-50 px-4 divide-y divide-neutral-200/60">${checkItems}</div>
+    <div class="mt-4 flex gap-2">
+      <input id="coupon" type="text" placeholder="Código promocional" class="flex-1 bg-white border border-neutral-300 rounded-xl px-3.5 py-3 text-[16px] outline-none focus:border-[color:var(--brand)]" />
+      <button id="coupon-apply" type="button" class="px-5 rounded-xl text-white font-semibold text-sm shrink-0" style="background:var(--brand)">Aplicar</button>
+    </div>
+    <div class="mt-5 space-y-2.5 text-sm">
+      <div class="flex justify-between"><span class="text-neutral-500">Subtotal</span><span class="font-medium text-neutral-900">${totalKz}</span></div>
+      <div class="flex items-baseline justify-between pt-3 border-t border-neutral-100"><span class="font-bold text-neutral-900">Total</span><span class="text-2xl font-black tracking-tight" style="color:var(--brand)">${totalKz}</span></div>
+    </div>
+  </div>`;
+}

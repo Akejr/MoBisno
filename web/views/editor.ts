@@ -826,7 +826,7 @@ export async function renderEditor(): Promise<void> {
     const preview = $("#preview")!;
     const variant = (custom.checkout?.variant ?? "dividido") as CheckoutVariant;
     const template = getTemplate(store!.templateId);
-    const inner = `<a class="inline-flex items-center gap-1 text-sm opacity-70 mb-5"><span class="material-symbols-outlined text-[18px]">arrow_back</span> Voltar ao carrinho</a>${checkoutPreviewHtml(variant)}`;
+    const inner = checkoutPreviewHtml(variant);
     const wrapped = template.renderCheckout ? template.renderCheckout(view, inner, custom) : inner;
     preview.innerHTML = `<div class="sticky top-0 z-10 flex items-center justify-center gap-3 py-2 bg-white/85 backdrop-blur border-b border-gray-100">
         <span class="mb-sec-divider !my-0 !mb-0" style="flex:0"><span>Checkout</span></span>
