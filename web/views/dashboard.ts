@@ -4,13 +4,14 @@
  * vivem no ecrã "Personalizar".
  */
 import { render, $, go, esc, toast, formatKz, withBusy, fadeInImages } from "../lib/dom.js";
-import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, setOwnerPlan, countPublishedStores, publicStoreUrl, deleteStore } from "../composition.js";
+import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerPlan, countPublishedStores, publicStoreUrl, deleteStore } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
 import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, type PaymentConfig, type OrderStats } from "../supabase/payments.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
+import { openPlanCheckout } from "../lib/planCheckout.js";
 
 const ACCENT = "#F95901";
 const ACCENT_TINT = "rgba(249,89,1,.1)";
@@ -343,12 +344,10 @@ export async function renderDashboard(): Promise<void> {
     bindShell();
 
     document.querySelectorAll<HTMLElement>("[data-plan]").forEach((b) =>
-      b.addEventListener("click", async () => {
+      b.addEventListener("click", () => {
         const id = b.dataset.plan;
         if (!isPlanId(id) || id === plan.id) return;
-        const ok = await withBusy(() => setOwnerPlan(id), "A atualizar plano…");
-        if (ok) { toast(`Plano atualizado para ${getPlan(id).name}.`); await renderDashboard(); }
-        else toast("Não foi possível atualizar o plano. Tente novamente.", "error");
+        openPlanCheckout({ ownerId, plan: getPlan(id), onPaid: () => { void renderDashboard(); } });
       }));
   }
 }

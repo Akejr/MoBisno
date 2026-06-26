@@ -41,8 +41,9 @@ A Vercel emite SSL automático, incluindo para o wildcard.
 
 ## 4. Supabase
 
-1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0007_domain_store.sql`
-   (a `0007` muda a coerência do subdomínio para `.mobisno.store`).
+1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0008_payments.sql`
+   (a `0007` muda a coerência do subdomínio para `.mobisno.store`; a `0008`
+   cria as tabelas de pagamentos: `store_payments`, `orders`, `plan_payments`).
 2. **Authentication → URL Configuration**:
    - **Site URL**: `https://mobisno.store`
    - **Redirect URLs**: `https://mobisno.store/**`, `https://www.mobisno.store/**`
@@ -76,3 +77,56 @@ Environment Variables):
 Nunca coloques a chave no frontend nem a faças commit. Em desenvolvimento local,
 o chat só funciona com `vercel dev` (a função `/api/assistant` não corre com o
 `vite` puro).
+
+## Pagamentos (MoMenu — Multicaixa Express + Referência Bancária)
+
+O checkout online e os pagamentos de planos usam a API MoMenu através de funções
+serverless (`api/payment.js`, `api/payment-status.js`, `api/webhook.js`). A chave
+MoMenu de cada loja **vive só no servidor** (tabela `store_payments`, lida pela
+service role); nunca chega ao frontend.
+
+### Variáveis de ambiente (Vercel → Settings → Environment Variables)
+
+- `SUPABASE_URL` — URL do projeto Supabase (igual ao `VITE_SUPABASE_URL`).
+- `SUPABASE_SERVICE_ROLE_KEY` — **service role** do Supabase (secreta; ignora RLS
+  para ler chaves de loja e gravar/atualizar encomendas). Nunca no frontend.
+- `MOMENU_PLATFORM_API_KEY` — chave MoMenu **da plataforma**, usada para receber
+  os pagamentos de planos (a receita dos planos é tua, não aparece em nenhum
+  dashboard de comerciante).
+- `MOMENU_BASE_URL` — opcional; por omissão `https://api.momenu.online`.
+
+### Migração
+
+Aplicar `supabase/migrations/0008_payments.sql` no SQL Editor.
+
+### Por comerciante (no painel MôBisno → Pagamentos)
+
+1. Ativar "Pagamentos online" e colar a **chave de API MoMenu** do comerciante.
+2. Vincular a **conta bancária** (Banco, Beneficiário, IBAN). É obrigatória uma
+   conta **verificada na MoMenu** para receber (senão a API recusa com
+   `BANK_ACCOUNT_NOT_VERIFIED`). Com `instantWithdraw` (sempre ativo), o valor
+   menos 2% é transferido automaticamente para essa conta a cada venda.
+
+### Webhook (Referência Bancária)
+
+Cada comerciante (e a conta da plataforma para os planos) deve configurar, na sua
+conta MoMenu (Definições → Desenvolvedores → Webhook), o URL:
+
+```
+https://mobisno.store/api/webhook
+```
+
+O webhook é mapeado por `merchantTransactionId`. Como fallback (entrega
+fire-and-forget, sem retentativas), o checkout tem o botão "Já paguei — verificar"
+que chama `/api/payment-status`.
+
+### Domínios autorizados na MoMenu
+
+A API valida a origem (`DOMAIN_NOT_ALLOWED`). Como as chamadas partem das funções
+serverless (servidor) e não do browser, registar/autorizar o domínio da app na
+conta MoMenu conforme exigido.
+
+### Testes (QA)
+
+Abrir o checkout ou o painel com `?qa=1` no URL ativa o modo de testes
+(`x-env-qa: true`); nenhum valor real é cobrado (MCX simula `success`).
