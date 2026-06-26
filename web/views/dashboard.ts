@@ -153,7 +153,7 @@ export async function renderDashboard(): Promise<void> {
       <section class="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h3 class="text-2xl md:text-3xl font-black tracking-tight break-words">Olá, ${esc(ownerName)}</h3>
-          <p class="text-gray-500 mt-1 break-words">Endereço: <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">${esc(store!.subdomain)}</a></p>
+          <p class="text-gray-500 mt-1 break-words">Endereço: <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">${esc(storeUrl.replace(/^https?:\/\//, ""))}</a></p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold" style="background:${published ? "#ecfdf5" : "#f3f4f6"};color:${published ? "#047857" : "#6b7280"}"><span class="w-2 h-2 rounded-full" style="background:currentColor"></span> ${published ? "Publicada" : "Não publicada"}</span>

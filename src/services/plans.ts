@@ -75,7 +75,7 @@ export const PLANS: Readonly<Record<PlanId, Plan>> = {
       "1 loja publicada",
       "100 produtos cadastrados",
       "Checkout via WhatsApp",
-      "Endereço .mobisno.com",
+      "Endereço .sualoja.digital",
     ],
   },
   profissional: {

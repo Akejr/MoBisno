@@ -1,6 +1,6 @@
 /** Bootstrap + router (URLs limpas via History API) da SPA do MôBisno. */
 import { seedDemoStore } from "./composition.js";
-import { storeSubdomain, navigate, cleanPath, ROUTE_EVENT } from "./lib/routing.js";
+import { storeSubdomain, isStoreApexRoot, navigate, cleanPath, ROUTE_EVENT, PLATFORM_APEX } from "./lib/routing.js";
 import { setDocTitle, setFavicon } from "./lib/dom.js";
 import { loadStorefront } from "./lib/storeCache.js";
 import { renderLanding } from "./views/landing.js";
@@ -137,6 +137,12 @@ function mountLinkInterceptor(): void {
 }
 
 async function boot(): Promise<void> {
+  // Apex do domínio das lojas (sualoja.digital) → redireciona para o painel.
+  if (isStoreApexRoot()) {
+    location.replace(`https://${PLATFORM_APEX}${location.pathname}${location.search}`);
+    return;
+  }
+
   // Migra URLs antigas com hash (`#/x`) para caminhos limpos.
   if (location.hash.startsWith("#/")) {
     history.replaceState({}, "", cleanPath(location.hash) + location.search);

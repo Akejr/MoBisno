@@ -8,7 +8,7 @@
  * authService, wizardFlow, identifierService).
  */
 import { render, $, go, esc } from "../lib/dom.js";
-import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores } from "../composition.js";
+import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores, STORE_APEX } from "../composition.js";
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
 import type { Session } from "../../src/services/authService.js";
@@ -326,7 +326,7 @@ function askSubdomainCustom(): void {
     inputText({
       placeholder: "a-sua-loja",
       onSubmit: async (v) => {
-        userSay(`${v}.mobisno.store`);
+        userSay(`${v}.${STORE_APEX}`);
         wiz.data[WIZARD_FIELDS.identifier] = v;
         clearInput();
         inputBusy("A verificar o endereço…");

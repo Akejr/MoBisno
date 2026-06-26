@@ -7,25 +7,53 @@
  * (`/`, `/produto/<id>`, `/categoria/<x>`, `/carrinho`).
  */
 
-/** Domínio raiz da plataforma. As lojas vivem em `nomedaloja.mobisno.store`. */
+/**
+ * Domínio do PAINEL/marca (MôBisno). É aqui que vivem a landing, o login e o
+ * painel. O apex do domínio das lojas redireciona para cá.
+ */
 export const PLATFORM_APEX = "mobisno.store";
+
+/**
+ * Domínio onde vivem as LOJAS dos clientes: `nomedaloja.sualoja.digital`.
+ * É o domínio usado para construir as URLs públicas.
+ */
+export const STORE_APEX = "sualoja.digital";
+
+/**
+ * Apexes onde um subdomínio é tratado como loja. Inclui `mobisno.store` por
+ * retrocompatibilidade (lojas antigas em `nomedaloja.mobisno.store`).
+ */
+const STORE_APEXES: readonly string[] = [STORE_APEX, "mobisno.store"];
 
 /** Evento disparado em cada navegação interna (ouvido pelo router). */
 export const ROUTE_EVENT = "mb:route";
 
-/** Identificador da loja a partir do subdomínio, ou `null` fora de produção. */
+/**
+ * Identificador da loja a partir do subdomínio real do browser, ou `null`.
+ * Procura em todos os apexes de loja; `www`/`app` e o apex puro não são lojas.
+ */
 export function storeSubdomain(): string | null {
   const host = location.hostname.toLowerCase();
-  if (!host.endsWith(`.${PLATFORM_APEX}`)) return null;
-  const sub = host.slice(0, host.length - PLATFORM_APEX.length - 1);
-  if (!sub || sub === "www" || sub === "app" || sub.includes(".")) return null;
-  return sub;
+  for (const apex of STORE_APEXES) {
+    if (host.endsWith(`.${apex}`)) {
+      const sub = host.slice(0, host.length - apex.length - 1);
+      if (!sub || sub === "www" || sub === "app" || sub.includes(".")) return null;
+      return sub;
+    }
+  }
+  return null;
 }
 
-/** Verdadeiro quando a app corre no domínio de produção (mobisno.store). */
+/** Verdadeiro quando a app corre num domínio de produção (painel ou loja). */
 export function isPlatformHost(): boolean {
   const h = location.hostname.toLowerCase();
-  return h === PLATFORM_APEX || h.endsWith(`.${PLATFORM_APEX}`);
+  return h === PLATFORM_APEX || STORE_APEXES.some((a) => h === a || h.endsWith(`.${a}`));
+}
+
+/** Verdadeiro no apex (ou www) do domínio das lojas — deve redirecionar para o painel. */
+export function isStoreApexRoot(): boolean {
+  const h = location.hostname.toLowerCase();
+  return h === STORE_APEX || h === `www.${STORE_APEX}`;
 }
 
 /**

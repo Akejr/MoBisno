@@ -199,16 +199,16 @@ export async function deleteStore(ownerId: string, storeId: string): Promise<boo
 
 /* ----------------------------- Domínio público ----------------------------- */
 
-import { PLATFORM_APEX, isPlatformHost } from "./lib/routing.js";
-export { PLATFORM_APEX, isPlatformHost };
+import { PLATFORM_APEX, STORE_APEX, isPlatformHost } from "./lib/routing.js";
+export { PLATFORM_APEX, STORE_APEX, isPlatformHost };
 
 /**
  * URL pública de uma loja. Em produção usa o subdomínio real
- * (`https://identificador.mobisno.store`); em desenvolvimento/preview recorre
+ * (`https://identificador.sualoja.digital`); em desenvolvimento/preview recorre
  * ao caminho limpo (`.../loja/identificador`).
  */
 export function publicStoreUrl(identifier: string): string {
-  if (isPlatformHost()) return `https://${identifier}.${PLATFORM_APEX}`;
+  if (isPlatformHost()) return `https://${identifier}.${STORE_APEX}`;
   return `${location.origin}/loja/${encodeURIComponent(identifier)}`;
 }
 

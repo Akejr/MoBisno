@@ -36,7 +36,7 @@ function sampleView(templateId: string): StoreRenderView {
     kind: "render",
     templateId,
     storeName: "A Sua Loja",
-    subdomain: "exemplo.mobisno.store",
+    subdomain: "exemplo.sualoja.digital",
     header: { brand, storeName: "A Sua Loja" },
     menu: { brand, items: [{ label: "Início" }, { label: "Novidades" }, { label: "Promoções" }] },
     banners: [],

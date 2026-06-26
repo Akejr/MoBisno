@@ -12,7 +12,7 @@ const accordionItems: AccordionItem[] = [
   { title: "Editor visual ao vivo", imageUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?q=80&w=1200&auto=format&fit=crop" },
   { title: "Pagamentos integrados", imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1200&auto=format&fit=crop" },
   { title: "Vendas no WhatsApp", imageUrl: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Domínio .mobisno.store", imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Domínio .sualoja.digital", imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
 ];
 
 const CAP_BASE = "absolute text-white text-base font-semibold whitespace-nowrap transition-all duration-500 ease-in-out drop-shadow";
@@ -79,7 +79,7 @@ export async function renderLanding(): Promise<void> {
             ${bento({ icon: "payments", title: "Pagamentos locais", body: "Multicaixa, Referência bancária e finalização rápida por WhatsApp." })}
             ${bento({ span: "bento-row-2", icon: "category", title: "Categorias & Destaques", body: "Organize os produtos por categorias e realce os melhores na secção Destaques." })}
             ${bento({ span: "bento-col-2", icon: "shopping_cart", title: "Fluxo totalmente automático", body: "Os seus clientes escolhem, somam quantidades e finalizam a compra sem complicações." })}
-            ${bento({ icon: "public", title: "Endereço próprio", body: "Receba o seu endereço nome.mobisno.store, ou use o seu próprio." })}
+            ${bento({ icon: "public", title: "Endereço próprio", body: "Receba o seu endereço nome.sualoja.digital, ou use o seu próprio." })}
           </div>
         </div>
       </section>
@@ -105,7 +105,7 @@ export async function renderLanding(): Promise<void> {
             <button data-cycle="anual" class="px-4 py-2 rounded-full text-sm font-bold transition-colors">Anual <span class="opacity-80">· poupe 20%</span></button>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Começar agora", features: ["1 loja publicada", "100 produtos cadastrados", "Checkout via WhatsApp", "Endereço .mobisno.store"] })}
+            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Começar agora", features: ["1 loja publicada", "100 produtos cadastrados", "Checkout via WhatsApp", "Endereço .sualoja.digital"] })}
             ${priceCard({ plan: "profissional", name: "Profissional", desc: "Para vender a sério, sem limites.", featured: true, monthly: "11.000", yearly: "105.600", cta: "Escolher Profissional", features: ["Tudo do plano Básico", "Produtos ilimitados", "Checkout Multicaixa Express e referência bancária", "3 lojas publicadas", "Domínio próprio (opcional)"] })}
             ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Escolher Empresarial", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
           </div>

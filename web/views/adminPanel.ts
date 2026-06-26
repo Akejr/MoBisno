@@ -5,7 +5,7 @@
  * de admin (migração 0011).
  */
 import { render, $, go, esc, toast, withBusy, formatKz } from "../lib/dom.js";
-import { appState, logout, publicStoreUrl } from "../composition.js";
+import { appState, logout, publicStoreUrl, STORE_APEX } from "../composition.js";
 import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
   adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
@@ -417,7 +417,7 @@ export async function renderAdminPanel(): Promise<void> {
               <span class="material-symbols-outlined text-gray-300 text-[20px]">storefront</span>
               <span class="font-semibold text-gray-800 text-sm truncate min-w-0">${esc(s.name)}</span>
               ${stateBadge(s.state)}
-              <a href="${esc(publicStoreUrl(s.identifier))}" target="_blank" rel="noopener" class="text-xs font-semibold hover:underline" style="color:${ACCENT}">${esc(s.subdomain)}</a>
+              <a href="${esc(publicStoreUrl(s.identifier))}" target="_blank" rel="noopener" class="text-xs font-semibold hover:underline" style="color:${ACCENT}">${esc(s.identifier)}.${esc(STORE_APEX)}</a>
               <div class="ml-auto flex items-center gap-1.5">
                 <button data-edit-store="${esc(s.id)}" data-owner="${esc(a.id)}" class="inline-flex items-center gap-1 text-xs font-semibold text-white px-2.5 py-1 rounded-lg hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[16px]">palette</span> Editar</button>
                 <a href="${esc(publicStoreUrl(s.identifier))}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 border border-gray-200 px-2.5 py-1 rounded-lg hover:bg-gray-50"><span class="material-symbols-outlined text-[16px]">open_in_new</span> Ver</a>
@@ -602,7 +602,7 @@ export async function renderAdminPanel(): Promise<void> {
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="font-black text-gray-900 truncate">${esc(s.name)}</p>
-          <a href="${esc(publicStoreUrl(s.identifier))}" target="_blank" rel="noopener" class="text-xs font-semibold hover:underline" style="color:${ACCENT}">${esc(s.subdomain)}</a>
+          <a href="${esc(publicStoreUrl(s.identifier))}" target="_blank" rel="noopener" class="text-xs font-semibold hover:underline" style="color:${ACCENT}">${esc(s.identifier)}.${esc(STORE_APEX)}</a>
           <p class="text-xs text-gray-400 mt-1 truncate">${esc(s.ownerName || "—")} · ${esc(s.ownerEmail)}</p>
           <p class="text-xs text-gray-300 mt-0.5">Criada ${esc(fmtDate(s.createdAt))}</p>
         </div>

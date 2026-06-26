@@ -25,19 +25,32 @@ git push -u origin main
    - `VITE_SUPABASE_ANON_KEY` = chave anon (pública)
 4. Deploy.
 
-## 3. Domínio `mobisno.store` + wildcard
+## 3. Domínios na Vercel + wildcards
 
-No painel do projeto → **Settings → Domains**, adicionar:
-- `mobisno.store` (apex)
-- `www.mobisno.store`
-- `*.mobisno.store`  ← wildcard, essencial para `nomedaloja.mobisno.store`
+A plataforma usa **dois domínios**:
+- `mobisno.store` → **painel/marca** (landing, login, painel, criar).
+- `sualoja.digital` → **lojas dos clientes** em `nomedaloja.sualoja.digital`.
+  O apex `sualoja.digital` redireciona automaticamente para `mobisno.store`
+  (feito no arranque da app — `web/main.ts`).
 
-DNS no teu registrar (a Vercel mostra os valores exatos; tipicamente):
-- Apex `mobisno.store` → registo **A** `76.76.21.21` (ou ALIAS/ANAME para `cname.vercel-dns.com`)
+No painel do projeto → **Settings → Domains**, adicionar **todos**:
+- `mobisno.store` (apex) e `www.mobisno.store`
+- `*.mobisno.store`  ← wildcard (retrocompatibilidade de lojas antigas)
+- `sualoja.digital` (apex) e `www.sualoja.digital`
+- `*.sualoja.digital`  ← wildcard, **essencial** para `nomedaloja.sualoja.digital`
+
+DNS em cada registrar (a Vercel mostra os valores exatos; tipicamente):
+- Apex (`mobisno.store`, `sualoja.digital`) → registo **A** `76.76.21.21`
+  (ou ALIAS/ANAME para `cname.vercel-dns.com`)
 - `www` → **CNAME** `cname.vercel-dns.com`
 - `*` (wildcard) → **CNAME** `cname.vercel-dns.com`
 
-A Vercel emite SSL automático, incluindo para o wildcard.
+A Vercel emite SSL automático, incluindo para os wildcards. O domínio das
+lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
+
+> Nota: o apex `sualoja.digital` redireciona para `mobisno.store` no cliente.
+> Em alternativa (opcional), podes configurar esse redirect também na Vercel
+> (Settings → Domains → Redirect) para ser instantâneo, sem carregar a app.
 
 ## 4. Supabase
 
@@ -59,9 +72,12 @@ A Vercel emite SSL automático, incluindo para o wildcard.
 ## 5. Como funciona o roteamento
 
 - `mobisno.store` / `www.mobisno.store` → app principal (landing, login, painel, criar).
-- `nomedaloja.mobisno.store` → `main.ts` deteta o subdomínio e renderiza a loja
+- `nomedaloja.sualoja.digital` → `main.ts` deteta o subdomínio e renderiza a loja
   publicada desse identificador. As sub-páginas (produto/categoria/carrinho)
   continuam a funcionar por hash (`#/loja/...`).
+- `nomedaloja.mobisno.store` continua a resolver (lojas antigas), mas as URLs
+  públicas novas usam `sualoja.digital` (`STORE_APEX`).
+- `sualoja.digital` (apex/www) → redireciona para `mobisno.store`.
 - Em `localhost` ou `*.vercel.app` (sem subdomínio) cai-se no modo hash
   (`/#/loja/<identificador>`), por isso o preview da Vercel funciona à mesma.
 
