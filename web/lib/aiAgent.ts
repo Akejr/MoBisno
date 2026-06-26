@@ -147,6 +147,31 @@ export function mountAiAgent(host?: HTMLElement | null): () => void {
   // --------------------------- Chat de perguntas ---------------------------
   const ENDPOINT = "/api/assistant";
   const escHtml = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+  /** Mini-markdown para as respostas do bot: **negrito** (laranja), listas e parágrafos. */
+  function renderMd(text: string): string {
+    const inline = (s: string): string =>
+      escHtml(s)
+        .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${ACCENT};font-weight:700">$1</strong>`)
+        .replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, "$1<em>$2</em>");
+    const lines = text.replace(/\r/g, "").split("\n");
+    let html = "";
+    let inList = false;
+    const closeList = (): void => { if (inList) { html += "</ul>"; inList = false; } };
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { closeList(); continue; }
+      const li = line.match(/^(?:[-*•]|\d+\.)\s+(.*)$/);
+      if (li) {
+        if (!inList) { html += `<ul style="margin:2px 0;padding-left:16px;list-style:disc;display:flex;flex-direction:column;gap:3px">`; inList = true; }
+        html += `<li>${inline(li[1]!)}</li>`;
+      } else {
+        closeList();
+        html += `<p style="margin:0 0 6px">${inline(line)}</p>`;
+      }
+    }
+    closeList();
+    return html || escHtml(text);
+  }
   const chatHistory: { role: "user" | "assistant"; content: string }[] = [];
   let panel: HTMLElement | null = null;
 
@@ -160,7 +185,7 @@ export function mountAiAgent(host?: HTMLElement | null): () => void {
     row.style.cssText = `display:flex;${role === "user" ? "justify-content:flex-end" : "justify-content:flex-start"}`;
     const bubble = role === "user"
       ? `<div style="max-width:82%;background:${ACCENT};color:#fff;border-radius:14px;border-bottom-right-radius:4px;padding:8px 12px;font-size:13.5px;line-height:1.45;white-space:pre-wrap">${escHtml(text)}</div>`
-      : `<div style="max-width:82%;background:#fff;color:#1c1b1b;border:1px solid #eef0f2;border-radius:14px;border-bottom-left-radius:4px;padding:8px 12px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;box-shadow:0 1px 2px rgba(0,0,0,.05)">${escHtml(text)}</div>`;
+      : `<div style="max-width:82%;background:#fff;color:#1c1b1b;border:1px solid #eef0f2;border-radius:14px;border-bottom-left-radius:4px;padding:9px 13px;font-size:13.5px;line-height:1.5">${renderMd(text)}</div>`;
     row.innerHTML = bubble;
     msgsEl().appendChild(row);
     scrollMsgs();
