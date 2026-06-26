@@ -664,9 +664,10 @@ export async function renderEditor(): Promise<void> {
         d.innerHTML = `<span>${esc(label)}</span>`;
         return d;
       };
-      const mkDots = (current: string | undefined, onPick: (hex: string | undefined) => void): HTMLElement => {
+      const mkDots = (current: string | undefined, onPick: (hex: string | undefined) => void, id?: string): HTMLElement => {
         const wrap = document.createElement("div");
         wrap.className = "flex items-center gap-1.5";
+        if (id) wrap.id = id;
         BG_PALETTE.forEach((c) => {
           const b = document.createElement("button");
           b.type = "button";
@@ -679,7 +680,7 @@ export async function renderEditor(): Promise<void> {
         return wrap;
       };
       // Barra (sob a divisória): botão de modelo ao centro + bolinhas de cor à direita.
-      const mkBar = (model: { label: string; icon: string; onClick: (a: HTMLElement) => void } | null, dots: HTMLElement | null): HTMLElement => {
+      const mkBar = (model: { label: string; icon: string; onClick: (a: HTMLElement) => void; id?: string } | null, dots: HTMLElement | null): HTMLElement => {
         const bar = document.createElement("div");
         bar.className = "mb-ov-btn relative -mt-3 mb-6 min-h-[34px]";
         if (model) {
@@ -688,6 +689,7 @@ export async function renderEditor(): Promise<void> {
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "mb-model-btn";
+          if (model.id) btn.id = model.id;
           btn.innerHTML = `<span class="material-symbols-outlined">${model.icon}</span> ${esc(model.label)}`;
           btn.addEventListener("click", (e) => { e.preventDefault(); model.onClick(btn); });
           center.appendChild(btn);
@@ -711,8 +713,8 @@ export async function renderEditor(): Promise<void> {
           if (hex) setPath(custom as Record<string, any>, "hero.bg", hex);
           else if (custom.hero) delete custom.hero.bg;
           void rebuild();
-        });
-        heroSection.parentElement.insertBefore(mkBar({ label: "Trocar modelo do hero", icon: "wallpaper", onClick: openHeroPicker }, heroDots), heroSection);
+        }, "tour-bg");
+        heroSection.parentElement.insertBefore(mkBar({ label: "Trocar modelo do hero", icon: "wallpaper", onClick: openHeroPicker, id: "tour-hero" }, heroDots), heroSection);
       }
 
       // Produtos — nome + botão de disposição + cor de fundo da 1.ª secção.
@@ -725,7 +727,7 @@ export async function renderEditor(): Promise<void> {
           if (hex) custom.sections[0]!.bg = hex; else delete custom.sections[0]!.bg;
           void rebuild();
         });
-        sw.parentElement.insertBefore(mkBar({ label: "Mudar disposição dos produtos", icon: "grid_view", onClick: openGridPicker }, dots0), sw);
+        sw.parentElement.insertBefore(mkBar({ label: "Mudar disposição dos produtos", icon: "grid_view", onClick: openGridPicker, id: "tour-grid" }, dots0), sw);
       }
 
       // Secções de produtos adicionais — nome + cor de fundo.
@@ -1146,14 +1148,21 @@ export async function renderEditor(): Promise<void> {
 
   interface TourStep { sel: string; title: string; text: string; screen?: "home" | "product"; }
   const TOUR: TourStep[] = [
-    { sel: "[data-edit-logo]", title: "O seu logótipo", text: "Clique no logótipo para o trocar pela marca da sua loja.", screen: "home" },
-    { sel: "#preview [data-edit]", title: "Editar textos", text: "Clique em qualquer texto (título, descrições, contactos) e escreva diretamente.", screen: "home" },
-    { sel: "[data-edit-products]", title: "Os seus produtos", text: "Adicione e edite produtos aqui. Passe o rato num produto para o editar.", screen: "home" },
-    { sel: "[data-edit-sections]", title: "Secções", text: "Crie secções por categoria ou Destaques, e reorganize a sua montra.", screen: "home" },
-    { sel: "#color-dot", title: "Cor da loja", text: "Escolha a cor principal — aplica-se a botões e destaques ao vivo." },
-    { sel: "[data-edit-perks]", title: "Garantias do produto", text: "Na página de produto pode editar, adicionar ou remover estas garantias.", screen: "product" },
-    { sel: "#ver-loja", title: "Ver a loja", text: "Abra a sua loja publicada numa nova aba para a ver como um cliente." },
-    { sel: "#save", title: "Guardar", text: "Quando terminar, clique em Guardar para publicar as alterações." },
+    { sel: "", title: "Bem-vindo ao editor 👋", text: "Vou mostrar-te, em poucos passos, como personalizar a tua loja. Tudo o que mudas aqui aparece ao vivo.", screen: "home" },
+    { sel: "[data-edit-logo]", title: "O teu logótipo", text: "Clica no logótipo para trocar a imagem e usa − / + para ajustar o tamanho.", screen: "home" },
+    { sel: "#preview [data-edit]", title: "Editar textos", text: "Clica em qualquer texto (títulos, descrições, contactos) e escreve diretamente.", screen: "home" },
+    { sel: "#color-dot", title: "Cor principal", text: "Define a cor da marca — aplica-se a botões e destaques em toda a loja, ao vivo." },
+    { sel: "#ink-dot", title: "Cor dos textos", text: "Muda a cor dos textos e ícones da loja." },
+    { sel: "#theme-style", title: "Estilo geral", text: "Escolhe um estilo (moderno, clássico ou minimal) para dar coerência a tudo." },
+    { sel: "#tour-hero", title: "Modelo do cabeçalho (hero)", text: "Troca o topo da loja entre vários modelos — passa o rato em cada opção para pré-visualizar.", screen: "home" },
+    { sel: "#tour-bg", title: "Cor de fundo da secção", text: "Cada secção pode ter a sua cor de fundo. Escolhe nestes pontinhos (claro a escuro).", screen: "home" },
+    { sel: "#tour-grid", title: "Disposição dos produtos", text: "Muda a forma como os produtos aparecem: retrato, quadrado ou alto.", screen: "home" },
+    { sel: "[data-edit-products]", title: "Os teus produtos", text: "Adiciona e edita produtos aqui. Passa o rato num produto para o editar.", screen: "home" },
+    { sel: "[data-add-toggle]", title: "Adicionar secções", text: "Monta a página por blocos: produtos, informação, texto, testemunhos ou localização.", screen: "home" },
+    { sel: "#mb-ai-agent", title: "O teu assistente", text: "Este robô vai estar sempre por perto — em breve poderás pedir-lhe ajuda enquanto editas." },
+    { sel: "[data-edit-perks]", title: "Garantias do produto", text: "Na página de produto podes editar, adicionar ou remover estas garantias.", screen: "product" },
+    { sel: "#ver-loja", title: "Ver a loja", text: "Abre a tua loja publicada numa nova aba para a veres como um cliente." },
+    { sel: "#save", title: "Guardar", text: "Quando terminares, clica em Guardar para publicar as alterações." },
   ];
 
   async function startTutorial(): Promise<void> {
@@ -1234,7 +1243,7 @@ export async function renderEditor(): Promise<void> {
       renderContent();
       // Aguarda um frame para o DOM/preview estabilizar após o rebuild.
       await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const el = document.querySelector(step.sel) as HTMLElement | null;
+      const el = (step.sel ? document.querySelector(step.sel) : null) as HTMLElement | null;
       if (!el) { position(null); return; }
 
       // Faz scroll no contentor de pré-visualização para centrar o elemento.
