@@ -49,20 +49,18 @@ export default async function handler(req, res) {
     return send(res, 400, { success: false, error: "Número de telefone obrigatório para Multicaixa Express.", code: "MISSING_PHONE" });
   }
 
-  // Resolver a chave de API conforme o tipo de pagamento.
-  let apiKey = "";
+  // Resolver a chave de API. Há uma única chave (da plataforma) no servidor;
+  // as lojas só precisam de ter os pagamentos online ativados.
+  let apiKey = PLATFORM_API_KEY;
+  if (!apiKey) return send(res, 500, { success: false, error: "Pagamentos não configurados no servidor.", code: "PLATFORM_NOT_CONFIGURED" });
   let storeId = null;
-  if (kind === "plan") {
-    apiKey = PLATFORM_API_KEY;
-    if (!apiKey) return send(res, 500, { success: false, error: "Pagamentos de plano não configurados.", code: "PLATFORM_NOT_CONFIGURED" });
-  } else {
+  if (kind !== "plan") {
     storeId = String(body.storeId || "");
     if (!storeId) return send(res, 400, { success: false, error: "Loja não identificada.", code: "MISSING_STORE" });
-    const { data: cfg } = await db.from("store_payments").select("online_enabled, momenu_api_key").eq("store_id", storeId).maybeSingle();
-    if (!cfg || !cfg.online_enabled || !cfg.momenu_api_key) {
+    const { data: cfg } = await db.from("store_payments").select("online_enabled").eq("store_id", storeId).maybeSingle();
+    if (!cfg || !cfg.online_enabled) {
       return send(res, 400, { success: false, error: "Pagamentos online não ativados nesta loja.", code: "PAYMENTS_NOT_ENABLED" });
     }
-    apiKey = cfg.momenu_api_key;
   }
 
   // Construir o payload da API.

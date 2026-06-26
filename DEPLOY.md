@@ -101,11 +101,12 @@ Aplicar `supabase/migrations/0008_payments.sql` no SQL Editor.
 
 ### Por comerciante (no painel MôBisno → Pagamentos)
 
-1. Ativar "Pagamentos online" e colar a **chave de API MoMenu** do comerciante.
-2. Vincular a **conta bancária** (Banco, Beneficiário, IBAN). É obrigatória uma
-   conta **verificada na MoMenu** para receber (senão a API recusa com
-   `BANK_ACCOUNT_NOT_VERIFIED`). Com `instantWithdraw` (sempre ativo), o valor
-   menos 2% é transferido automaticamente para essa conta a cada venda.
+1. Ativar "Pagamentos online" (não é preciso chave — a plataforma usa a sua
+   `MOMENU_PLATFORM_API_KEY` única do Vercel).
+2. Vincular a **conta bancária** (Banco, Beneficiário, IBAN) onde o comerciante
+   recebe. É obrigatória uma conta **verificada na MoMenu** para receber (senão a
+   API recusa com `BANK_ACCOUNT_NOT_VERIFIED`). Com `instantWithdraw` (sempre
+   ativo), o valor menos 2% é transferido automaticamente para essa conta.
 
 ### Webhook (Referência Bancária)
 

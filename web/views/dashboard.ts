@@ -238,10 +238,20 @@ export async function renderDashboard(): Promise<void> {
       <div class="bg-white border border-gray-200 rounded-2xl p-6">
         <div class="flex items-center gap-3 mb-4">
           <div class="w-10 h-10 rounded-full flex items-center justify-center bg-green-100 text-green-600"><span class="material-symbols-outlined">chat</span></div>
-          <div><h3 class="font-black text-gray-900">WhatsApp</h3><p class="text-sm text-gray-500">Disponível em todos os planos. Os clientes finalizam a encomenda por mensagem.</p></div>
+          <div><h3 class="font-black text-gray-900">WhatsApp</h3><p class="text-sm text-gray-500">Disponível em todos os planos.</p></div>
         </div>
         ${field("wa-phone", "Número de WhatsApp", waPhone, "+244 9XX XXX XXX")}
-        <button id="save-wa" class="mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar WhatsApp</button>
+        <button id="save-wa" class="mt-4 w-full text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>
+      </div>`;
+
+    const infoCard = `
+      <div class="rounded-2xl p-6" style="background:${ACCENT_TINT}">
+        <h3 class="font-black flex items-center gap-1.5" style="color:${ACCENT}"><span class="material-symbols-outlined text-[20px]">bolt</span> Como recebe</h3>
+        <ul class="mt-3 space-y-2.5 text-sm text-gray-700">
+          <li class="flex gap-2"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> O cliente paga por Multicaixa Express, Referência ou WhatsApp.</li>
+          <li class="flex gap-2"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> O valor (menos a taxa de 2%) é transferido automaticamente para a sua conta bancária a cada venda.</li>
+          <li class="flex gap-2"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> A fatura é gerada automaticamente.</li>
+        </ul>
       </div>`;
 
     const onlineCard = online ? `
@@ -251,30 +261,24 @@ export async function renderDashboard(): Promise<void> {
             <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">credit_card</span></div>
             <div><h3 class="font-black text-gray-900">Pagamentos online</h3><p class="text-sm text-gray-500">Multicaixa Express e Referência Bancária.</p></div>
           </div>
-          <label class="inline-flex items-center cursor-pointer select-none">
+          <label class="inline-flex items-center cursor-pointer select-none shrink-0">
             <input id="online-toggle" type="checkbox" ${cfg.onlineEnabled ? "checked" : ""} class="peer sr-only" />
             <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] relative transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
           </label>
         </div>
-        <div class="mt-5 space-y-4">
-          ${field("momenu-key", "Chave de API MoMenu", cfg.momenuApiKey, "cole aqui a sua chave (x-api-key)", "password")}
-          <div class="rounded-xl px-4 py-3 text-sm flex items-start gap-2" style="background:${ACCENT_TINT};color:${ACCENT}">
-            <span class="material-symbols-outlined text-[18px]">info</span>
-            <span>Para receber, precisa de uma <b>conta bancária verificada</b> na MoMenu. O valor (menos a taxa de 2%) é transferido automaticamente para a sua conta a cada venda (levantamento instantâneo).</span>
+        <div class="mt-6">
+          <h4 class="text-sm font-black text-gray-900 mb-1 flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]">account_balance</span> Conta bancária (Angola)</h4>
+          <p class="text-xs text-gray-500 mb-4">Onde recebe o valor das vendas. Tem de estar verificada na MoMenu.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            ${field("bank-name", "Nome do banco", cfg.bankName, "ex.: BAI, BFA, BIC")}
+            ${field("bank-benef", "Nome do beneficiário", cfg.beneficiaryName, "titular da conta")}
           </div>
-          <div class="pt-2 border-t border-gray-100">
-            <h4 class="text-sm font-black text-gray-900 mb-3 flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]">account_balance</span> Conta bancária (Angola)</h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              ${field("bank-name", "Nome do banco", cfg.bankName, "ex.: BAI, BFA, BIC")}
-              ${field("bank-benef", "Nome do beneficiário", cfg.beneficiaryName, "titular da conta")}
-            </div>
-            <div class="mt-4">${field("bank-iban", "IBAN", cfg.iban, "AO06 0000 0000 0000 0000 0000 0")}</div>
-          </div>
+          <div class="mt-4">${field("bank-iban", "IBAN", cfg.iban, "AO06 0000 0000 0000 0000 0000 0")}</div>
         </div>
-        <button id="save-online" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar pagamentos online</button>
+        <button id="save-online" class="mt-6 w-full sm:w-auto text-white px-6 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar pagamentos online</button>
       </div>`
       : `
-      <div class="bg-white border border-gray-200 rounded-2xl p-6 text-center">
+      <div class="bg-white border border-gray-200 rounded-2xl p-10 text-center">
         <span class="material-symbols-outlined" style="font-size:42px;color:${ACCENT}">lock</span>
         <h3 class="font-black text-gray-900 mt-2">Pagamentos online</h3>
         <p class="text-sm text-gray-500 max-w-md mx-auto mt-1">Multicaixa Express e Referência Bancária estão disponíveis a partir do plano <b>Profissional</b>. Faça upgrade para os ativar.</p>
@@ -282,14 +286,16 @@ export async function renderDashboard(): Promise<void> {
       </div>`;
 
     const statusBanner = online && cfg.onlineEnabled
-      ? `<div class="rounded-2xl px-5 py-4 flex items-center gap-3 text-sm font-semibold" style="background:#ecfdf5;color:#047857"><span class="material-symbols-outlined">check_circle</span> Pagamentos online ativos. Os clientes podem pagar por Multicaixa Express e Referência no checkout.</div>`
+      ? `<div class="rounded-2xl px-5 py-4 flex items-center gap-3 text-sm font-semibold mb-6" style="background:#ecfdf5;color:#047857"><span class="material-symbols-outlined">check_circle</span> Pagamentos online ativos. Os clientes podem pagar por Multicaixa Express e Referência no checkout.</div>`
       : "";
 
     render(shell(`
-      <section class="max-w-2xl space-y-6">
+      <section>
         ${statusBanner}
-        ${onlineCard}
-        ${whatsappCard}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div class="lg:col-span-2 space-y-6">${onlineCard}</div>
+          <div class="space-y-6">${online ? infoCard : ""}${whatsappCard}</div>
+        </div>
       </section>`));
     bindShell();
 
@@ -304,13 +310,11 @@ export async function renderDashboard(): Promise<void> {
       const enabled = ($("#online-toggle") as HTMLInputElement)?.checked ?? false;
       const next: PaymentConfig = {
         onlineEnabled: enabled,
-        momenuApiKey: ($("#momenu-key") as HTMLInputElement)?.value.trim() ?? "",
         bankName: ($("#bank-name") as HTMLInputElement)?.value.trim() ?? "",
         beneficiaryName: ($("#bank-benef") as HTMLInputElement)?.value.trim() ?? "",
         iban: ($("#bank-iban") as HTMLInputElement)?.value.trim() ?? "",
       };
-      if (enabled && !next.momenuApiKey) { toast("Cole a chave de API MoMenu para ativar.", "error"); return; }
-      if (enabled && !next.iban) { toast("Indique o IBAN da conta bancária.", "error"); return; }
+      if (enabled && !next.iban) { toast("Indique o IBAN da conta bancária para ativar.", "error"); return; }
       const okSave = await withBusy(() => savePaymentConfig(store!.id, next), "A guardar…");
       // Espelha o flag público (não sensível) na customização, para o storefront.
       const mirrored = { ...custom, payments: { ...(custom.payments ?? {}), onlineEnabled: enabled } };

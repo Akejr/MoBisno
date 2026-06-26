@@ -12,7 +12,6 @@ import { supabase } from "./client.js";
 
 export interface PaymentConfig {
   onlineEnabled: boolean;
-  momenuApiKey: string;
   bankName: string;
   beneficiaryName: string;
   iban: string;
@@ -20,7 +19,6 @@ export interface PaymentConfig {
 
 export const EMPTY_PAYMENT_CONFIG: PaymentConfig = {
   onlineEnabled: false,
-  momenuApiKey: "",
   bankName: "",
   beneficiaryName: "",
   iban: "",
@@ -53,13 +51,12 @@ export interface OrderStats {
 export async function getPaymentConfig(storeId: string): Promise<PaymentConfig> {
   const { data } = await supabase
     .from("store_payments")
-    .select("online_enabled, momenu_api_key, bank_name, beneficiary_name, iban")
+    .select("online_enabled, bank_name, beneficiary_name, iban")
     .eq("store_id", storeId)
     .maybeSingle();
   if (!data) return { ...EMPTY_PAYMENT_CONFIG };
   return {
     onlineEnabled: !!data.online_enabled,
-    momenuApiKey: data.momenu_api_key ?? "",
     bankName: data.bank_name ?? "",
     beneficiaryName: data.beneficiary_name ?? "",
     iban: data.iban ?? "",
@@ -71,7 +68,6 @@ export async function savePaymentConfig(storeId: string, cfg: PaymentConfig): Pr
   const row = {
     store_id: storeId,
     online_enabled: cfg.onlineEnabled,
-    momenu_api_key: cfg.momenuApiKey.trim() || null,
     bank_name: cfg.bankName.trim() || null,
     beneficiary_name: cfg.beneficiaryName.trim() || null,
     iban: cfg.iban.trim() || null,

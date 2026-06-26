@@ -22,15 +22,10 @@ export default async function handler(req, res) {
   const ownerId = q.ownerId ? String(q.ownerId) : "";
   if (!operationId) return send(res, 400, { success: false, error: "operationId em falta.", code: "MISSING_OPERATION" });
 
-  // Resolver a chave de API.
-  let apiKey = "";
-  if (ownerId) {
-    apiKey = PLATFORM_API_KEY;
-  } else if (storeId) {
-    const { data: cfg } = await db.from("store_payments").select("momenu_api_key").eq("store_id", storeId).maybeSingle();
-    apiKey = cfg?.momenu_api_key || "";
-  }
-  if (!apiKey) return send(res, 400, { success: false, error: "Loja não identificada.", code: "MISSING_STORE" });
+  // Há uma única chave (da plataforma) no servidor, usada para loja e plano.
+  const apiKey = PLATFORM_API_KEY;
+  if (!apiKey) return send(res, 500, { success: false, error: "Pagamentos não configurados no servidor.", code: "PLATFORM_NOT_CONFIGURED" });
+  if (!storeId && !ownerId) return send(res, 400, { success: false, error: "Loja não identificada.", code: "MISSING_STORE" });
 
   const path = `/api/payment/reference/status/${encodeURIComponent(operationId)}${mtx ? `?merchantTransactionId=${encodeURIComponent(mtx)}` : ""}`;
   let resp;
