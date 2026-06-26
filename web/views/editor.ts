@@ -86,6 +86,7 @@ export async function renderEditor(): Promise<void> {
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---
   const history: string[] = [];
   let currentScreen: "home" | "product" = "home";
+  let currentViewport: "desktop" | "mobile" = "desktop";
   let lastView: StoreViewModel | null = null;
   let arcTarget: number | "add" = "add";
   let blockImgTarget = 0;
@@ -119,6 +120,12 @@ export async function renderEditor(): Promise<void> {
   render(`
   <div class="min-h-screen flex flex-col bg-gray-100 font-sans text-gray-900">
     <header class="sticky top-0 z-[60] bg-white/95 backdrop-blur border-b border-gray-200">
+      <div class="flex justify-center px-4 py-2" style="background:#3b2417">
+        <div class="inline-flex rounded-full p-1 gap-1 text-sm" style="background:rgba(255,255,255,.14)">
+          <button data-viewport="desktop" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">computer</span> Computador</button>
+          <button data-viewport="mobile" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">smartphone</span> Telemóvel</button>
+        </div>
+      </div>
       <div class="flex justify-center px-4 pt-2 pb-1.5 border-b border-gray-100">
         <div class="inline-flex bg-gray-100 rounded-full p-1 gap-1 text-sm">
           <button data-screen="home" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">home</span> Início</button>
@@ -754,6 +761,7 @@ export async function renderEditor(): Promise<void> {
     if (view.kind !== "render") { preview.innerHTML = ""; return; }
     const template = getTemplate(store!.templateId);
 
+    let html: string;
     if (currentScreen === "product") {
       const sample = view.products[0] ?? null;
       if (!sample) {
@@ -763,15 +771,74 @@ export async function renderEditor(): Promise<void> {
         </div>`;
         return;
       }
-      preview.innerHTML = template.renderProduct
+      html = template.renderProduct
         ? template.renderProduct(view, sample, custom)
         : template.render(view, custom);
     } else {
-      preview.innerHTML = template.render(view, custom);
+      html = template.render(view, custom);
     }
+
+    // Modo "Telemóvel": pré-visualização fiel num iframe com largura de telefone
+    // (os breakpoints do Tailwind respondem ao viewport interno). Edição apenas
+    // no modo "Computador".
+    if (currentViewport === "mobile") {
+      preview.innerHTML = `<div class="flex flex-col items-center gap-3 py-8 px-4 min-h-full" style="background:#ece8e3">
+        <p class="text-xs font-medium text-neutral-500 flex items-center gap-1"><span class="material-symbols-outlined text-[15px]">visibility</span> Pré-visualização — para editar volte a <b style="color:#3b2417">Computador</b></p>
+        <div style="position:relative;width:390px;max-width:100%;height:800px;background:#0c0c0c;border-radius:46px;padding:13px;box-shadow:0 30px 70px -20px rgba(0,0,0,.55)">
+          <div style="position:absolute;top:15px;left:50%;transform:translateX(-50%);width:130px;height:24px;background:#0c0c0c;border-radius:0 0 18px 18px;z-index:2"></div>
+          <iframe class="mb-phone-frame" style="width:100%;height:100%;border:0;border-radius:33px;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
+        </div>
+      </div>`;
+      const iframe = preview.querySelector<HTMLIFrameElement>("iframe.mb-phone-frame");
+      if (iframe) iframe.srcdoc = buildIframeDoc(html);
+      return;
+    }
+
+    preview.innerHTML = html;
     bind(preview);
     fadeInImages(preview);
     mountParticlesHeroes(preview);
+  }
+
+  /** Documento completo (Tailwind + fontes + marca) para o iframe de pré-visualização mobile. */
+  function buildIframeDoc(innerHtml: string): string {
+    const brand = custom.colors?.primary ?? defaultColor;
+    const ink = custom.colors?.text?.trim();
+    const tvars: Record<string, { radius: string; head: string }> = {
+      moderno: { radius: "1rem", head: "Inter, sans-serif" },
+      classico: { radius: "0.35rem", head: "'Noto Serif', serif" },
+      minimal: { radius: "0px", head: "Inter, sans-serif" },
+    };
+    const themeStyle = custom.theme?.style;
+    const tv = themeStyle ? tvars[themeStyle] : null;
+    const bodyAttrs = `${ink ? "data-ink" : ""} ${tv ? `data-theme="${esc(themeStyle!)}"` : ""}`.trim();
+    const bodyStyle = [
+      `--brand:${brand}`,
+      ink ? `--ink:${ink}` : "",
+      tv ? `--mb-radius:${tv.radius}` : "",
+      tv ? `--mb-head-font:${tv.head}` : "",
+    ].filter(Boolean).join(";");
+    const inkCss =
+      "[data-ink] :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,figcaption,label){color:var(--ink)}" +
+      "[data-ink] .material-symbols-outlined{color:var(--ink)}" +
+      "[data-ink] .mb-dark,[data-ink] .mb-dark :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,span,figcaption,label),[data-ink] .mb-dark .material-symbols-outlined{color:inherit}";
+    const themeCss =
+      "[data-theme] :is(.rounded-xl,.rounded-2xl,.rounded-3xl){border-radius:var(--mb-radius)}" +
+      "[data-theme] :is(h1,h2,h3,h4){font-family:var(--mb-head-font)}";
+    return `<!DOCTYPE html><html lang="pt-AO"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+.material-symbols-outlined{font-variation-settings:"FILL" 0,"wght" 400,"GRAD" 0,"opsz" 24;vertical-align:middle}
+body{font-family:Inter,sans-serif;margin:0}
+${inkCss}
+${themeCss}
+</style>
+</head><body ${bodyAttrs} style="${bodyStyle}">${innerHtml}</body></html>`;
   }
 
   function updateScreenTabs(): void {
@@ -782,9 +849,29 @@ export async function renderEditor(): Promise<void> {
     });
   }
 
+  function updateViewportTabs(): void {
+    document.querySelectorAll<HTMLElement>("[data-viewport]").forEach((b) => {
+      const active = b.dataset.viewport === currentViewport;
+      b.className = "px-4 py-1.5 rounded-full transition-colors flex items-center gap-1 " + (active ? "font-bold" : "");
+      b.style.background = active ? "#fff" : "transparent";
+      b.style.color = active ? "#3b2417" : "rgba(255,255,255,.85)";
+    });
+  }
+
   await rebuild();
   updateScreenTabs();
+  updateViewportTabs();
   mountAiAgent($("#preview")?.parentElement);
+
+  // Seletor de visualização (Computador / Telemóvel).
+  document.querySelectorAll<HTMLElement>("[data-viewport]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const next = b.dataset.viewport === "mobile" ? "mobile" : "desktop";
+      if (next === currentViewport) return;
+      currentViewport = next;
+      updateViewportTabs();
+      await rebuild();
+    }));
 
   // Seletor de telas (Início / Página de produto).
   document.querySelectorAll<HTMLElement>("[data-screen]").forEach((b) =>
@@ -1197,6 +1284,7 @@ export async function renderEditor(): Promise<void> {
 
   async function startTutorial(): Promise<void> {
     document.getElementById("mb-tour")?.remove();
+    if (currentViewport !== "desktop") { currentViewport = "desktop"; updateViewportTabs(); await rebuild(); }
     let idx = 0;
     const layer = document.createElement("div");
     layer.id = "mb-tour";
