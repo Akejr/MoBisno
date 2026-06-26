@@ -83,10 +83,10 @@ export interface StoreCustomization {
 
 /** Bloco de conteúdo de uma loja (secção adicional editável). */
 export type ContentBlock =
-  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right" }
-  | { type: "text"; title?: string; text?: string }
+  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao" }
+  | { type: "text"; title?: string; text?: string; variant?: "centrado" | "destaque" | "linha" }
   | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee" | "destaque"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
-  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number };
+  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "escuro" };
 
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */

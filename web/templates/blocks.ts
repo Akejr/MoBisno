@@ -39,16 +39,64 @@ export interface BlockCtx {
   variant?: "default" | "galeria";
 }
 
+export const INFO_VARIANTS: { id: "lado" | "sobreposto" | "cartao"; label: string }[] = [
+  { id: "lado", label: "Lado a lado" },
+  { id: "sobreposto", label: "Imagem de fundo" },
+  { id: "cartao", label: "Cartão central" },
+];
+
 function infoBlock(b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: BlockCtx): string {
+  return infoByVariant(b.variant ?? "lado", b, i, ctx);
+}
+
+/** Renderiza o bloco "informação" numa variante específica. */
+export function infoByVariant(variant: "lado" | "sobreposto" | "cartao", b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: BlockCtx): string {
+  const imgUrl = esc(b.imageUrl || DEFAULT_INFO_IMG);
+  const fallback = "this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'";
+  const title = esc(b.title ?? "");
+  const text = esc(b.text ?? "");
+
+  if (variant === "sobreposto") {
+    return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="sobreposto" class="relative py-12 md:py-16">
+      <div class="${ctx.container}">
+        <div data-edit-block-image="${i}" class="relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end">
+          <img src="${imgUrl}" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="${fallback}" />
+          <div class="absolute inset-0" style="background:linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.15) 60%, transparent)"></div>
+          <div class="relative p-8 md:p-12 max-w-xl">
+            <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-white">${title}</h2>
+            <p data-edit="blocks.${i}.text" class="mt-4 text-white/85 text-lg leading-relaxed">${text}</p>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  if (variant === "cartao") {
+    return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="cartao" class="relative py-12 md:py-16">
+      <div class="${ctx.container}">
+        <div class="max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          <div data-edit-block-image="${i}" class="relative aspect-[16/9] bg-gray-100">
+            <img src="${imgUrl}" alt="" class="w-full h-full object-cover" onerror="${fallback}" />
+          </div>
+          <div class="p-8 md:p-10 text-center">
+            <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+            <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${text}</p>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  // "lado" (omissão): foto ao lado do texto.
   const img = `<div data-edit-block-image="${i}" class="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
-    <img src="${esc(b.imageUrl || DEFAULT_INFO_IMG)}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'" />
+    <img src="${imgUrl}" alt="" class="w-full h-full object-cover" onerror="${fallback}" />
   </div>`;
   const txt = `<div>
-    <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-    <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${esc(b.text ?? "")}</p>
+    <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+    <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${text}</p>
   </div>`;
   const left = b.imageSide !== "right";
-  return `<section data-edit-block="${i}" data-block-type="info" class="relative py-12 md:py-16">
+  return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="lado" class="relative py-12 md:py-16">
     <div class="${ctx.container}">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
         ${left ? img + txt : txt + img}
@@ -57,12 +105,56 @@ function infoBlock(b: Extract<ContentBlock, { type: "info" }>, i: number, ctx: B
   </section>`;
 }
 
+export const TEXT_VARIANTS: { id: "centrado" | "destaque" | "linha"; label: string }[] = [
+  { id: "centrado", label: "Centrado" },
+  { id: "destaque", label: "Destaque" },
+  { id: "linha", label: "Com linhas" },
+];
+
 function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: BlockCtx): string {
-  return `<section data-edit-block="${i}" data-block-type="text" class="relative py-12 md:py-16">
+  return textByVariant(b.variant ?? "centrado", b, i, ctx);
+}
+
+/** Renderiza o bloco "título e texto" numa variante específica. */
+export function textByVariant(variant: "centrado" | "destaque" | "linha", b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: BlockCtx): string {
+  const title = esc(b.title ?? "");
+  const text = esc(b.text ?? "");
+
+  if (variant === "destaque") {
+    return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="destaque" class="relative py-14 md:py-20">
+      <div class="${ctx.container}">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-10 items-start">
+          <div class="md:col-span-5 flex items-start gap-4">
+            <span class="mt-2 inline-block w-1.5 h-12 rounded-full shrink-0" style="background:${ctx.brand}"></span>
+            <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 leading-[1.05]">${title}</h2>
+          </div>
+          <p data-edit="blocks.${i}.text" class="md:col-span-7 text-gray-500 text-lg md:text-xl leading-relaxed whitespace-pre-line">${text}</p>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  if (variant === "linha") {
+    return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="linha" class="relative py-14 md:py-20">
+      <div class="${ctx.container}">
+        <div class="max-w-3xl mx-auto text-center">
+          <div class="flex items-center justify-center gap-4">
+            <span class="h-px flex-1 max-w-[80px]" style="background:linear-gradient(90deg,transparent,#d1d5db)"></span>
+            <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${title}</h2>
+            <span class="h-px flex-1 max-w-[80px]" style="background:linear-gradient(90deg,#d1d5db,transparent)"></span>
+          </div>
+          <p data-edit="blocks.${i}.text" class="mt-5 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${text}</p>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  // "centrado" (omissão).
+  return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="centrado" class="relative py-12 md:py-16">
     <div class="${ctx.container}">
       <div class="max-w-3xl mx-auto text-center">
-        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-        <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${esc(b.text ?? "")}</p>
+        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${title}</h2>
+        <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${text}</p>
       </div>
     </div>
   </section>`;
@@ -135,7 +227,18 @@ function testimonialsCards(b: Extract<ContentBlock, { type: "testimonials" }>, i
   </section>`;
 }
 
+export const LOCATION_VARIANTS: { id: "classico" | "cartao" | "escuro"; label: string }[] = [
+  { id: "classico", label: "Clássico" },
+  { id: "cartao", label: "Com cartão" },
+  { id: "escuro", label: "Escuro" },
+];
+
 function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
+  return locationByVariant(b.variant ?? "classico", b, i, ctx);
+}
+
+/** Renderiza o bloco "localização" numa variante específica. */
+export function locationByVariant(variant: "classico" | "cartao" | "escuro", b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
   const address = (b.address ?? "").trim() || "Luanda, Angola";
   let src: string;
   if (typeof b.lat === "number" && typeof b.lng === "number") {
@@ -145,17 +248,51 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
   } else {
     src = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
   }
-  return `<section data-edit-block="${i}" data-block-type="location" class="relative py-12 md:py-16">
+  const title = esc(b.title ?? "");
+  const addrLine = `<span data-edit-loc-address data-edit="blocks.${i}.address">${esc(address)}</span>`;
+  const iframe = (extra: string): string =>
+    `<iframe title="Mapa" class="w-full border-0" style="${extra}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(src)}"></iframe>`;
+
+  if (variant === "cartao") {
+    return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="cartao" class="relative py-12 md:py-16">
+      <div class="${ctx.container}">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
+          <div class="md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white">
+            <span class="material-symbols-outlined" style="font-size:32px;color:${ctx.brand}">location_on</span>
+            <h2 data-edit="blocks.${i}.title" class="mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+            <p class="mt-3 text-gray-500 leading-relaxed">${addrLine}</p>
+          </div>
+          <div class="md:col-span-2 min-h-[300px]">${iframe("height:100%;min-height:300px")}</div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  if (variant === "escuro") {
+    return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="escuro" class="relative py-12 md:py-16">
+      <div class="${ctx.container}">
+        <div class="relative rounded-3xl overflow-hidden border border-neutral-800 shadow-lg" style="background:#0b0f19">
+          <div class="text-center pt-8 px-6">
+            <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-white">${title}</h2>
+            <p class="mt-2 text-neutral-300 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${addrLine}</p>
+          </div>
+          <div class="mt-6" style="filter:invert(0.92) hue-rotate(180deg) saturate(.8) contrast(.9)">${iframe("height:360px")}</div>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  // "classico" (omissão).
+  return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="classico" class="relative py-12 md:py-16">
     <div class="${ctx.container}">
       <div class="text-center max-w-2xl mx-auto mb-8">
-        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${esc(b.title ?? "")}</h2>
-        <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> <span data-edit-loc-address data-edit="blocks.${i}.address">${esc(address)}</span></p>
+        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+        <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${addrLine}</p>
       </div>
-      <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-        <iframe title="Mapa" class="w-full h-[320px] md:h-[400px] border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(src)}"></iframe>
-      </div>
+      <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">${iframe("height:400px")}</div>
     </div>
   </section>`;
+}
 }
 
 /** Variante de testemunhos para o modelo Galeria (editorial, minimalista). */

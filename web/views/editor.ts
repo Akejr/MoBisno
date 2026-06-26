@@ -16,7 +16,12 @@ import type { StorefrontResult } from "../../src/services/storefrontResolver.js"
 import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
 import { newBlock } from "../templates/blocks.js";
-import { testimonialsByVariant, TESTIMONIAL_VARIANTS } from "../templates/blocks.js";
+import {
+  testimonialsByVariant, TESTIMONIAL_VARIANTS,
+  infoByVariant, INFO_VARIANTS,
+  textByVariant, TEXT_VARIANTS,
+  locationByVariant, LOCATION_VARIANTS,
+} from "../templates/blocks.js";
 import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
@@ -691,16 +696,19 @@ export async function renderEditor(): Promise<void> {
         sec.parentElement?.insertBefore(mkDiv("Secção de produtos"), sec);
       });
 
-      // Blocos de conteúdo — nome + (testemunhos) botão de modelo.
+      // Blocos de conteúdo — nome + botão de modelo (todos os blocos têm variantes).
       preview.querySelectorAll<HTMLElement>("[data-edit-block]").forEach((blk) => {
         const type = blk.dataset.blockType ?? "";
         const i = Number(blk.dataset.editBlock);
         blk.parentElement?.insertBefore(mkDiv(blockLabel[type] ?? "Secção"), blk);
-        if (type === "testimonials") {
-          const labels: Record<string, string> = { cards: "Cartões", editorial: "Editorial", marquee: "Carrossel", destaque: "Destaque" };
-          const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
-          const cur = (custom.blocks?.[i] as { variant?: string } | undefined)?.variant ?? defVariant;
-          blk.parentElement?.insertBefore(mkBar({ label: `Modelo: ${labels[cur] ?? "Cartões"}`, icon: "style", onClick: (anchor) => openTestimonialsPicker(anchor, i) }), blk);
+        const lists: Record<string, { id: string; label: string }[]> = {
+          info: INFO_VARIANTS, text: TEXT_VARIANTS, location: LOCATION_VARIANTS, testimonials: TESTIMONIAL_VARIANTS,
+        };
+        const list = lists[type];
+        if (list) {
+          const cur = (custom.blocks?.[i] as { variant?: string } | undefined)?.variant ?? blockDefVariant(type);
+          const label = list.find((v) => v.id === cur)?.label ?? list[0]!.label;
+          blk.parentElement?.insertBefore(mkBar({ label: `Modelo: ${label}`, icon: "style", onClick: (anchor) => openBlockPicker(anchor, i) }), blk);
         }
       });
     }
@@ -881,29 +889,42 @@ export async function renderEditor(): Promise<void> {
     return `<div class="w-full max-w-[1180px] mx-auto px-8 py-6"><div class="${gridColsClass(v)}">${cards}</div></div>`;
   }
 
-  function openTestimonialsPicker(anchor: HTMLElement, i: number): void {
-    const b = custom.blocks?.[i] as { variant?: "cards" | "editorial" | "marquee" | "destaque"; title?: string; items?: unknown[] } | undefined;
-    if (!b) return;
-    const defVariant = store!.templateId === "galeria" ? "editorial" : "cards";
+  function blockDefVariant(type: string): string {
+    if (type === "info") return "lado";
+    if (type === "text") return "centrado";
+    if (type === "location") return "classico";
+    return store!.templateId === "galeria" ? "editorial" : "cards"; // testimonials
+  }
+
+  function openBlockPicker(anchor: HTMLElement, i: number): void {
+    const blk = custom.blocks?.[i] as { type: string; variant?: string } | undefined;
+    if (!blk) return;
+    const lists: Record<string, { id: string; label: string }[]> = {
+      info: INFO_VARIANTS, text: TEXT_VARIANTS, location: LOCATION_VARIANTS, testimonials: TESTIMONIAL_VARIANTS,
+    };
+    const list = lists[blk.type];
+    if (!list) return;
+    const renderPreview = (id: string): string => {
+      const b = (custom.blocks?.[i] ?? { type: blk.type }) as ContentBlock;
+      if (blk.type === "info") return infoByVariant(id as "lado" | "sobreposto" | "cartao", b as Extract<ContentBlock, { type: "info" }>, i, PREV_CTX);
+      if (blk.type === "text") return textByVariant(id as "centrado" | "destaque" | "linha", b as Extract<ContentBlock, { type: "text" }>, i, PREV_CTX);
+      if (blk.type === "location") return locationByVariant(id as "classico" | "cartao" | "escuro", b as Extract<ContentBlock, { type: "location" }>, i, PREV_CTX);
+      return testimonialsByVariant(id as "cards" | "editorial" | "marquee" | "destaque", b as Extract<ContentBlock, { type: "testimonials" }>, i, PREV_CTX);
+    };
     openVariantPicker(
       anchor,
-      "Modelo de testemunhos",
-      TESTIMONIAL_VARIANTS.map((v) => ({ id: v.id, label: v.label })),
-      b.variant ?? defVariant,
+      "Modelo da secção",
+      list.map((v) => ({ id: v.id, label: v.label })),
+      blk.variant ?? blockDefVariant(blk.type),
       (id) => {
         const bb = custom.blocks?.[i] as { variant?: string } | undefined;
         if (!bb) return;
         snapshot();
         bb.variant = id;
         void rebuild();
-        toast("Modelo de testemunhos atualizado.");
+        toast("Modelo atualizado.");
       },
-      (id) => testimonialsByVariant(
-        id as "cards" | "editorial" | "marquee" | "destaque",
-        (custom.blocks?.[i] ?? { type: "testimonials" }) as Extract<ContentBlock, { type: "testimonials" }>,
-        i,
-        PREV_CTX,
-      ),
+      renderPreview,
     );
   }
 
