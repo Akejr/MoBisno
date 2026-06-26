@@ -1246,15 +1246,13 @@ export async function renderEditor(): Promise<void> {
       const el = (step.sel ? document.querySelector(step.sel) : null) as HTMLElement | null;
       if (!el) { position(null); return; }
 
-      // Faz scroll no contentor de pré-visualização para centrar o elemento.
-      const preview = document.getElementById("preview");
-      if (preview) {
-        const pr = preview.getBoundingClientRect();
-        const er = el.getBoundingClientRect();
-        const target = preview.scrollTop + (er.top - pr.top) - (pr.height / 2 - er.height / 2);
-        preview.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
-      } else {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Se o alvo estiver fora da área visível, faz scroll até ao centro (em
+      // qualquer contentor com scroll) e espera o movimento suave assentar.
+      const r = el.getBoundingClientRect();
+      const offscreen = r.top < 70 || r.bottom > window.innerHeight - 20 || r.left < 0 || r.right > window.innerWidth;
+      if (offscreen) {
+        el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        await new Promise((res) => setTimeout(res, 420));
       }
       position(el);
       track(el);
