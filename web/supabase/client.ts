@@ -14,5 +14,12 @@ if (!url || !anonKey) {
 export const STORAGE_BUCKET = "store-assets";
 
 export const supabase: SupabaseClient = createClient(url, anonKey, {
-  auth: { persistSession: true, autoRefreshToken: true },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    storageKey: "mobisno-auth",
+    flowType: "pkce",
+  },
 });

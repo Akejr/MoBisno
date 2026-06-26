@@ -2,15 +2,19 @@
 import { esc, formatKz } from "./dom.js";
 import { loadStorefront } from "./storeCache.js";
 import { brandOf } from "./brand.js";
-import { currentStoreIdentifier } from "./routing.js";
+import { currentStoreIdentifier, storeSubdomain } from "./routing.js";
+import { appState } from "../composition.js";
 import { productSlugPath } from "./slug.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
 let mounted = false;
 
-/** Identificador da loja ativa (subdomínio em produção ou `/loja/<id>`). */
+/** Identificador da loja ativa (subdomínio, `/loja/<id>` ou estado da app). */
 function currentIdentifier(): string | null {
-  return currentStoreIdentifier();
+  return currentStoreIdentifier()
+    ?? storeSubdomain()
+    ?? appState.storeIdentifier
+    ?? null;
 }
 
 function normalize(s: string): string {
@@ -85,8 +89,9 @@ export function mountSearchUI(): void {
     const btn = (e.target as HTMLElement).closest("[data-search-btn]");
     if (!btn) return;
     e.preventDefault();
+    e.stopPropagation();
     if (location.pathname.startsWith("/personalizar")) return; // no editor, só preview
     const identifier = currentIdentifier();
     if (identifier) void openSearch(identifier);
-  });
+  }, true);
 }

@@ -68,8 +68,10 @@ export interface AdminOverview {
 
 /** O utilizador autenticado é administrador? */
 export async function isCurrentUserAdmin(): Promise<boolean> {
-  const { data } = await supabase.auth.getUser();
-  const id = data.user?.id;
+  // getSession() espera pela hidratação a partir do armazenamento local,
+  // evitando falsos negativos logo após um refresh da página.
+  const { data: sess } = await supabase.auth.getSession();
+  const id = sess.session?.user?.id;
   if (!id) return false;
   const { data: row } = await supabase.from("profiles").select("is_admin").eq("id", id).maybeSingle();
   return row?.is_admin === true;
