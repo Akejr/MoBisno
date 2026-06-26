@@ -195,6 +195,73 @@ export async function listAllWithdrawals(): Promise<AdminWithdrawal[]> {
   }));
 }
 
+/** Transação de um serviço da plataforma (plano ou pacote de SMS). */
+export interface AdminServiceTx {
+  id: string;
+  service: "plan" | "sms";
+  description: string;
+  ownerId: string;
+  ownerEmail: string;
+  ownerName: string;
+  storeName: string | null;
+  amount: number;
+  method: string;
+  status: "open" | "paid" | "failed" | "cancelled";
+  createdAt: string;
+  paidAt: string | null;
+}
+
+/** Lista as transações de serviços (planos + SMS), mais recentes primeiro. */
+export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
+  const [{ data: plans }, { data: sms }, { data: stores }, pm] = await Promise.all([
+    supabase.from("plan_payments").select("id, owner_id, plan, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
+    supabase.from("sms_purchases").select("id, owner_id, store_id, quantity, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
+    supabase.from("stores").select("id, name"),
+    profilesMap(),
+  ]);
+  const storeNames = new Map<string, string>();
+  (stores ?? []).forEach((s) => storeNames.set(s.id, s.name));
+
+  const planName = (id: string): string => {
+    const map: Record<string, string> = { basico: "Básico", profissional: "Profissional", empresarial: "Empresarial" };
+    return map[id] ?? id;
+  };
+
+  const planTx: AdminServiceTx[] = (plans ?? []).map((r) => ({
+    id: String(r.id),
+    service: "plan",
+    description: `Plano ${planName(String(r.plan))}`,
+    ownerId: r.owner_id,
+    ownerEmail: pm.get(r.owner_id)?.email ?? "",
+    ownerName: pm.get(r.owner_id)?.name ?? "",
+    storeName: null,
+    amount: Number(r.amount),
+    method: r.method,
+    status: (r.status as AdminServiceTx["status"]) ?? "open",
+    createdAt: r.created_at,
+    paidAt: r.paid_at ?? null,
+  }));
+
+  const smsTx: AdminServiceTx[] = (sms ?? []).map((r) => ({
+    id: String(r.id),
+    service: "sms",
+    description: `${r.quantity} SMS de confirmação`,
+    ownerId: r.owner_id,
+    ownerEmail: pm.get(r.owner_id)?.email ?? "",
+    ownerName: pm.get(r.owner_id)?.name ?? "",
+    storeName: storeNames.get(r.store_id) ?? null,
+    amount: Number(r.amount),
+    method: r.method,
+    status: (r.status as AdminServiceTx["status"]) ?? "open",
+    createdAt: r.created_at,
+    paidAt: r.paid_at ?? null,
+  }));
+
+  return [...planTx, ...smsTx].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
 export async function adminSetStoreState(storeId: string, state: "Publicada" | "Rascunho"): Promise<boolean> {
   const { error } = await supabase.from("stores").update({ state }).eq("id", storeId);
   if (error) console.error("adminSetStoreState", error);

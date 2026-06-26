@@ -9,7 +9,8 @@ import { appState, logout, publicStoreUrl } from "../composition.js";
 import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
   adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
-  type AdminStore, type AdminAccount, type AdminWithdrawal,
+  listServiceTransactions,
+  type AdminStore, type AdminAccount, type AdminWithdrawal, type AdminServiceTx,
 } from "../supabase/admin.js";
 import { getPlan, isPlanId, PLAN_ORDER, type PlanId } from "../../src/services/plans.js";
 
@@ -126,7 +127,7 @@ export async function renderAdminPanel(): Promise<void> {
   }
 
   const tab = tabOf();
-  const title = tab === "contas" ? "Contas" : tab === "lojas" ? "Lojas" : tab === "levantamentos" ? "Levantamentos" : "Visão geral";
+  const title = tab === "contas" ? "Contas" : tab === "lojas" ? "Lojas" : tab === "levantamentos" ? "Levantamentos" : tab === "transacoes" ? "Transações" : "Visão geral";
 
   function navItem(href: string, icon: string, label: string, active: boolean): string {
     const base = "rounded-xl px-4 py-3 mx-2 flex items-center gap-3 text-sm font-semibold transition-colors";
@@ -147,6 +148,7 @@ export async function renderAdminPanel(): Promise<void> {
           ${navItem("#/adminPainel", "monitoring", "Visão geral", tab === "overview")}
           ${navItem("#/adminPainel/contas", "group", "Contas", tab === "contas")}
           ${navItem("#/adminPainel/lojas", "storefront", "Lojas", tab === "lojas")}
+          ${navItem("#/adminPainel/transacoes", "receipt_long", "Transações", tab === "transacoes")}
           ${navItem("#/adminPainel/levantamentos", "account_balance_wallet", "Levantamentos", tab === "levantamentos")}
         </nav>
         <div class="mt-auto px-2 flex flex-col gap-1">
@@ -165,9 +167,9 @@ export async function renderAdminPanel(): Promise<void> {
           </div>
         </header>
         <nav class="md:hidden flex gap-1 overflow-x-auto px-3 py-2 bg-white border-b border-gray-100 sticky top-[57px] z-30">
-          ${["", "contas", "lojas", "levantamentos"].map((t) => {
+          ${["", "contas", "lojas", "transacoes", "levantamentos"].map((t) => {
             const active = (t === "" ? "overview" : t) === tab;
-            const label = t === "" ? "Visão geral" : t === "contas" ? "Contas" : t === "lojas" ? "Lojas" : "Levantamentos";
+            const label = t === "" ? "Visão geral" : t === "contas" ? "Contas" : t === "lojas" ? "Lojas" : t === "transacoes" ? "Transações" : "Levantamentos";
             return `<a href="#/adminPainel${t ? "/" + t : ""}" class="shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors" style="${active ? `background:${ACCENT_TINT};color:${ACCENT}` : "color:#6b7280"}">${label}</a>`;
           }).join("")}
         </nav>
@@ -189,6 +191,7 @@ export async function renderAdminPanel(): Promise<void> {
 
   if (tab === "contas") { await renderContas(); return; }
   if (tab === "lojas") { await renderLojas(); return; }
+  if (tab === "transacoes") { await renderTransacoes(); return; }
   if (tab === "levantamentos") { await renderLevantamentos(); return; }
   await renderOverview();
 
@@ -615,6 +618,103 @@ export async function renderAdminPanel(): Promise<void> {
         <button data-toggle-store="${esc(s.id)}" class="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"><span class="material-symbols-outlined text-[18px]">${s.state === "Publicada" ? "visibility_off" : "public"}</span> ${s.state === "Publicada" ? "Despublicar" : "Publicar"}</button>
         <button data-del-store="${esc(s.id)}" class="ml-auto inline-flex items-center gap-1 text-sm font-semibold text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
       </div>
+    </div>`;
+  }
+
+  /* ------------------------------ Transações ------------------------------ */
+  async function renderTransacoes(): Promise<void> {
+    render(shell(loadingBlock()));
+    bindShell();
+
+    const items = await listServiceTransactions();
+    const sum = (st: string): number => items.filter((t) => t.status === st).reduce((s, t) => s + t.amount, 0);
+    const totalPaid = sum("paid");
+    const totalPending = sum("open");
+
+    const inputCls = "w-full bg-white border border-gray-200 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-[#F95901]";
+    render(shell(`
+      <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        ${metric("payments", "Recebido (completas)", formatKz(totalPaid), true)}
+        ${metric("hourglass_top", "Pendente", formatKz(totalPending))}
+        ${metric("workspace_premium", "Planos", String(items.filter((t) => t.service === "plan").length))}
+        ${metric("sms", "Pacotes de SMS", String(items.filter((t) => t.service === "sms").length))}
+      </section>
+      <div class="flex flex-col lg:flex-row gap-3 mb-5">
+        <div class="relative flex-1 min-w-0">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
+          <input id="tx-search" type="search" placeholder="Pesquisar por email ou serviço…" class="${inputCls}" />
+        </div>
+        <div class="inline-flex bg-gray-100 rounded-xl p-1 gap-1 text-sm shrink-0 overflow-x-auto">
+          <button data-tf="all" class="px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap">Todas</button>
+          <button data-tf="paid" class="px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap">Completas</button>
+          <button data-tf="open" class="px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap">Pendentes</button>
+          <button data-tf="failed" class="px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap">Falhadas</button>
+        </div>
+        <select id="tx-service" class="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901] sm:w-44 shrink-0">
+          <option value="">Todos os serviços</option>
+          <option value="plan">Planos</option>
+          <option value="sms">Pacotes de SMS</option>
+        </select>
+      </div>
+      <div id="tx-list"></div>`));
+    bindShell();
+
+    let q = "";
+    let tf: "all" | "paid" | "open" | "failed" = "all";
+    let svc: "" | "plan" | "sms" = "";
+    const applyTf = (): void => {
+      document.querySelectorAll<HTMLElement>("[data-tf]").forEach((b) => {
+        const active = b.dataset.tf === tf;
+        b.style.background = active ? "#fff" : "transparent";
+        b.style.color = active ? ACCENT : "#6b7280";
+        b.style.boxShadow = active ? "0 1px 2px rgba(0,0,0,.08)" : "none";
+      });
+    };
+
+    function draw(): void {
+      const el = $("#tx-list");
+      if (!el) return;
+      const ql = q.trim().toLowerCase();
+      const rows = items.filter((t) => {
+        if (tf === "failed" ? !(t.status === "failed" || t.status === "cancelled") : tf !== "all" && t.status !== tf) return false;
+        if (svc && t.service !== svc) return false;
+        if (ql && !`${t.ownerEmail} ${t.ownerName} ${t.description}`.toLowerCase().includes(ql)) return false;
+        return true;
+      });
+      el.innerHTML = rows.length
+        ? `<div class="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden">${rows.map(txRow).join("")}</div>`
+        : `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Nenhuma transação corresponde aos filtros.</div>`;
+    }
+
+    applyTf();
+    draw();
+    ($("#tx-search") as HTMLInputElement | null)?.addEventListener("input", (e) => { q = (e.target as HTMLInputElement).value; draw(); });
+    ($("#tx-service") as HTMLSelectElement | null)?.addEventListener("change", (e) => { svc = (e.target as HTMLSelectElement).value as typeof svc; draw(); });
+    document.querySelectorAll<HTMLElement>("[data-tf]").forEach((b) =>
+      b.addEventListener("click", () => { tf = b.dataset.tf as typeof tf; applyTf(); draw(); }));
+  }
+
+  function txStatusBadge(s: string): string {
+    switch (s) {
+      case "paid": return badge("Completa", "#ecfdf5", "#047857");
+      case "open": return badge("Pendente", "#fff7ed", "#c2410c");
+      case "failed": return badge("Falhada", "#fef2f2", "#b91c1c");
+      case "cancelled": return badge("Cancelada", "#f3f4f6", "#6b7280");
+      default: return badge(s, "#f3f4f6", "#6b7280");
+    }
+  }
+
+  function txRow(t: AdminServiceTx): string {
+    const icon = t.service === "plan" ? "workspace_premium" : "sms";
+    const method = t.method === "mcx" ? "Multicaixa Express" : t.method === "reference" ? "Referência" : t.method;
+    return `<div class="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors flex-wrap">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">${icon}</span></div>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-gray-900 truncate">${esc(t.description)} · ${esc(formatKz(t.amount))}</p>
+        <p class="text-xs text-gray-400 truncate">${esc(t.ownerName || t.ownerEmail)}${t.ownerName ? ` · ${esc(t.ownerEmail)}` : ""}${t.storeName ? ` · ${esc(t.storeName)}` : ""}</p>
+        <p class="text-xs text-gray-300 truncate">${esc(method)} · ${esc(fmtDate(t.createdAt))}</p>
+      </div>
+      ${txStatusBadge(t.status)}
     </div>`;
   }
 
