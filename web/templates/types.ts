@@ -86,6 +86,15 @@ export interface StoreCustomization {
     messageTemplate?: string;
   };
   /**
+   * Flag público (não sensível) de pagamentos online. Espelha
+   * `store_payments.online_enabled` para o storefront decidir se mostra o
+   * checkout online. A chave MoMenu vive só no servidor; a iniciação real é
+   * sempre revalidada na função serverless.
+   */
+  payments?: {
+    onlineEnabled?: boolean;
+  };
+  /**
    * Blocos de conteúdo adicionais, renderizados abaixo dos produtos, na ordem
    * definida. O dono pode adicionar/remover/reordenar no editor.
    */

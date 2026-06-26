@@ -5,6 +5,7 @@ import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
 import { productSlugPath } from "../lib/slug.js";
+import { navigate } from "../lib/routing.js";
 import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
 
@@ -77,4 +78,25 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
     updateCartBadge(result.store.id);
     toast(`Adicionado ao carrinho (${cartCount(result.store.id)} item(s)).`);
   });
+
+  // Checkout online ativo: o botão de WhatsApp passa a "Comprar agora"
+  // (adiciona ao carrinho e segue para o checkout com as três opções).
+  if (custom.payments?.onlineEnabled) {
+    document.querySelectorAll<HTMLElement>("[data-edit-whatsapp]").forEach((el) => {
+      el.removeAttribute("href");
+      el.removeAttribute("target");
+      el.innerHTML = `<span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora`;
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        addToCart(result.store.id, {
+          productId: product.id,
+          name: product.name,
+          price: product.price,
+          imageUrl: product.imageUrl ?? undefined,
+        }, readQty());
+        updateCartBadge(result.store.id);
+        navigate(`/loja/${encodeURIComponent(identifier)}/checkout`);
+      });
+    });
+  }
 }

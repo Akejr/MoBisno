@@ -11,6 +11,7 @@ import { renderStorefront } from "./views/storefront.js";
 import { renderProductPage } from "./views/product.js";
 import { renderCategoryPage } from "./views/category.js";
 import { renderCartPage } from "./views/cart.js";
+import { renderCheckoutPage } from "./views/checkout.js";
 import { renderEditor } from "./views/editor.js";
 import { renderTemplatePreview } from "./views/preview.js";
 import { mountCartUI } from "./lib/cartDrawer.js";
@@ -54,6 +55,7 @@ function route(): void {
     const productMatch = path.match(/^\/produto\/(.+)$/);
     const categoryMatch = path.match(/^\/categoria\/(.+)$/);
     if (path === "/carrinho") void renderCartPage(sub);
+    else if (path === "/checkout") void renderCheckoutPage(sub);
     else if (productMatch) void renderProductPage(sub, decodeURIComponent(productMatch[1]));
     else if (categoryMatch) void renderCategoryPage(sub, decodeURIComponent(categoryMatch[1]));
     else void renderStorefront(sub);
@@ -82,6 +84,7 @@ function route(): void {
     const productMatch = rest.match(/^([^/]+)\/produto\/(.+)$/);
     const categoryMatch = rest.match(/^([^/]+)\/categoria\/(.+)$/);
     const cartMatch = rest.match(/^([^/]+)\/carrinho$/);
+    const checkoutMatch = rest.match(/^([^/]+)\/checkout$/);
     if (productMatch) {
       void renderProductPage(decodeURIComponent(productMatch[1]), decodeURIComponent(productMatch[2]));
       void applyStoreBranding(decodeURIComponent(productMatch[1]));
@@ -91,6 +94,9 @@ function route(): void {
     } else if (cartMatch) {
       void renderCartPage(decodeURIComponent(cartMatch[1]));
       void applyStoreBranding(decodeURIComponent(cartMatch[1]));
+    } else if (checkoutMatch) {
+      void renderCheckoutPage(decodeURIComponent(checkoutMatch[1]));
+      void applyStoreBranding(decodeURIComponent(checkoutMatch[1]));
     } else {
       const identifier = decodeURIComponent(rest);
       void renderStorefront(identifier);

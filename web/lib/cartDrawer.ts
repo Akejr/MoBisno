@@ -46,6 +46,8 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   const custom = loaded.custom;
   const brand = brandOf(custom, loaded.result.store.templateId);
   const cartPageHref = `#/loja/${encodeURIComponent(identifier)}/carrinho`;
+  const checkoutHref = `#/loja/${encodeURIComponent(identifier)}/checkout`;
+  const online = !!custom.payments?.onlineEnabled;
 
   // Remove instância anterior, se existir.
   document.getElementById("mb-cart-drawer")?.remove();
@@ -99,7 +101,9 @@ export async function openCartDrawer(identifier: string): Promise<void> {
           <span class="text-neutral-600">Total</span>
           <span class="font-bold text-xl" style="color:var(--brand)">${esc(formatKz(cartTotal(storeId)))}</span>
         </div>
-        <button data-checkout class="w-full py-3 rounded-lg text-white font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>
+        ${online
+          ? `<a href="${esc(checkoutHref)}" data-go class="w-full py-3 rounded-lg text-white font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
+          : `<button data-checkout class="w-full py-3 rounded-lg text-white font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
         <a href="${esc(cartPageHref)}" data-go class="block text-center text-sm text-neutral-500 hover:text-neutral-900 mt-3">Ver carrinho completo</a>`;
     }
     bindRows();

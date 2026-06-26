@@ -60,6 +60,11 @@ export function removeFromCart(storeId: string, productId: string): CartItem[] {
   return items;
 }
 
+/** Esvazia o carrinho da loja. */
+export function clearCart(storeId: string): void {
+  save(storeId, []);
+}
+
 /** Número total de unidades no carrinho. */
 export function cartCount(storeId: string): number {
   return getCart(storeId).reduce((n, i) => n + i.quantity, 0);

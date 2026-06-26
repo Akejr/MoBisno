@@ -40,6 +40,8 @@ export async function renderCartPage(identifier: string): Promise<void> {
   const storeId = result.store.id;
   const brand = brandOf(custom, result.store.templateId);
   const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
+  const online = !!custom.payments?.onlineEnabled;
+  const checkoutHref = `${homeHref}/checkout`;
 
   function draw(): void {
     const items = getCart(storeId);
@@ -55,7 +57,9 @@ export async function renderCartPage(identifier: string): Promise<void> {
            <div class="text-lg">Total: <span class="font-bold text-2xl" style="color:var(--brand)">${esc(formatKz(total))}</span></div>
            <div class="flex gap-3">
              <a href="${esc(homeHref)}" class="px-5 py-3 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-50 font-medium">Continuar a comprar</a>
-             <button id="checkout" class="px-6 py-3 rounded-lg text-white font-bold inline-flex items-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>
+             ${online
+               ? `<a href="${esc(checkoutHref)}" class="px-6 py-3 rounded-lg text-white font-bold inline-flex items-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
+               : `<button id="checkout" class="px-6 py-3 rounded-lg text-white font-bold inline-flex items-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
            </div>
          </div>`;
 

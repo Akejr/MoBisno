@@ -311,6 +311,9 @@ export async function renderDashboard(): Promise<void> {
       if (enabled && !next.momenuApiKey) { toast("Cole a chave de API MoMenu para ativar.", "error"); return; }
       if (enabled && !next.iban) { toast("Indique o IBAN da conta bancária.", "error"); return; }
       const okSave = await withBusy(() => savePaymentConfig(store!.id, next), "A guardar…");
+      // Espelha o flag público (não sensível) na customização, para o storefront.
+      const mirrored = { ...custom, payments: { ...(custom.payments ?? {}), onlineEnabled: enabled } };
+      await saveCustomization(ownerId, store!.id, mirrored);
       if (okSave) { toast("Pagamentos online guardados."); await renderPagamentos(); }
       else toast("Não foi possível guardar.", "error");
     });
