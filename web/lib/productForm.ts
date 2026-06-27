@@ -1,5 +1,6 @@
 /** Modal para criar/editar um Produto (com foto) — design MôBisno (branco + #F95901). */
 import { esc, toast, fileToUint8Array, withBusy, withButton } from "./dom.js";
+import { compressImageFile } from "./imageCompress.js";
 import { PRODUCT_POLICY } from "../../src/services/fileService.js";
 import type { AdminPanel } from "../../src/app/adminPanel.js";
 import type { Product } from "../../src/models/index.js";
@@ -118,8 +119,9 @@ export function openProductForm(opts: ProductFormOptions): void {
     if (stockOn.checked) (host.querySelector<HTMLInputElement>("[data-stock]"))?.focus();
   });
   photoInput.addEventListener("change", async () => {
-    const file = photoInput.files?.[0];
-    if (!file) return;
+    const raw = photoInput.files?.[0];
+    if (!raw) return;
+    const file = await compressImageFile(raw);
     const content = await fileToUint8Array(file);
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, PRODUCT_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); return; }

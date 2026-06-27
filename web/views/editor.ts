@@ -7,6 +7,7 @@
  * janela.
  */
 import { render, $, go, esc, toast, fileToUint8Array, withBusy, withButton, fadeInImages, formatKz } from "../lib/dom.js";
+import { compressImageFile } from "../lib/imageCompress.js";
 import {
   appState, currentOwnerId, publicStoreUrl,
   storeRepository, assetRepository, bannerRepository, productRepository, adminPanelFor,
@@ -1225,7 +1226,7 @@ ${themeCss}
     const file = input.files?.[0];
     if (!file) return;
     try {
-      const content = await fileToUint8Array(file);
+      const content = await fileToUint8Array(await compressImageFile(file));
       const res = await withBusy(
         () => panel.controllers.logo.uploadLogo({ content, fileName: file.name }),
         "A carregar logótipo…",
@@ -1243,7 +1244,7 @@ ${themeCss}
   $("#hero-input")?.addEventListener("change", async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    const content = await fileToUint8Array(file);
+    const content = await fileToUint8Array(await compressImageFile(file));
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); return; }
     const stored = await withBusy(
@@ -1262,7 +1263,7 @@ ${themeCss}
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    const content = await fileToUint8Array(file);
+    const content = await fileToUint8Array(await compressImageFile(file));
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
     const stored = await withBusy(
@@ -1281,7 +1282,7 @@ ${themeCss}
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    const content = await fileToUint8Array(file);
+    const content = await fileToUint8Array(await compressImageFile(file));
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
     const stored = await withBusy(
@@ -1308,7 +1309,7 @@ ${themeCss}
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    const content = await fileToUint8Array(file);
+    const content = await fileToUint8Array(await compressImageFile(file));
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
     const stored = await withBusy(
@@ -1328,7 +1329,7 @@ ${themeCss}
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    const content = await fileToUint8Array(file);
+    const content = await fileToUint8Array(await compressImageFile(file));
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, BANNER_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
     const stored = await withBusy(
@@ -1348,7 +1349,7 @@ ${themeCss}
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    const content = await fileToUint8Array(file);
+    const content = await fileToUint8Array(await compressImageFile(file));
     const validation = panel.services.fileService.validate({ content, fileName: file.name }, LOGO_POLICY);
     if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
     const stored = await withBusy(
