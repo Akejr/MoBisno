@@ -12,6 +12,7 @@ import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
 import { productTitle, productDescription, productJsonLd } from "../../src/services/seo.js";
 import { trackPixel } from "../lib/pixels.js";
+import { listProductReviews, summarize, submitReview, type Review } from "../supabase/reviews.js";
 
 function notFound(message: string): void {
   render(`
@@ -59,6 +60,11 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   fadeInImages(app);
   updateCartBadge(result.store.id);
 
+  // Avaliações (estrelas) — carrega e calcula o resumo para o JSON-LD.
+  let reviews: Review[] = [];
+  try { reviews = await listProductReviews(product.id); } catch { reviews = []; }
+  const rating = summarize(reviews);
+
   // SEO do produto (imagem do produto + foco na loja).
   const productUrl = `${publicStoreUrl(identifier)}/produto/${productSlugPath(product)}`;
   applySeo({
@@ -81,6 +87,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       url: productUrl,
       storeName: view.storeName,
       available: !outOfStock,
+      rating: rating.count > 0 ? rating : null,
     }),
   });
   trackPixel(custom, { type: "PageView" });
@@ -144,4 +151,69 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       el.innerHTML = `<span class="material-symbols-outlined text-[20px]">block</span> Esgotado`;
     });
   }
+
+  mountReviews(app, result.store.id, product.id, reviews, rating);
+}
+
+/** Estrelas (preenchidas/vazias) para uma nota de 0–5. */
+function starsHtml(value: number, size = 18): string {
+  let out = "";
+  for (let i = 1; i <= 5; i++) {
+    const fill = value >= i ? "star" : value >= i - 0.5 ? "star_half" : "star_outline";
+    out += `<span class="material-symbols-outlined" style="font-size:${size}px;color:#f59e0b">${fill}</span>`;
+  }
+  return out;
+}
+
+/** Secção de avaliações (lista + média + formulário). Inserida antes do rodapé. */
+function mountReviews(app: HTMLElement, storeId: string, productId: string, reviews: Review[], rating: { average: number; count: number }): void {
+  const section = document.createElement("section");
+  section.className = "w-full max-w-3xl mx-auto px-4 sm:px-6 py-12";
+  const list = (items: Review[]): string => items.length
+    ? items.map((r) => `<div class="border-b border-neutral-100 py-4">
+        <div class="flex items-center justify-between gap-2">
+          <p class="font-semibold text-neutral-900">${esc(r.author)}</p>
+          <div class="flex items-center">${starsHtml(r.rating, 15)}</div>
+        </div>
+        ${r.comment ? `<p class="text-neutral-600 text-sm mt-1">${esc(r.comment)}</p>` : ""}
+      </div>`).join("")
+    : `<p class="text-neutral-400 text-sm py-4">Ainda não há avaliações. Seja o primeiro a avaliar!</p>`;
+
+  section.innerHTML = `
+    <h2 class="text-2xl font-black text-neutral-900">Avaliações</h2>
+    <div class="flex items-center gap-3 mt-2 mb-6">
+      <div class="flex items-center">${starsHtml(rating.average, 22)}</div>
+      <span class="text-neutral-600 text-sm">${rating.count ? `${rating.average.toFixed(1)} · ${rating.count} avaliação(ões)` : "Sem avaliações"}</span>
+    </div>
+    <div data-reviews-list class="mb-8">${list(reviews)}</div>
+    <div class="rounded-2xl border border-neutral-200 bg-white p-5">
+      <h3 class="font-bold text-neutral-900 mb-3">Deixe a sua avaliação</h3>
+      <div class="flex items-center gap-1 mb-3" data-star-pick>
+        ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" class="material-symbols-outlined" style="font-size:30px;color:#d4d4d8;cursor:pointer">star</button>`).join("")}
+      </div>
+      <input data-rv-name placeholder="O seu nome" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] mb-2" />
+      <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] resize-none mb-3"></textarea>
+      <button data-rv-submit class="px-5 py-2.5 rounded-xl text-white font-bold text-sm inline-flex items-center gap-1" style="background:var(--brand)"><span class="material-symbols-outlined text-[18px]">send</span> Enviar avaliação</button>
+    </div>`;
+
+  const footer = app.querySelector("footer");
+  if (footer && footer.parentElement) footer.parentElement.insertBefore(section, footer);
+  else app.appendChild(section);
+
+  // Seleção de estrelas.
+  let picked = 0;
+  const stars = Array.from(section.querySelectorAll<HTMLElement>("[data-star]"));
+  const paint = (): void => stars.forEach((s, i) => { s.style.color = i < picked ? "#f59e0b" : "#d4d4d8"; });
+  stars.forEach((s, i) => s.addEventListener("click", () => { picked = i + 1; paint(); }));
+
+  section.querySelector<HTMLElement>("[data-rv-submit]")?.addEventListener("click", async () => {
+    const author = (section.querySelector("[data-rv-name]") as HTMLInputElement).value;
+    const comment = (section.querySelector("[data-rv-comment]") as HTMLTextAreaElement).value;
+    const err = await submitReview(storeId, productId, { author, rating: picked, comment });
+    if (err) { toast(err, "error"); return; }
+    toast("Obrigado pela sua avaliação!");
+    const fresh = await listProductReviews(productId);
+    const el = section.querySelector("[data-reviews-list]");
+    if (el) el.innerHTML = list(fresh);
+  });
 }

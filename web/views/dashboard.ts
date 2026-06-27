@@ -18,6 +18,7 @@ import { openSmsCheckout } from "../lib/smsCheckout.js";
 import { getSmsCredits, SMS_UNIT_PRICE, SMS_PACKAGES } from "../supabase/sms.js";
 import { listDiscounts, createDiscount, deleteDiscount, setDiscountActive, type DiscountCode } from "../supabase/discounts.js";
 import { isCurrentUserAdmin } from "../supabase/admin.js";
+import { listStoreReviews, setReviewApproved, deleteReview, type Review } from "../supabase/reviews.js";
 import { LUANDA_AREAS } from "../lib/areas.js";
 
 const ACCENT = "#F95901";
@@ -502,6 +503,8 @@ export async function renderDashboard(): Promise<void> {
     const canDomain = plan.features.customDomain;
     const smsCredits = await getSmsCredits(store!.id);
     const discounts = await listDiscounts(store!.id);
+    const reviews = await listStoreReviews(store!.id);
+    const productNames = new Map((await productRepository.listByStore(store!.id)).map((p) => [p.id, p.name]));
     const fees = c.delivery?.fees ?? {};
     const inp = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#F95901]";
 
@@ -581,6 +584,10 @@ export async function renderDashboard(): Promise<void> {
         <input id="mk-ga" type="text" value="${esc(c.marketing?.gaId ?? "")}" placeholder="ex.: G-XXXXXXXXXX" class="${inp} mt-1.5" /></label>
       <button id="save-marketing" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar pixels</button>`;
 
+    const reviewsBody = `
+      <p class="text-sm text-gray-500 mb-4">As avaliações dos seus clientes aparecem na página de cada produto. Pode esconder ou apagar avaliações.</p>
+      <div id="rv-list">${reviewsModerationHtml(reviews, productNames)}</div>`;
+
     const domainBody = canDomain ? `
       <p class="text-sm text-gray-500 mb-4">Ligue um domínio que já tenha (ex.: <b>www.minhaloja.co.ao</b>) à sua loja.</p>
       <label class="block"><span class="text-sm font-semibold text-gray-700">O seu domínio</span>
@@ -605,6 +612,7 @@ export async function renderDashboard(): Promise<void> {
         ${settingsAccordion({ icon: "sms", title: "SMS de confirmação", desc: "Ative o SMS de confirmação de compra que o seu cliente recebe.", body: smsBody })}
         ${settingsAccordion({ icon: "sell", title: "Código de desconto", desc: "Crie e gira códigos de desconto para os seus clientes.", body: discountBody })}
         ${settingsAccordion({ icon: "ads_click", title: "Marketing e Pixels", desc: "Meta Pixel e Google Analytics para medir e impulsionar vendas.", body: marketingBody })}
+        ${settingsAccordion({ icon: "reviews", title: "Avaliações", desc: "Veja e modere as avaliações dos seus clientes.", body: reviewsBody })}
         ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Profissional" })}
         ${settingsAccordion({ icon: "warning", title: "Apagar a loja", desc: "Remove a loja para sempre. Ação irreversível.", body: dangerBody, danger: true })}
       </section>`));
@@ -698,6 +706,31 @@ export async function renderDashboard(): Promise<void> {
       ($("#dc-code") as HTMLInputElement).value = "";
       ($("#dc-value") as HTMLInputElement).value = "";
     });
+
+    // Avaliações (moderação)
+    function bindReviewRows(): void {
+      document.querySelectorAll<HTMLElement>("[data-rv-toggle]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const id = b.dataset.rvToggle!;
+          const r = reviews.find((x) => x.id === id);
+          if (!r) return;
+          const ok = await withBusy(() => setReviewApproved(id, !r.approved), "A atualizar…");
+          if (ok) { r.approved = !r.approved; redrawReviews(); } else toast("Falhou.", "error");
+        }));
+      document.querySelectorAll<HTMLElement>("[data-rv-del]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const id = b.dataset.rvDel!;
+          if (!confirm("Apagar esta avaliação?")) return;
+          const ok = await withBusy(() => deleteReview(id), "A apagar…");
+          if (ok) { const i = reviews.findIndex((x) => x.id === id); if (i >= 0) reviews.splice(i, 1); redrawReviews(); }
+          else toast("Falhou.", "error");
+        }));
+    }
+    function redrawReviews(): void {
+      const el = $("#rv-list");
+      if (el) { el.innerHTML = reviewsModerationHtml(reviews, productNames); bindReviewRows(); }
+    }
+    bindReviewRows();
 
     // Marketing / Pixels
     $("#save-marketing")?.addEventListener("click", async () => {
@@ -962,6 +995,28 @@ function planStatusCard(b: BillingState, planName: string): string {
     </section>`;
   }
   return "";
+}
+
+/** Lista de avaliações para moderação (Configurações). */
+function reviewsModerationHtml(items: Review[], productNames: Map<string, string>): string {
+  if (!items.length) {
+    return `<div class="bg-gray-50 border border-gray-100 rounded-xl p-6 text-center text-gray-400 text-sm">Ainda não há avaliações.</div>`;
+  }
+  const stars = (n: number): string => "★".repeat(n) + "☆".repeat(5 - n);
+  return `<div class="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">${items.map((r) => `
+    <div class="p-3.5 ${r.approved ? "" : "opacity-60"}">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-semibold text-gray-900 text-sm">${esc(r.author)}</span>
+        <span class="text-[13px]" style="color:#f59e0b">${stars(r.rating)}</span>
+        <span class="text-xs text-gray-400">${esc(productNames.get(r.productId) ?? "Produto")}</span>
+        ${r.approved ? "" : `<span class="text-[11px] font-bold text-gray-400">(escondida)</span>`}
+        <div class="ml-auto flex items-center gap-1.5">
+          <button data-rv-toggle="${esc(r.id)}" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">${r.approved ? "Esconder" : "Mostrar"}</button>
+          <button data-rv-del="${esc(r.id)}" class="text-red-600 hover:bg-red-50 rounded-lg p-1.5 transition-colors" title="Apagar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+        </div>
+      </div>
+      ${r.comment ? `<p class="text-sm text-gray-600 mt-1">${esc(r.comment)}</p>` : ""}
+    </div>`).join("")}</div>`;
 }
 
 /** Lista de códigos de desconto (Configurações). */

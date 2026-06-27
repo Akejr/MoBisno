@@ -139,6 +139,7 @@ export function productJsonLd(input: {
   url: string;
   storeName: string;
   available?: boolean;
+  rating?: { average: number; count: number } | null;
 }): object {
   const node: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -157,5 +158,12 @@ export function productJsonLd(input: {
     },
   };
   if (input.image) node.image = input.image;
+  if (input.rating && input.rating.count > 0) {
+    node.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: input.rating.average,
+      reviewCount: input.rating.count,
+    };
+  }
   return node;
 }
