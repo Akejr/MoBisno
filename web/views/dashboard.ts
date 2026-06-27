@@ -17,6 +17,7 @@ import { openPlanCheckout } from "../lib/planCheckout.js";
 import { openSmsCheckout } from "../lib/smsCheckout.js";
 import { getSmsCredits, SMS_UNIT_PRICE, SMS_PACKAGES } from "../supabase/sms.js";
 import { listDiscounts, createDiscount, deleteDiscount, setDiscountActive, type DiscountCode } from "../supabase/discounts.js";
+import { isCurrentUserAdmin } from "../supabase/admin.js";
 import { LUANDA_AREAS } from "../lib/areas.js";
 
 const ACCENT = "#F95901";
@@ -66,6 +67,7 @@ export async function renderDashboard(): Promise<void> {
   const panel = adminPanelFor(store.id);
   const billing = await getOwnerBilling(ownerId);
   const plan = getPlan(billing.effectivePlan);
+  const isAdmin = await isCurrentUserAdmin();
   const tab = currentTab();
   const storeUrl = publicStoreUrl(store.identifier);
 
@@ -98,7 +100,8 @@ export async function renderDashboard(): Promise<void> {
           ${navItem("#/painel/plano", "workspace_premium", "Plano", tab === "plano")}
           ${navItem("#/painel/config", "settings", "Configurações", tab === "config")}
         </nav>
-        <div class="mt-auto px-4">
+        <div class="mt-auto px-4 space-y-1">
+          ${isAdmin ? `<a href="#/adminPainel" class="w-full inline-flex items-center gap-2 text-sm font-bold px-2 py-2 rounded-lg transition-colors" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">shield_person</span> Painel de Administração</a>` : ""}
           <button id="logout" class="w-full text-gray-500 hover:text-gray-900 flex items-center gap-2 text-sm font-semibold px-2 py-2 transition-colors"><span class="material-symbols-outlined">logout</span> Terminar sessão</button>
         </div>
       </aside>
