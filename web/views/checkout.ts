@@ -18,6 +18,7 @@ import { applyInk } from "../lib/ink.js";
 import { applyTheme } from "../lib/theme.js";
 import { initPayment, checkStatus } from "../lib/paymentsApi.js";
 import { validateDiscount, discountAmount, type DiscountCode } from "../supabase/discounts.js";
+import { trackPixel } from "../lib/pixels.js";
 import { getTemplate } from "../templates/registry.js";
 import { deliveredAreas } from "../lib/areas.js";
 import {
@@ -51,6 +52,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   let selected: CheckoutMethodId | null = null;
   const cust: { name?: string; email?: string; nif?: string; phone?: string } = {};
   let appliedDiscount: DiscountCode | null = null;
+  let purchaseValue = 0;
 
   // Entrega: áreas servidas + se o carrinho tem produtos físicos.
   const areas = deliveredAreas(custom.delivery);
@@ -249,7 +251,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       if (statusEl) statusEl.textContent = "A verificar…";
       const st = await checkStatus({ operationId, merchantTransactionId: mtx, storeId });
       busy = false;
-      if (st.status === "paid") { showConfirmation(successInner(st.invoiceUrl ?? null)); return; }
+      if (st.status === "paid") { trackPixel(custom, { type: "Purchase", value: purchaseValue }); showConfirmation(successInner(st.invoiceUrl ?? null)); return; }
       if (statusEl) statusEl.textContent = st.status === "cancelled" || st.status === "failed"
         ? "Pagamento não concluído. Gere uma nova referência se necessário."
         : "Ainda não recebemos a confirmação. Aguarde alguns minutos e tente de novo.";
@@ -316,7 +318,8 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     if (!res.success) { toast(res.error || "Não foi possível processar o pagamento.", "error"); return; }
 
     clearCart(storeId);
-    if (selected === "mcx") { showConfirmation(successInner(res.invoiceUrl ?? null)); }
+    purchaseValue = grand;
+    if (selected === "mcx") { trackPixel(custom, { type: "Purchase", value: grand }); showConfirmation(successInner(res.invoiceUrl ?? null)); }
     else { lastRef = res; showConfirmation(referenceInner(res)); }
   }
 

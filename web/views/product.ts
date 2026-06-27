@@ -11,6 +11,7 @@ import { applyTheme } from "../lib/theme.js";
 import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
 import { productTitle, productDescription, productJsonLd } from "../../src/services/seo.js";
+import { trackPixel } from "../lib/pixels.js";
 
 function notFound(message: string): void {
   render(`
@@ -82,6 +83,8 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       available: !outOfStock,
     }),
   });
+  trackPixel(custom, { type: "PageView" });
+  trackPixel(custom, { type: "ViewContent", name: product.name, id: product.id, value: product.price });
 
   // Não navegar nas âncoras de menu/logo da própria página (já estamos na loja).
   // Controlo de quantidade.
@@ -106,6 +109,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       imageUrl: product.imageUrl ?? undefined,
     }, qty);
     updateCartBadge(result.store.id);
+    trackPixel(custom, { type: "AddToCart", name: product.name, id: product.id, value: product.price });
     toast(`Adicionado ao carrinho (${cartCount(result.store.id)} item(s)).`);
   });
 

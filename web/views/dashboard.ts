@@ -573,6 +573,14 @@ export async function renderDashboard(): Promise<void> {
       </div>
       <div id="dc-list">${discountListHtml(discounts)}</div>`;
 
+    const marketingBody = `
+      <p class="text-sm text-gray-500 mb-4">Ligue os pixels de marketing para medir visitas e otimizar os seus anúncios no <b>Facebook/Instagram</b> e <b>Google</b>. Os eventos de visita, visualização de produto, adição ao carrinho e compra são enviados automaticamente.</p>
+      <label class="block mb-3"><span class="text-sm font-semibold text-gray-700">Meta Pixel ID (Facebook/Instagram)</span>
+        <input id="mk-meta" type="text" value="${esc(c.marketing?.metaPixelId ?? "")}" placeholder="ex.: 1234567890123456" class="${inp} mt-1.5" /></label>
+      <label class="block"><span class="text-sm font-semibold text-gray-700">Google Analytics 4 (Measurement ID)</span>
+        <input id="mk-ga" type="text" value="${esc(c.marketing?.gaId ?? "")}" placeholder="ex.: G-XXXXXXXXXX" class="${inp} mt-1.5" /></label>
+      <button id="save-marketing" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar pixels</button>`;
+
     const domainBody = canDomain ? `
       <p class="text-sm text-gray-500 mb-4">Ligue um domínio que já tenha (ex.: <b>www.minhaloja.co.ao</b>) à sua loja.</p>
       <label class="block"><span class="text-sm font-semibold text-gray-700">O seu domínio</span>
@@ -596,6 +604,7 @@ export async function renderDashboard(): Promise<void> {
         ${settingsAccordion({ icon: "local_shipping", title: "Entregas", desc: "Declare as taxas de entrega da sua loja por zona.", body: deliveryBody })}
         ${settingsAccordion({ icon: "sms", title: "SMS de confirmação", desc: "Ative o SMS de confirmação de compra que o seu cliente recebe.", body: smsBody })}
         ${settingsAccordion({ icon: "sell", title: "Código de desconto", desc: "Crie e gira códigos de desconto para os seus clientes.", body: discountBody })}
+        ${settingsAccordion({ icon: "ads_click", title: "Marketing e Pixels", desc: "Meta Pixel e Google Analytics para medir e impulsionar vendas.", body: marketingBody })}
         ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Profissional" })}
         ${settingsAccordion({ icon: "warning", title: "Apagar a loja", desc: "Remove a loja para sempre. Ação irreversível.", body: dangerBody, danger: true })}
       </section>`));
@@ -688,6 +697,15 @@ export async function renderDashboard(): Promise<void> {
       redrawDiscounts(discounts);
       ($("#dc-code") as HTMLInputElement).value = "";
       ($("#dc-value") as HTMLInputElement).value = "";
+    });
+
+    // Marketing / Pixels
+    $("#save-marketing")?.addEventListener("click", async () => {
+      const metaPixelId = ($("#mk-meta") as HTMLInputElement)?.value.trim() || undefined;
+      const gaId = ($("#mk-ga") as HTMLInputElement)?.value.trim() || undefined;
+      c.marketing = { metaPixelId, gaId };
+      const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
+      ok ? toast("Pixels guardados.") : toast("Não foi possível guardar.", "error");
     });
 
     // Domínio

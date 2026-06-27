@@ -112,6 +112,13 @@ export interface StoreCustomization {
   sms?: {
     enabled?: boolean;
   };
+  /** Pixels de marketing/medição (anúncios e analytics). */
+  marketing?: {
+    /** ID do Meta Pixel (Facebook/Instagram), ex.: "1234567890". */
+    metaPixelId?: string;
+    /** ID de medição do Google Analytics 4, ex.: "G-XXXXXXX". */
+    gaId?: string;
+  };
   /** Domínio próprio ligado pelo dono (ex.: "www.minhaloja.co.ao"). */
   customDomain?: string;
   /**

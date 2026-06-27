@@ -10,6 +10,7 @@ import { mountParticlesHeroes } from "../lib/particlesHero.js";
 import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
 import { storeTitle, storeDescription, storeJsonLd } from "../../src/services/seo.js";
+import { trackPixel } from "../lib/pixels.js";
 
 export async function renderStorefront(identifier: string): Promise<void> {
   const host = `${identifier}.mobisno.store`;
@@ -48,4 +49,5 @@ export async function renderStorefront(identifier: string): Promise<void> {
     siteName: view.storeName,
     jsonLd: storeJsonLd({ storeName: view.storeName, url, logoUrl }),
   });
+  trackPixel(custom, { type: "PageView" });
 }
