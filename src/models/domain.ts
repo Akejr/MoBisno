@@ -104,6 +104,11 @@ export interface Product {
   price: number;
   imageUrl?: string;
   available: boolean;
+  /**
+   * Stock disponível. `null`/`undefined` = stock não controlado (sempre
+   * disponível). `0` = esgotado. Decrementado no servidor a cada venda paga.
+   */
+  stock?: number | null;
   createdAt: string;
 }
 

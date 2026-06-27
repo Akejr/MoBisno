@@ -56,6 +56,8 @@ export interface ProductInput {
   imageUrl?: string;
   /** Estado de disponibilidade. Por omissão, `true` na criação. */
   available?: boolean;
+  /** Stock disponível (`null`/omitido = não controlado; `0` = esgotado). */
+  stock?: number | null;
 }
 
 /** Código de erro de Produto, estável para mapeamento na UI. */
@@ -96,6 +98,7 @@ export interface NormalizedProductInput {
   price: number;
   imageUrl?: string;
   available: boolean;
+  stock: number | null;
 }
 
 /**
@@ -221,6 +224,9 @@ export function validateProduct(
     price,
     imageUrl: input.imageUrl,
     available: input.available ?? true,
+    stock: typeof input.stock === "number" && Number.isFinite(input.stock) && input.stock >= 0
+      ? Math.floor(input.stock)
+      : null,
   });
 }
 
@@ -284,6 +290,7 @@ export function createProductService(deps: ProductServiceDeps): ProductService {
         price: v.price,
         imageUrl: v.imageUrl,
         available: v.available,
+        stock: v.stock,
         createdAt: now(),
       };
 
@@ -328,6 +335,7 @@ export function createProductService(deps: ProductServiceDeps): ProductService {
         price: v.price,
         imageUrl: v.imageUrl,
         available: input.available ?? existing.available,
+        stock: v.stock,
       };
 
       const result = await productRepository.update(storeId, updated);

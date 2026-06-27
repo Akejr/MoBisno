@@ -79,9 +79,18 @@ export function openProductForm(opts: ProductFormOptions): void {
               <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
             </span>
           </label>
+          <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
+            <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">inventory</span> Controlar stock <span class="text-gray-400 font-normal">(esgota sozinho)</span></span>
+            <span class="relative inline-flex items-center">
+              <input data-stock-on type="checkbox" ${product && product.stock != null ? "checked" : ""} class="peer sr-only" />
+              <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
+            </span>
+          </label>
+          <label data-stock-wrap class="flex items-center justify-between gap-3 px-4 pb-3 ${product && product.stock != null ? "" : "hidden"}">
+            <span class="text-sm font-medium text-gray-700">Quantidade em stock</span>
+            <input data-stock type="number" min="0" step="1" value="${product && product.stock != null ? esc(product.stock) : ""}" class="w-28 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-right outline-none focus:border-[#F95901]" placeholder="0" />
+          </label>
         </div>
-
-        <div data-errs></div>
         <div class="flex justify-end gap-2 pt-1">
           <button type="button" data-close class="px-4 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-semibold transition-colors">Cancelar</button>
           <button type="submit" class="px-6 py-2.5 rounded-xl text-white font-bold text-sm flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check</span> Guardar</button>
@@ -101,6 +110,13 @@ export function openProductForm(opts: ProductFormOptions): void {
     chip.addEventListener("click", () => { catInput.value = chip.dataset.catChip ?? ""; }));
 
   photoBox.addEventListener("click", () => photoInput.click());
+  // Mostra/esconde o campo de quantidade conforme o toggle de stock.
+  const stockOn = host.querySelector<HTMLInputElement>("[data-stock-on]")!;
+  const stockWrap = host.querySelector<HTMLElement>("[data-stock-wrap]")!;
+  stockOn.addEventListener("change", () => {
+    stockWrap.classList.toggle("hidden", !stockOn.checked);
+    if (stockOn.checked) (host.querySelector<HTMLInputElement>("[data-stock]"))?.focus();
+  });
   photoInput.addEventListener("change", async () => {
     const file = photoInput.files?.[0];
     if (!file) return;
@@ -125,7 +141,10 @@ export function openProductForm(opts: ProductFormOptions): void {
     const featured = host.querySelector<HTMLInputElement>("[data-featured]")!.checked;
     const physical = host.querySelector<HTMLInputElement>("[data-physical]")!.checked;
     const price = priceRaw === "" ? Number.NaN : Number(priceRaw);
-    const input = { name, price, description, category, featured, physical, imageUrl, available: true };
+    const trackStock = host.querySelector<HTMLInputElement>("[data-stock-on]")!.checked;
+    const stockRaw = host.querySelector<HTMLInputElement>("[data-stock]")?.value ?? "";
+    const stock = trackStock ? Math.max(0, Math.floor(Number(stockRaw) || 0)) : null;
+    const input = { name, price, description, category, featured, physical, imageUrl, available: true, stock };
 
     const res = await withButton(
       submitBtn,

@@ -39,7 +39,7 @@ function toProduct(r: any): Product {
     featured: r.featured === true,
     physical: r.physical !== false,
     price: Number(r.price), imageUrl: r.image_url ?? undefined,
-    available: r.available, createdAt: r.created_at,
+    available: r.available, stock: r.stock ?? null, createdAt: r.created_at,
   };
 }
 function toBanner(r: any): Banner {
@@ -101,7 +101,7 @@ export function createSupabaseProductRepository(): ProductRepository {
         category: product.category ?? null,
         featured: product.featured === true,
         physical: product.physical !== false,
-        price: product.price, image_url: product.imageUrl ?? null, available: product.available, created_at: product.createdAt };
+        price: product.price, image_url: product.imageUrl ?? null, available: product.available, stock: product.stock ?? null, created_at: product.createdAt };
       const { data, error } = await supabase.from("products").insert(row).select().single();
       if (error) throw new Error(error.message);
       return toProduct(data);
@@ -111,7 +111,7 @@ export function createSupabaseProductRepository(): ProductRepository {
         category: product.category ?? null,
         featured: product.featured === true,
         physical: product.physical !== false,
-        image_url: product.imageUrl ?? null, available: product.available };
+        image_url: product.imageUrl ?? null, available: product.available, stock: product.stock ?? null };
       const { data } = await supabase.from("products").update(row).eq("id", product.id).eq("store_id", storeId).select().maybeSingle();
       return data ? toProduct(data) : null;
     },

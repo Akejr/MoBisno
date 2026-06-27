@@ -175,6 +175,38 @@ export async function bumpDiscountUse(db, discountCodeId) {
   await db.from("discount_codes").update({ uses: Number(data.uses ?? 0) + 1 }).eq("id", discountCodeId);
 }
 
+/**
+ * Verifica se há stock suficiente para os itens com `id`. Devolve o nome do
+ * primeiro produto sem stock, ou null se tudo ok. Itens com stock NULL (não
+ * controlado) são ignorados.
+ */
+export async function checkStock(db, products) {
+  const items = (products || []).filter((p) => p && p.id);
+  if (!items.length) return null;
+  const ids = items.map((p) => String(p.id));
+  const { data } = await db.from("products").select("id, name, stock").in("id", ids);
+  const byId = new Map((data || []).map((r) => [String(r.id), r]));
+  for (const it of items) {
+    const row = byId.get(String(it.id));
+    if (row && row.stock != null && Number(it.productQuantity) > Number(row.stock)) {
+      return row.name || "produto";
+    }
+  }
+  return null;
+}
+
+/** Decrementa o stock dos itens com `id` (ignora os de stock não controlado). */
+export async function decrementStock(db, products) {
+  const items = (products || []).filter((p) => p && p.id);
+  for (const it of items) {
+    const { data: row } = await db.from("products").select("stock").eq("id", String(it.id)).maybeSingle();
+    if (row && row.stock != null) {
+      const next = Math.max(0, Number(row.stock) - Number(it.productQuantity || 0));
+      await db.from("products").update({ stock: next }).eq("id", String(it.id));
+    }
+  }
+}
+
 /** Plano efetivo de um perfil (espelha src/services/billing.ts). */
 export function effectivePlanId(profile, now = Date.now()) {
   const plan = profile?.plan || "basico";

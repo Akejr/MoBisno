@@ -44,6 +44,8 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
 
   const template = getTemplate(view.templateId);
 
+  const outOfStock = product.stock === 0;
+
   // Página de produto do modelo (ou fallback simples se o modelo não a definir).
   const html = template.renderProduct
     ? template.renderProduct(view, product, custom)
@@ -77,7 +79,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       price: product.price,
       url: productUrl,
       storeName: view.storeName,
-      available: true,
+      available: !outOfStock,
     }),
   });
 
@@ -125,6 +127,17 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
         updateCartBadge(result.store.id);
         navigate(`/loja/${encodeURIComponent(identifier)}/checkout`);
       });
+    });
+  }
+
+  // Esgotado: desativa a compra e marca visualmente (corre após todos os binds).
+  if (outOfStock) {
+    document.querySelectorAll<HTMLElement>("[data-add-cart], [data-edit-whatsapp]").forEach((el) => {
+      el.setAttribute("disabled", "true");
+      el.style.opacity = "0.55";
+      el.style.pointerEvents = "none";
+      el.style.cursor = "not-allowed";
+      el.innerHTML = `<span class="material-symbols-outlined text-[20px]">block</span> Esgotado`;
     });
   }
 }

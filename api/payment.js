@@ -21,7 +21,7 @@ import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
   mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, bumpDiscountUse,
-  effectivePlanId, planAllowsOnline,
+  effectivePlanId, planAllowsOnline, checkStock, decrementStock,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
@@ -70,6 +70,11 @@ export default async function handler(req, res) {
       if (!planAllowsOnline(effectivePlanId(prof))) {
         return send(res, 400, { success: false, error: "Os pagamentos online não estão disponíveis no plano atual da loja.", code: "PLAN_NOT_COVERED" });
       }
+    }
+    // Stock: recusa se algum item não tiver stock suficiente.
+    const outName = await checkStock(db, products);
+    if (outName) {
+      return send(res, 400, { success: false, error: `Sem stock suficiente para "${outName}".`, code: "OUT_OF_STOCK" });
     }
   } else if (kind === "sms") {
     storeId = String(body.storeId || "");
@@ -198,6 +203,9 @@ export default async function handler(req, res) {
       orderId = ins.data?.id || null;
       // Conta o uso do código de desconto aplicado (se válido).
       if (discountId) await bumpDiscountUse(db, discountId);
+      // Abate o stock quando o pagamento é imediato (MCX). Na referência, o
+      // abate ocorre no webhook quando o pagamento é confirmado.
+      if (status === "paid") await decrementStock(db, products);
     }
   } catch (e) {
     // O pagamento foi iniciado; não falhar a resposta por causa do registo.

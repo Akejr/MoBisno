@@ -12,7 +12,7 @@
  * Entrega fire-and-forget: respondemos sempre 200.
  */
 
-import { admin, readBody, send, mapMomenuStatus, activatePlan, creditSms } from "./_shared.js";
+import { admin, readBody, send, mapMomenuStatus, activatePlan, creditSms, decrementStock } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { received: false });
@@ -36,10 +36,13 @@ export default async function handler(req, res) {
 
   try {
     // Encomenda de loja.
-    const upd = await db.from("orders").update(patch).eq("merchant_transaction_id", mtx).select("id").maybeSingle();
-
-    // Pagamento de plano (caso não fosse uma encomenda de loja).
-    if (!upd.data) {
+    const { data: order } = await db.from("orders").select("id, status, products").eq("merchant_transaction_id", mtx).maybeSingle();
+    if (order) {
+      await db.from("orders").update(patch).eq("id", order.id);
+      // Abate o stock uma única vez, na transição para "pago".
+      if (status === "paid" && order.status !== "paid") await decrementStock(db, order.products);
+    } else {
+      // Pagamento de plano.
       await db.from("plan_payments").update(patch).eq("merchant_transaction_id", mtx);
       if (status === "paid") {
         const { data: pp } = await db.from("plan_payments").select("owner_id, plan").eq("merchant_transaction_id", mtx).maybeSingle();

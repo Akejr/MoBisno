@@ -133,6 +133,8 @@ export interface StoreProductView {
   readonly price: number;
   /** URL da imagem do Produto, ou `null` se não existir. */
   readonly imageUrl: string | null;
+  /** Stock disponível (`null` = não controlado; `0` = esgotado). */
+  readonly stock: number | null;
 }
 
 /** View model de uma Loja resolvida e renderizável (Req. 9.1). */
@@ -249,6 +251,7 @@ export function renderStore(result: StorefrontResult): StoreViewModel {
     physical: product.physical !== false,
     price: product.price,
     imageUrl: product.imageUrl ?? null,
+    stock: product.stock ?? null,
   }));
 
   return {
