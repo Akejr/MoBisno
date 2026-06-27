@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
 
 /**
  * Configuração do Vite para a pré-visualização web do MôBisno.
@@ -19,4 +21,9 @@ export default defineConfig({
     ],
   },
   server: { port: 5173, open: false },
+  css: {
+    postcss: {
+      plugins: [tailwindcss(), autoprefixer()],
+    },
+  },
 });

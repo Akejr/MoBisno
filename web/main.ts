@@ -1,4 +1,5 @@
 /** Bootstrap + router (URLs limpas via History API) da SPA do MôBisno. */
+import "./styles.css";
 import { seedDemoStore } from "./composition.js";
 import { storeSubdomain, isStoreApexRoot, navigate, cleanPath, ROUTE_EVENT, PLATFORM_APEX } from "./lib/routing.js";
 import { setDocTitle, setFavicon } from "./lib/dom.js";
