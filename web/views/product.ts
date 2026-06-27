@@ -12,6 +12,7 @@ import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
 import { productTitle, productDescription, productJsonLd } from "../../src/services/seo.js";
 import { trackPixel } from "../lib/pixels.js";
+import { trackStoreEvent } from "../supabase/analytics.js";
 import { listProductReviews, summarize, submitReview, type Review } from "../supabase/reviews.js";
 
 function notFound(message: string): void {
@@ -92,6 +93,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   });
   trackPixel(custom, { type: "PageView" });
   trackPixel(custom, { type: "ViewContent", name: product.name, id: product.id, value: product.price });
+  void trackStoreEvent(result.store.id, "product_view", product.id);
 
   // Não navegar nas âncoras de menu/logo da própria página (já estamos na loja).
   // Controlo de quantidade.

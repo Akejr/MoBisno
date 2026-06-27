@@ -19,6 +19,7 @@ import { getSmsCredits, SMS_UNIT_PRICE, SMS_PACKAGES } from "../supabase/sms.js"
 import { listDiscounts, createDiscount, deleteDiscount, setDiscountActive, type DiscountCode } from "../supabase/discounts.js";
 import { isCurrentUserAdmin } from "../supabase/admin.js";
 import { listStoreReviews, setReviewApproved, deleteReview, type Review } from "../supabase/reviews.js";
+import { getStoreAnalytics } from "../supabase/analytics.js";
 import { LUANDA_AREAS } from "../lib/areas.js";
 
 const ACCENT = "#F95901";
@@ -97,6 +98,7 @@ export async function renderDashboard(): Promise<void> {
         <nav class="flex flex-col gap-1 px-2">
           ${navItem("#/painel", "home", "Início", tab === "inicio")}
           ${navItem("#/painel/produtos", "inventory_2", "Produtos", tab === "produtos")}
+          ${navItem("#/painel/analises", "monitoring", "Análises", tab === "analises")}
           ${navItem("#/painel/pagamentos", "payments", "Pagamentos", tab === "pagamentos")}
           ${navItem("#/painel/plano", "workspace_premium", "Plano", tab === "plano")}
           ${navItem("#/painel/config", "settings", "Configurações", tab === "config")}
@@ -109,7 +111,7 @@ export async function renderDashboard(): Promise<void> {
 
       <div class="flex-1 min-w-0 flex flex-col">
         <header class="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-8 py-3">
-          <h2 class="text-xl font-black tracking-tight capitalize">${tab === "inicio" ? "Início" : tab === "config" ? "Configurações" : tab === "plano" ? "Plano" : esc(tab)}</h2>
+          <h2 class="text-xl font-black tracking-tight capitalize">${tab === "inicio" ? "Início" : tab === "config" ? "Configurações" : tab === "plano" ? "Plano" : tab === "analises" ? "Análises" : esc(tab)}</h2>
           <div class="flex items-center gap-2 shrink-0">
             <a href="#/personalizar" class="text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">palette</span><span class="hidden sm:inline">Personalizar loja</span></a>
             <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="text-gray-500 hover:text-gray-900 text-sm font-semibold flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
@@ -132,6 +134,7 @@ export async function renderDashboard(): Promise<void> {
   }
 
   if (tab === "produtos") { await renderProdutos(); return; }
+  if (tab === "analises") { await renderAnalises(); return; }
   if (tab === "plano") { await renderPlano(); return; }
   if (tab === "pagamentos") { await renderPagamentos(); return; }
   if (tab === "config") { await renderConfig(); return; }
@@ -393,6 +396,55 @@ export async function renderDashboard(): Promise<void> {
       if (!canAddProducts(plan, list.length)) { toast(`Limite de ${formatLimit(plan.limits.maxProductsPerStore)} produtos atingido no plano ${plan.name}.`, "error"); return; }
       openProductForm({ panel, ownerId, storeId: store!.id, categories: cats, onDone: renderProdutos });
     });
+  }
+
+  async function renderAnalises(): Promise<void> {
+    render(shell(`<div class="flex items-center justify-center py-20"><span class="material-symbols-outlined animate-spin text-gray-300" style="font-size:40px">progress_activity</span></div>`));
+    bindShell();
+
+    const [a, products] = await Promise.all([
+      getStoreAnalytics(store!.id),
+      productRepository.listByStore(store!.id),
+    ]);
+    const names = new Map(products.map((p) => [p.id, p.name]));
+    const maxV = Math.max(1, ...a.daily.map((d) => d.visits));
+    const bars = a.daily.map((d) => {
+      const h = Math.round((d.visits / maxV) * 100);
+      const day = new Date(d.date).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+      return `<div class="flex-1 flex flex-col items-center gap-1 group">
+        <div class="w-full flex items-end" style="height:120px"><div class="w-full rounded-t-md transition-all" style="height:${Math.max(2, h)}%;background:${ACCENT}" title="${d.visits} visita(s)"></div></div>
+        <span class="text-[10px] text-gray-400">${esc(day)}</span>
+      </div>`;
+    }).join("");
+
+    const top = a.topProducts.length
+      ? a.topProducts.map((t) => `<div class="flex items-center gap-3 px-5 py-3">
+          <span class="material-symbols-outlined text-gray-300">visibility</span>
+          <span class="flex-1 min-w-0 font-semibold text-gray-800 truncate">${esc(names.get(t.productId) ?? "Produto")}</span>
+          <span class="text-sm font-bold text-gray-900">${t.count}</span>
+        </div>`).join("")
+      : `<p class="px-5 py-8 text-center text-gray-400 text-sm">Ainda não há visualizações de produtos.</p>`;
+
+    render(shell(`
+      <section class="mb-6">
+        <h3 class="text-2xl font-black tracking-tight">Análises</h3>
+        <p class="text-gray-500 mt-1">Visitas e produtos mais vistos da sua loja.</p>
+      </section>
+      <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        ${metric("group", "Visitas (7 dias)", String(a.visits7))}
+        ${metric("calendar_month", "Visitas (30 dias)", String(a.visits30))}
+        ${metric("visibility", "Visualizações (7 dias)", String(a.views7))}
+        ${metric("inventory_2", "Produtos", String(products.length))}
+      </section>
+      <section class="bg-white border border-gray-200 rounded-2xl p-5 mb-6">
+        <h3 class="font-black text-gray-900 mb-4">Visitas — últimos 14 dias</h3>
+        <div class="flex items-end gap-1.5">${bars}</div>
+      </section>
+      <section class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-black text-gray-900">Produtos mais vistos (30 dias)</h3></div>
+        <div class="divide-y divide-gray-50">${top}</div>
+      </section>`));
+    bindShell();
   }
 
   async function renderPagamentos(): Promise<void> {
