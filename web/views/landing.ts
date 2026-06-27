@@ -155,8 +155,9 @@ export async function renderLanding(): Promise<void> {
           <div class="md:col-span-2">
             <h4 class="text-sm font-bold text-gray-900 mb-4">Legal</h4>
             <ul class="space-y-3 text-sm">
-              <li><a href="#" class="text-gray-500 hover:text-gray-900 transition-colors">Termos</a></li>
-              <li><a href="#" class="text-gray-500 hover:text-gray-900 transition-colors">Privacidade</a></li>
+              <li><a href="#/termos" class="text-gray-500 hover:text-gray-900 transition-colors">Termos</a></li>
+              <li><a href="#/privacidade" class="text-gray-500 hover:text-gray-900 transition-colors">Privacidade</a></li>
+              <li><a href="#/politica" class="text-gray-500 hover:text-gray-900 transition-colors">Política Geral</a></li>
             </ul>
           </div>
         </div>

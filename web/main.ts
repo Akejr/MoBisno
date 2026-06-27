@@ -16,6 +16,7 @@ import { renderCartPage } from "./views/cart.js";
 import { renderCheckoutPage } from "./views/checkout.js";
 import { renderEditor } from "./views/editor.js";
 import { renderTemplatePreview } from "./views/preview.js";
+import { renderLegal } from "./views/legal.js";
 import { mountCartUI } from "./lib/cartDrawer.js";
 import { mountSearchUI } from "./lib/search.js";
 import { mountSectionsUI } from "./lib/sections.js";
@@ -77,6 +78,9 @@ function route(): void {
     resetBranding();
     applyNoindexSeo("Entrar — MôBisno");
     renderLogin();
+  } else if (path === "/termos" || path === "/privacidade" || path === "/politica") {
+    resetBranding();
+    renderLegal(path.slice(1) as "termos" | "privacidade" | "politica");
   } else if (path.toLowerCase().startsWith("/adminpainel")) {
     resetBranding();
     applyNoindexSeo("Administração — MôBisno");
