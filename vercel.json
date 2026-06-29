@@ -6,16 +6,6 @@
   "rewrites": [
     { "source": "/robots.txt", "destination": "/api/robots" },
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
-    {
-      "source": "/((?!api/)(?!.*\\.).*)",
-      "has": [{ "type": "host", "value": "^(?<sub>[^.]+)\\.sualoja\\.digital$" }],
-      "destination": "/api/prerender"
-    },
-    {
-      "source": "/((?!api/)(?!.*\\.).*)",
-      "has": [{ "type": "host", "value": "^(?<sub>[^.]+)\\.mobisno\\.store$" }],
-      "destination": "/api/prerender"
-    },
-    { "source": "/((?!api/)(?!.*\\.).*)", "destination": "/index.html" }
+    { "source": "/((?!api/)(?!.*\\.).*)", "destination": "/api/prerender" }
   ]
 }
