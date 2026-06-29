@@ -144,12 +144,24 @@ export default async function handler(req, res) {
 
     const { data: store } = await db
       .from("stores")
-      .select("id, name, identifier, state")
+      .select("id, name, identifier, state, owner_id")
       .eq("identifier", identifier)
       .eq("state", "Publicada")
       .maybeSingle();
 
     if (!store) return sendHtml(shell); // loja inexistente/não publicada → shell
+
+    // Conta sem acesso (teste terminou e sem plano) → loja offline.
+    if (store.owner_id) {
+      const { data: prof } = await db.from("profiles").select("is_admin, trial_ends_at, plan_expires_at").eq("id", store.owner_id).maybeSingle();
+      const now = Date.now();
+      const active = !!prof && (
+        prof.is_admin === true ||
+        (prof.trial_ends_at && Date.parse(prof.trial_ends_at) > now) ||
+        (prof.plan_expires_at && Date.parse(prof.plan_expires_at) > now)
+      );
+      if (!active) return sendHtml(shell);
+    }
 
     const storeName = store.name;
     const { data: logo } = await db.from("assets").select("url").eq("store_id", store.id).eq("kind", "logo").maybeSingle();

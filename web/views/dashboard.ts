@@ -155,6 +155,10 @@ export async function renderDashboard(): Promise<void> {
     const committed = online ? await committedWithdrawals(store!.id) : 0;
     const available = stats ? Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100) : 0;
     const published = store!.state === "Publicada";
+    const suspended = billing.suspended;
+    const statePill = suspended
+      ? `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold" style="background:#fef2f2;color:#b91c1c"><span class="material-symbols-outlined text-[16px]">cloud_off</span> Offline</span>`
+      : `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold" style="background:${published ? "#ecfdf5" : "#f3f4f6"};color:${published ? "#047857" : "#6b7280"}"><span class="w-2 h-2 rounded-full" style="background:currentColor"></span> ${published ? "Publicada" : "Não publicada"}</span>`;
 
     const greeting = `
       <section class="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -163,11 +167,12 @@ export async function renderDashboard(): Promise<void> {
           <p class="text-gray-500 mt-1 break-words">Endereço: <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">${esc(storeUrl.replace(/^https?:\/\//, ""))}</a></p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold" style="background:${published ? "#ecfdf5" : "#f3f4f6"};color:${published ? "#047857" : "#6b7280"}"><span class="w-2 h-2 rounded-full" style="background:currentColor"></span> ${published ? "Publicada" : "Não publicada"}</span>
-          <button id="toggle-state" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">${published ? "Despublicar" : "Publicar"}</button>
+          ${statePill}
+          ${suspended ? "" : `<button id="toggle-state" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">${published ? "Despublicar" : "Publicar"}</button>`}
           <a href="#/painel/plano" class="inline-flex items-center gap-1.5 font-semibold px-3 py-1.5 rounded-full text-sm" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> ${esc(plan.name)}</a>
         </div>
       </section>
+
       ${planStatusCard(billing, plan.name)}`;
 
     function bindInicio(): void {
@@ -1016,9 +1021,36 @@ function planCard(p: Plan, current: Plan): string {
   </div>`;
 }
 
-/** Placar do estado do plano (renovação / agendamento / expiração). */
+/** Placar do estado do plano (teste / suspensão / renovação / agendamento). */
 function planStatusCard(b: BillingState, planName: string): string {
-  // Plano agendado para o próximo período (carry-over).
+  // Conta suspensa: teste terminou e sem plano pago → loja offline.
+  if (b.suspended) {
+    return `<section class="rounded-2xl border border-red-200 bg-red-50 p-5 mb-6 flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="material-symbols-outlined text-red-500 shrink-0">cloud_off</span>
+        <div class="min-w-0"><p class="font-black text-red-700">A sua loja está offline</p><p class="text-sm text-red-600/80">O período de teste terminou. Subscreva um plano para a sua loja voltar a ficar online.</p></div>
+      </div>
+      <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Subscrever plano</a>
+    </section>`;
+  }
+  // Em teste grátis.
+  if (b.inTrial) {
+    const d = b.trialDaysRemaining ?? 0;
+    return `<section class="rounded-2xl border border-gray-200 bg-white p-5 mb-6">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">schedule</span></div>
+          <div class="min-w-0">
+            <p class="font-black text-gray-900">Teste grátis — ${d} dia(s) restante(s)</p>
+            <p class="text-sm text-gray-500">Subscreva um plano para manter a loja online quando o teste terminar.</p>
+          </div>
+        </div>
+        <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Ver planos</a>
+      </div>
+      <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div class="h-full rounded-full" style="width:${Math.max(0, Math.min(100, Math.round((d / 7) * 100)))}%;background:${ACCENT}"></div></div>
+    </section>`;
+  }
+  // Plano pago ativo: placar de renovação.
   if (b.daysRemaining != null) {
     const pct = Math.max(0, Math.min(100, Math.round((b.daysRemaining / PLAN_PERIOD_DAYS) * 100)));
     const sched = b.nextPlan ? getPlan(b.nextPlan).name : null;
@@ -1034,16 +1066,6 @@ function planStatusCard(b: BillingState, planName: string): string {
         <a href="#/painel/plano" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors shrink-0">Gerir plano</a>
       </div>
       <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div class="h-full rounded-full" style="width:${pct}%;background:${ACCENT}"></div></div>
-    </section>`;
-  }
-  // Plano pago temporizado expirou → caiu para básico.
-  if (b.expired) {
-    return `<section class="rounded-2xl border border-red-200 bg-red-50 p-5 mb-6 flex items-center justify-between gap-3 flex-wrap">
-      <div class="flex items-center gap-3 min-w-0">
-        <span class="material-symbols-outlined text-red-500 shrink-0">error</span>
-        <div class="min-w-0"><p class="font-black text-red-700">O seu plano expirou</p><p class="text-sm text-red-600/80">As funcionalidades pagas foram desativadas. Renove para as reativar.</p></div>
-      </div>
-      <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Renovar plano</a>
     </section>`;
   }
   return "";

@@ -275,7 +275,9 @@ export async function adminDeleteStore(storeId: string): Promise<boolean> {
 }
 
 export async function adminSetAccountPlan(ownerId: string, plan: PlanId): Promise<boolean> {
-  const { error } = await supabase.from("profiles").update({ plan }).eq("id", ownerId);
+  // Concessão pelo admin: plano ativo sem data de fim (expiração longa).
+  const farFuture = new Date(Date.now() + 100 * 365 * 24 * 3600 * 1000).toISOString();
+  const { error } = await supabase.from("profiles").update({ plan, plan_expires_at: farFuture, next_plan: null }).eq("id", ownerId);
   if (error) console.error("adminSetAccountPlan", error);
   return !error;
 }

@@ -150,13 +150,15 @@ export async function getOwnerBilling(ownerId?: string | null): Promise<BillingS
   }
   const { data } = await supabase
     .from("profiles")
-    .select("plan, plan_expires_at, next_plan")
+    .select("plan, plan_expires_at, next_plan, trial_ends_at, is_admin")
     .eq("id", id)
     .maybeSingle();
   const state = resolveBilling({
     plan: data?.plan,
     planExpiresAt: data?.plan_expires_at,
     nextPlan: data?.next_plan,
+    trialEndsAt: data?.trial_ends_at,
+    isAdmin: data?.is_admin === true,
   });
   // Persiste a transição apenas para a própria conta (RLS permite-o).
   if (state.transition) {

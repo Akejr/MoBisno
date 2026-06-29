@@ -107,9 +107,9 @@ export async function renderLanding(): Promise<void> {
             <button data-cycle="anual" class="px-4 py-2 rounded-full text-sm font-bold transition-colors">Anual <span class="opacity-80">· poupe 20%</span></button>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Começar agora", features: ["1 loja publicada", "100 produtos cadastrados", "Checkout via WhatsApp", "Endereço .sualoja.digital"] })}
-            ${priceCard({ plan: "profissional", name: "Profissional", desc: "Para vender a sério, sem limites.", featured: true, monthly: "11.000", yearly: "105.600", cta: "Escolher Profissional", features: ["Tudo do plano Básico", "Produtos ilimitados", "Checkout Multicaixa Express e referência bancária", "3 lojas publicadas", "Domínio próprio (opcional)"] })}
-            ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Escolher Empresarial", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
+            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Testar 1 semana grátis", features: ["1 loja publicada", "100 produtos cadastrados", "Checkout via WhatsApp", "Endereço .sualoja.digital"] })}
+            ${priceCard({ plan: "profissional", name: "Profissional", desc: "Para vender a sério, sem limites.", featured: true, monthly: "11.000", yearly: "105.600", cta: "Testar 1 semana grátis", features: ["Tudo do plano Básico", "Produtos ilimitados", "Checkout Multicaixa Express e referência bancária", "3 lojas publicadas", "Domínio próprio (opcional)"] })}
+            ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Testar 1 semana grátis", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
           </div>
         </div>
       </section>

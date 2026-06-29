@@ -31,6 +31,10 @@ export interface BillingInput {
   plan: string | null | undefined;
   planExpiresAt: string | null | undefined;
   nextPlan: string | null | undefined;
+  /** Fim do teste grátis (ISO). */
+  trialEndsAt?: string | null | undefined;
+  /** Conta de administrador (acesso sempre ativo). */
+  isAdmin?: boolean;
 }
 
 /** Transição a persistir quando um período termina. */
@@ -56,6 +60,14 @@ export interface BillingState {
   expired: boolean;
   /** Atribuição permanente (plano pago sem data de expiração). */
   permanent: boolean;
+  /** Conta dentro do período de teste grátis. */
+  inTrial: boolean;
+  /** Dias restantes do teste grátis (>= 0), ou null se não está em teste. */
+  trialDaysRemaining: number | null;
+  /** A loja pode estar online (teste ativo OU plano pago OU admin). */
+  accessActive: boolean;
+  /** Acesso terminou: precisa de pagar para a loja voltar a ficar online. */
+  suspended: boolean;
   /** Alteração a gravar no perfil (promoção/queda), ou `null`. */
   transition: BillingTransition | null;
 }
@@ -77,54 +89,48 @@ export function resolveBilling(input: BillingInput, now: number = Date.now()): B
   const stored: PlanId = asPlan(input.plan) ?? "basico";
   const next = asPlan(input.nextPlan);
   const expMs = input.planExpiresAt ? Date.parse(input.planExpiresAt) : NaN;
-  const hasExpiry = Number.isFinite(expMs);
+  const trialMs = input.trialEndsAt ? Date.parse(input.trialEndsAt) : NaN;
+  const isAdmin = input.isAdmin === true;
 
-  // Linha de base: o plano básico nunca expira.
-  if (stored === "basico") {
-    return base(stored, next);
-  }
+  // Plano pago ativo (paguei e ainda dentro do período).
+  let paidPlan: PlanId | null = null;
+  let paidExpiresAt: string | null = null;
+  let transition: BillingTransition | null = null;
 
-  // Plano pago sem expiração → atribuição permanente (ex.: admin).
-  if (!hasExpiry) {
-    return {
-      effectivePlan: stored, storedPlan: stored, expiresAt: null, nextPlan: next,
-      daysRemaining: null, expired: false, permanent: true, transition: null,
-    };
-  }
-
-  // Plano pago temporizado, ainda dentro do período.
-  if (expMs > now) {
-    return {
-      effectivePlan: stored, storedPlan: stored, expiresAt: new Date(expMs).toISOString(), nextPlan: next,
-      daysRemaining: daysUntil(expMs, now), expired: false, permanent: false, transition: null,
-    };
-  }
-
-  // Período terminado. Há plano agendado que ainda cobre o tempo?
-  if (next && next !== "basico") {
+  if (Number.isFinite(expMs) && expMs > now) {
+    paidPlan = stored;
+    paidExpiresAt = new Date(expMs).toISOString();
+  } else if (Number.isFinite(expMs) && next && next !== "basico") {
+    // Período terminou mas há plano agendado que ainda cobre (carry-over).
     const newExp = expMs + PERIOD_MS;
     if (newExp > now) {
-      const iso = new Date(newExp).toISOString();
-      return {
-        effectivePlan: next, storedPlan: stored, expiresAt: iso, nextPlan: null,
-        daysRemaining: daysUntil(newExp, now), expired: false, permanent: false,
-        transition: { plan: next, planExpiresAt: iso, nextPlan: null },
-      };
+      paidPlan = next;
+      paidExpiresAt = new Date(newExp).toISOString();
+      transition = { plan: next, planExpiresAt: paidExpiresAt, nextPlan: null };
     }
   }
 
-  // Expirou sem cobertura → cai para básico.
-  return {
-    effectivePlan: "basico", storedPlan: stored, expiresAt: null, nextPlan: null,
-    daysRemaining: null, expired: true, permanent: false,
-    transition: { plan: "basico", planExpiresAt: null, nextPlan: null },
-  };
-}
+  const paidActive = paidPlan !== null;
+  const inTrial = !paidActive && Number.isFinite(trialMs) && trialMs > now;
+  const accessActive = isAdmin || paidActive || inTrial;
 
-function base(stored: PlanId, next: PlanId | null): BillingState {
+  const trialDaysRemaining = inTrial ? daysUntil(trialMs, now) : null;
+  const effectivePlan: PlanId = paidActive ? (paidPlan as PlanId) : (inTrial ? stored : "basico");
+  const daysRemaining = paidActive && paidExpiresAt ? daysUntil(Date.parse(paidExpiresAt), now) : null;
+
   return {
-    effectivePlan: "basico", storedPlan: stored, expiresAt: null, nextPlan: next,
-    daysRemaining: null, expired: false, permanent: false, transition: null,
+    effectivePlan,
+    storedPlan: stored,
+    expiresAt: paidActive ? paidExpiresAt : null,
+    nextPlan: next,
+    daysRemaining,
+    expired: !paidActive && !inTrial && stored !== "basico",
+    permanent: false,
+    inTrial,
+    trialDaysRemaining,
+    accessActive,
+    suspended: !accessActive,
+    transition,
   };
 }
 

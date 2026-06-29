@@ -54,13 +54,14 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 
 ## 4. Supabase
 
-1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0017_store_events.sql`
+1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0018_trial.sql`
    (a `0007` muda o subdomínio para `.mobisno.store`; a `0008` cria pagamentos;
    a `0009` o produto físico; a `0010` os pedidos de levantamento; a `0011`
    adiciona `profiles.is_admin` e as políticas RLS de administração; a `0012`
    a faturação de planos (expiração/carry-over); a `0013` os créditos de SMS;
    a `0014` os códigos de desconto; a `0015` o stock de produtos; a `0016` as
-   avaliações de produtos; a `0017` os eventos de loja (analytics)).
+   avaliações de produtos; a `0017` os eventos de loja (analytics); a `0018` o
+   teste grátis de 1 semana e a suspensão da loja sem pagamento).
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
    no SQL Editor, correr
    `update public.profiles set is_admin = true where email = 'o-seu-email@exemplo.com';`

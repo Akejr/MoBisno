@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     // cubra. Se o plano da loja expirou (ou não cobre), recusa.
     const { data: st } = await db.from("stores").select("owner_id").eq("id", storeId).maybeSingle();
     if (st?.owner_id) {
-      const { data: prof } = await db.from("profiles").select("plan, plan_expires_at, next_plan").eq("id", st.owner_id).maybeSingle();
+      const { data: prof } = await db.from("profiles").select("plan, plan_expires_at, next_plan, trial_ends_at").eq("id", st.owner_id).maybeSingle();
       if (!planAllowsOnline(effectivePlanId(prof))) {
         return send(res, 400, { success: false, error: "Os pagamentos online não estão disponíveis no plano atual da loja.", code: "PLAN_NOT_COVERED" });
       }

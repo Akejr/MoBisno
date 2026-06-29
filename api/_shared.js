@@ -209,13 +209,14 @@ export async function decrementStock(db, products) {
 
 /** Plano efetivo de um perfil (espelha src/services/billing.ts). */
 export function effectivePlanId(profile, now = Date.now()) {
-  const plan = profile?.plan || "basico";
-  if (plan === "basico") return "basico";
-  const exp = profile?.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
-  if (!Number.isFinite(exp)) return plan;        // atribuição permanente (admin)
-  if (exp > now) return plan;                    // dentro do período
-  const next = profile?.next_plan;               // expirado → promove agendado?
-  if (next && next !== "basico" && (exp + PLAN_PERIOD_MS) > now) return next;
+  if (!profile) return "basico";
+  const plan = profile.plan || "basico";
+  const expMs = profile.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
+  if (Number.isFinite(expMs) && expMs > now) return plan;            // plano pago ativo
+  const next = profile.next_plan;                                    // carry-over agendado
+  if (Number.isFinite(expMs) && next && next !== "basico" && (expMs + PLAN_PERIOD_MS) > now) return next;
+  const trialMs = profile.trial_ends_at ? Date.parse(profile.trial_ends_at) : NaN;
+  if (Number.isFinite(trialMs) && trialMs > now) return plan;        // em teste → plano escolhido
   return "basico";
 }
 
