@@ -54,7 +54,7 @@ export async function renderLanding(): Promise<void> {
       <section class="max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 md:py-20">
         <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
           <div class="w-full lg:w-1/2 text-center lg:text-left">
-            <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Crie sua loja<br/>Online em minutos</h1>
+            <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Crie a sua loja<br/>online em minutos</h1>
             <p class="mt-6 text-lg text-gray-600 max-w-xl lg:w-[30rem] mx-auto lg:mx-0">Escolha um modelo, adicione os seus produtos e personalize tudo ao seu gosto. Tenha uma loja profissional, com endereço próprio, pronta a receber clientes e a vender.</p>
             <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">${heroActions}</div>
           </div>
@@ -107,7 +107,7 @@ export async function renderLanding(): Promise<void> {
             <button data-cycle="anual" class="px-4 py-2 rounded-full text-sm font-bold transition-colors">Anual <span class="opacity-80">· poupe 20%</span></button>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Testar 1 semana grátis", features: ["1 loja publicada", "100 produtos cadastrados", "Checkout via WhatsApp", "Endereço .sualoja.digital"] })}
+            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Testar 1 semana grátis", features: ["1 loja publicada", "100 produtos registados", "Checkout via WhatsApp", "Endereço .sualoja.digital"] })}
             ${priceCard({ plan: "profissional", name: "Profissional", desc: "Para vender a sério, sem limites.", featured: true, monthly: "11.000", yearly: "105.600", cta: "Testar 1 semana grátis", features: ["Tudo do plano Básico", "Produtos ilimitados", "Checkout Multicaixa Express e referência bancária", "3 lojas publicadas", "Domínio próprio (opcional)"] })}
             ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Testar 1 semana grátis", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
           </div>

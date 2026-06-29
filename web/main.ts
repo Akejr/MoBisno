@@ -7,20 +7,25 @@ import { applyNoindexSeo } from "./lib/seo.js";
 import { loadStorefront } from "./lib/storeCache.js";
 import { renderLanding } from "./views/landing.js";
 import { renderLogin } from "./views/login.js";
-import { renderWizard } from "./views/wizard.js";
-import { renderDashboard } from "./views/dashboard.js";
-import { renderAdminPanel } from "./views/adminPanel.js";
 import { renderStorefront } from "./views/storefront.js";
 import { renderProductPage } from "./views/product.js";
 import { renderCategoryPage } from "./views/category.js";
 import { renderCartPage } from "./views/cart.js";
 import { renderCheckoutPage } from "./views/checkout.js";
-import { renderEditor } from "./views/editor.js";
-import { renderTemplatePreview } from "./views/preview.js";
-import { renderLegal } from "./views/legal.js";
 import { mountCartUI } from "./lib/cartDrawer.js";
 import { mountSearchUI } from "./lib/search.js";
 import { mountSectionsUI } from "./lib/sections.js";
+
+// Vistas de dono/admin: carregadas sob demanda (code splitting) para aliviar o
+// pacote inicial que o comprador descarrega no telemóvel.
+const lazy = {
+  wizard: () => import("./views/wizard.js").then((m) => m.renderWizard()),
+  dashboard: () => import("./views/dashboard.js").then((m) => m.renderDashboard()),
+  adminPanel: () => import("./views/adminPanel.js").then((m) => m.renderAdminPanel()),
+  editor: () => import("./views/editor.js").then((m) => m.renderEditor()),
+  preview: (id: string) => import("./views/preview.js").then((m) => m.renderTemplatePreview(id)),
+  legal: (p: "termos" | "privacidade" | "politica") => import("./views/legal.js").then((m) => m.renderLegal(p)),
+};
 
 const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
 
@@ -70,30 +75,30 @@ function route(): void {
   // --- Domínio principal (mobisno.store / localhost / *.vercel.app) ---
   if (path.startsWith("/preview/") || path === "/preview") {
     resetBranding();
-    renderTemplatePreview(decodeURIComponent(path.replace(/^\/preview\/?/, "")) || "galeria");
+    void lazy.preview(decodeURIComponent(path.replace(/^\/preview\/?/, "")) || "galeria");
   } else if (path.startsWith("/criar")) {
     resetBranding();
     applyNoindexSeo("Criar loja — MôBisno");
-    renderWizard();
+    void lazy.wizard();
   } else if (path.startsWith("/login")) {
     resetBranding();
     applyNoindexSeo("Entrar — MôBisno");
     renderLogin();
   } else if (path === "/termos" || path === "/privacidade" || path === "/politica") {
     resetBranding();
-    renderLegal(path.slice(1) as "termos" | "privacidade" | "politica");
+    void lazy.legal(path.slice(1) as "termos" | "privacidade" | "politica");
   } else if (path.toLowerCase().startsWith("/adminpainel")) {
     resetBranding();
     applyNoindexSeo("Administração — MôBisno");
-    void renderAdminPanel();
+    void lazy.adminPanel();
   } else if (path.startsWith("/painel")) {
     resetBranding();
     applyNoindexSeo("Painel — MôBisno");
-    void renderDashboard();
+    void lazy.dashboard();
   } else if (path.startsWith("/personalizar")) {
     resetBranding();
     applyNoindexSeo("Personalizar loja — MôBisno");
-    void renderEditor();
+    void lazy.editor();
   } else if (path.startsWith("/loja/")) {
     const rest = path.slice("/loja/".length);
     const productMatch = rest.match(/^([^/]+)\/produto\/(.+)$/);

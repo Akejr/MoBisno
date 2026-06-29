@@ -8,12 +8,12 @@
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     {
       "source": "/((?!api/)(?!.*\\.).*)",
-      "has": [{ "type": "host", "value": "(?<sub>(?!www\\.)[^.]+)\\.sualoja\\.digital" }],
+      "has": [{ "type": "host", "value": "^(?<sub>[^.]+)\\.sualoja\\.digital$" }],
       "destination": "/api/prerender"
     },
     {
       "source": "/((?!api/)(?!.*\\.).*)",
-      "has": [{ "type": "host", "value": "(?<sub>(?!www\\.)[^.]+)\\.mobisno\\.store" }],
+      "has": [{ "type": "host", "value": "^(?<sub>[^.]+)\\.mobisno\\.store$" }],
       "destination": "/api/prerender"
     },
     { "source": "/((?!api/)(?!.*\\.).*)", "destination": "/index.html" }

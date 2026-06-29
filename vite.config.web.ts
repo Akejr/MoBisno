@@ -21,6 +21,17 @@ export default defineConfig({
     ],
   },
   server: { port: 5173, open: false },
+  build: {
+    rollupOptions: {
+      output: {
+        // Separa as dependências (ex.: supabase-js) num chunk de vendor cacheável
+        // e à parte do código da app, melhorando o carregamento inicial.
+        manualChunks(id) {
+          if (id.includes("node_modules")) return "vendor";
+        },
+      },
+    },
+  },
   css: {
     postcss: {
       plugins: [tailwindcss(), autoprefixer()],
