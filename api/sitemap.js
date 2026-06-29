@@ -1,9 +1,12 @@
 /**
- * sitemap.xml dinâmico e host-aware:
- *  - num host de loja (`nomedaloja.sualoja.digital`): lista a home + os produtos
- *    dessa loja;
- *  - no host da plataforma (`mobisno.store`): lista as páginas públicas + a home
- *    de todas as lojas publicadas (em `sualoja.digital`).
+ * sitemap.xml dinâmico e host-aware. Respeita a regra do Google de que um
+ * sitemap só pode listar URLs do MESMO host/domínio:
+ *
+ *  - `nomedaloja.sualoja.digital/sitemap.xml` → páginas dessa loja (mesmo host);
+ *  - `sualoja.digital/sitemap.xml` → ÍNDICE de sitemaps das lojas (subdomínios
+ *    do mesmo domínio); submeter este numa propriedade de Domínio no Search
+ *    Console;
+ *  - `mobisno.store/sitemap.xml` → apenas as páginas da plataforma.
  *
  * Defensivo: perante erro devolve um sitemap mínimo (nunca 500).
  */
@@ -25,6 +28,7 @@ function productSlugPath(p) {
   const cat = slugify(p.category && String(p.category).trim() !== "" ? p.category : "geral");
   return `${cat}/${slugify(p.name)}`;
 }
+/** Identificador da loja a partir do host (subdomínio de um apex de loja), ou null. */
 function identifierFromHost(host) {
   const h = String(host || "").toLowerCase().split(":")[0];
   for (const apex of STORE_APEXES) {
@@ -36,14 +40,22 @@ function identifierFromHost(host) {
   }
   return null;
 }
+/** É o apex (ou www) do domínio das lojas? */
+function isStoreApex(host) {
+  const h = String(host || "").toLowerCase().split(":")[0];
+  return h === STORE_APEX || h === `www.${STORE_APEX}`;
+}
 
 function urlset(urls) {
   const body = urls.map((u) => {
-    const loc = `<loc>${xmlEsc(u.loc)}</loc>`;
     const lm = u.lastmod ? `<lastmod>${xmlEsc(u.lastmod)}</lastmod>` : "";
-    return `  <url>${loc}${lm}</url>`;
+    return `  <url><loc>${xmlEsc(u.loc)}</loc>${lm}</url>`;
   }).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+}
+function sitemapIndex(locs) {
+  const body = locs.map((loc) => `  <sitemap><loc>${xmlEsc(loc)}</loc></sitemap>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</sitemapindex>\n`;
 }
 
 export default async function handler(req, res) {
@@ -55,11 +67,11 @@ export default async function handler(req, res) {
   try {
     const identifier = identifierFromHost(host);
 
+    // 1) Host de loja → páginas dessa loja, usando o MESMO host do pedido.
     if (identifier && db) {
-      // Sitemap de uma loja.
-      const { data: store } = await db.from("stores").select("id, identifier, state").eq("identifier", identifier).eq("state", "Publicada").maybeSingle();
-      if (!store) { res.statusCode = 200; return res.end(urlset([{ loc: `https://${identifier}.${STORE_APEX}/` }])); }
-      const base = `https://${identifier}.${STORE_APEX}`;
+      const { data: store } = await db.from("stores").select("id, state").eq("identifier", identifier).eq("state", "Publicada").maybeSingle();
+      const base = `https://${host}`;
+      if (!store) { res.statusCode = 200; return res.end(urlset([{ loc: `${base}/` }])); }
       const { data: products } = await db.from("products").select("name, category, available, created_at").eq("store_id", store.id).eq("available", true);
       const urls = [{ loc: `${base}/` }];
       for (const p of products || []) {
@@ -69,17 +81,29 @@ export default async function handler(req, res) {
       return res.end(urlset(urls));
     }
 
-    // Sitemap da plataforma.
-    const urls = [{ loc: `https://${PLATFORM_APEX}/` }];
-    if (db) {
-      const { data: stores } = await db.from("stores").select("identifier, state").eq("state", "Publicada");
-      for (const s of stores || []) urls.push({ loc: `https://${s.identifier}.${STORE_APEX}/` });
+    // 2) Apex do domínio das lojas → ÍNDICE com o sitemap de cada loja (mesmo domínio).
+    if (isStoreApex(host)) {
+      const locs = [];
+      if (db) {
+        const { data: stores } = await db.from("stores").select("identifier, state").eq("state", "Publicada");
+        for (const s of stores || []) locs.push(`https://${s.identifier}.${STORE_APEX}/sitemap.xml`);
+      }
+      res.statusCode = 200;
+      return res.end(locs.length ? sitemapIndex(locs) : urlset([{ loc: `https://${STORE_APEX}/` }]));
     }
+
+    // 3) Plataforma (mobisno.store) → apenas páginas da plataforma (mesmo host).
+    const urls = [
+      { loc: `https://${PLATFORM_APEX}/` },
+      { loc: `https://${PLATFORM_APEX}/termos` },
+      { loc: `https://${PLATFORM_APEX}/privacidade` },
+      { loc: `https://${PLATFORM_APEX}/politica` },
+    ];
     res.statusCode = 200;
     return res.end(urlset(urls));
   } catch (e) {
     console.error("sitemap", e);
     res.statusCode = 200;
-    return res.end(urlset([{ loc: `https://${PLATFORM_APEX}/` }]));
+    return res.end(urlset([{ loc: `https://${host}/` }]));
   }
 }
