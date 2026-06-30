@@ -229,6 +229,16 @@ export async function renderEditor(): Promise<void> {
       if (a && !(e.target as HTMLElement).closest("[data-edit-logo]")) e.preventDefault();
     });
 
+    // Colar sempre como texto simples (remove a formatação de origem).
+    preview.addEventListener("paste", (e) => {
+      const t = e.target as HTMLElement;
+      if (!t || !t.isContentEditable) return;
+      e.preventDefault();
+      const text = (e.clipboardData?.getData("text/plain") ?? "").replace(/\r/g, "");
+      document.execCommand("insertText", false, text);
+      t.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
     // Textos editáveis inline (com snapshot ao focar).
     preview.querySelectorAll<HTMLElement>("[data-edit]").forEach((el) => {
       el.setAttribute("contenteditable", "true");

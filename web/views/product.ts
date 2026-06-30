@@ -170,7 +170,7 @@ function starsHtml(value: number, size = 18): string {
 /** Secção de avaliações (lista + média + formulário). Inserida antes do rodapé. */
 function mountReviews(app: HTMLElement, storeId: string, productId: string, reviews: Review[], rating: { average: number; count: number }): void {
   const section = document.createElement("section");
-  section.className = "w-full max-w-3xl mx-auto px-4 sm:px-6 py-12";
+  section.className = "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-neutral-100";
   const list = (items: Review[]): string => items.length
     ? items.map((r) => `<div class="border-b border-neutral-100 py-4">
         <div class="flex items-center justify-between gap-2">
@@ -187,15 +187,17 @@ function mountReviews(app: HTMLElement, storeId: string, productId: string, revi
       <div class="flex items-center">${starsHtml(rating.average, 22)}</div>
       <span class="text-neutral-600 text-sm">${rating.count ? `${rating.average.toFixed(1)} · ${rating.count} avaliação(ões)` : "Sem avaliações"}</span>
     </div>
-    <div data-reviews-list class="mb-8">${list(reviews)}</div>
-    <div class="rounded-2xl border border-neutral-200 bg-white p-5">
-      <h3 class="font-bold text-neutral-900 mb-3">Deixe a sua avaliação</h3>
-      <div class="flex items-center gap-1 mb-3" data-star-pick>
-        ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" class="material-symbols-outlined" style="font-size:30px;color:#d4d4d8;cursor:pointer">star</button>`).join("")}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div data-reviews-list class="lg:col-span-2">${list(reviews)}</div>
+      <div class="rounded-2xl border border-neutral-200 bg-white p-5 lg:col-span-1 lg:sticky lg:top-6">
+        <h3 class="font-bold text-neutral-900 mb-3">Deixe a sua avaliação</h3>
+        <div class="flex items-center gap-1 mb-3" data-star-pick>
+          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" class="material-symbols-outlined" style="font-size:30px;color:#d4d4d8;cursor:pointer">star</button>`).join("")}
+        </div>
+        <input data-rv-name placeholder="O seu nome" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] mb-2" />
+        <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] resize-none mb-3"></textarea>
+        <button data-rv-submit class="w-full px-5 py-2.5 rounded-xl text-white font-bold text-sm inline-flex items-center justify-center gap-1" style="background:var(--brand)"><span class="material-symbols-outlined text-[18px]">send</span> Enviar avaliação</button>
       </div>
-      <input data-rv-name placeholder="O seu nome" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] mb-2" />
-      <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] resize-none mb-3"></textarea>
-      <button data-rv-submit class="px-5 py-2.5 rounded-xl text-white font-bold text-sm inline-flex items-center gap-1" style="background:var(--brand)"><span class="material-symbols-outlined text-[18px]">send</span> Enviar avaliação</button>
     </div>`;
 
   const footer = app.querySelector("footer");
