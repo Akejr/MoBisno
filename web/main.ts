@@ -25,6 +25,7 @@ const lazy = {
   editor: () => import("./views/editor.js").then((m) => m.renderEditor()),
   preview: (id: string) => import("./views/preview.js").then((m) => m.renderTemplatePreview(id)),
   legal: (p: "termos" | "privacidade" | "politica") => import("./views/legal.js").then((m) => m.renderLegal(p)),
+  presetGallery: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery()),
 };
 
 const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
@@ -99,6 +100,10 @@ function route(): void {
     resetBranding();
     applyNoindexSeo("Personalizar loja — MôBisno");
     void lazy.editor();
+  } else if (path.startsWith("/modelos")) {
+    resetBranding();
+    applyNoindexSeo("Modelos prontos — MôBisno");
+    void lazy.presetGallery();
   } else if (path.startsWith("/loja/")) {
     const rest = path.slice("/loja/".length);
     const productMatch = rest.match(/^([^/]+)\/produto\/(.+)$/);
