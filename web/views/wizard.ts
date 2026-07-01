@@ -12,14 +12,17 @@ import { TEMPLATES, identifierService, authService, wizardFlow, appState, publis
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
 import type { Session } from "../../src/services/authService.js";
+import { TEMPLATE_PRESETS, getPreset, type TemplatePreset } from "../templates/presets.js";
+import { saveCustomization } from "../supabase/customization.js";
 
 const ACCENT = "#F95901";
 
-const wiz: { data: Record<string, unknown>; session: Session | null; plan: PlanId; subdomain: string } = {
+const wiz: { data: Record<string, unknown>; session: Session | null; plan: PlanId; subdomain: string; storeId: string } = {
   data: {},
   session: null,
   plan: DEFAULT_PLAN,
   subdomain: "",
+  storeId: "",
 };
 
 function syncPlanFromHash(): void {
@@ -373,13 +376,80 @@ function createStore(): void {
     appState.storeId = result.store.id;
     appState.storeIdentifier = result.store.identifier;
     appState.templateId = result.store.templateId;
+    wiz.storeId = result.store.id; // Guarda para aplicar preset depois
 
     await botSay("Está tudo feito! ✨ A tua loja foi criada e publicada.");
-    await botSay("Vou te direcionar ao painel, onde podes personalizar tudo no teu website.");
+    askTemplateChoice();
+  })();
+}
+
+/** Pergunta se quer usar um modelo pronto ou personalizar no construtor. */
+function askTemplateChoice(): void {
+  void (async () => {
+    await botSay("Agora podes escolher:");
+    await botSay("🎨 Usar um modelo pronto (visual completo em segundos) ou 🛠️ Personalizar no construtor (crias tudo ao teu gosto).");
+    inputChips(
+      [
+        { value: "preset", label: "📦 Modelo pronto" },
+        { value: "builder", label: "🎨 Construtor personalizado" },
+      ],
+      async (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "preset") showPresetGallery();
+        else finishWizard();
+      },
+    );
+  })();
+}
+
+/** Mostra a galeria de modelos prontos (presets). */
+function showPresetGallery(): void {
+  void (async () => {
+    await botSay("Aqui estão os modelos prontos disponíveis. Escolhe um e a tua loja fica configurada automaticamente:");
+    clearInput();
+    const zone = $("#chat-input")!;
+    zone.innerHTML = `<div class="grid grid-cols-1 gap-3 max-w-md mx-auto">${TEMPLATE_PRESETS.map((p) => `
+      <button data-preset="${esc(p.id)}" class="mb-chip text-left border border-gray-200 bg-white rounded-2xl p-4 hover:border-[${ACCENT}] hover:shadow-lg transition-all">
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 w-16 h-16 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+            <span class="material-symbols-outlined text-gray-400" style="font-size:32px">palette</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-gray-900">${esc(p.name)}</div>
+            <div class="text-sm text-gray-500 mt-0.5">${esc(p.description)}</div>
+          </div>
+        </div>
+      </button>`).join("")}</div>`;
+    zone.querySelectorAll<HTMLElement>("[data-preset]").forEach((b) =>
+      b.addEventListener("click", () => applyPreset(b.dataset.preset!)));
+  })();
+}
+
+/** Aplica o preset escolhido e finaliza. */
+function applyPreset(presetId: string): void {
+  void (async () => {
+    const preset = getPreset(presetId);
+    if (!preset) { await botSay("Modelo não encontrado. Vamos tentar de novo."); showPresetGallery(); return; }
+    userSay(preset.name);
+    clearInput();
+    inputBusy("A aplicar o modelo…");
+    if (!wiz.session || !wiz.storeId) { await botSay("Algo correu mal. Vamos recomeçar."); start(); return; }
+    const saved = await saveCustomization(wiz.session.ownerId, wiz.storeId, preset.customization);
+    if (!saved) { await botSay("Não foi possível aplicar o modelo. Vamos tentar de novo."); showPresetGallery(); return; }
+    await botSay(`Modelo "${preset.name}" aplicado com sucesso! 🎉`);
+    finishWizard();
+  })();
+}
+
+/** Finaliza o wizard e redireciona ao painel. */
+function finishWizard(): void {
+  void (async () => {
+    await botSay("Vou te direcionar ao painel, onde podes gerir os teus produtos e ver a tua loja.");
     clearInput();
     await wait(1400);
     // Reinicia o estado para uma próxima criação.
-    wiz.data = {}; wiz.session = null; wiz.subdomain = ""; wiz.plan = DEFAULT_PLAN;
+    wiz.data = {}; wiz.session = null; wiz.subdomain = ""; wiz.plan = DEFAULT_PLAN; wiz.storeId = "";
     go("#/painel");
   })();
 }
