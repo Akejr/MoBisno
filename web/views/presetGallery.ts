@@ -1,76 +1,81 @@
 /**
- * Galeria de modelos prontos (presets) com preview em tempo real.
- * O utilizador vê cada modelo renderizado num iframe, escolhe e aplica.
+ * Galeria de modelos prontos (presets) com preview visual.
+ * O utilizador vê cada modelo com mockup visual, escolhe e aplica.
  */
 import { render, $, go, esc, toast } from "../lib/dom.js";
 import { TEMPLATE_PRESETS, getPreset } from "../templates/presets.js";
 import { appState } from "../composition.js";
 import { saveCustomization } from "../supabase/customization.js";
-import { getTemplate } from "../templates/registry.js";
-import { renderStore, type StoreViewModel } from "../../src/storefront/storeRenderer.js";
-import { applyInk } from "../lib/ink.js";
-import { applyTheme } from "../lib/theme.js";
 
 const ACCENT = "#F95901";
 
-/** Dados da loja fake usados no preview (produtos e dados genéricos). */
-function mockStoreView(): StoreViewModel {
-  return {
-    storeName: "A Sua Loja",
-    storeType: "Moda e Acessórios",
-    logo: null,
-    banners: [],
-    products: [
-      {
-        id: "mock-1",
-        name: "Produto Exemplo 1",
-        price: 12500,
-        imageUrl: null,
-        available: true,
-        featured: false,
-        category: "Categoria A",
-        description: "Descrição do produto de exemplo.",
-        stock: null,
-      },
-      {
-        id: "mock-2",
-        name: "Produto Exemplo 2",
-        price: 8900,
-        imageUrl: null,
-        available: true,
-        featured: true,
-        category: "Categoria A",
-        description: "Outro produto de exemplo em destaque.",
-        stock: null,
-      },
-      {
-        id: "mock-3",
-        name: "Produto Exemplo 3",
-        price: 15000,
-        imageUrl: null,
-        available: true,
-        featured: false,
-        category: "Categoria B",
-        description: "Mais um produto de exemplo.",
-        stock: null,
-      },
-    ],
-    categories: ["Categoria A", "Categoria B"],
-  };
-}
-
-/** Renderiza o HTML de preview de um preset dentro de um contentor. */
-function renderPreview(presetId: string, container: HTMLElement): void {
+/** Gera um preview visual mockup do preset (simulação de loja). */
+function generatePreviewHTML(presetId: string): string {
   const preset = getPreset(presetId);
-  if (!preset) { container.innerHTML = "<p>Modelo não encontrado.</p>"; return; }
-  const view = mockStoreView();
-  const template = getTemplate("galeria"); // Usa o template Galeria como base (ou outro)
-  const html = template.render(view, preset.customization);
-  container.innerHTML = html;
-  // Aplica cor e tema ao preview.
-  container.style.setProperty("--brand", preset.customization.colors?.primary ?? ACCENT);
-  applyInk(container, preset.customization);
-  applyTheme(container, preset.customization);
+  if (!preset) return "<p class='text-gray-400 text-center p-8'>Modelo não encontrado</p>";
+  
+  const c = preset.customization;
+  const primary = c.colors?.primary ?? "#DF0B26";
+  const text = c.colors?.text ?? "#111827";
+  const headerPromo = c.header?.promo ?? "Frete grátis em compras acima de 15.000 Kz";
+  const heroTitle = c.hero?.title ?? "A sua marca, o seu estilo";
+  const heroSubtitle = c.hero?.subtitle ?? "Descubra a coleção perfeita para si.";
+  const heroCtaLabel = c.hero?.ctaLabel ?? "Ver produtos";
+  
+  // Simula a loja em miniatura (scaled down)
+  return `
+    <div class="w-full h-full overflow-auto bg-white" style="font-size:10px;line-height:1.4">
+      <!-- Header com promo -->
+      <div class="text-white text-center py-1 px-2 font-medium" style="background:${primary};font-size:8px">${esc(headerPromo)}</div>
+      <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+        <div class="font-black" style="color:${primary};font-size:12px">A Sua Loja</div>
+        <div class="flex gap-2 text-gray-400" style="font-size:10px">
+          <span>🔍</span>
+          <span>🛒</span>
+        </div>
+      </div>
+      
+      <!-- Hero -->
+      <div class="bg-gray-100 px-4 py-6 text-center">
+        <h1 class="font-black mb-1" style="color:${text};font-size:14px">${esc(heroTitle)}</h1>
+        <p class="text-gray-600 mb-2" style="font-size:9px">${esc(heroSubtitle)}</p>
+        <button class="text-white px-3 py-1 rounded-full font-bold" style="background:${primary};font-size:9px">${esc(heroCtaLabel)}</button>
+      </div>
+      
+      <!-- Produtos em grelha (retrato 3:4) -->
+      <div class="grid grid-cols-3 gap-2 p-3">
+        ${[1, 2, 3, 4, 5, 6].map((i) => `
+          <div class="bg-white border border-gray-200 rounded overflow-hidden">
+            <div class="bg-gray-200 aspect-[3/4]"></div>
+            <div class="p-1.5">
+              <div class="font-semibold mb-0.5" style="color:${text};font-size:9px">Produto ${i}</div>
+              <div class="font-bold" style="color:${primary};font-size:9px">12.500 Kz</div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      
+      <!-- Testemunhos (cartões) -->
+      <div class="bg-gray-50 px-3 py-4">
+        <h2 class="font-black text-center mb-2" style="color:${text};font-size:11px">O que os nossos clientes dizem</h2>
+        <div class="grid grid-cols-3 gap-2">
+          ${["Ana Silva", "Carlos Mendes", "Maria João"].map((name) => `
+            <div class="bg-white rounded p-2 text-center border border-gray-100">
+              <div class="w-6 h-6 rounded-full mx-auto mb-1 flex items-center justify-center text-white font-bold" style="background:${primary};font-size:8px">${name.split(" ").map(n => n[0]).join("")}</div>
+              <div class="font-semibold mb-0.5" style="color:${text};font-size:8px">${esc(name)}</div>
+              <div class="text-gray-500" style="font-size:7px">⭐⭐⭐⭐⭐</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="bg-gray-900 text-white px-3 py-3 text-center" style="font-size:8px">
+        <div class="font-semibold mb-1">A Sua Loja</div>
+        <div class="text-gray-400">© 2024 - Feito com MôBisno</div>
+      </div>
+    </div>
+  `;
 }
 
 export function renderPresetGallery(): void {
@@ -97,9 +102,9 @@ export function renderPresetGallery(): void {
       <div class="max-w-7xl mx-auto">
         <div class="text-center mb-10">
           <h1 class="text-3xl md:text-4xl font-black text-gray-900 mb-3">Escolha o modelo da sua loja</h1>
-          <p class="text-gray-600 text-lg">Veja o preview em tempo real e escolha o que mais combina com a sua marca.</p>
+          <p class="text-gray-600 text-lg">Veja o preview visual e escolha o que mais combina com a sua marca.</p>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" id="presets-grid"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8" id="presets-grid"></div>
       </div>
     </main>
   </div>`);
@@ -111,27 +116,51 @@ export function renderPresetGallery(): void {
     card.innerHTML = `
       <div class="p-5 border-b border-gray-100">
         <div class="flex items-start justify-between gap-3 mb-2">
-          <div>
+          <div class="flex-1">
             <h3 class="text-xl font-bold text-gray-900">${esc(preset.name)}</h3>
             <p class="text-sm text-gray-500 mt-1">${esc(preset.description)}</p>
           </div>
-          <button data-apply="${esc(preset.id)}" class="shrink-0 px-5 py-2.5 rounded-full text-white font-bold text-sm flex items-center gap-1.5 shadow-sm hover:opacity-95 transition-opacity" style="background:${ACCENT}">
-            <span class="material-symbols-outlined text-[18px]">check</span> Usar este
-          </button>
         </div>
       </div>
       <div class="bg-gray-50 p-4">
-        <div class="aspect-[16/10] bg-white border border-gray-200 rounded-xl overflow-hidden shadow-inner">
-          <div data-preview="${esc(preset.id)}" class="w-full h-full overflow-auto"></div>
+        <!-- Preview desktop -->
+        <div class="hidden md:block mb-4">
+          <div class="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">computer</span>
+            Desktop
+          </div>
+          <div class="aspect-[16/10] bg-white border border-gray-200 rounded-xl overflow-hidden shadow-inner">
+            <div data-preview-desktop="${esc(preset.id)}" class="w-full h-full"></div>
+          </div>
         </div>
+        
+        <!-- Preview mobile -->
+        <div class="mb-4">
+          <div class="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">phone_iphone</span>
+            Mobile
+          </div>
+          <div class="max-w-[375px] mx-auto">
+            <div class="aspect-[9/16] bg-white border-2 border-gray-300 rounded-3xl overflow-hidden shadow-xl" style="box-shadow:0 0 0 12px #1f2937">
+              <div data-preview-mobile="${esc(preset.id)}" class="w-full h-full"></div>
+            </div>
+          </div>
+        </div>
+        
+        <button data-apply="${esc(preset.id)}" class="w-full px-6 py-3 rounded-full text-white font-bold text-base flex items-center justify-center gap-2 shadow-sm hover:opacity-95 transition-opacity" style="background:${ACCENT}">
+          <span class="material-symbols-outlined text-[20px]">check</span> Usar este modelo
+        </button>
       </div>`;
     grid.appendChild(card);
 
-    // Renderiza o preview do modelo.
-    const previewContainer = card.querySelector(`[data-preview="${preset.id}"]`) as HTMLElement;
-    renderPreview(preset.id, previewContainer);
+    // Renderiza os previews (desktop e mobile com o mesmo HTML).
+    const desktopContainer = card.querySelector(`[data-preview-desktop="${preset.id}"]`) as HTMLElement;
+    const mobileContainer = card.querySelector(`[data-preview-mobile="${preset.id}"]`) as HTMLElement;
+    
+    if (desktopContainer) desktopContainer.innerHTML = generatePreviewHTML(preset.id);
+    if (mobileContainer) mobileContainer.innerHTML = generatePreviewHTML(preset.id);
 
-    // Botão "Usar este".
+    // Botão "Usar este modelo".
     card.querySelector(`[data-apply="${preset.id}"]`)!.addEventListener("click", () => applyPreset(preset.id));
   }
 }
