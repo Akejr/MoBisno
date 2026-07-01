@@ -78,8 +78,9 @@ function generatePreviewHTML(presetId: string): string {
   `;
 }
 
-export function renderPresetGallery(): void {
-  if (!appState.storeId || !appState.ownerId) {
+export function renderPresetGallery(testMode = false): void {
+  // Em modo de teste, não valida autenticação (só preview visual).
+  if (!testMode && (!appState.storeId || !appState.ownerId)) {
     toast("Loja não identificada. Volta ao wizard.", "error");
     go("#/criar");
     return;
@@ -148,7 +149,7 @@ export function renderPresetGallery(): void {
         </div>
         
         <button data-apply="${esc(preset.id)}" class="w-full px-6 py-3 rounded-full text-white font-bold text-base flex items-center justify-center gap-2 shadow-sm hover:opacity-95 transition-opacity" style="background:${ACCENT}">
-          <span class="material-symbols-outlined text-[20px]">check</span> Usar este modelo
+          <span class="material-symbols-outlined text-[20px]">check</span> ${testMode ? "Ver modelo (teste)" : "Usar este modelo"}
         </button>
       </div>`;
     grid.appendChild(card);
@@ -161,7 +162,13 @@ export function renderPresetGallery(): void {
     if (mobileContainer) mobileContainer.innerHTML = generatePreviewHTML(preset.id);
 
     // Botão "Usar este modelo".
-    card.querySelector(`[data-apply="${preset.id}"]`)!.addEventListener("click", () => applyPreset(preset.id));
+    card.querySelector(`[data-apply="${preset.id}"]`)!.addEventListener("click", () => {
+      if (testMode) {
+        toast(`Modelo "${preset.name}" selecionado (modo de teste)`, "info");
+      } else {
+        applyPreset(preset.id);
+      }
+    });
   }
 }
 
