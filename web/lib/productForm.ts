@@ -2,8 +2,10 @@
 import { esc, toast, fileToUint8Array, withBusy, withButton } from "./dom.js";
 import { compressImageFile } from "./imageCompress.js";
 import { PRODUCT_POLICY } from "../../src/services/fileService.js";
+import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { AdminPanel } from "../../src/app/adminPanel.js";
 import type { Product } from "../../src/models/index.js";
+import type { StoreCustomization } from "../templates/types.js";
 
 const ACCENT = "#F95901";
 
@@ -14,6 +16,14 @@ interface ProductFormOptions {
   product?: Product | null;
   /** Categorias já existentes na loja (para sugestão/seleção rápida). */
   categories?: string[];
+  /**
+   * Personalização em memória (editor). Se fornecida, as fotos extra são
+   * escritas nela e persistidas com o "Guardar" do editor (evita conflitos).
+   * Se ausente, o formulário grava as fotos extra diretamente na BD.
+   */
+  customization?: StoreCustomization;
+  /** Chamado após alterar as fotos extra (ex.: rebuild do editor). */
+  onImagesChange?: () => void | Promise<void>;
   onDone: () => void | Promise<void>;
 }
 
@@ -22,6 +32,10 @@ export function openProductForm(opts: ProductFormOptions): void {
   const categories = opts.categories ?? [];
   const isEdit = !!product;
   let imageUrl: string | undefined = product?.imageUrl;
+  // Fotos extra (galeria) — geridas em memória e persistidas ao guardar.
+  let gallery: string[] = product && opts.customization?.productImages?.[product.id]
+    ? [...opts.customization.productImages[product.id]!]
+    : [];
 
   const input = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-[15px] text-gray-900 outline-none transition-colors focus:border-[#F95901]";
   const label = "text-sm font-semibold text-gray-700";
@@ -64,6 +78,12 @@ export function openProductForm(opts: ProductFormOptions): void {
           <span class="${label}">Descrição</span>
           <textarea data-desc rows="3" class="${input} resize-none" placeholder="Detalhes do produto (opcional)">${esc(product?.description ?? "")}</textarea>
         </label>
+
+        <div class="flex flex-col gap-2">
+          <span class="${label}">Mais fotos <span class="text-gray-400 font-normal">(galeria do produto)</span></span>
+          <div data-gallery class="flex flex-wrap gap-2"></div>
+          <input data-gallery-input type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" />
+        </div>
 
         <div class="rounded-2xl border border-gray-100 divide-y divide-gray-100">
           <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
@@ -133,6 +153,55 @@ export function openProductForm(opts: ProductFormOptions): void {
     photoBox.innerHTML = `<img src="${esc(imageUrl)}" class="w-full h-full object-cover" />`;
   });
 
+  // Galeria de fotos extra (upload múltiplo + remover).
+  const galleryBox = host.querySelector<HTMLElement>("[data-gallery]")!;
+  const galleryInput = host.querySelector<HTMLInputElement>("[data-gallery-input]")!;
+  function drawGallery(): void {
+    const thumbs = gallery.map((url, i) =>
+      `<div class="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200 group">
+        <img src="${esc(url)}" class="w-full h-full object-cover" />
+        <button type="button" data-rm-img="${i}" class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 shadow flex items-center justify-center text-red-600 hover:bg-white"><span class="material-symbols-outlined text-[14px]">close</span></button>
+      </div>`).join("");
+    const add = `<button type="button" data-add-img class="w-16 h-16 shrink-0 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-gray-400 hover:border-[#F95901] hover:bg-orange-50/40 transition-colors"><span class="material-symbols-outlined">add_photo_alternate</span></button>`;
+    galleryBox.innerHTML = thumbs + add;
+    galleryBox.querySelector("[data-add-img]")!.addEventListener("click", () => galleryInput.click());
+    galleryBox.querySelectorAll<HTMLElement>("[data-rm-img]").forEach((b) =>
+      b.addEventListener("click", () => { gallery.splice(Number(b.dataset.rmImg), 1); drawGallery(); }));
+  }
+  drawGallery();
+  galleryInput.addEventListener("change", async () => {
+    const files = Array.from(galleryInput.files ?? []);
+    galleryInput.value = "";
+    for (const raw of files) {
+      const file = await compressImageFile(raw);
+      const content = await fileToUint8Array(file);
+      const validation = panel.services.fileService.validate({ content, fileName: file.name }, PRODUCT_POLICY);
+      if (!validation.ok) { toast(validation.error.message, "error"); continue; }
+      const stored = await withBusy(
+        () => panel.services.fileService.store(storeId, "product", validation.value),
+        "A carregar foto…",
+      );
+      gallery.push(stored.url);
+      drawGallery();
+    }
+  });
+
+  /** Persiste as fotos extra do produto (na personalização), sem migração à BD. */
+  async function persistGallery(productId: string): Promise<void> {
+    if (opts.customization) {
+      // Editor: escreve na personalização em memória (guardada com o "Guardar").
+      const map = opts.customization.productImages ?? (opts.customization.productImages = {});
+      if (gallery.length) map[productId] = [...gallery]; else delete map[productId];
+      await opts.onImagesChange?.();
+      return;
+    }
+    // Fora do editor: lê-modifica-grava a personalização atual da loja.
+    const current = await getCustomization(storeId);
+    const map = current.productImages ?? (current.productImages = {});
+    if (gallery.length) map[productId] = [...gallery]; else delete map[productId];
+    await saveCustomization(ownerId, storeId, current);
+  }
+
   host.querySelector<HTMLFormElement>("[data-form]")!.addEventListener("submit", async (e) => {
     e.preventDefault();
     const submitBtn = host.querySelector<HTMLButtonElement>('button[type="submit"]');
@@ -157,6 +226,8 @@ export function openProductForm(opts: ProductFormOptions): void {
     );
 
     if (res.status === "success") {
+      // Persiste as fotos extra (galeria) associadas a este produto.
+      try { await persistGallery(res.product.id); } catch { /* não bloquear o save do produto */ }
       toast(isEdit ? "Produto atualizado." : "Produto adicionado.");
       close();
       await onDone();

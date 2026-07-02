@@ -18,6 +18,7 @@ import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGr
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -287,10 +288,6 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
   </div>`;
   }
   const phone = resolveWaPhone(custom);
-  const img = product.imageUrl
-    ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.name)}" class="w-full h-full object-cover" />`
-    : `<div class="absolute inset-0 flex items-center justify-center bg-neutral-100"><span class="material-symbols-outlined text-neutral-300 text-6xl">image</span></div>`;
-
   const waMsg = buildProductMessage(custom?.whatsapp?.messageTemplate, product.name, formatKz(product.price));
   const related = view.products.filter((p) => p.id !== product.id).slice(0, 4);
 
@@ -315,7 +312,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
         <!-- Imagem -->
-        <div class="group relative aspect-square bg-neutral-50 rounded-xl overflow-hidden" data-edit-product="${esc(product.id)}">${img}</div>
+        ${productGalleryHtml(product, custom, { stageClass: "aspect-square bg-neutral-50 rounded-xl overflow-hidden", imgClass: "w-full h-full object-cover", brand: "var(--brand,#DC2626)" })}
 
         <!-- Detalhe -->
         <div class="flex flex-col">

@@ -686,7 +686,7 @@ export async function renderEditor(): Promise<void> {
       ov.addEventListener("click", (e) => {
         e.preventDefault();
         const product = productsById.get(id);
-        if (product) openProductForm({ panel, ownerId, storeId: store!.id, product, categories: currentCategories(), onDone: rebuild });
+        if (product) openProductForm({ panel, ownerId, storeId: store!.id, product, categories: currentCategories(), customization: custom, onImagesChange: rebuild, onDone: rebuild });
       });
       card.appendChild(ov);
     });
@@ -697,7 +697,7 @@ export async function renderEditor(): Promise<void> {
       addCard.innerHTML = `<span class="material-symbols-outlined text-3xl">add</span><span class="text-sm font-medium">Adicionar produto</span>`;
       addCard.addEventListener("click", (e) => {
         e.preventDefault();
-        openProductForm({ panel, ownerId, storeId: store!.id, categories: currentCategories(), onDone: rebuild });
+        openProductForm({ panel, ownerId, storeId: store!.id, categories: currentCategories(), customization: custom, onImagesChange: rebuild, onDone: rebuild });
       });
       grid.appendChild(addCard);
     }

@@ -21,6 +21,7 @@ import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGr
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -268,9 +269,6 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
   }
   const phone = resolveWaPhone(custom);
   const waMsg = buildProductMessage(custom?.whatsapp?.messageTemplate, product.name, formatKz(product.price));
-  const img = product.imageUrl
-    ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.name)}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />`
-    : `<div class="absolute inset-0 flex items-center justify-center bg-[#f0eded]"><span class="material-symbols-outlined text-[#d6c2c4] text-6xl">image</span></div>`;
   const crumbCategory = product.category
     ? `<a href="${esc(categoryHref(view, product.category))}" class="hover:text-[color:var(--brand,${DEFAULT_BRAND})] transition-colors">${esc(product.category)}</a>
        <span class="material-symbols-outlined text-[14px]">chevron_right</span>`
@@ -292,8 +290,8 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
       </nav>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
-        <div class="lg:col-span-7 group relative" data-edit-product="${esc(product.id)}">
-          <div class="aspect-[4/5] bg-[#f6f3f2] overflow-hidden rounded-xl">${img}</div>
+        <div class="lg:col-span-7">
+          ${productGalleryHtml(product, custom, { stageClass: "aspect-[4/5] bg-[#f6f3f2] overflow-hidden rounded-xl", imgClass: "w-full h-full object-cover transition-transform duration-700 hover:scale-105", brand: `var(--brand,${DEFAULT_BRAND})` })}
         </div>
 
         <div class="lg:col-span-5 lg:sticky lg:top-28">

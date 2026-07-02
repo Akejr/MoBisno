@@ -15,6 +15,7 @@ import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
 import { mobileMenuParts } from "./headers.js";
+import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -351,14 +352,15 @@ function boutiquesSection(custom?: StoreCustomization): string {
   </section>`;
 }
 
-/** Galeria "bento" da página de produto (imagem principal + 2 miniaturas). */
-function productGallery(_view: StoreRenderView, product: StoreProductView): string {
-  const placeholder = `<div class="absolute inset-0 flex items-center justify-center" style="background:#f9f7f2"><span class="material-symbols-outlined text-5xl" style="color:#c7c7bf">image</span></div>`;
-  const main = product.imageUrl
-    ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.name)}" class="object-cover w-full h-full transition-transform duration-700 hover:scale-105" />`
-    : placeholder;
-  // Mostra apenas a foto do próprio produto (uma foto = uma imagem).
-  return `<div class="relative aspect-[4/5] overflow-hidden" data-edit-product="${esc(product.id)}" style="background:#f6f3f2;border-radius:2px">${main}</div>`;
+/** Galeria da página de produto: uma foto = uma imagem; várias = miniaturas. */
+function productGallery(_view: StoreRenderView, product: StoreProductView, custom?: StoreCustomization): string {
+  return productGalleryHtml(product, custom, {
+    stageClass: "aspect-[4/5] overflow-hidden",
+    stageStyle: "background:#f6f3f2;border-radius:2px",
+    imgClass: "object-cover w-full h-full transition-transform duration-700 hover:scale-105",
+    brand: "var(--brand,#1c1b1b)",
+    thumbsClass: "mt-3 grid grid-cols-5 gap-2",
+  });
 }
 
 /* -------------------------------- Páginas -------------------------------- */
@@ -404,7 +406,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
         <span style="color:#1c1b1b">${esc(product.name)}</span>
       </nav>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-20 items-start">
-        ${productGallery(view, product)}
+        ${productGallery(view, product, custom)}
         <div class="flex flex-col md:sticky md:top-28 md:px-2">
           ${badge}
           <h1 class="lx-serif text-4xl md:text-5xl mb-3" style="color:#1c1b1b">${esc(product.name)}</h1>

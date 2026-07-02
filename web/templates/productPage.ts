@@ -7,6 +7,7 @@
 import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
+import { productGalleryHtml } from "./gallery.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import type { StoreRenderView, StoreCustomization, StoreProductView } from "./types.js";
 
@@ -133,8 +134,8 @@ export function renderProductPage(
     return `<main class="${ctx.container} py-8 md:py-12 flex-grow">
       ${breadcrumb(view, product)}
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-        <div class="lg:col-span-7 space-y-4" data-edit-product="${esc(product.id)}">
-          <div class="relative aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">${imgHtml(product, "w-full h-full object-cover")}</div>
+        <div class="lg:col-span-7 space-y-4">
+          ${productGalleryHtml(product, custom, { stageClass: "aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden border border-gray-100", imgClass: "w-full h-full object-cover", brand: ctx.brand })}
         </div>
         <div class="lg:col-span-5 lg:sticky lg:top-24 flex flex-col">
           <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
@@ -153,7 +154,7 @@ export function renderProductPage(
   return `<main class="${ctx.container} py-6 md:py-10 flex-grow">
     ${breadcrumb(view, product)}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-      <div class="relative aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100" data-edit-product="${esc(product.id)}">${imgHtml(product, "w-full h-full object-cover")}</div>
+      ${productGalleryHtml(product, custom, { stageClass: "aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100", imgClass: "w-full h-full object-cover", brand: ctx.brand })}
       <div class="flex flex-col">
         <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
         ${price}

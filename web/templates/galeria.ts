@@ -20,6 +20,7 @@ import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGr
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -231,9 +232,6 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
   </div>`;
   }
   const phone = resolveWaPhone(custom);
-  const img = product.imageUrl
-    ? `<img src="${esc(product.imageUrl)}" alt="${esc(product.name)}" class="w-full h-full object-cover" />`
-    : `<div class="absolute inset-0 flex items-center justify-center bg-gray-100"><span class="material-symbols-outlined text-gray-300 text-6xl">image</span></div>`;
   const waMsg = buildProductMessage(custom?.whatsapp?.messageTemplate, product.name, formatKz(product.price));
   const related = view.products.filter((p) => p.id !== product.id).slice(0, 4);
   const crumbCategory = product.category
@@ -252,7 +250,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
         <span class="text-gray-900 font-medium truncate">${esc(product.name)}</span>
       </nav>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-        <div class="group relative aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100" data-edit-product="${esc(product.id)}">${img}</div>
+        ${productGalleryHtml(product, custom, { stageClass: "aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100", imgClass: "w-full h-full object-cover", brand: "var(--brand,#4f46e5)" })}
         <div class="flex flex-col">
           <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
           <p class="mt-3 text-3xl font-bold" style="color:var(--brand,#4f46e5)">${esc(formatKz(product.price))}</p>

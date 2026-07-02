@@ -145,6 +145,12 @@ export interface StoreCustomization {
   /** Testemunhos em destaque (secção editorial do modelo, ex.: Lumière). */
   testimonials?: { quote?: string; author?: string; role?: string }[];
 
+  /**
+   * Fotos adicionais por produto (além da foto principal do produto), indexadas
+   * pelo ID do produto. Guardadas aqui para não exigir migração à base de dados.
+   */
+  productImages?: Record<string, string[]>;
+
   /** Definições específicas do modelo Lumière Chic. */
   lumiere?: {
     /** Título da secção do mapa/lojas. */
