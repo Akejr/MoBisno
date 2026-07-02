@@ -31,10 +31,14 @@ import { CHECKOUT_VARIANTS, renderCheckout, type CheckoutVariant } from "../temp
 import { deliveredAreas } from "../lib/areas.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
+import { applyFieldColors } from "../lib/fieldColors.js";
+import { applyIconColor } from "../lib/iconColor.js";
+import { readableInk } from "../lib/brand.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
 import { openMapPicker } from "../lib/mapPicker.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
+import { mountTestimonials } from "../lib/testimonialsCarousel.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -42,6 +46,13 @@ import { openProductForm } from "../lib/productForm.js";
 import { openWhatsappForm } from "../lib/whatsappForm.js";
 
 const ACCENT = "#F95901";
+
+/** Ícones predefinidos para as garantias da página de produto. */
+const PERK_ICON_CHOICES = [
+  "local_shipping", "verified", "payments", "lock", "workspace_premium", "autorenew",
+  "support_agent", "schedule", "discount", "recycling", "favorite", "shield",
+  "package_2", "paid", "bolt", "eco", "spa", "diamond",
+];
 
 function setPath(obj: Record<string, any>, path: string, value: unknown): void {
   const keys = path.split(".");
@@ -56,6 +67,22 @@ function setPath(obj: Record<string, any>, path: string, value: unknown): void {
 export async function renderEditor(): Promise<void> {
   const realOwner = appState.ownerId ?? (await currentOwnerId());
   if (!realOwner) { go("#/criar"); return; }
+
+  // Restaura o contexto do editor após um refresh (o appState é volátil), para
+  // manter a MESMA loja em edição (ex.: dono com várias lojas) e o destino de saída.
+  if (!appState.storeId) {
+    try {
+      const ctx = JSON.parse(localStorage.getItem("mb-editor-ctx") || "null") as
+        | { storeId?: string; editOwnerId?: string | null; editorReturn?: string | null }
+        | null;
+      if (ctx && typeof ctx === "object") {
+        appState.storeId = ctx.storeId ?? null;
+        appState.editOwnerId = ctx.editOwnerId ?? null;
+        appState.editorReturn = ctx.editorReturn ?? null;
+      }
+    } catch { /* ignora contexto inválido */ }
+  }
+
   // O admin pode editar a loja de outro dono (appState.editOwnerId).
   const ownerId = appState.editOwnerId ?? realOwner;
 
@@ -70,11 +97,44 @@ export async function renderEditor(): Promise<void> {
   appState.ownerId = realOwner;
   appState.storeId = store.id;
 
+  // Persiste o contexto para sobreviver a um refresh da página.
+  try {
+    localStorage.setItem("mb-editor-ctx", JSON.stringify({
+      storeId: store.id, editOwnerId: appState.editOwnerId, editorReturn: appState.editorReturn,
+    }));
+  } catch { /* ignora */ }
+  /** Destino ao sair do editor (admin volta à sua tela; dono volta ao painel). */
+  const backHref = appState.editorReturn ?? "/painel";
+
   const custom: StoreCustomization = await getCustomization(store.id);
+  /** Loja baseada num modelo pronto: edição estrutural bloqueada (só textos/fotos/cores). */
+  const locked = custom.__locked === true;
+  /**
+   * (Temporário) Edição de MODELO no editor (trocar header/hero/rodapé/página de
+   * produto/checkout/disposição/blocos). Desativada por agora; pôr `true` para
+   * reativar — o código permanece pronto.
+   */
+  const MODEL_EDITING = false;
+  const structuralEditing = !locked && MODEL_EDITING;
   let savedJson = JSON.stringify(custom);
   const isDirty = (): boolean => JSON.stringify(custom) !== savedJson;
   const panel = adminPanelFor(store.id);
   let productsById = new Map<string, Product>();
+
+  /**
+   * Paleta de cores de fundo para as secções, com as cores JÁ EXISTENTES em
+   * cada modelo (para manter a UI coerente). "Padrão" = sem fundo.
+   */
+  function sectionBgChoices(): { label: string; value: string }[] {
+    const byModel: Record<string, { label: string; value: string }[]> = {
+      lumiere: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
+      beauty: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
+      galeria: [{ label: "Cinza claro", value: "#f9fafb" }, { label: "Cinza", value: "#f3f4f6" }],
+      desportivo: [{ label: "Cinza claro", value: "#f5f5f5" }, { label: "Escuro", value: "#171717" }],
+    };
+    const surfaces = byModel[store!.templateId] ?? [{ label: "Claro", value: "#f6f3f2" }];
+    return [{ label: "Padrão", value: "" }, { label: "Branco", value: "#ffffff" }, ...surfaces];
+  }
 
   /** Categorias distintas existentes (para o formulário de produto). */
   function currentCategories(): string[] {
@@ -133,7 +193,7 @@ export async function renderEditor(): Promise<void> {
       </div>
       <div class="flex items-center justify-between gap-3 px-4 md:px-6 py-2.5">
         <div class="flex items-center gap-3 min-w-0">
-          <a href="/painel" id="back-link" class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">arrow_back</span></a>
+          <a href="${backHref}" id="back-link" class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">arrow_back</span></a>
           <div class="min-w-0">
             <p class="text-xs text-gray-400 leading-none">A personalizar</p>
             <p class="text-gray-900 font-bold truncate">${esc(store.name)}</p>
@@ -149,6 +209,11 @@ export async function renderEditor(): Promise<void> {
             <span class="w-6 h-6 rounded-full border border-gray-200" id="ink-dot" style="background:${esc(custom.colors?.text ?? "#111827")}"></span>
             <span class="hidden sm:inline">Texto</span>
             <input id="ink" type="color" value="${esc(custom.colors?.text ?? "#111827")}" class="absolute inset-0 opacity-0 cursor-pointer" />
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor dos ícones">
+            <span class="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center" id="icon-dot" style="color:${esc(custom.colors?.icon ?? custom.colors?.text ?? "#111827")}"><span class="material-symbols-outlined text-[16px]">star</span></span>
+            <span class="hidden sm:inline">Ícones</span>
+            <input id="icon-color" type="color" value="${esc(custom.colors?.icon ?? custom.colors?.text ?? "#111827")}" class="absolute inset-0 opacity-0 cursor-pointer" />
           </label>
           <label class="flex items-center gap-1.5 text-sm text-gray-600 rounded-full hover:bg-gray-100 px-2 py-1.5" title="Estilo da loja">
             <span class="material-symbols-outlined text-[18px]">style</span>
@@ -172,6 +237,14 @@ export async function renderEditor(): Promise<void> {
     <input id="block-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="testi-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
+    <div id="mb-text-tools" class="fixed left-1/2 -translate-x-1/2 bottom-5 z-[70] hidden items-center gap-3 bg-neutral-900 text-white rounded-full shadow-2xl px-4 py-2.5">
+      <span class="text-xs font-medium">Cor deste texto</span>
+      <label class="relative w-7 h-7 rounded-full border-2 border-white/30 cursor-pointer overflow-hidden block" title="Escolher cor">
+        <span id="mb-text-color-dot" class="absolute inset-0"></span>
+        <input id="mb-text-color" type="color" class="absolute inset-0 opacity-0 cursor-pointer" />
+      </label>
+      <button id="mb-text-color-reset" class="text-xs text-white/70 hover:text-white flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">format_color_reset</span> Repor</button>
+    </div>
   </div>
   <!-- Painel de pré-visualização (desliza da direita) -->
   <div id="mb-preview" class="fixed inset-0 z-[80]" style="display:none">
@@ -222,6 +295,8 @@ export async function renderEditor(): Promise<void> {
     preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
     applyInk(preview, custom);
     applyTheme(preview, custom);
+    applyFieldColors(preview, custom);
+    applyIconColor(preview, custom);
 
     // Não navegar ao clicar em links do preview.
     preview.addEventListener("click", (e) => {
@@ -243,7 +318,7 @@ export async function renderEditor(): Promise<void> {
     preview.querySelectorAll<HTMLElement>("[data-edit]").forEach((el) => {
       el.setAttribute("contenteditable", "true");
       el.setAttribute("spellcheck", "false");
-      el.addEventListener("focus", () => snapshot());
+      el.addEventListener("focus", () => { snapshot(); showTextTools(el); });
       el.addEventListener("input", () => setPath(custom as Record<string, any>, el.dataset.edit!, el.textContent?.trim() ?? ""));
       el.addEventListener("keydown", (e) => {
         if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); el.blur(); }
@@ -383,6 +458,27 @@ export async function renderEditor(): Promise<void> {
           span.addEventListener("input", () => { (custom.productPerks as { icon?: string; text?: string }[])[i]!.text = span.textContent?.trim() ?? ""; });
           span.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); span.blur(); } });
         }
+        // Seletor de ícone predefinido (clicar no ícone abre a paleta).
+        const iconEl = li.querySelector<HTMLElement>(".material-symbols-outlined");
+        if (iconEl) {
+          iconEl.style.cursor = "pointer";
+          iconEl.title = "Escolher ícone";
+          li.style.position = li.style.position || "relative";
+          const pal = document.createElement("div");
+          pal.className = "mb-ov-btn absolute z-30 hidden bg-white border border-neutral-200 rounded-xl shadow-xl p-2 grid grid-cols-6 gap-1";
+          pal.style.cssText += ";top:100%;left:0;width:224px";
+          pal.innerHTML = PERK_ICON_CHOICES
+            .map((ic) => `<button type="button" data-ic="${ic}" class="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-700"><span class="material-symbols-outlined text-[20px]">${ic}</span></button>`)
+            .join("");
+          li.appendChild(pal);
+          iconEl.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pal.classList.toggle("hidden"); });
+          pal.querySelectorAll<HTMLElement>("[data-ic]").forEach((b) => b.addEventListener("click", (e) => {
+            e.preventDefault();
+            snapshot();
+            (custom.productPerks as { icon?: string; text?: string }[])[i]!.icon = b.dataset.ic!;
+            void rebuild();
+          }));
+        }
         const rm = document.createElement("button");
         rm.className = "mb-ov-btn ml-1 align-middle text-neutral-400 hover:text-red-600";
         rm.title = "Remover";
@@ -416,6 +512,39 @@ export async function renderEditor(): Promise<void> {
       bar.querySelector("[data-down]")!.addEventListener("click", (e) => { e.preventDefault(); const a = custom.blocks; if (a && i < a.length - 1) { snapshot(); [a[i + 1], a[i]] = [a[i]!, a[i + 1]!]; void rebuild(); } });
       bar.querySelector("[data-rm]")!.addEventListener("click", (e) => { e.preventDefault(); const a = custom.blocks; if (a) { snapshot(); a.splice(i, 1); void rebuild(); } });
       blk.appendChild(bar);
+
+      // Cor de fundo da secção (info/texto) — escolher entre as cores do modelo.
+      if (blk.dataset.blockType === "info" || blk.dataset.blockType === "text") {
+        const bgBtn = document.createElement("button");
+        bgBtn.title = "Cor de fundo";
+        bgBtn.className = "w-7 h-7 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-600";
+        bgBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">format_color_fill</span>`;
+        bar.insertBefore(bgBtn, bar.firstChild);
+        const choices = sectionBgChoices();
+        const cur = (custom.blocks?.[i] as { bg?: string } | undefined)?.bg ?? "";
+        const pop = document.createElement("div");
+        pop.className = "mb-ov-btn absolute top-12 right-3 z-30 hidden bg-white border border-neutral-200 rounded-xl shadow-xl p-2 flex flex-wrap gap-1.5 w-44";
+        pop.innerHTML = choices.map((c) => {
+          const active = c.value === cur;
+          const ring = active ? "ring-2 ring-offset-1 ring-[#F95901]" : "";
+          const border = c.value ? "border-neutral-200" : "border-dashed border-neutral-400";
+          const inner = c.value ? "" : `<span class="material-symbols-outlined text-[16px] text-neutral-400">format_color_reset</span>`;
+          return `<button data-bg-val="${esc(c.value)}" title="${esc(c.label)}" class="w-8 h-8 rounded-lg border ${border} ${ring} flex items-center justify-center" style="background:${esc(c.value || "#ffffff")}">${inner}</button>`;
+        }).join("");
+        bgBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
+        pop.querySelectorAll<HTMLElement>("[data-bg-val]").forEach((sw) => {
+          sw.addEventListener("click", (e) => {
+            e.preventDefault();
+            const b = custom.blocks?.[i] as { bg?: string } | undefined;
+            if (!b) return;
+            snapshot();
+            const v = sw.dataset.bgVal ?? "";
+            if (v) b.bg = v; else delete b.bg;
+            void rebuild();
+          });
+        });
+        blk.appendChild(pop);
+      }
 
       // Bloco "info" — trocar imagem + inverter lado.
       const imgBox = blk.querySelector<HTMLElement>("[data-edit-block-image]");
@@ -514,38 +643,38 @@ export async function renderEditor(): Promise<void> {
       footerLogo.appendChild(ov);
     }
 
-    // Menus — editar inline + remover + adicionar.
-    const nav = preview.querySelector<HTMLElement>("[data-edit-menu]");
-    if (nav) {
-      custom.menu = custom.menu ?? Array.from(nav.querySelectorAll("[data-edit-menu-item]")).map((s) => s.textContent?.trim() ?? "");
-      nav.querySelectorAll<HTMLElement>("[data-edit-menu-item]").forEach((item, i) => {
-        item.setAttribute("contenteditable", "true");
-        item.setAttribute("spellcheck", "false");
-        item.addEventListener("focus", () => snapshot());
-        item.addEventListener("input", () => { (custom.menu as string[])[i] = item.textContent?.trim() ?? ""; });
-        item.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); item.blur(); } });
-        const rm = document.createElement("button");
-        rm.className = "mb-ov-btn ml-1 align-middle text-neutral-400 hover:text-red-600";
-        rm.title = "Remover";
-        rm.innerHTML = `<span class="material-symbols-outlined text-[16px]">close</span>`;
-        rm.addEventListener("click", (e) => {
-          e.preventDefault();
+    // Cabeçalho de navegação fixo (Início/Produtos/Categorias) — não editável.
+
+    // Hero — destino do botão principal (categoria ou secção de produtos).
+    const heroCta = preview.querySelector<HTMLElement>("[data-hero-cta]");
+    if (heroCta) {
+      const cats = currentCategories();
+      const cur = custom.hero?.ctaTarget ?? "";
+      const wrap = heroCta.parentElement;
+      if (wrap) {
+        wrap.style.position = wrap.style.position || "relative";
+        const lnk = document.createElement("button");
+        lnk.type = "button";
+        lnk.title = "Para onde o botão do hero direciona";
+        lnk.className = "mb-ov-btn inline-flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-900 border border-dashed border-neutral-300 rounded-full px-2.5 py-1";
+        lnk.innerHTML = `<span class="material-symbols-outlined text-[14px]">link</span> Destino`;
+        const pop = document.createElement("div");
+        pop.className = "mb-ov-btn absolute z-40 hidden bottom-full left-0 mb-1 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 w-56 normal-case tracking-normal text-left";
+        pop.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1 px-1">O botão leva para</p>`;
+        const sel = document.createElement("select");
+        sel.className = "w-full text-sm border border-neutral-300 rounded-lg px-2 py-1.5 bg-white text-neutral-800";
+        sel.innerHTML = `<option value="">Secção de produtos</option>` +
+          cats.map((c) => `<option value="${esc(c)}" ${c === cur ? "selected" : ""}>${esc(c)}</option>`).join("");
+        sel.addEventListener("change", () => {
           snapshot();
-          (custom.menu as string[]).splice(i, 1);
+          setPath(custom as Record<string, any>, "hero.ctaTarget", sel.value);
           void rebuild();
         });
-        item.after(rm);
-      });
-      const add = document.createElement("button");
-      add.className = "mb-chip mb-ov-btn text-xs text-neutral-500 hover:text-neutral-900 border border-dashed border-neutral-300 rounded-full px-2 py-0.5 flex items-center gap-1";
-      add.innerHTML = `<span class="material-symbols-outlined text-[14px]">add</span> Menu`;
-      add.addEventListener("click", (e) => {
-        e.preventDefault();
-        snapshot();
-        (custom.menu as string[]).push("Novo");
-        void rebuild();
-      });
-      nav.appendChild(add);
+        pop.appendChild(sel);
+        lnk.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
+        heroCta.after(lnk);
+        lnk.after(pop);
+      }
     }
 
     // Produtos — editar (hover) + adicionar card.
@@ -633,14 +762,21 @@ export async function renderEditor(): Promise<void> {
           <span class="material-symbols-outlined text-[20px] text-neutral-500 mt-0.5">${icon}</span>
           <span><span class="block text-sm font-semibold text-neutral-900">${title}</span><span class="block text-xs text-neutral-500">${desc}</span></span>
         </button>`;
+      // Em modelos prontos (locked) só se pode adicionar produtos e informação
+      // com foto; o resto das secções fica reservado ao construtor livre.
+      const addItems = locked
+        ? menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto") +
+          menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info") +
+          menuItem("title", "Título e texto", "Texto centrado de destaque", "text")
+        : menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto") +
+          menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info") +
+          menuItem("title", "Título e texto", "Texto centrado de destaque", "text") +
+          menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials") +
+          menuItem("location_on", "Localização", "Mapa com a morada da loja", "location");
       addSec.innerHTML = `
         <button data-add-toggle class="w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors"><span class="material-symbols-outlined">add</span> Adicionar secção</button>
         <div data-add-menu class="hidden absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 z-[70]">
-          ${menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto")}
-          ${menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info")}
-          ${menuItem("title", "Título e texto", "Texto centrado de destaque", "text")}
-          ${menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials")}
-          ${menuItem("location_on", "Localização", "Mapa com a morada da loja", "location")}
+          ${addItems}
         </div>`;
       const menu = addSec.querySelector<HTMLElement>("[data-add-menu]")!;
       addSec.querySelector("[data-add-toggle]")!.addEventListener("click", (e) => { e.preventDefault(); menu.classList.toggle("hidden"); });
@@ -659,6 +795,7 @@ export async function renderEditor(): Promise<void> {
           void rebuild();
         }));
       // O botão fica sempre no fim da última secção (depois dos blocos).
+      // A estrutura do modelo NÃO é fixa: pode sempre adicionar-se secções.
       (preview.querySelector<HTMLElement>("[data-edit-blocks]") ?? sectionsWrap).appendChild(addSec);
     }
 
@@ -687,7 +824,7 @@ export async function renderEditor(): Promise<void> {
     }
 
     // Linhas tracejadas a separar as secções (apenas no editor) + botão de modelo.
-    if (currentScreen === "home") {
+    if (structuralEditing && currentScreen === "home") {
       const blockLabel: Record<string, string> = {
         info: "Informação", text: "Texto", testimonials: "Testemunhos", location: "Localização",
       };
@@ -760,7 +897,7 @@ export async function renderEditor(): Promise<void> {
         footerEl.parentElement.insertBefore(mkDiv("Rodapé"), footerEl);
         footerEl.parentElement.insertBefore(mkBar({ label: "Trocar modelo do rodapé", icon: "splitscreen_bottom", onClick: openFooterPicker, id: "tour-footer" }), footerEl);
       }
-    } else if (currentScreen === "product") {
+    } else if (structuralEditing && currentScreen === "product") {
       // Página de produto — botão para trocar o modelo, antes do conteúdo.
       const main = preview.querySelector<HTMLElement>("main");
       if (main?.parentElement) {
@@ -816,6 +953,9 @@ export async function renderEditor(): Promise<void> {
     bind(preview);
     fadeInImages(preview);
     mountParticlesHeroes(preview);
+    mountTestimonials(preview);
+    mountTestimonialEditor(preview);
+    mountLumiereSections(preview);
     if (previewOpen) renderPreviewDrawer(view);
   }
 
@@ -849,48 +989,239 @@ export async function renderEditor(): Promise<void> {
     const template = getTemplate(store!.templateId);
     const inner = checkoutPreviewHtml(variant);
     const wrapped = template.renderCheckout ? template.renderCheckout(view, inner, custom) : inner;
+    // O botão "Trocar modelo do checkout" só aparece com a edição estrutural
+    // ativa (desativada por agora). Caso contrário, só a barra de título.
+    const swapBtn = structuralEditing
+      ? `<button id="tour-checkout" class="mb-model-btn"><span class="material-symbols-outlined">shopping_bag</span> Trocar modelo do checkout</button>`
+      : "";
     preview.innerHTML = `<div class="sticky top-0 z-10 flex items-center justify-center gap-3 py-2 bg-white/85 backdrop-blur border-b border-gray-100">
         <span class="mb-sec-divider !my-0 !mb-0" style="flex:0"><span>Checkout</span></span>
-        <button id="tour-checkout" class="mb-model-btn"><span class="material-symbols-outlined">shopping_bag</span> Trocar modelo do checkout</button>
+        ${swapBtn}
       </div>${wrapped}`;
     preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
     applyInk(preview, custom);
     applyTheme(preview, custom);
+    applyFieldColors(preview, custom);
+    applyIconColor(preview, custom);
     fadeInImages(preview);
     $("#tour-checkout")?.addEventListener("click", () => openCheckoutPicker($("#tour-checkout") as HTMLElement));
     if (previewOpen) renderPreviewDrawer(view);
+  }
+
+  /** Controlos de edição dos testemunhos (adicionar/remover) — no editor. */
+  function mountTestimonialEditor(preview: HTMLElement): void {
+    const section = preview.querySelector<HTMLElement>("[data-lx-testi]");
+    if (!section) return;
+
+    // Garante que a lista existe como array (semeia a partir dos slides atuais).
+    if (!Array.isArray(custom.testimonials) || custom.testimonials.length === 0) {
+      const slides = Array.from(section.querySelectorAll<HTMLElement>("[data-lx-slide]"));
+      custom.testimonials = slides.map((s) => ({
+        quote: s.querySelector<HTMLElement>('[data-edit$=".quote"]')?.textContent?.trim() ?? "",
+        author: s.querySelector<HTMLElement>('[data-edit$=".author"]')?.textContent?.trim() ?? "",
+        role: s.querySelector<HTMLElement>('[data-edit$=".role"]')?.textContent?.trim() ?? "Cliente verificada",
+      }));
+    }
+
+    const total = custom.testimonials?.length ?? 0;
+
+    // Botão remover em cada slide (se houver mais de um).
+    if (total > 1) {
+      section.querySelectorAll<HTMLElement>("[data-lx-slide]").forEach((slide) => {
+        const i = Number(slide.dataset.lxSlide);
+        slide.style.position = "relative";
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "mb-ov-btn absolute top-0 right-0 text-neutral-400 hover:text-red-600";
+        rm.title = "Remover testemunho";
+        rm.innerHTML = `<span class="material-symbols-outlined text-[20px]">delete</span>`;
+        rm.addEventListener("click", (e) => {
+          e.preventDefault();
+          snapshot();
+          custom.testimonials?.splice(i, 1);
+          void rebuild();
+        });
+        slide.appendChild(rm);
+      });
+    }
+
+    // Botão "Adicionar testemunho" abaixo dos pontos.
+    const wrap = document.createElement("div");
+    wrap.className = "mb-ov-btn mt-6 flex justify-center";
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "inline-flex items-center gap-1 text-sm font-semibold px-4 py-2 rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-50";
+    add.innerHTML = `<span class="material-symbols-outlined text-[18px]">add</span> Adicionar testemunho`;
+    add.addEventListener("click", (e) => {
+      e.preventDefault();
+      snapshot();
+      if (!Array.isArray(custom.testimonials)) custom.testimonials = [];
+      custom.testimonials.push({ quote: "Escreva aqui o testemunho…", author: "Cliente", role: "Cliente verificada" });
+      void rebuild();
+    });
+    wrap.appendChild(add);
+    (section.querySelector<HTMLElement>("[data-lx-dots]")?.parentElement ?? section).appendChild(wrap);
+  }
+
+  /**
+   * Secções opcionais do Lumière (testemunhos e lojas/mapa): remover/repor e,
+   * no mapa, definir os pontos (pins) das lojas. A secção de produtos nunca é
+   * removível — só estas.
+   */
+  function mountLumiereSections(preview: HTMLElement): void {
+    // Botão flutuante "Remover secção" no canto de uma secção.
+    const addRemoveBtn = (host: HTMLElement, onRemove: () => void): void => {
+      host.style.position = host.style.position || "relative";
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "mb-ov-btn absolute top-4 right-4 z-20 inline-flex items-center gap-1 bg-white/95 hover:bg-white text-red-600 text-xs font-semibold px-3 py-1.5 rounded-full shadow";
+      rm.innerHTML = `<span class="material-symbols-outlined text-[16px]">delete</span> Remover secção`;
+      rm.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onRemove(); void rebuild(); });
+      host.appendChild(rm);
+    };
+    // Placeholder "Adicionar secção" quando o slot está vazio (secção removida).
+    const addSlotAddBtn = (slot: HTMLElement, label: string, onAdd: () => void): void => {
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "mb-ov-btn block mx-auto my-8 border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 px-8 flex items-center justify-center gap-2 transition-colors";
+      add.innerHTML = `<span class="material-symbols-outlined">add</span> ${esc(label)}`;
+      add.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onAdd(); void rebuild(); });
+      slot.appendChild(add);
+    };
+
+    // --- Testemunhos ---
+    const tSlot = preview.querySelector<HTMLElement>('[data-lumiere-slot="testimonials"]');
+    if (tSlot) {
+      const section = tSlot.querySelector<HTMLElement>("[data-lx-testi]");
+      if (section) addRemoveBtn(section, () => setPath(custom as Record<string, any>, "lumiere.hideTestimonials", true));
+      else addSlotAddBtn(tSlot, "Adicionar secção de testemunhos", () => setPath(custom as Record<string, any>, "lumiere.hideTestimonials", false));
+    }
+
+    // --- Lojas / mapa ---
+    const bSlot = preview.querySelector<HTMLElement>('[data-lumiere-slot="boutiques"]');
+    if (bSlot) {
+      const section = bSlot.querySelector<HTMLElement>("[data-lx-boutiques]");
+      if (!section) {
+        addSlotAddBtn(bSlot, "Adicionar secção de lojas (mapa)", () => setPath(custom as Record<string, any>, "lumiere.hideBoutiques", false));
+      } else {
+        addRemoveBtn(section, () => setPath(custom as Record<string, any>, "lumiere.hideBoutiques", true));
+        const ensureList = (): NonNullable<NonNullable<StoreCustomization["lumiere"]>["boutiques"]> => {
+          if (!custom.lumiere) custom.lumiere = {};
+          if (!Array.isArray(custom.lumiere.boutiques)) custom.lumiere.boutiques = [];
+          return custom.lumiere.boutiques;
+        };
+        const list = custom.lumiere?.boutiques ?? [];
+
+        // Cada loja: botão de pin (mapa) + remover.
+        section.querySelectorAll<HTMLElement>("[data-boutique]").forEach((card) => {
+          const i = Number(card.dataset.boutique);
+          const bar = document.createElement("div");
+          bar.className = "mb-ov-btn mt-3 flex items-center justify-center gap-2";
+          const pin = document.createElement("button");
+          pin.type = "button";
+          pin.className = "inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-50";
+          pin.innerHTML = `<span class="material-symbols-outlined text-[16px]">location_on</span> Escolher no mapa`;
+          pin.addEventListener("click", (e) => {
+            e.preventDefault();
+            const b = custom.lumiere?.boutiques?.[i] ?? {};
+            void openMapPicker({
+              lat: b.lat, lng: b.lng, address: b.address,
+              onSave: (lat, lng) => {
+                snapshot();
+                const arr = ensureList();
+                arr[i] = { ...(arr[i] ?? {}), lat, lng };
+                void rebuild();
+              },
+            });
+          });
+          const rm = document.createElement("button");
+          rm.type = "button";
+          rm.className = "inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-300 text-red-600 hover:bg-red-50";
+          rm.innerHTML = `<span class="material-symbols-outlined text-[16px]">delete</span> Remover`;
+          rm.addEventListener("click", (e) => {
+            e.preventDefault();
+            snapshot();
+            ensureList().splice(i, 1);
+            void rebuild();
+          });
+          bar.appendChild(pin);
+          bar.appendChild(rm);
+          card.appendChild(bar);
+        });
+
+        // Botão "Adicionar loja".
+        const addWrap = document.createElement("div");
+        addWrap.className = "mb-ov-btn mt-10 flex justify-center";
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "inline-flex items-center gap-1 text-sm font-semibold px-5 py-2.5 rounded-full border border-neutral-300 text-neutral-700 hover:bg-neutral-50";
+        addBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">add_location_alt</span> Adicionar loja`;
+        addBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          snapshot();
+          const arr = ensureList();
+          // Primeira loja herda a morada do rodapé como ponto de partida.
+          if (arr.length === 0) arr.push({ name: "A nossa loja", address: custom.footer?.location || "Luanda, Angola" });
+          else arr.push({ name: "Nova loja", address: "Luanda, Angola" });
+          void rebuild();
+        });
+        addWrap.appendChild(addBtn);
+        section.appendChild(addWrap);
+
+        // Estado vazio (mapa único): oferece começar a definir pontos.
+        if (list.length === 0) {
+          const hint = document.createElement("p");
+          hint.className = "mb-ov-btn text-center text-xs text-neutral-500 mt-3";
+          hint.textContent = "Adicione lojas para mostrar um pin no mapa para cada uma.";
+          section.appendChild(hint);
+        }
+      }
+    }
   }
 
   /** Documento completo (Tailwind + fontes + marca) para o iframe de pré-visualização. */
   function buildIframeDoc(innerHtml: string): string {
     const brand = custom.colors?.primary ?? defaultColor;
     const ink = custom.colors?.text?.trim();
-    const tvars: Record<string, { radius: string; head: string }> = {
+    const iconC = custom.colors?.icon?.trim();
+    const tvars: Record<string, { radius: string; head: string; body?: string }> = {
       moderno: { radius: "1rem", head: "Inter, sans-serif" },
       classico: { radius: "0.35rem", head: "'Noto Serif', serif" },
       minimal: { radius: "0px", head: "Inter, sans-serif" },
+      editorial: { radius: "0.125rem", head: "'Playfair Display', serif", body: "'Montserrat', sans-serif" },
     };
     const themeStyle = custom.theme?.style;
     const tv = themeStyle ? tvars[themeStyle] : null;
-    const bodyAttrs = `${ink ? "data-ink" : ""} ${tv ? `data-theme="${esc(themeStyle!)}"` : ""}`.trim();
+    const bodyAttrs = `${ink ? "data-ink" : ""} ${iconC ? "data-icons" : ""} ${tv ? `data-theme="${esc(themeStyle!)}"` : ""}`.trim();
     const bodyStyle = [
       `--brand:${brand}`,
+      `--brand-ink:${readableInk(brand)}`,
       ink ? `--ink:${ink}` : "",
+      iconC ? `--mb-icons:${iconC}` : "",
       tv ? `--mb-radius:${tv.radius}` : "",
       tv ? `--mb-head-font:${tv.head}` : "",
+      tv?.body ? `--mb-body-font:${tv.body}` : "",
     ].filter(Boolean).join(";");
     const inkCss =
       "[data-ink] :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,figcaption,label){color:var(--ink)}" +
       "[data-ink] .material-symbols-outlined{color:var(--ink)}" +
-      "[data-ink] .mb-dark,[data-ink] .mb-dark :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,span,figcaption,label),[data-ink] .mb-dark .material-symbols-outlined{color:inherit}";
+      "[data-ink] .mb-dark,[data-ink] .mb-dark :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,span,figcaption,label),[data-ink] .mb-dark .material-symbols-outlined{color:inherit}" +
+      "[data-icons] .material-symbols-outlined{color:var(--mb-icons) !important}[data-icons] .mb-dark .material-symbols-outlined{color:inherit !important}";
     const themeCss =
-      "[data-theme] :is(.rounded-xl,.rounded-2xl,.rounded-3xl){border-radius:var(--mb-radius)}" +
+      "[data-theme]{font-family:var(--mb-body-font,inherit)}" +
+      "[data-theme] :is(.rounded,.rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl){border-radius:var(--mb-radius)}" +
       "[data-theme] :is(h1,h2,h3,h4){font-family:var(--mb-head-font)}";
+    // Cores de texto por-campo (isoladas) — aplicadas também no preview (#5).
+    const fieldCss = Object.entries(custom.fieldColors ?? {})
+      .filter(([, c]) => !!c)
+      .map(([p, c]) => `[data-edit="${p}"]{color:${c} !important}`)
+      .join("");
     return `<!DOCTYPE html><html lang="pt-AO"><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <style>
@@ -898,6 +1229,7 @@ export async function renderEditor(): Promise<void> {
 body{font-family:Inter,sans-serif;margin:0}
 ${inkCss}
 ${themeCss}
+${fieldCss}
 </style>
 </head><body ${bodyAttrs} style="${bodyStyle}">${innerHtml}</body></html>`;
   }
@@ -1036,12 +1368,87 @@ ${themeCss}
     applyInk($("#preview"), custom);
   });
 
+  // Cor global de todos os ícones do site.
+  const iconInput = $("#icon-color") as HTMLInputElement | null;
+  iconInput?.addEventListener("input", (e) => {
+    const value = (e.target as HTMLInputElement).value;
+    setPath(custom as Record<string, any>, "colors.icon", value);
+    const dot = $("#icon-dot"); if (dot) dot.style.color = value;
+    applyIconColor($("#preview"), custom);
+  });
+
   // Estilo global (tema) — aplica ao vivo.
   const themeSelect = $("#theme-style") as HTMLSelectElement | null;
   themeSelect?.addEventListener("change", () => {
     snapshot();
     setPath(custom as Record<string, any>, "theme.style", themeSelect.value);
     applyTheme($("#preview"), custom);
+  });
+
+  // Modo restrito / edição de modelo desativada: esconde o estilo/tema.
+  if (locked || !MODEL_EDITING) {
+    themeSelect?.closest("label")?.remove();
+  }
+
+  // --- Cor por-texto (barra flutuante ao editar um texto) ---
+  const textTools = $("#mb-text-tools");
+  const textColorInput = $("#mb-text-color") as HTMLInputElement | null;
+  const textColorDot = $("#mb-text-color-dot");
+  let activeTextPath: string | null = null;
+
+  function rgbToHex(rgb: string): string {
+    const m = rgb.match(/\d+/g);
+    if (!m || m.length < 3) return "";
+    return "#" + m.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+  }
+  function normalizeHex(c: string): string {
+    if (/^#[0-9a-f]{6}$/i.test(c)) return c;
+    return rgbToHex(c) || (custom.colors?.text ?? "#111827");
+  }
+  function paintField(path: string, color: string | null): void {
+    const prev = $("#preview");
+    prev?.querySelectorAll<HTMLElement>(`[data-edit="${CSS.escape(path)}"]`).forEach((e) => {
+      if (color) e.style.setProperty("color", color, "important");
+      else e.style.removeProperty("color");
+    });
+  }
+  function showTextTools(el: HTMLElement): void {
+    activeTextPath = el.dataset.edit ?? null;
+    if (!activeTextPath || !textTools) return;
+    const col = custom.fieldColors?.[activeTextPath] ?? normalizeHex(getComputedStyle(el).color);
+    if (textColorInput) textColorInput.value = normalizeHex(col);
+    if (textColorDot) textColorDot.style.background = col;
+    textTools.classList.remove("hidden");
+    textTools.classList.add("flex");
+  }
+  function hideTextTools(): void {
+    activeTextPath = null;
+    textTools?.classList.add("hidden");
+    textTools?.classList.remove("flex");
+  }
+
+  textColorInput?.addEventListener("input", () => {
+    if (!activeTextPath) return;
+    const val = textColorInput.value;
+    snapshot();
+    if (!custom.fieldColors) custom.fieldColors = {};
+    custom.fieldColors[activeTextPath] = val;
+    if (textColorDot) textColorDot.style.background = val;
+    paintField(activeTextPath, val);
+  });
+  $("#mb-text-color-reset")?.addEventListener("click", () => {
+    if (!activeTextPath) return;
+    snapshot();
+    if (custom.fieldColors) delete custom.fieldColors[activeTextPath];
+    paintField(activeTextPath, null);
+    applyInk($("#preview"), custom);
+    applyFieldColors($("#preview"), custom);
+    hideTextTools();
+  });
+  document.addEventListener("mousedown", (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest("#mb-text-tools") || t.closest("#preview [data-edit]")) return;
+    hideTextTools();
   });
 
   // --- Seletores de variantes (com miniatura escalada real) ---

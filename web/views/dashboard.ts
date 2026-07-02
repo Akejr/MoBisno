@@ -47,6 +47,7 @@ function emptyState(icon: string, message: string, actions: string): string {
 
 export async function renderDashboard(): Promise<void> {
   appState.editOwnerId = null;
+  appState.editorReturn = null; // o dono volta sempre ao seu painel ao sair do editor
   const ownerId = appState.ownerId ?? (await currentOwnerId());
   if (!ownerId) {
     render(emptyState("lock", "Inicie sessão para aceder ao painel.",
@@ -54,7 +55,9 @@ export async function renderDashboard(): Promise<void> {
        <a href="#/criar" class="border border-gray-200 text-gray-800 px-6 py-3 rounded-xl font-semibold hover:bg-gray-50">Criar loja</a>`));
     return;
   }
-  const stores = await storeRepository.listByOwner(ownerId);
+  const allStores = await storeRepository.listByOwner(ownerId);
+  // Esconde as lojas-modelo (secção Modelos do admin) do painel pessoal.
+  const stores = allStores.filter((s) => !s.identifier.startsWith("modelo-"));
   let store: Store | null = appState.storeId ? (stores.find((s) => s.id === appState.storeId) ?? null) : null;
   if (!store) store = stores[0] ?? null;
   if (!store) {

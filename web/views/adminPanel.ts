@@ -5,13 +5,14 @@
  * de admin (migração 0011).
  */
 import { render, $, go, esc, toast, withBusy, formatKz } from "../lib/dom.js";
-import { appState, logout, publicStoreUrl, STORE_APEX } from "../composition.js";
+import { appState, logout, publicStoreUrl, currentOwnerId, STORE_APEX } from "../composition.js";
 import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
   adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
   listServiceTransactions,
   type AdminStore, type AdminAccount, type AdminWithdrawal, type AdminServiceTx,
 } from "../supabase/admin.js";
+import { listTemplateModels, createTemplateModel, deleteTemplateModel, seedDefaultModels, defaultFactoryModels, type TemplateModel } from "../supabase/models.js";
 import { getPlan, isPlanId, PLAN_ORDER, type PlanId } from "../../src/services/plans.js";
 
 const ACCENT = "#F95901";
@@ -127,7 +128,7 @@ export async function renderAdminPanel(): Promise<void> {
   }
 
   const tab = tabOf();
-  const title = tab === "contas" ? "Contas" : tab === "lojas" ? "Lojas" : tab === "levantamentos" ? "Levantamentos" : tab === "transacoes" ? "Transações" : "Visão geral";
+  const title = tab === "contas" ? "Contas" : tab === "lojas" ? "Lojas" : tab === "modelos" ? "Modelos" : tab === "levantamentos" ? "Levantamentos" : tab === "transacoes" ? "Transações" : "Visão geral";
 
   function navItem(href: string, icon: string, label: string, active: boolean): string {
     const base = "rounded-xl px-4 py-3 mx-2 flex items-center gap-3 text-sm font-semibold transition-colors";
@@ -148,6 +149,7 @@ export async function renderAdminPanel(): Promise<void> {
           ${navItem("#/adminPainel", "monitoring", "Visão geral", tab === "overview")}
           ${navItem("#/adminPainel/contas", "group", "Contas", tab === "contas")}
           ${navItem("#/adminPainel/lojas", "storefront", "Lojas", tab === "lojas")}
+          ${navItem("#/adminPainel/modelos", "dashboard_customize", "Modelos", tab === "modelos")}
           ${navItem("#/adminPainel/transacoes", "receipt_long", "Transações", tab === "transacoes")}
           ${navItem("#/adminPainel/levantamentos", "account_balance_wallet", "Levantamentos", tab === "levantamentos")}
         </nav>
@@ -167,9 +169,9 @@ export async function renderAdminPanel(): Promise<void> {
           </div>
         </header>
         <nav class="md:hidden flex gap-1 overflow-x-auto px-3 py-2 bg-white border-b border-gray-100 sticky top-[57px] z-30">
-          ${["", "contas", "lojas", "transacoes", "levantamentos"].map((t) => {
+          ${["", "contas", "lojas", "modelos", "transacoes", "levantamentos"].map((t) => {
             const active = (t === "" ? "overview" : t) === tab;
-            const label = t === "" ? "Visão geral" : t === "contas" ? "Contas" : t === "lojas" ? "Lojas" : t === "transacoes" ? "Transações" : "Levantamentos";
+            const label = t === "" ? "Visão geral" : t === "contas" ? "Contas" : t === "lojas" ? "Lojas" : t === "modelos" ? "Modelos" : t === "transacoes" ? "Transações" : "Levantamentos";
             return `<a href="#/adminPainel${t ? "/" + t : ""}" class="shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors" style="${active ? `background:${ACCENT_TINT};color:${ACCENT}` : "color:#6b7280"}">${label}</a>`;
           }).join("")}
         </nav>
@@ -186,11 +188,14 @@ export async function renderAdminPanel(): Promise<void> {
   function openStoreEditor(storeId: string, ownerId: string): void {
     appState.storeId = storeId;
     appState.editOwnerId = ownerId;
+    // Ao sair do editor, o admin volta à sua tela (a aba atual), não ao painel do dono.
+    appState.editorReturn = `#/adminPainel${tab === "overview" ? "" : "/" + tab}`;
     go("#/personalizar");
   }
 
   if (tab === "contas") { await renderContas(); return; }
   if (tab === "lojas") { await renderLojas(); return; }
+  if (tab === "modelos") { await renderModelos(); return; }
   if (tab === "transacoes") { await renderTransacoes(); return; }
   if (tab === "levantamentos") { await renderLevantamentos(); return; }
   await renderOverview();
@@ -313,6 +318,102 @@ export async function renderAdminPanel(): Promise<void> {
         </div>
       </div>`));
     bindShell();
+  }
+
+  /* --------------------------------- Modelos -------------------------------- */
+  async function renderModelos(): Promise<void> {
+    render(shell(loadingBlock()));
+    bindShell();
+
+    let models = await listTemplateModels();
+
+    // Importa automaticamente os modelos de fábrica em falta (ex.: Lumière Chic),
+    // já com os produtos fictícios, para o admin só precisar de editar.
+    const haveNames = new Set(models.map((m) => m.name.trim().toLowerCase()));
+    const missing = defaultFactoryModels().filter((fm) => !haveNames.has(fm.name.trim().toLowerCase()));
+    if (missing.length) {
+      const adminId = await currentOwnerId();
+      if (adminId) {
+        await seedDefaultModels(adminId);
+        models = await listTemplateModels();
+      }
+    }
+
+    function modelCard(m: TemplateModel): string {
+      return `<div class="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col">
+        <div class="p-5 border-b border-gray-100">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center mb-3" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">dashboard_customize</span></div>
+          <h4 class="font-black text-gray-900">${esc(m.name)}</h4>
+          <p class="text-sm text-gray-500 mt-1">${esc(m.description || "Sem descrição.")}</p>
+        </div>
+        <div class="px-5 py-3 text-xs text-gray-400 flex items-center gap-1.5 truncate"><span class="material-symbols-outlined text-[16px]">link</span> ${esc(m.identifier)}.${esc(STORE_APEX)}</div>
+        <div class="mt-auto p-4 flex items-center gap-2 border-t border-gray-50">
+          <button data-edit-model="${esc(m.storeId)}" data-owner="${esc(m.ownerId)}" class="flex-1 inline-flex items-center justify-center gap-1.5 text-white text-sm font-bold px-3 py-2 rounded-lg hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">palette</span> Editar</button>
+          <a href="${esc(publicStoreUrl(m.identifier))}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50" title="Ver loja-modelo"><span class="material-symbols-outlined text-[18px]">open_in_new</span></a>
+          <button data-del-model="${esc(m.storeId)}" data-name="${esc(m.name)}" class="text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors" title="Eliminar modelo"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+        </div>
+      </div>`;
+    }
+
+    render(shell(`
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <div>
+          <h3 class="text-xl font-black text-gray-900">Modelos prontos</h3>
+          <p class="text-sm text-gray-400">${models.length} modelo(s) · editáveis com o editor do site</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="seed-models" class="inline-flex items-center gap-2 text-gray-700 border border-gray-200 bg-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors"><span class="material-symbols-outlined text-[18px]">download</span> Importar predefinidos</button>
+          <button id="new-model" class="inline-flex items-center gap-2 text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:opacity-95 transition-opacity" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Criar modelo</button>
+        </div>
+      </div>
+      <div class="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-4 mb-6 flex items-start gap-2">
+        <span class="material-symbols-outlined text-[20px] shrink-0" style="color:${ACCENT}">info</span>
+        <span>Cada modelo é uma loja de demonstração. Edita-a com o editor do site (fotos, imagens de produto, textos e cores) para aperfeiçoar o preview que os clientes veem na galeria de modelos prontos. Usa <b>Importar predefinidos</b> para trazer os modelos de fábrica (ex.: Vermelho Moderno) como lojas-modelo editáveis.</span>
+      </div>
+      ${models.length
+        ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${models.map(modelCard).join("")}</div>`
+        : `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">
+             <span class="material-symbols-outlined text-gray-300" style="font-size:48px">dashboard_customize</span>
+             <p class="mt-2 mb-4">Ainda não há modelos. Importa os predefinidos ou cria um do zero.</p>
+             <button id="seed-models-empty" class="inline-flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">download</span> Importar modelos predefinidos</button>
+           </div>`}
+    `));
+    bindShell();
+
+    async function seedModels(): Promise<void> {
+      const adminId = await currentOwnerId();
+      if (!adminId) { toast("Sessão inválida.", "error"); return; }
+      const n = await withBusy(() => seedDefaultModels(adminId), "A importar modelos…");
+      if (n > 0) { toast(`${n} modelo(s) importado(s).`); void renderModelos(); }
+      else toast("Os modelos predefinidos já foram importados.", "info");
+    }
+    $("#seed-models")?.addEventListener("click", seedModels);
+    $("#seed-models-empty")?.addEventListener("click", seedModels);
+
+    $("#new-model")?.addEventListener("click", async () => {
+      const name = prompt("Nome do modelo (ex.: Vermelho Moderno):")?.trim();
+      if (!name) return;
+      const description = prompt("Descrição curta (aparece na galeria):")?.trim() ?? "";
+      const adminId = await currentOwnerId();
+      if (!adminId) { toast("Sessão inválida.", "error"); return; }
+      const model = await withBusy(() => createTemplateModel(adminId, name, description), "A criar modelo…");
+      if (!model) { toast("Não foi possível criar o modelo.", "error"); return; }
+      toast("Modelo criado. A abrir o editor…");
+      openStoreEditor(model.storeId, model.ownerId);
+    });
+
+    document.querySelectorAll<HTMLElement>("[data-edit-model]").forEach((b) =>
+      b.addEventListener("click", () => openStoreEditor(b.dataset.editModel!, b.dataset.owner!)));
+
+    document.querySelectorAll<HTMLElement>("[data-del-model]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const id = b.dataset.delModel!;
+        const name = b.dataset.name ?? "";
+        if (!confirm(`Eliminar o modelo "${name}"? A loja de demonstração será removida.`)) return;
+        const ok = await withBusy(() => deleteTemplateModel(id), "A eliminar…");
+        if (ok) { toast("Modelo eliminado."); void renderModelos(); }
+        else toast("Não foi possível eliminar.", "error");
+      }));
   }
 
   /* --------------------------------- Contas --------------------------------- */

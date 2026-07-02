@@ -68,9 +68,11 @@ export interface AppState {
   templateId: string | null;
   /** Quando o admin edita a loja de outro dono: id do dono real dessa loja. */
   editOwnerId: string | null;
+  /** Destino ao sair do editor (ex.: "#/adminPainel/modelos"). Null = painel do dono. */
+  editorReturn: string | null;
 }
 export const appState: AppState = {
-  session: null, ownerId: null, storeId: null, storeIdentifier: null, templateId: null, editOwnerId: null,
+  session: null, ownerId: null, storeId: null, storeIdentifier: null, templateId: null, editOwnerId: null, editorReturn: null,
 };
 
 /** Devolve o id do utilizador autenticado (ou null), lendo a sessão do Supabase. */

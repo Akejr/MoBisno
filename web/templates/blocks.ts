@@ -8,6 +8,11 @@ import type { ContentBlock, StoreCustomization } from "./types.js";
 
 export const DEFAULT_INFO_IMG = "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000";
 
+/** Estilo de cor de fundo de uma secção (vazio = fundo padrão/transparente). */
+function bgStyle(bg?: string): string {
+  return bg && bg.trim() ? ` style="background:${esc(bg)}"` : "";
+}
+
 /** Cria um bloco novo com conteúdo por omissão, pelo tipo. */
 export function newBlock(type: ContentBlock["type"]): ContentBlock {
   switch (type) {
@@ -57,7 +62,7 @@ export function infoByVariant(variant: "lado" | "sobreposto" | "cartao", b: Extr
   const text = esc(b.text ?? "");
 
   if (variant === "sobreposto") {
-    return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="sobreposto" class="relative py-12 md:py-16">
+    return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="sobreposto" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
         <div data-edit-block-image="${i}" class="relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end">
           <img src="${imgUrl}" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="${fallback}" />
@@ -72,7 +77,7 @@ export function infoByVariant(variant: "lado" | "sobreposto" | "cartao", b: Extr
   }
 
   if (variant === "cartao") {
-    return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="cartao" class="relative py-12 md:py-16">
+    return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="cartao" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
         <div class="max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
           <div data-edit-block-image="${i}" class="relative aspect-[16/9] bg-gray-100">
@@ -96,7 +101,7 @@ export function infoByVariant(variant: "lado" | "sobreposto" | "cartao", b: Extr
     <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${text}</p>
   </div>`;
   const left = b.imageSide !== "right";
-  return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="lado" class="relative py-12 md:py-16">
+  return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="lado" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
     <div class="${ctx.container}">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
         ${left ? img + txt : txt + img}
@@ -121,7 +126,7 @@ export function textByVariant(variant: "centrado" | "destaque" | "linha", b: Ext
   const text = esc(b.text ?? "");
 
   if (variant === "destaque") {
-    return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="destaque" class="relative py-14 md:py-20">
+    return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="destaque" class="relative py-14 md:py-20"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-10 items-start">
           <div class="md:col-span-5 flex items-start gap-4">
@@ -135,7 +140,7 @@ export function textByVariant(variant: "centrado" | "destaque" | "linha", b: Ext
   }
 
   if (variant === "linha") {
-    return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="linha" class="relative py-14 md:py-20">
+    return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="linha" class="relative py-14 md:py-20"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
         <div class="max-w-3xl mx-auto text-center">
           <div class="flex items-center justify-center gap-4">
@@ -150,7 +155,7 @@ export function textByVariant(variant: "centrado" | "destaque" | "linha", b: Ext
   }
 
   // "centrado" (omissão).
-  return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="centrado" class="relative py-12 md:py-16">
+  return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="centrado" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
     <div class="${ctx.container}">
       <div class="max-w-3xl mx-auto text-center">
         <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${title}</h2>

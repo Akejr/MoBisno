@@ -82,13 +82,13 @@ function footerBrandHtml(view: StoreRenderView, custom?: StoreCustomization): st
   return `<span style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-xl font-bold">${esc(view.storeName)}</span>`;
 }
 
-function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreCustomization): string {
+function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: StoreCustomization): string {
   if (custom?.header?.variant) return renderHeader(custom.header.variant, view, custom, { container: CONTAINER, brand: `var(--brand,${DEFAULT_BRAND})` });
-  const menu = menuLabels
-    .map((label, i) => `<a href="${storeHomeHref(view)}" data-edit-menu-item="${i}" class="text-[#524345] hover:text-[color:var(--brand,${DEFAULT_BRAND})] transition-colors font-medium tracking-widest text-xs uppercase">${esc(label)}</a>`)
-    .join("");
+  const linkCls = `text-[#524345] hover:text-[color:var(--brand,${DEFAULT_BRAND})] transition-colors font-medium tracking-widest text-xs uppercase`;
+  const menu = `<a href="${esc(storeHomeHref(view))}" class="${linkCls}">Início</a>` +
+    `<a href="${esc(storeHomeHref(view))}#produtos" class="${linkCls}">Produtos</a>`;
   const cats = categoriesOf(view);
-  const mnav = mobileMenuParts(view, menuLabels, CONTAINER);
+  const mnav = mobileMenuParts(view, CONTAINER);
   const categoriesMenu = cats.length
     ? `<div class="relative group" data-categories-menu>
         <button type="button" class="flex items-center gap-0.5 text-[#524345] hover:text-[color:var(--brand,${DEFAULT_BRAND})] transition-colors font-medium tracking-widest text-xs uppercase">Categorias <span class="material-symbols-outlined text-[18px]">expand_more</span></button>
@@ -107,7 +107,7 @@ function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreC
           ${mnav.button}
           <a href="${esc(storeHomeHref(view))}" data-edit-logo class="shrink-0">${brandHtml(view)}</a>
         </div>
-        <div class="hidden lg:flex items-center gap-8" data-edit-menu>${menu}${categoriesMenu}</div>
+        <div class="hidden lg:flex items-center gap-8">${menu}${categoriesMenu}</div>
         <div class="flex items-center gap-4 text-[#1c1b1b] shrink-0">
           <button type="button" data-search-btn class="hover:opacity-70 transition-opacity p-1"><span class="material-symbols-outlined">search</span></button>
           <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex hover:opacity-70 transition-opacity p-1">

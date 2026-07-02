@@ -82,13 +82,13 @@ function footerBrandHtml(view: StoreRenderView, custom?: StoreCustomization): st
 
 /* ------------------------------- Cabeçalho ------------------------------- */
 
-function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreCustomization): string {
+function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: StoreCustomization): string {
   if (custom?.header?.variant) return renderHeader(custom.header.variant, view, custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" });
-  const menu = menuLabels
-    .map((label, i) => `<a href="${storeHomeHref(view)}" data-edit-menu-item="${i}" class="hover:text-gray-900 cursor-pointer transition-colors">${esc(label)}</a>`)
-    .join("");
+  const linkCls = "hover:text-gray-900 cursor-pointer transition-colors";
+  const menu = `<a href="${esc(storeHomeHref(view))}" class="${linkCls}">Início</a>` +
+    `<a href="${esc(storeHomeHref(view))}#produtos" class="${linkCls}">Produtos</a>`;
   const cats = categoriesOf(view);
-  const mnav = mobileMenuParts(view, menuLabels, CONTAINER);
+  const mnav = mobileMenuParts(view, CONTAINER);
   const categoriesMenu = cats.length
     ? `<div class="relative group" data-categories-menu>
         <button type="button" class="flex items-center gap-0.5 hover:text-gray-900 transition-colors">Categorias <span class="material-symbols-outlined text-[18px]">expand_more</span></button>
@@ -108,7 +108,7 @@ function headerHtml(view: StoreRenderView, menuLabels: string[], custom?: StoreC
             ${mnav.button}
             <a href="${esc(storeHomeHref(view))}" data-edit-logo class="flex items-center gap-2 min-w-0">${brandHtml(view)}</a>
           </div>
-          <nav data-edit-menu class="hidden lg:flex items-center gap-7 text-sm font-medium text-gray-600">${menu}${categoriesMenu}</nav>
+          <nav class="hidden lg:flex items-center gap-7 text-sm font-medium text-gray-600">${menu}${categoriesMenu}</nav>
           <div class="flex items-center gap-3 text-gray-700 shrink-0">
             <button type="button" data-search-btn class="hover:opacity-70 transition-opacity"><span class="material-symbols-outlined">search</span></button>
             <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex">

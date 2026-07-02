@@ -15,6 +15,8 @@ import { getCart, cartTotal, clearCart, updateCartBadge, type CartItem } from ".
 import { resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyFieldColors } from "../lib/fieldColors.js";
+import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { initPayment, checkStatus } from "../lib/paymentsApi.js";
 import { validateDiscount, discountAmount, type DiscountCode } from "../supabase/discounts.js";
@@ -109,6 +111,8 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     app.style.setProperty("--brand", brand);
     applyInk(app, custom);
     applyTheme(app, custom);
+    applyFieldColors(app, custom);
+    applyIconColor(app, custom);
     fadeInImages(app);
     updateCartBadge(storeId);
   }

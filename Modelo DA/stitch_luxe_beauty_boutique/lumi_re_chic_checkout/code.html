@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumière Chic - Checkout</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#1b1c19",
+                        "surface-bright": "#fcf9f8",
+                        "on-primary-container": "#71716d",
+                        "surface-variant": "#e5e2e1",
+                        "on-tertiary-fixed": "#241a00",
+                        "secondary-fixed": "#f2e0cc",
+                        "primary-fixed": "#e4e2dd",
+                        "tertiary-fixed-dim": "#e9c349",
+                        "surface-container-low": "#f6f3f2",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#d5c4b1",
+                        "on-secondary-fixed": "#231a0e",
+                        "outline": "#777871",
+                        "tertiary-container": "#fff6e7",
+                        "inverse-surface": "#313030",
+                        "outline-variant": "#c7c7bf",
+                        "inverse-primary": "#c8c6c2",
+                        "on-background": "#1c1b1b",
+                        "on-error": "#ffffff",
+                        "surface-tint": "#5e5e5b",
+                        "secondary": "#695c4d",
+                        "primary-container": "#f9f7f2",
+                        "surface-container-highest": "#e5e2e1",
+                        "primary": "#5e5e5b",
+                        "on-tertiary-container": "#8a6e00",
+                        "on-tertiary-fixed-variant": "#574500",
+                        "on-secondary": "#ffffff",
+                        "background": "#fcf9f8",
+                        "surface-container": "#f0eded",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "surface": "#fcf9f8",
+                        "error": "#ba1a1a",
+                        "surface-dim": "#dcd9d9",
+                        "tertiary": "#735c00",
+                        "primary-fixed-dim": "#c8c6c2",
+                        "on-surface-variant": "#464742",
+                        "inverse-on-surface": "#f3f0ef",
+                        "on-primary": "#ffffff",
+                        "surface-container-high": "#eae7e7",
+                        "on-surface": "#1c1b1b",
+                        "on-primary-fixed-variant": "#474744",
+                        "tertiary-fixed": "#ffe088",
+                        "secondary-container": "#f2e0cc",
+                        "on-secondary-container": "#706253",
+                        "on-secondary-fixed-variant": "#514537"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-mobile": "20px",
+                        "container-max": "1280px",
+                        "gutter": "24px",
+                        "unit": "8px",
+                        "section-gap": "120px",
+                        "margin-desktop": "64px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Montserrat"],
+                        "headline-lg": ["Playfair Display"],
+                        "body-lg": ["Montserrat"],
+                        "headline-md": ["Playfair Display"],
+                        "display-lg": ["Playfair Display"],
+                        "display-lg-mobile": ["Playfair Display"],
+                        "body-md": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "300" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "400" }],
+                        "display-lg": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.02em", "fontWeight": "400" }],
+                        "display-lg-mobile": ["40px", { "lineHeight": "48px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .input-minimal {
+            @apply w-full bg-transparent border-0 border-b border-on-surface-variant/30 focus:border-on-surface-variant focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 transition-colors duration-300;
+        }
+        /* Hide TopNavBar as this is a linear checkout flow */
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md antialiased selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<!-- Minimal Checkout Header (Overriding TopNavBar for transactional context) -->
+<header class="w-full py-6 px-margin-desktop md:px-margin-desktop bg-surface sticky top-0 z-50 border-b border-surface-variant/50">
+<div class="max-w-container-max mx-auto flex justify-center items-center">
+<a class="font-headline-md text-headline-md tracking-widest text-primary" href="/">LUMIÈRE CHIC</a>
+</div>
+</header>
+<main class="flex-grow w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-24">
+<div class="mb-12 md:mb-16">
+<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface mb-2">Secure Checkout</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Complete your purchase with confidence.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter lg:gap-16 items-start">
+<!-- Left Column: Forms -->
+<div class="lg:col-span-7 space-y-16">
+<!-- Contact Information -->
+<section>
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline-md text-headline-md text-on-surface">Contact Information</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Already have an account? <a class="text-primary hover:text-tertiary transition-colors underline underline-offset-4 decoration-primary/30" href="#">Log in</a></p>
+</div>
+<form class="space-y-6">
+<div>
+<input class="input-minimal" id="email" placeholder="Email Address" type="email"/>
+</div>
+<div class="flex items-center space-x-3 pt-2">
+<input class="w-4 h-4 rounded border-on-surface-variant/30 text-primary focus:ring-primary/20 bg-transparent" id="newsletter" type="checkbox"/>
+<label class="font-body-md text-body-md text-on-surface-variant" for="newsletter">Email me with news and offers</label>
+</div>
+</form>
+</section>
+<!-- Shipping Address -->
+<section>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-8">Shipping Address</h2>
+<form class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
+<div class="md:col-span-2">
+<select class="input-minimal appearance-none bg-no-repeat bg-right text-on-surface-variant" id="country" style="background-image: url('data:image/svg+xml;utf8,&lt;svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' fill=\'%235e5e5b\' viewBox=\'0 0 16 16\'&gt;&lt;path d=\'M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/&gt;&lt;/svg&gt;'); background-position: right 0.5rem center; background-size: 10px;">
+<option value="us">United States</option>
+<option value="ca">Canada</option>
+<option value="uk">United Kingdom</option>
+</select>
+</div>
+<div>
+<input class="input-minimal" id="firstName" placeholder="First Name" type="text"/>
+</div>
+<div>
+<input class="input-minimal" id="lastName" placeholder="Last Name" type="text"/>
+</div>
+<div class="md:col-span-2">
+<input class="input-minimal" id="address" placeholder="Address" type="text"/>
+</div>
+<div class="md:col-span-2">
+<input class="input-minimal" id="apartment" placeholder="Apartment, suite, etc. (optional)" type="text"/>
+</div>
+<div class="md:col-span-2">
+<input class="input-minimal" id="city" placeholder="City" type="text"/>
+</div>
+<div>
+<select class="input-minimal appearance-none bg-no-repeat bg-right text-on-surface-variant" id="state" style="background-image: url('data:image/svg+xml;utf8,&lt;svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' fill=\'%235e5e5b\' viewBox=\'0 0 16 16\'&gt;&lt;path d=\'M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/&gt;&lt;/svg&gt;'); background-position: right 0.5rem center; background-size: 10px;">
+<option disabled="" selected="" value="">State</option>
+<option value="ny">New York</option>
+<option value="ca">California</option>
+</select>
+</div>
+<div>
+<input class="input-minimal" id="zip" placeholder="ZIP code" type="text"/>
+</div>
+<div class="md:col-span-2">
+<input class="input-minimal" id="phone" placeholder="Phone" type="tel"/>
+</div>
+</form>
+</section>
+<!-- Payment -->
+<section>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-8">Payment</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">All transactions are secure and encrypted.</p>
+<div class="bg-surface-container-low rounded-xl border border-surface-variant/50 overflow-hidden">
+<!-- Credit Card Option -->
+<div class="p-6 border-b border-surface-variant/50 bg-white">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center space-x-3">
+<input checked="" class="w-4 h-4 text-primary focus:ring-primary/20 border-on-surface-variant" id="pay-cc" name="payment" type="radio"/>
+<label class="font-label-sm text-label-sm text-on-surface" for="pay-cc">CREDIT CARD</label>
+</div>
+<div class="flex space-x-2 text-on-surface-variant/50">
+<span class="material-symbols-outlined text-2xl">credit_card</span>
+</div>
+</div>
+<div class="space-y-6 mt-6">
+<div>
+<input class="input-minimal" placeholder="Card Number" type="text"/>
+</div>
+<div>
+<input class="input-minimal" placeholder="Name on Card" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<input class="input-minimal" placeholder="Expiration (MM/YY)" type="text"/>
+<input class="input-minimal" placeholder="Security Code (CVV)" type="text"/>
+</div>
+</div>
+</div>
+<!-- PayPal Option -->
+<div class="p-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<input class="w-4 h-4 text-primary focus:ring-primary/20 border-on-surface-variant" id="pay-paypal" name="payment" type="radio"/>
+<label class="font-label-sm text-label-sm text-on-surface" for="pay-paypal">PAYPAL</label>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Complete Button -->
+<div class="pt-8 border-t border-surface-variant/50">
+<button class="w-full py-4 bg-on-background text-white font-label-sm text-label-sm uppercase hover:bg-on-background/90 transition-colors duration-300">
+                        Complete Order
+                    </button>
+<p class="text-center font-body-md text-body-md text-on-surface-variant mt-4 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">lock</span> Secure Checkout
+                    </p>
+</div>
+</div>
+<!-- Right Column: Order Summary (Sticky) -->
+<div class="lg:col-span-5 relative mt-12 lg:mt-0">
+<div class="sticky top-32 bg-primary-container p-8 md:p-10 rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)]">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-8">Order Summary</h2>
+<!-- Items -->
+<div class="space-y-6 mb-8">
+<!-- Item 1 -->
+<div class="flex gap-6 items-center">
+<div class="relative w-20 h-20 flex-shrink-0 bg-surface-container rounded-lg overflow-hidden border border-surface-variant/50">
+<img class="w-full h-full object-cover" data-alt="A beautifully lit close-up of a minimalist, frosted glass skincare serum bottle resting on a pristine, textured cream surface. The lighting is soft and high-key, creating an atmosphere of clean, modern luxury and calm. The color palette emphasizes warm off-whites, subtle champagne tones, and delicate shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDB2d7C7Q5g5J16uqEhXbGTwcx3iorlBdkBEg_92ys7iSf35cWhp6xD25s6VEcDn2RBW1djrwaSYgoxdR3GH7jMHvdiJ-2hi4h1cHrZwJjgi-qYoPCTbYWlI5BvW4oCvVbDuIbHHYxfLr3uukC-hwdk2TFkqIkiIkATcEIRVOhDffKNhMx4N-twHsrH0ojX-nC0QLmyMjeDZ24J1p2Ina4_8fJeqmFOda0wEziwUF8rd0T_aeKWyvAuWwz5SuNosDF1SRYN88GSCQ"/>
+<div class="absolute -top-2 -right-2 w-6 h-6 bg-on-background text-white rounded-full flex items-center justify-center font-label-sm text-[10px]">1</div>
+</div>
+<div class="flex-grow">
+<h3 class="font-label-sm text-label-sm text-on-surface uppercase">Luminous Serum</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">30ml / Radiant</p>
+</div>
+<div class="font-body-md text-body-md text-on-surface">$120.00</div>
+</div>
+<!-- Item 2 -->
+<div class="flex gap-6 items-center">
+<div class="relative w-20 h-20 flex-shrink-0 bg-surface-container rounded-lg overflow-hidden border border-surface-variant/50">
+<img class="w-full h-full object-cover" data-alt="An elegant, minimalist white ceramic jar of night cream placed on a subtle marble pedestal against a soft cream background. The scene is bathed in gentle, warm light, exuding a sense of premium skincare rituals and quiet luxury. The aesthetic is clean, soothing, and strictly modern." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBw7g2DG7HooHaj5CU54RvEK2fSKlzT1Rb50XYTfHTm2maOzwDReP0YJrSuhySDRW5_5Bva50p8wTAYSJwS1lpl-J6vuPNlOzSANCbvbZ9TDIEEBrKY1aJ6vvlmIXDpyrdqqk_pVo7_sSACknHq_HntqCv0N32c_goF6rT-nPxk8YA46e0FtEk8I2CDlOKO9W1KO03XFfYAP7nNAs5R1HgTAI4WVCb_7DTjaCa_k4ej1R9Kvdwa5jvm_LIHOkGmi3YkiwsYHB8OkQ"/>
+<div class="absolute -top-2 -right-2 w-6 h-6 bg-on-background text-white rounded-full flex items-center justify-center font-label-sm text-[10px]">1</div>
+</div>
+<div class="flex-grow">
+<h3 class="font-label-sm text-label-sm text-on-surface uppercase">Restorative Night Cream</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">50ml</p>
+</div>
+<div class="font-body-md text-body-md text-on-surface">$95.00</div>
+</div>
+</div>
+<!-- Discount Code -->
+<div class="flex gap-4 mb-8 pt-6 border-t border-surface-variant/30">
+<input class="input-minimal flex-grow" placeholder="Gift card or discount code" type="text"/>
+<button class="px-6 py-2 border border-on-background text-on-background font-label-sm text-label-sm uppercase hover:bg-on-background hover:text-white transition-colors duration-300">Apply</button>
+</div>
+<!-- Totals -->
+<div class="space-y-4 pt-6 border-t border-surface-variant/30 font-body-md text-body-md">
+<div class="flex justify-between text-on-surface-variant">
+<span>Subtotal</span>
+<span>$215.00</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Shipping</span>
+<span>Calculated at next step</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Taxes</span>
+<span>$17.20</span>
+</div>
+<div class="flex justify-between items-end pt-6 border-t border-surface-variant/50">
+<span class="font-headline-md text-headline-md text-on-surface">Total</span>
+<div class="text-right">
+<span class="text-xs text-on-surface-variant mr-2">USD</span>
+<span class="font-headline-md text-headline-md text-on-surface">$232.20</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Component from JSON -->
+<footer class="bg-surface-container-low dark:bg-surface-container-lowest w-full py-section-gap mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Brand -->
+<div class="col-span-1 mb-12 md:mb-0">
+<h2 class="font-headline-lg text-headline-lg text-primary dark:text-primary-fixed-dim mb-6">LUMIÈRE CHIC</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant dark:text-surface-variant mb-6 max-w-xs">Elevating your daily rituals through mindful beauty and uncompromising quality.</p>
+</div>
+<!-- Links -->
+<div class="col-span-1 mb-8 md:mb-0">
+<h3 class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-widest mb-6 font-bold">Explore</h3>
+<ul class="space-y-4">
+<li><a class="font-body-lg text-body-lg text-on-surface-variant dark:text-surface-variant hover:text-tertiary dark:hover:text-tertiary-fixed-dim transition-colors duration-300" href="#">Sustainability</a></li>
+<li><a class="font-body-lg text-body-lg text-on-surface-variant dark:text-surface-variant hover:text-tertiary dark:hover:text-tertiary-fixed-dim transition-colors duration-300" href="#">Shipping</a></li>
+<li><a class="font-body-lg text-body-lg text-on-surface-variant dark:text-surface-variant hover:text-tertiary dark:hover:text-tertiary-fixed-dim transition-colors duration-300" href="#">Returns</a></li>
+</ul>
+</div>
+<div class="col-span-1 mb-8 md:mb-0">
+<h3 class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-widest mb-6 font-bold">Legal</h3>
+<ul class="space-y-4">
+<li><a class="font-body-lg text-body-lg text-on-surface-variant dark:text-surface-variant hover:text-tertiary dark:hover:text-tertiary-fixed-dim transition-colors duration-300" href="#">Privacy Policy</a></li>
+<li><a class="font-body-lg text-body-lg text-on-surface-variant dark:text-surface-variant hover:text-tertiary dark:hover:text-tertiary-fixed-dim transition-colors duration-300" href="#">Contact</a></li>
+</ul>
+</div>
+<!-- Newsletter (Added for balance, consistent with minimal luxury style) -->
+<div class="col-span-1">
+<h3 class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-widest mb-6 font-bold">The Atelier</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-surface-variant mb-4">Join our inner circle for exclusive previews.</p>
+<div class="relative">
+<input class="w-full bg-transparent border-0 border-b border-on-surface-variant/30 focus:border-on-surface-variant focus:ring-0 px-0 py-2 font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/50 transition-colors duration-300" placeholder="Email Address" type="email"/>
+<button class="absolute right-0 bottom-2 text-primary hover:text-tertiary transition-colors">
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<div class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mt-24 pt-8 border-t border-surface-variant/20 flex flex-col md:flex-row justify-between items-center">
+<p class="font-label-sm text-label-sm text-on-surface-variant dark:text-surface-variant">© 2024 Lumière Chic. All rights reserved.</p>
+</div>
+</footer>
+</body></html>

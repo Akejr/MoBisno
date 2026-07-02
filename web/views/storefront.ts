@@ -3,10 +3,13 @@ import { render, esc, fadeInImages } from "../lib/dom.js";
 import { getTemplate } from "../templates/registry.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
-import { brandOf } from "../lib/brand.js";
+import { brandOf, readableInk } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyFieldColors } from "../lib/fieldColors.js";
+import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
+import { mountTestimonials } from "../lib/testimonialsCarousel.js";
 import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
 import { storeTitle, storeDescription, storeJsonLd } from "../../src/services/seo.js";
@@ -32,10 +35,14 @@ export async function renderStorefront(identifier: string): Promise<void> {
   const template = getTemplate(view.templateId);
   const app = render(template.render(view, custom));
   app.style.setProperty("--brand", brandOf(custom, view.templateId));
+  app.style.setProperty("--brand-ink", readableInk(brandOf(custom, view.templateId)));
   applyInk(app, custom);
   applyTheme(app, custom);
+  applyFieldColors(app, custom);
+  applyIconColor(app, custom);
   fadeInImages(app);
   mountParticlesHeroes(app);
+  mountTestimonials(app);
   if (result.kind === "render") updateCartBadge(result.store.id);
 
   // SEO da loja (foco na loja, não na MôBisno).

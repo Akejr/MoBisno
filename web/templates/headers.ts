@@ -1,8 +1,9 @@
 /**
- * Cabeçalhos por variantes — partilhados por todos os modelos. Mantêm os hooks
- * essenciais: `data-edit-logo`, `data-edit-menu`/`data-edit-menu-item`,
- * `data-search-btn`, `data-cart-link`/`data-cart-count` e o dropdown de
- * categorias (CSS group-hover, sem JS). Cor de marca via `var(--brand)`.
+ * Cabeçalhos por variantes — partilhados por todos os modelos. A navegação é
+ * FIXA (Início, Produtos, Categorias), igual em todos os modelos e não
+ * editável. Mantêm os hooks essenciais: `data-edit-logo`, `data-search-btn`,
+ * `data-cart-link`/`data-cart-count` e o dropdown de categorias (CSS
+ * group-hover, sem JS). Cor de marca via `var(--brand)`.
  */
 import { esc } from "../lib/dom.js";
 import { headerCategories } from "./sectionsModel.js";
@@ -32,12 +33,14 @@ function brandHtml(view: StoreRenderView, custom?: StoreCustomization): string {
   return `<span class="text-xl md:text-2xl font-black tracking-tight" style="color:inherit">${esc(view.storeName)}</span>`;
 }
 
-function menuLabels(view: StoreRenderView, custom?: StoreCustomization): string[] {
-  return custom?.menu && custom.menu.length ? custom.menu : view.menu.items.map((i) => i.label);
-}
-
-function menuLinks(view: StoreRenderView, labels: string[]): string {
-  return labels.map((label, i) => `<a href="${homeHref(view)}" data-edit-menu-item="${i}" class="hover:opacity-70 cursor-pointer transition-opacity">${esc(label)}</a>`).join("");
+/**
+ * Navegação fixa do cabeçalho (igual em todos os modelos): Início + Produtos.
+ * O dropdown de categorias é acrescentado à parte. Não é editável.
+ */
+function menuLinks(view: StoreRenderView): string {
+  const cls = "hover:opacity-70 cursor-pointer transition-opacity";
+  return `<a href="${esc(homeHref(view))}" class="${cls}">Início</a>` +
+    `<a href="${esc(homeHref(view))}#produtos" class="${cls}">Produtos</a>`;
 }
 
 function categoriesDropdown(view: StoreRenderView): string {
@@ -70,10 +73,11 @@ function cartBtn(view: StoreRenderView, brand: string): string {
  *  - `button`: o botão hambúrguer (`lg:hidden`, colocar junto ao logótipo);
  *  - `panel`: o painel deslizante com os links (colocar no fim do header).
  */
-export function mobileMenuParts(view: StoreRenderView, labels: string[], container: string): { head: string; button: string; panel: string } {
+export function mobileMenuParts(view: StoreRenderView, container: string): { head: string; button: string; panel: string } {
   const cats = headerCategories(view);
   const linkCls = "block px-1 py-3 text-[15px] font-medium border-b border-black/5 hover:opacity-70 transition-opacity";
-  const items = labels.map((l) => `<a href="${esc(homeHref(view))}" class="${linkCls}">${esc(l)}</a>`).join("");
+  const items = `<a href="${esc(homeHref(view))}" class="${linkCls}">Início</a>` +
+    `<a href="${esc(homeHref(view))}#produtos" class="${linkCls}">Produtos</a>`;
   const catBlock = cats.length
     ? `<p class="px-1 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Categorias</p>` +
       cats.map((c) => `<a href="${esc(categoryHref(view, c))}" class="${linkCls}">${esc(c)}</a>`).join("")
@@ -86,10 +90,9 @@ export function mobileMenuParts(view: StoreRenderView, labels: string[], contain
 
 /** Renderiza o cabeçalho da variante escolhida. */
 export function renderHeader(variant: HeaderVariant | undefined, view: StoreRenderView, custom: StoreCustomization | undefined, ctx: HeaderCtx): string {
-  const labels = menuLabels(view, custom);
   const logo = `<a href="${esc(homeHref(view))}" data-edit-logo class="flex items-center gap-2 min-w-0">${brandHtml(view, custom)}</a>`;
-  const nav = (cls: string): string => `<nav data-edit-menu class="${cls}">${menuLinks(view, labels)}${categoriesDropdown(view)}</nav>`;
-  const m = mobileMenuParts(view, labels, ctx.container);
+  const nav = (cls: string): string => `<nav class="${cls}">${menuLinks(view)}${categoriesDropdown(view)}</nav>`;
+  const m = mobileMenuParts(view, ctx.container);
   const icons = `<div class="flex items-center gap-3 shrink-0">${searchBtn()}${cartBtn(view, ctx.brand)}</div>`;
 
   if (variant === "centrado") {
@@ -99,7 +102,7 @@ export function renderHeader(variant: HeaderVariant | undefined, view: StoreRend
         <div class="grid grid-cols-3 items-center h-16">
           <div class="flex items-center gap-1 min-w-0">
             ${m.button}
-            <nav data-edit-menu class="hidden lg:flex items-center gap-6 text-sm font-medium">${menuLinks(view, labels)}${categoriesDropdown(view)}</nav>
+            <nav class="hidden lg:flex items-center gap-6 text-sm font-medium">${menuLinks(view)}${categoriesDropdown(view)}</nav>
           </div>
           <div class="flex justify-center min-w-0">${logo}</div>
           <div class="flex items-center justify-end gap-3 shrink-0">${searchBtn()}${cartBtn(view, ctx.brand)}</div>

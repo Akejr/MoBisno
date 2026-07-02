@@ -12,11 +12,13 @@ export interface StoreCustomization {
     primary?: string;
     /** Cor dos textos e ícones da loja. */
     text?: string;
+    /** Cor de TODOS os ícones do site (sobrepõe a cor de texto nos ícones). */
+    icon?: string;
   };
   /** Tema global (coerência): estilo visual aplicado a toda a loja. */
   theme?: {
-    /** "moderno" (cantos suaves), "classico" (serif), "minimal" (reto). */
-    style?: "moderno" | "classico" | "minimal";
+    /** "moderno" (cantos suaves), "classico" (serif), "minimal" (reto), "editorial" (luxo). */
+    style?: "moderno" | "classico" | "minimal" | "editorial";
   };
   hero?: {
     title?: string;
@@ -25,6 +27,11 @@ export interface StoreCustomization {
     imageUrl?: string;
     /** Variante de hero escolhida ("imagem" | "split" | "arco" | "particulas"). */
     variant?: "imagem" | "split" | "arco" | "particulas";
+    /**
+     * Destino do botão principal do hero. Vazio/ausente = secção de produtos
+     * (#produtos); caso contrário, nome da categoria para onde o botão dirige.
+     */
+    ctaTarget?: string;
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];
@@ -50,6 +57,11 @@ export interface StoreCustomization {
   productPerks?: { icon?: string; text?: string }[];
   /** Rótulos dos itens de menu (cabeçalho/rodapé). */
   menu?: string[];
+  /**
+   * Destino de cada item de menu (mesmo índice de `menu`). Vazio/ausente =
+   * início; caso contrário, nome da categoria para onde o botão direciona.
+   */
+  menuTargets?: string[];
   /**
    * Secções de produtos da página inicial. Cada secção mostra uma categoria.
    * Tokens especiais: "__all__" (todos), "__featured__" (Destaques).
@@ -126,12 +138,51 @@ export interface StoreCustomization {
    * definida. O dono pode adicionar/remover/reordenar no editor.
    */
   blocks?: ContentBlock[];
+
+  /** Cores de texto por-campo (ex.: {"hero.title":"#DF0B26"}). Sobrepõem a cor global. */
+  fieldColors?: Record<string, string>;
+
+  /** Testemunhos em destaque (secção editorial do modelo, ex.: Lumière). */
+  testimonials?: { quote?: string; author?: string; role?: string }[];
+
+  /** Definições específicas do modelo Lumière Chic. */
+  lumiere?: {
+    /** Título da secção do mapa/lojas. */
+    boutiquesTitle?: string;
+    /** Esconde a secção de testemunhos (removível pelo dono). */
+    hideTestimonials?: boolean;
+    /** Esconde a secção de lojas/mapa (removível pelo dono). */
+    hideBoutiques?: boolean;
+    /**
+     * Pontos das lojas no mapa. Cada ponto mostra um pin próprio (a partir de
+     * lat/lng, ou da morada). Se vazio, mostra um único mapa da morada do rodapé.
+     */
+    boutiques?: { name?: string; address?: string; lat?: number; lng?: number }[];
+  };
+
+  /* --------- Campos internos (modelos prontos) — prefixo `__` --------- */
+  /**
+   * (Interno) Marca esta loja como MODELO-mestre, editável pelo admin na
+   * secção "Modelos". Não aparece nas listagens normais nem nas métricas.
+   */
+  __template?: { id: string; name: string; description: string };
+  /**
+   * (Interno) ID do modelo em que a loja do cliente se baseia. Presente quando
+   * o cliente escolheu um modelo pronto em vez do construtor.
+   */
+  __basedOn?: string;
+  /**
+   * (Interno) Bloqueia a edição estrutural (header, hero, rodapé, página de
+   * produto, checkout, disposição, tema e blocos). O cliente só pode alterar
+   * textos, fotos e cores. Ativo nas lojas baseadas num modelo pronto.
+   */
+  __locked?: boolean;
 }
 
 /** Bloco de conteúdo de uma loja (secção adicional editável). */
 export type ContentBlock =
-  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao" }
-  | { type: "text"; title?: string; text?: string; variant?: "centrado" | "destaque" | "linha" }
+  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao"; bg?: string }
+  | { type: "text"; title?: string; text?: string; variant?: "centrado" | "destaque" | "linha"; bg?: string }
   | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
   | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "estilizado" };
 

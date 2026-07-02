@@ -92,15 +92,16 @@ async function profilesMap(): Promise<Map<string, { email: string; name: string;
 export async function adminOverview(): Promise<AdminOverview> {
   const [{ count: accounts }, { data: stores }, { data: orders }, { count: pending }] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("stores").select("state"),
+    supabase.from("stores").select("state, customization"),
     supabase.from("orders").select("amount, status"),
     supabase.from("withdrawals").select("id", { count: "exact", head: true }).eq("status", "requested"),
   ]);
+  const realStores = (stores ?? []).filter((s) => !((s.customization ?? {}) as { __template?: unknown }).__template);
   const salesTotal = (orders ?? []).filter((o) => o.status === "paid").reduce((s, o) => s + Number(o.amount), 0);
-  const published = (stores ?? []).filter((s) => s.state === "Publicada").length;
+  const published = realStores.filter((s) => s.state === "Publicada").length;
   return {
     accounts: accounts ?? 0,
-    stores: (stores ?? []).length,
+    stores: realStores.length,
     published,
     salesTotal,
     pendingWithdrawals: pending ?? 0,
@@ -138,7 +139,7 @@ export async function listStores(): Promise<AdminStore[]> {
   const onlineByStore = new Map<string, boolean>();
   (pays ?? []).forEach((p) => onlineByStore.set(p.store_id, !!p.online_enabled));
 
-  return (stores ?? []).map((s) => {
+  return (stores ?? []).filter((s) => !((s.customization ?? {}) as { __template?: unknown }).__template).map((s) => {
     const o = pm.get(s.owner_id);
     const c = (s.customization ?? {}) as {
       sms?: { enabled?: boolean };

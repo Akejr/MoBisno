@@ -3,8 +3,10 @@ import { render, $, esc, formatKz, fadeInImages, toast } from "../lib/dom.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { getCart, setQuantity, removeFromCart, cartTotal, updateCartBadge, type CartItem } from "../lib/cart.js";
 import { resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { brandOf } from "../lib/brand.js";
+import { brandOf, readableInk } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyFieldColors } from "../lib/fieldColors.js";
+import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 
 function itemRow(it: CartItem): string {
@@ -50,7 +52,7 @@ export async function renderCartPage(identifier: string): Promise<void> {
       ? `<div class="py-20 text-center text-neutral-500">
           <span class="material-symbols-outlined" style="font-size:56px;">shopping_cart</span>
           <p class="mt-3">O seu carrinho está vazio.</p>
-          <a href="${esc(homeHref)}" class="inline-block mt-4 px-6 py-3 rounded-lg text-white font-bold" style="background:var(--brand)">Continuar a comprar</a>
+          <a href="${esc(homeHref)}" class="inline-block mt-4 px-6 py-3 rounded-lg font-bold" style="background:var(--brand);color:var(--brand-ink,#fff)">Continuar a comprar</a>
         </div>`
       : `<div class="divide-y divide-neutral-100">${items.map(itemRow).join("")}</div>
          <div class="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-neutral-200 pt-6">
@@ -58,8 +60,8 @@ export async function renderCartPage(identifier: string): Promise<void> {
            <div class="flex gap-3">
              <a href="${esc(homeHref)}" class="px-5 py-3 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-50 font-medium">Continuar a comprar</a>
              ${online
-               ? `<a href="${esc(checkoutHref)}" class="px-6 py-3 rounded-lg text-white font-bold inline-flex items-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
-               : `<button id="checkout" class="px-6 py-3 rounded-lg text-white font-bold inline-flex items-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
+               ? `<a href="${esc(checkoutHref)}" class="px-6 py-3 rounded-lg font-bold inline-flex items-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
+               : `<button id="checkout" class="px-6 py-3 rounded-lg font-bold inline-flex items-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
            </div>
          </div>`;
 
@@ -77,8 +79,11 @@ export async function renderCartPage(identifier: string): Promise<void> {
         </main>
       </div>`);
     app.style.setProperty("--brand", brand);
+    app.style.setProperty("--brand-ink", readableInk(brand));
     applyInk(app, custom);
     applyTheme(app, custom);
+    applyFieldColors(app, custom);
+    applyIconColor(app, custom);
     fadeInImages(app);
     bind();
     updateCartBadge(storeId);

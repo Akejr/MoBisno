@@ -5,6 +5,8 @@ import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
 import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
+import { applyFieldColors } from "../lib/fieldColors.js";
+import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
@@ -33,6 +35,8 @@ export async function renderCategoryPage(identifier: string, category: string): 
   app.style.setProperty("--brand", brandOf(custom, view.templateId));
   applyInk(app, custom);
   applyTheme(app, custom);
+  applyFieldColors(app, custom);
+  applyIconColor(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
 

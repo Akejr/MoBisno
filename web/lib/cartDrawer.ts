@@ -6,7 +6,10 @@ import { esc, formatKz, toast } from "./dom.js";
 import { getCart, setQuantity, removeFromCart, cartTotal, updateCartBadge, type CartItem } from "./cart.js";
 import { resolveWaPhone, waLink } from "./whatsapp.js";
 import { loadStorefront } from "./storeCache.js";
-import { brandOf } from "./brand.js";
+import { brandOf, readableInk } from "./brand.js";
+import { applyInk } from "./ink.js";
+import { applyIconColor } from "./iconColor.js";
+import { applyTheme } from "./theme.js";
 
 let mounted = false;
 
@@ -67,6 +70,12 @@ export async function openCartDrawer(identifier: string): Promise<void> {
     </aside>`;
   document.body.appendChild(host);
   host.style.setProperty("--brand", brand);
+  host.style.setProperty("--brand-ink", readableInk(brand));
+  // Aplica a identidade do modelo (tema: fontes + cantos) e a cor de texto,
+  // para o carrinho manter a mesma UI do site (consistência).
+  applyInk(host, custom);
+  applyTheme(host, custom);
+  applyIconColor(host, custom);
 
   const overlay = host.querySelector<HTMLElement>("[data-overlay]")!;
   const panel = host.querySelector<HTMLElement>("[data-panel]")!;
@@ -102,8 +111,8 @@ export async function openCartDrawer(identifier: string): Promise<void> {
           <span class="font-bold text-xl" style="color:var(--brand)">${esc(formatKz(cartTotal(storeId)))}</span>
         </div>
         ${online
-          ? `<a href="${esc(checkoutHref)}" data-go class="w-full py-3 rounded-lg text-white font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
-          : `<button data-checkout class="w-full py-3 rounded-lg text-white font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
+          ? `<a href="${esc(checkoutHref)}" data-go class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
+          : `<button data-checkout class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
         <a href="${esc(cartPageHref)}" data-go class="block text-center text-sm text-neutral-500 hover:text-neutral-900 mt-3">Ver carrinho completo</a>`;
     }
     bindRows();
