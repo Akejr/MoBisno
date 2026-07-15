@@ -144,7 +144,7 @@ export default async function handler(req, res) {
 
     const { data: store } = await db
       .from("stores")
-      .select("id, name, identifier, state, owner_id")
+      .select("id, name, identifier, state, owner_id, customization")
       .eq("identifier", identifier)
       .eq("state", "Publicada")
       .maybeSingle();
@@ -206,7 +206,11 @@ export default async function handler(req, res) {
 
     // Página de categoria?
     const catMatch = path.match(/^\/categoria\/(.+)$/);
-    const storeDesc = truncate(`Compre online na ${storeName} em Angola. Pagamento por Multicaixa Express, Referência Bancária e WhatsApp, com entrega em Luanda.`, 160);
+    // Descrição de SEO: usa a do dono (gerada por IA) se existir; senão genérica.
+    const seoDesc = store.customization && store.customization.seo && store.customization.seo.description;
+    const storeDesc = seoDesc && String(seoDesc).trim()
+      ? truncate(seoDesc, 160)
+      : truncate(`Compre online na ${storeName} em Angola. Pagamento por Multicaixa Express, Referência Bancária e WhatsApp, com entrega em Luanda.`, 160);
     if (catMatch) {
       const cat = decodeURIComponent(catMatch[1]);
       const url = `${canonicalBase}/categoria/${encodeURIComponent(cat)}`;
@@ -216,7 +220,8 @@ export default async function handler(req, res) {
     }
 
     // Página inicial da loja.
-    const title = `${storeName} | Compras em Angola`;
+    const seoTitle = store.customization && store.customization.seo && store.customization.seo.title;
+    const title = seoTitle && String(seoTitle).trim() ? String(seoTitle).trim() : `${storeName} | Compras em Angola`;
     const jsonLd = {
       "@context": "https://schema.org",
       "@type": "OnlineStore",

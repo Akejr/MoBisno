@@ -9,7 +9,7 @@ import { openProductForm } from "../lib/productForm.js";
 import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
 import { PLAN_PERIOD_DAYS, type BillingState } from "../../src/services/billing.js";
 import type { Store, Product } from "../../src/models/index.js";
-import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
+import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
@@ -934,6 +934,7 @@ function orderStatusBadge(status: string): string {
     case "open": return badge("Pendente", "#fff7ed", "#c2410c");
     case "failed": return badge("Falhou", "#fef2f2", "#b91c1c");
     case "cancelled": return badge("Cancelada", "#f3f4f6", "#6b7280");
+    case "expired": return badge("Expirada", "#f3f4f6", "#6b7280");
     default: return badge(status, "#f3f4f6", "#6b7280");
   }
 }
@@ -961,7 +962,7 @@ function orderRow(o: OrderRow): string {
         <p class="text-xs text-gray-400">${esc(fmtDateTime(o.createdAt))} · ${esc(METHOD_LABELS[o.method] ?? o.method)}</p>
       </div>
       <span class="font-bold text-gray-900 text-sm whitespace-nowrap">${esc(formatKz(o.amount))}</span>
-      ${orderStatusBadge(o.status)}
+      ${orderStatusBadge(orderEffectiveStatus(o))}
       <span class="material-symbols-outlined text-gray-300 text-[20px]">expand_more</span>
     </div>
     <div data-order-detail="${esc(o.id)}" class="hidden px-5 pb-4 pt-1 bg-gray-50/60">

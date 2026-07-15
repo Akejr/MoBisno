@@ -17,6 +17,25 @@ function isMobile(): boolean {
   return window.matchMedia("(max-width: 767px)").matches;
 }
 
+/** Injeta (uma vez) o tema escuro do mini-carrinho para modelos escuros (ex.: Neon Lab). */
+function ensureCartDarkStyle(): void {
+  if (document.getElementById("mb-cart-dark-style")) return;
+  const st = document.createElement("style");
+  st.id = "mb-cart-dark-style";
+  st.textContent = `
+    #mb-cart-drawer.nl-dark [data-panel]{background:#121317 !important;color:#e3e2e7}
+    #mb-cart-drawer.nl-dark :is(.text-neutral-900){color:#e3e2e7 !important}
+    #mb-cart-drawer.nl-dark :is(.text-neutral-600,.text-neutral-500){color:#8e9192 !important}
+    #mb-cart-drawer.nl-dark :is(.text-neutral-400){color:#5f5e5e !important}
+    #mb-cart-drawer.nl-dark :is(.bg-neutral-100){background:#1e1f23 !important}
+    #mb-cart-drawer.nl-dark :is(.border-neutral-100,.border-neutral-200,.border-neutral-300){border-color:#444748 !important}
+    #mb-cart-drawer.nl-dark .hover\\:bg-neutral-100:hover{background:rgba(255,255,255,.06) !important}
+    #mb-cart-drawer.nl-dark .hover\\:text-neutral-900:hover{color:#e3e2e7 !important}
+    #mb-cart-drawer.nl-dark .divide-neutral-100 > * + *{border-color:rgba(68,71,72,.4) !important}
+  `;
+  document.head.appendChild(st);
+}
+
 /** Extrai o identificador da loja a partir de um href `#/loja/<id>/carrinho`. */
 function identifierFromHref(href: string): string | null {
   const m = href.match(/#\/loja\/([^/]+)\/carrinho/);
@@ -47,10 +66,16 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   if (loaded.result.kind !== "render") return;
   const storeId = loaded.result.store.id;
   const custom = loaded.custom;
-  const brand = brandOf(custom, loaded.result.store.templateId);
+  const templateId = loaded.result.store.templateId;
+  const brand = brandOf(custom, templateId);
   const cartPageHref = `#/loja/${encodeURIComponent(identifier)}/carrinho`;
   const checkoutHref = `#/loja/${encodeURIComponent(identifier)}/checkout`;
   const online = !!custom.payments?.onlineEnabled;
+  // Loja baseada num modelo (ou a própria loja-modelo): mostra "Comprar agora"
+  // (leva ao checkout com os métodos visíveis), mesmo sem pagamentos ativos.
+  const isModel = !!((custom as { __basedOn?: string }).__basedOn || (custom as { __template?: unknown }).__template);
+  const showCheckout = online || isModel;
+  const darkTheme = templateId === "neonlab";
 
   // Remove instância anterior, se existir.
   document.getElementById("mb-cart-drawer")?.remove();
@@ -76,6 +101,7 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   applyInk(host, custom);
   applyTheme(host, custom);
   applyIconColor(host, custom);
+  if (darkTheme) { ensureCartDarkStyle(); host.classList.add("nl-dark"); }
 
   const overlay = host.querySelector<HTMLElement>("[data-overlay]")!;
   const panel = host.querySelector<HTMLElement>("[data-panel]")!;
@@ -110,10 +136,9 @@ export async function openCartDrawer(identifier: string): Promise<void> {
           <span class="text-neutral-600">Total</span>
           <span class="font-bold text-xl" style="color:var(--brand)">${esc(formatKz(cartTotal(storeId)))}</span>
         </div>
-        ${online
+        ${showCheckout
           ? `<a href="${esc(checkoutHref)}" data-go class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
-          : `<button data-checkout class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}
-        <a href="${esc(cartPageHref)}" data-go class="block text-center text-sm text-neutral-500 hover:text-neutral-900 mt-3">Ver carrinho completo</a>`;
+          : `<button data-checkout class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}`;
     }
     bindRows();
     updateCartBadge(storeId);

@@ -47,6 +47,10 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   const brand = brandOf(custom, result.store.templateId);
   const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
   const online = !!custom.payments?.onlineEnabled;
+  // Loja baseada num modelo (ou a loja-modelo): mostra SEMPRE os métodos online
+  // no checkout (visível), mesmo que ainda não estejam ativos (não cobram).
+  const isModel = !!((custom as { __basedOn?: string }).__basedOn || (custom as { __template?: unknown }).__template);
+  const showOnline = online || isModel;
   const variant: CheckoutVariant = custom.checkout?.variant ?? "dividido";
   const qa = location.search.includes("qa=1");
   const waPhone = resolveWaPhone(custom);
@@ -86,7 +90,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     const subtotal = cartTotal(storeId);
     const gross = subtotal + (physical ? deliveryFee : 0);
     const discount = appliedDiscount ? discountAmount(appliedDiscount, gross) : 0;
-    return { storeName, items, total: subtotal, online, selected, physical, areas, selectedArea, deliveryFee, discount, discountCode: appliedDiscount?.code ?? null };
+    return { storeName, items, total: subtotal, online: showOnline, selected, physical, areas, selectedArea, deliveryFee, discount, discountCode: appliedDiscount?.code ?? null };
   }
 
   /** Lê o código de cupão do input e tenta aplicá-lo. */
@@ -171,8 +175,8 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       </div>`;
     }
     // n === 2
-    const tiles = checkoutMethods(online).map((m) => renderMethodTile(m, selected === m.id)).join("");
-    const cols = Math.min(checkoutMethods(online).length, 3);
+    const tiles = checkoutMethods(showOnline).map((m) => renderMethodTile(m, selected === m.id)).join("");
+    const cols = Math.min(checkoutMethods(showOnline).length, 3);
     return `<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start">
       <div class="lg:col-span-7 order-2 lg:order-1">
         <button id="step-back" class="text-sm text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1 mb-3"><span class="material-symbols-outlined text-[18px]">arrow_back</span> Editar dados</button>

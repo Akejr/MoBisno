@@ -15,6 +15,13 @@ import { TEMPLATE_PRESETS } from "../templates/presets.js";
 import type { Store } from "../../src/models/index.js";
 import type { StoreCustomization } from "../templates/types.js";
 
+/**
+ * Versão do conteúdo de fábrica. Ao subir este número, os modelos de fábrica já
+ * importados são re-sincronizados (customização) na próxima vez que o admin
+ * abre a secção "Modelos" — sem precisar de apagar/reimportar à mão.
+ */
+const MODEL_VERSION = 2;
+
 /** Produto de exemplo (fictício) semeado numa loja-modelo. */
 export interface DemoProductInput {
   name: string;
@@ -122,6 +129,7 @@ export async function createTemplateModel(
   const customization: StoreCustomization = {
     ...source,
     __template: { id: created.value.id, name, description },
+    __v: MODEL_VERSION,
   };
   const ok = await saveCustomization(adminId, created.value.id, customization);
   if (!ok) return null;
@@ -175,6 +183,55 @@ function lumiereBase(): StoreCustomization {
   };
 }
 
+/** Customização base do modelo "Neon Lab" (techno-luxury escuro). */
+function neonlabBase(): StoreCustomization {
+  return {
+    colors: { primary: "#2E5BFF" },
+    hero: {
+      title: "PRECISÃO\nDE ENGENHARIA.",
+      subtitle: "O auge da fidelidade acústica e do design técnico. Feito para o arquiteto exigente do som.",
+      ctaLabel: "Explorar coleção",
+    },
+    footer: {
+      about: "Engenharia de precisão. Instrumentos de áudio de alta fidelidade, concebidos para os exigentes.",
+      location: "Luanda, Angola",
+    },
+    blocks: [
+      {
+        type: "info",
+        badge: "Materialidade",
+        title: "Materialidade & Craft",
+        text: "Cada curva é calculada. Cada superfície é maquinada a partir de titânio aeroespacial e carbono forjado. Não desenhamos para as massas; projetamos para os precisos.",
+        imageUrl: "https://images.unsplash.com/photo-1519558260268-cde7e03a0152?q=80&w=1200",
+        imageSide: "right",
+        bg: "#121317",
+      },
+      {
+        type: "info",
+        badge: "Tecnologia proprietária",
+        title: "Motor de Processamento Neural",
+        text: "O som deixa de ser apenas amplificado; passa a ser calculado. O nosso silício analisa o ambiente 400.000 vezes por segundo, moldando a saída acústica ao teu perfil.",
+        imageUrl: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1200",
+        imageSide: "left",
+      },
+      {
+        type: "location",
+        title: "Sede global",
+        address: "Luanda, Angola",
+      },
+    ],
+  };
+}
+
+const NEONLAB_PRODUCTS: DemoProductInput[] = [
+  { name: "Auralith N-1", price: 1250000, category: "Auscultadores", featured: true, description: "Auscultadores over-ear com cancelamento neural e drivers de berílio.", imageUrl: "https://images.unsplash.com/photo-1546435770-a3e426bf472b?q=80&w=600" },
+  { name: "Core Monolith", price: 3400000, category: "Amplificadores", featured: true, description: "Amplificador inteligente com DAC quântico e chassis de alumínio anodizado.", imageUrl: "https://images.unsplash.com/photo-1558089687-f282ffcbc126?q=80&w=600" },
+  { name: "Shard X-V", price: 890000, category: "In-Ear", description: "Monitores in-ear maquinados, com cabo trançado de prata.", imageUrl: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?q=80&w=600" },
+  { name: "Neon Vox", price: 3450000, category: "Interfaces", description: "Interface de áudio neural de latência sub-milissegundo.", imageUrl: "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?q=80&w=600" },
+  { name: "Pulse DAC", price: 1590000, category: "Amplificadores", description: "Conversor digital-analógico de referência.", imageUrl: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=600" },
+  { name: "Titan Grid", price: 2100000, category: "Colunas", featured: true, description: "Coluna de estúdio com grelha de titânio.", imageUrl: "https://images.unsplash.com/photo-1545454675-3531b543be5d?q=80&w=600" },
+];
+
 /** Modelos de fábrica que o admin pode importar como lojas-modelo editáveis. */
 export interface FactoryModel { name: string; description: string; templateId: string; base: StoreCustomization; products: DemoProductInput[]; }
 
@@ -201,6 +258,7 @@ export function defaultFactoryModels(): FactoryModel[] {
   const out: FactoryModel[] = [];
   if (vermelho) out.push({ name: vermelho.name, description: vermelho.description, templateId: "galeria", base: vermelho.customization, products: VERMELHO_PRODUCTS });
   out.push({ name: "Lumière Chic", description: "Luxo minimalista para beleza e cosmética — tipografia editorial e tons creme.", templateId: "lumiere", base: lumiereBase(), products: LUMIERE_PRODUCTS });
+  out.push({ name: "Neon Lab", description: "Techno-luxury escuro para eletrónica e áudio premium — Sora + Geist, vidro e acento cobalto.", templateId: "neonlab", base: neonlabBase(), products: NEONLAB_PRODUCTS });
   return out;
 }
 
@@ -210,10 +268,22 @@ export function defaultFactoryModels(): FactoryModel[] {
  */
 export async function seedDefaultModels(adminId: string): Promise<number> {
   const existing = await listTemplateModels();
-  const existingNames = new Set(existing.map((m) => m.name.trim().toLowerCase()));
+  const byName = new Map(existing.map((m) => [m.name.trim().toLowerCase(), m]));
   let created = 0;
   for (const fm of defaultFactoryModels()) {
-    if (existingNames.has(fm.name.trim().toLowerCase())) continue;
+    const found = byName.get(fm.name.trim().toLowerCase());
+    if (found) {
+      // Já existe: re-sincroniza a customização se estiver numa versão antiga.
+      if ((found.customization.__v ?? 1) !== MODEL_VERSION) {
+        const refreshed: StoreCustomization = {
+          ...(JSON.parse(JSON.stringify(fm.base)) as StoreCustomization),
+          __template: found.customization.__template ?? { id: found.storeId, name: fm.name, description: fm.description },
+          __v: MODEL_VERSION,
+        };
+        await saveCustomization(adminId, found.storeId, refreshed);
+      }
+      continue;
+    }
     const model = await createTemplateModel(adminId, fm.name, fm.description, fm.base, fm.templateId, fm.products);
     if (model) created += 1;
   }

@@ -74,31 +74,38 @@ function mockView(): StoreRenderView {
 
 async function loadItems(): Promise<GalleryItem[]> {
   const models = await listTemplateModels();
-  if (models.length) {
-    const out: GalleryItem[] = [];
-    for (const m of models) {
-      let html = "";
-      try {
-        const { view } = await loadStorefront(m.identifier);
-        if (view.kind === "render") html = getTemplate(m.templateId).render(view, m.customization);
-      } catch { /* ignora falha de uma loja-modelo */ }
-      out.push({
-        key: m.storeId, name: m.name, description: m.description, html,
-        customization: m.customization, model: m, identifier: m.identifier,
-      });
-    }
-    return out;
+  const out: GalleryItem[] = [];
+  const seenNames = new Set<string>();
+
+  // 1) Lojas-modelo reais (secção "Modelos" do admin), com o preview verdadeiro.
+  for (const m of models) {
+    let html = "";
+    try {
+      const { view } = await loadStorefront(m.identifier);
+      if (view.kind === "render") html = getTemplate(m.templateId).render(view, m.customization);
+    } catch { /* ignora falha de uma loja-modelo */ }
+    out.push({
+      key: m.storeId, name: m.name, description: m.description, html,
+      customization: m.customization, model: m, identifier: m.identifier,
+    });
+    seenNames.add(m.name.trim().toLowerCase());
   }
-  // Reserva: modelos de fábrica com dados de exemplo (antes de o admin importar/criar).
+
+  // 2) Modelos de fábrica ainda NÃO importados: mostra-os já (preview com dados
+  //    de exemplo), para que novos modelos apareçam sem esperar pelo seed.
   const view = mockView();
-  return defaultFactoryModels().map((fm) => ({
-    key: fm.templateId,
-    name: fm.name,
-    description: fm.description,
-    html: getTemplate(fm.templateId).render(view, fm.base),
-    customization: fm.base,
-    templateId: fm.templateId,
-  }));
+  for (const fm of defaultFactoryModels()) {
+    if (seenNames.has(fm.name.trim().toLowerCase())) continue;
+    out.push({
+      key: fm.templateId,
+      name: fm.name,
+      description: fm.description,
+      html: getTemplate(fm.templateId).render(view, fm.base),
+      customization: fm.base,
+      templateId: fm.templateId,
+    });
+  }
+  return out;
 }
 
 /** Aplica as variáveis de cor/tema ao contentor do preview. */

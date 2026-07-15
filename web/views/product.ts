@@ -201,6 +201,8 @@ function mountReviews(
   rating: { average: number; count: number },
   templateId: string,
 ): void {
+  // O modelo "Neon Lab" não tem secção de avaliações na página de produto.
+  if (templateId === "neonlab") return;
   const lux = templateId === "lumiere";
   const gold = "#D4AF37";
   const section = document.createElement("section");

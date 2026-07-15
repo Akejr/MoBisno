@@ -13,6 +13,7 @@ import { desportivoTemplate } from "./desportivo.js";
 import { beautyTemplate } from "./beauty.js";
 import { galeriaTemplate } from "./galeria.js";
 import { lumiereTemplate } from "./lumiere.js";
+import { neonlabTemplate } from "./neonlab.js";
 
 /** Render genérico (usado por enquanto pelos modelos não-desportivos). */
 function renderDefault(view: StoreRenderView, _custom?: StoreCustomization): string {
@@ -46,6 +47,7 @@ export const TEMPLATE_REGISTRY: StoreTemplate[] = [
   beautyTemplate,
   galeriaTemplate,
   lumiereTemplate,
+  neonlabTemplate,
   { id: "boutique-elegante", name: "Boutique Elegante", previewUrl: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600&q=70", render: renderDefault },
   { id: "tech-dinamico", name: "Tech Dinâmico", previewUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=70", render: renderDefault },
   { id: "sabor-artesanal", name: "Sabor Artesanal", previewUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&q=70", render: renderDefault },

@@ -536,7 +536,7 @@ export async function renderAdminPanel(): Promise<void> {
               <p class="text-xs text-gray-400 truncate">${esc(a.email)} · desde ${esc(fmtDate(a.createdAt))}</p>
             </div>
           </div>
-          <div class="hidden md:block">${planBadge(a.plan)}</div>
+          <div class="hidden md:block">${a.isAdmin ? planBadge(a.plan) : `<select data-plan-for="${esc(a.id)}" title="Alterar plano" class="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#F95901]">${planOptions}</select>`}</div>
           <div class="hidden md:block text-sm text-gray-600">${a.stores.length} ${a.publishedCount ? `<span class="text-gray-400">(${a.publishedCount} pub.)</span>` : ""}</div>
           <div class="hidden md:block">${activeBadge(a.active)}</div>
           <div class="flex md:justify-end items-center gap-1 mt-2 md:mt-0 w-full md:w-auto">
@@ -801,6 +801,7 @@ export async function renderAdminPanel(): Promise<void> {
       case "open": return badge("Pendente", "#fff7ed", "#c2410c");
       case "failed": return badge("Falhada", "#fef2f2", "#b91c1c");
       case "cancelled": return badge("Cancelada", "#f3f4f6", "#6b7280");
+      case "expired": return badge("Expirada", "#f3f4f6", "#6b7280");
       default: return badge(s, "#f3f4f6", "#6b7280");
     }
   }

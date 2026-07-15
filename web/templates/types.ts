@@ -133,6 +133,16 @@ export interface StoreCustomization {
   };
   /** Domínio próprio ligado pelo dono (ex.: "www.minhaloja.co.ao"). */
   customDomain?: string;
+
+  /**
+   * SEO da loja. `title`/`description` são o título e a meta-descrição usados na
+   * pré-renderização (partilhas/Google). Podem ser gerados por IA a partir do
+   * que o dono descreve, e editados manualmente.
+   */
+  seo?: {
+    title?: string;
+    description?: string;
+  };
   /**
    * Blocos de conteúdo adicionais, renderizados abaixo dos produtos, na ordem
    * definida. O dono pode adicionar/remover/reordenar no editor.
@@ -150,6 +160,9 @@ export interface StoreCustomization {
    * pelo ID do produto. Guardadas aqui para não exigir migração à base de dados.
    */
   productImages?: Record<string, string[]>;
+
+  /** Cor de fundo da secção de produtos (padrão branco em modelos que a suportam). */
+  productsBg?: string;
 
   /** Definições específicas do modelo Lumière Chic. */
   lumiere?: {
@@ -183,11 +196,13 @@ export interface StoreCustomization {
    * textos, fotos e cores. Ativo nas lojas baseadas num modelo pronto.
    */
   __locked?: boolean;
+  /** (Interno) Versão do conteúdo de fábrica de um modelo (para re-sincronizar). */
+  __v?: number;
 }
 
 /** Bloco de conteúdo de uma loja (secção adicional editável). */
 export type ContentBlock =
-  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao"; bg?: string }
+  | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao"; bg?: string; badge?: string }
   | { type: "text"; title?: string; text?: string; variant?: "centrado" | "destaque" | "linha"; bg?: string }
   | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
   | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "estilizado" };

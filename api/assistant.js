@@ -58,7 +58,15 @@ SOBRE O MÔBISNO:
 - COMEÇAR: clicar em "Criar minha loja". Há planos diferentes (ver secção de preços na página).
 Se perguntarem algo muito específico de uma conta, diz que precisam de entrar e ver no painel.`;
 
-const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE };
+/** Contexto SEO (gerar a meta-descrição da loja a partir do que o dono descreve). */
+const SYSTEM_SEO = `És um especialista de SEO para lojas online em Angola. A partir da descrição que o dono dá sobre a loja, escreve UMA meta-descrição.
+
+REGRAS:
+- Uma única frase, em português de Portugal, até 160 caracteres.
+- Apelativa e com palavras-chave naturais (o que vende, para quem, onde entrega).
+- Sem aspas, sem emojis, sem prefixos como "Meta-descrição:". Devolve só o texto final.`;
+
+const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -75,7 +83,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const question = String(body.question || "").slice(0, 2000);
     const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
-    const scope = body.scope === "site" ? "site" : "editor";
+    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : "editor";
     if (!question.trim()) {
       res.status(400).json({ error: "Pergunta em falta." });
       return;

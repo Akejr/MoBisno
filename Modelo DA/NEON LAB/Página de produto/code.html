@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NEON VOX - Neural Audio | NEON_LABS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Sora:wght@400;600;700&amp;family=Geist:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#93000a",
+                        "surface-container-low": "#1a1b1f",
+                        "surface": "#121317",
+                        "on-surface": "#e3e2e7",
+                        "on-primary": "#313030",
+                        "on-background": "#e3e2e7",
+                        "on-tertiary-fixed-variant": "#454749",
+                        "background": "#121317",
+                        "surface-container": "#1e1f23",
+                        "tertiary-fixed": "#e2e2e4",
+                        "primary-container": "#121212",
+                        "surface-variant": "#343539",
+                        "surface-dim": "#121317",
+                        "surface-container-highest": "#343539",
+                        "outline": "#8e9192",
+                        "on-primary-fixed": "#1c1b1b",
+                        "surface-tint": "#c8c6c5",
+                        "on-tertiary": "#2f3132",
+                        "secondary": "#b8c3ff",
+                        "primary": "#c8c6c5",
+                        "error": "#ffb4ab",
+                        "surface-container-lowest": "#0d0e12",
+                        "on-secondary-fixed-variant": "#0035be",
+                        "on-primary-container": "#7e7d7d",
+                        "on-surface-variant": "#c4c7c7",
+                        "on-secondary-container": "#c6ceff",
+                        "tertiary-container": "#101214",
+                        "inverse-on-surface": "#2f3034",
+                        "primary-fixed": "#e5e2e1",
+                        "secondary-container": "#0043eb",
+                        "on-secondary": "#002388",
+                        "outline-variant": "#444748",
+                        "inverse-primary": "#5f5e5e",
+                        "tertiary": "#c6c6c8",
+                        "on-error": "#690005",
+                        "surface-bright": "#38393d",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#1a1c1d",
+                        "on-tertiary-container": "#7c7d7f",
+                        "secondary-fixed": "#dde1ff",
+                        "on-secondary-fixed": "#001356",
+                        "surface-container-high": "#292a2e",
+                        "secondary-fixed-dim": "#b8c3ff",
+                        "inverse-surface": "#e3e2e7",
+                        "tertiary-fixed-dim": "#c6c6c8",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-primary-fixed-variant": "#474646"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-max": "1440px",
+                        "margin-desktop": "64px",
+                        "asymmetric-offset": "120px",
+                        "unit": "8px",
+                        "gutter": "32px",
+                        "margin-mobile": "20px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Sora"],
+                        "headline-md": ["Sora"],
+                        "display-xl": ["Sora"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Sora"],
+                        "label-md": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["32px", { "lineHeight": "38px", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "display-xl": ["72px", { "lineHeight": "80px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+                        "headline-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+        }
+        .glass-panel {
+            background: rgba(28, 28, 30, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(142, 145, 146, 0.1);
+        }
+        .glass-nav {
+            background: rgba(18, 19, 23, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(142, 145, 146, 0.1);
+        }
+        .glow-active:active {
+            box-shadow: 0 0 15px rgba(0, 67, 235, 0.5);
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 glass-nav shadow-sm border-b border-outline-variant/10">
+<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop h-20 w-full max-w-container-max mx-auto">
+<div class="flex items-center gap-gutter">
+<a class="font-display-xl text-headline-md tracking-tighter text-primary" href="#">NEON_LABS</a>
+<nav class="hidden md:flex gap-8">
+<a class="font-body-md text-body-md uppercase tracking-widest text-primary font-bold border-b-2 border-secondary hover:bg-surface-variant/20 transition-all duration-300 px-2 py-4" href="#">Laboratory</a>
+<a class="font-body-md text-body-md uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-variant/20 transition-all duration-300 px-2 py-4" href="#">Archive</a>
+<a class="font-body-md text-body-md uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-variant/20 transition-all duration-300 px-2 py-4" href="#">Journal</a>
+<a class="font-body-md text-body-md uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-variant/20 transition-all duration-300 px-2 py-4" href="#">Atelier</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-on-surface-variant hover:text-primary transition-colors scale-95 active:opacity-80 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">search</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors scale-95 active:opacity-80 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">account_circle</span>
+</button>
+<button class="font-body-md text-body-md uppercase tracking-widest text-primary hover:bg-surface-variant/20 transition-all duration-300 px-4 py-2 scale-95 active:opacity-80 transition-transform">
+                    Cart
+                </button>
+</div>
+</div>
+</header>
+<main class="flex-grow pt-32 pb-32">
+<!-- Main Product Section -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-12 gap-gutter mb-[128px]">
+<!-- Left Gallery (Asymmetric) -->
+<div class="md:col-span-8 space-y-gutter relative">
+<div class="w-full h-[614px] bg-surface-container rounded-lg overflow-hidden relative">
+<img class="w-full h-full object-cover mix-blend-luminosity opacity-80 hover:opacity-100 transition-opacity duration-700" data-alt="A highly detailed close-up of premium, high-tech over-ear headphones in a dark, minimalist studio setting. The headphones feature machined aluminum parts and carbon fiber textures, illuminated by a stark, single cool-blue spotlight (Electric Cobalt) against a pitch-black background. The mood is precise, engineered, and luxurious." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPGq-5br4a4XzBf-qXp9HTCIaC_CaFihdWuLIKJZKvleUcr1eoDsnaZPMl15UIL5tvc-im8Mzekvxo0NlYAMYZC5ephlTiI2iXlNVGOKGjUdixQ01t2C2TCzV2vomUwy3TdchAS4qhf5VlRKIGhlnZN8Cu8PGm9-IEPVoIz31woQzUdlusLCz1s7Zok6IhHZJF0pM0fwZI2uTZPcLBePcw03ztMmN9iA8WRem1IIhUWkE3uynCzy-r_E_DgRAdTv_rteXv501FKG0"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+</div>
+<div class="grid grid-cols-2 gap-gutter">
+<div class="h-64 bg-surface-container rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover mix-blend-luminosity opacity-70 hover:opacity-100 transition-opacity duration-500" data-alt="A macro photography shot focusing on the intricate mesh grill of a high-end audio device. The lighting is cinematic, highlighting the precision engineering and brushed metallic finish. Deep shadows contrast with bright, crisp highlights in a cold, lab-grade aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAue07RfbSbUmjTMhsMAk9FnG22kRVyE8bb-2j052U9ukkoJLIwwr6h4czRAbokNVMxuDP25_-oqHDkXN67vTQoDH95yEK7UKntvdXdZyRghxV5ke0tINawREKtkhzQNzw058ZWCYhgWFBeUYokBfTRGPK4ZJg-7i9uRfwUEOcqehGWPqKNg1pSIzsL0on768sbjods_tb5WseLxNaUUyDcdfrCesNGDsWOY8CXCSB5hViAxV8SH2t8C-_5Gb6HKhh9Py6ltBWwDLI"/>
+</div>
+<div class="h-64 bg-surface-container rounded-lg overflow-hidden translate-y-[32px]">
+<img class="w-full h-full object-cover mix-blend-luminosity opacity-70 hover:opacity-100 transition-opacity duration-500" data-alt="A close-up view of a high-tech sensory dial on a premium electronic device. The dial has micro-machined knurling and a subtle glowing LED indicator in neon blue. The background is completely dark, emphasizing the object's metallic texture and futuristic, precision-engineered design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDU3JRGfPGlhvAzYqLbF9v6Rpt2A1EjUhsMdmW-D0DOtdlhitA4mBeR95QriS2zXLKEBqkRIBDP-dbFSbyJrqWatQ2c3EDN3IRRFB4Gc6OcjjJYYUm7uYQ8Q2W-isG_ryu6Qam35tUH4qpFgGOZ2MYEMu2uw8lE79VaqwehC_7wzHORy7cFkYiXVVb_Es8n2sRdKvAqVoWsMcJ1Q8AoU_QqkDXSBs3NxwwCZfi86lTZOwUevhYnLNZDq9vipv1myLVUDmX-3ZNsY_Y"/>
+</div>
+</div>
+</div>
+<!-- Right Info Panel -->
+<div class="md:col-span-4 relative md:pl-gutter flex flex-col justify-center">
+<div class="sticky top-32 space-y-8">
+<div>
+<div class="inline-block px-3 py-1 bg-[#1C1C1E] rounded-sm font-label-sm text-label-sm text-tertiary mb-4 tracking-widest uppercase">
+                            Neural Audio Interface
+                        </div>
+<h1 class="font-display-xl text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2">NEON VOX</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-sm">
+                            Direct cortical auditory simulation. Bypasses the tympanic membrane for absolute zero-latency, high-fidelity sound transmission.
+                        </p>
+</div>
+<div class="space-y-4 border-t border-outline-variant/20 pt-6">
+<div class="flex justify-between items-center border-b border-outline-variant/10 pb-2">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Frequency Response</span>
+<span class="font-label-md text-label-md text-primary font-mono">0.1Hz - 100kHz</span>
+</div>
+<div class="flex justify-between items-center border-b border-outline-variant/10 pb-2">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Neural Latency</span>
+<span class="font-label-md text-label-md text-primary font-mono">&lt; 0.05ms</span>
+</div>
+<div class="flex justify-between items-center border-b border-outline-variant/10 pb-2">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Chassis Material</span>
+<span class="font-label-md text-label-md text-primary font-mono">Titanium / Graphene</span>
+</div>
+</div>
+<div class="pt-8">
+<span class="block font-headline-md text-headline-md text-on-surface mb-6">$3,450.00</span>
+<!-- Floating Glassmorphism Acquire Button -->
+<button class="w-full relative group overflow-hidden rounded-lg">
+<div class="absolute inset-0 bg-secondary-container transition-transform duration-500 group-hover:scale-105"></div>
+<div class="relative px-8 py-4 flex items-center justify-center gap-3">
+<span class="font-label-md text-label-md text-white uppercase tracking-widest relative z-10">Acquire Unit</span>
+<span class="material-symbols-outlined text-white relative z-10 text-[18px]">arrow_forward</span>
+</div>
+<div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style="box-shadow: inset 0 0 20px rgba(255,255,255,0.2);"></div>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Breakdown Section -->
+<section class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-32 border-t border-outline-variant/10 relative">
+<div class="absolute top-0 left-0 w-full h-full pointer-events-none opacity-5">
+<!-- Abstract geometric background pattern -->
+<svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<pattern height="40" id="grid" patternunits="userSpaceOnUse" width="40">
+<path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+</pattern>
+</defs>
+<rect fill="url(#grid)" height="100%" width="100%"></rect>
+</svg>
+</div>
+<div class="text-center mb-24 relative z-10">
+<h2 class="font-headline-lg text-headline-md md:text-headline-lg text-on-surface mb-4">ENGINEERED TOPOLOGY</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mx-auto">Deconstructing the neural-acoustic bridge. Every component is machined to micron-level tolerances for flawless integration.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter relative z-10">
+<!-- Card 1 -->
+<div class="glass-panel p-8 rounded-xl hover:bg-surface-container-highest transition-colors duration-500 flex flex-col group">
+<div class="h-48 w-full mb-8 overflow-hidden rounded flex items-center justify-center bg-surface-container-lowest">
+<img class="h-full object-contain opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" data-alt="A 3D CAD style wireframe render of a sophisticated audio transducer. The lines are crisp white and bright cyan against a dark background, illustrating technical complexity and precision engineering. The composition is isolated and highly technical." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAU9BfS9VArQ4x7bEcePWq2IIbyX_2oiX1IHG2pQVKpOqWaySg5WL3F8kevDYrTNmnpCeWaL42iARWlGqmdSYwmThreKWKEXPtQkuaHFIltcKO7SIfUDiUAWSuOy4QCs4eRfDQwmJGGskrjEpQ7euaBsz3DBz1OLHP2JLqGAaFMLZIPD4nPIw2B1CO5nY9vBl_HEiI2P7YmVDooXzFOa2Kj58Q3JvYiIiq2cfgdttZUH0_eORU0hvnV8Ce4M-ydocde4A8HqgvkMKA"/>
+</div>
+<h3 class="font-label-md text-label-md text-primary uppercase tracking-widest mb-3">Transducer Core</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Graphene-coated multi-layer drivers ensuring absolute signal integrity before neural conversion.</p>
+</div>
+<!-- Card 2 (Offset) -->
+<div class="glass-panel p-8 rounded-xl hover:bg-surface-container-highest transition-colors duration-500 flex flex-col md:translate-y-[40px] group">
+<div class="h-48 w-full mb-8 overflow-hidden rounded flex items-center justify-center bg-surface-container-lowest relative">
+<div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-secondary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+<img class="h-full object-contain opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" data-alt="A stylized 3D visualization of a neural interface chip. The chip is monolithic black with glowing blue circuitry traces. The lighting is dramatic, emphasizing the micro-scale architecture of the electronic components in a dark, lab environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqDjoFQza2rust8DbLe1LxAwoEzxlcxMqSuVYCQ4Yb5CvfY4R6ouX89yjjZJCt1rSt0X97iFGpX4owPQI_fU2grcFVapQxMJS-Xs1_gzgdrA5P1Hwu6DK0QRJ4UR0vFvBqIj6VKZYs-2JW6ruFLLHUu4bHJ9RyVGoZlXWvn6JrIxhOwyb_ZKppjuQbGWGlvtbRGim0lRNCvR_IUtvpSFP9de6P0pakLOlni05xTkYI5kbyhXZOEGVgWcE4-XjwmUxt7chXvRakPrU"/>
+</div>
+<h3 class="font-label-md text-label-md text-primary uppercase tracking-widest mb-3">Neural Processor</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Proprietary logic board interpreting analog waveforms into direct synaptic impulses with zero latency.</p>
+</div>
+<!-- Card 3 -->
+<div class="glass-panel p-8 rounded-xl hover:bg-surface-container-highest transition-colors duration-500 flex flex-col group">
+<div class="h-48 w-full mb-8 overflow-hidden rounded flex items-center justify-center bg-surface-container-lowest">
+<img class="h-full object-contain opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" data-alt="A minimalist 3D rendering of an ergonomic titanium chassis for a wearable device. The surface is brushed metal, reflecting a single, stark light source. The background is deep black, highlighting the sleek, aerodynamic curves and cold, premium feel of the material." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpUWua161IER10AQ06iOVyMdL4qQh1aS_zzIzM16A5f71vm2krh_1QmFzWqxzkk9nD5c068AfooMGRKAL_V-EuDwEFXhwQq1LZHKSFozMgHx5VthTFtz55FdLFD7vDO_eT8d3dipZUjabSoC5O5qQEqUKrn4zLyU1Qq70cJmBYOE-NqV_124qqF--2HgRadtTs-fUkXdcsrEhi86irynce3L9ECUoEg6FqWgozqbBHhcANy5rByQEIXnpaIQ_ZBEi_UfGsHqnSYSU"/>
+</div>
+<h3 class="font-label-md text-label-md text-primary uppercase tracking-widest mb-3">Titanium Housing</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Aerospace-grade titanium alloy shell providing thermal regulation and electromagnetic shielding.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest dark:bg-surface-container-lowest w-full py-16 px-margin-mobile md:px-margin-desktop border-t border-outline-variant/20 mt-auto">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter max-w-container-max mx-auto">
+<div class="md:col-span-4 mb-8 md:mb-0 flex flex-col justify-between">
+<span class="font-display-xl text-headline-md text-on-surface block mb-6">NEON_LABS</span>
+<p class="font-label-sm text-label-sm uppercase tracking-widest text-outline dark:text-outline opacity-100 hover:opacity-80 transition-opacity">
+                    © 2024 NEON_LABS. PRECISION ENGINEERED.
+                 </p>
+</div>
+<div class="md:col-span-8 flex flex-wrap gap-8 md:justify-end items-end">
+<a class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors duration-300 opacity-100 hover:opacity-80" href="#">Privacy Protocol</a>
+<a class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors duration-300 opacity-100 hover:opacity-80" href="#">Service Terms</a>
+<a class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors duration-300 opacity-100 hover:opacity-80" href="#">Technical Support</a>
+<a class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors duration-300 opacity-100 hover:opacity-80" href="#">Global Distribution</a>
+</div>
+</div>
+</footer>
+</body></html>

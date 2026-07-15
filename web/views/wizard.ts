@@ -11,6 +11,8 @@ import { render, $, go, esc } from "../lib/dom.js";
 import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores, STORE_APEX } from "../composition.js";
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
+import { getCustomization, saveCustomization } from "../supabase/customization.js";
+import { generateSeoDescription } from "../lib/seoGen.js";
 import type { Session } from "../../src/services/authService.js";
 
 const ACCENT = "#F95901";
@@ -70,6 +72,15 @@ function renderShell(): void {
       </div>
     </main>
   </div>`);
+
+  // Rola SEMPRE para a mensagem mais recente (novas mensagens ou inputs).
+  const chatEl = $("#chat");
+  const inputEl = $("#chat-input");
+  if (chatEl) {
+    const obs = new MutationObserver(() => scrollDown());
+    obs.observe(chatEl, { childList: true, subtree: true });
+    if (inputEl) obs.observe(inputEl, { childList: true, subtree: true });
+  }
 }
 
 /* ------------------------------- Mensagens ------------------------------- */
@@ -114,6 +125,35 @@ function userSay(text: string): void {
   scrollDown();
 }
 
+/** Mensagem do robô com conteúdo HTML livre (ex.: cartão de pré-visualização). */
+function botCard(innerHtml: string): void {
+  const row = document.createElement("div");
+  row.className = "flex items-end gap-2";
+  row.innerHTML = `${botAvatar()}<div class="mb-bubble bg-white border border-gray-100 rounded-2xl rounded-bl-md p-3 shadow-sm" style="max-width:92%">${innerHtml}</div>`;
+  $("#chat")!.appendChild(row);
+  scrollDown();
+}
+
+/** Slug provisório do endereço, derivado do nome da loja (para a pré-visualização). */
+function previewSlug(): string {
+  const s = String(wiz.data[WIZARD_FIELDS.name] ?? "").toLowerCase().normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return s || "aloja";
+}
+
+/** Cartão que imita o resultado no Google (título + URL + descrição). */
+function googlePreviewCard(title: string, description: string): string {
+  const url = `${previewSlug()}.${STORE_APEX}`;
+  return `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;font-family:arial,sans-serif">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+      <div style="width:28px;height:28px;border-radius:9999px;background:#f1f3f4;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:17px;color:#5f6368">storefront</span></div>
+      <div style="line-height:1.2;min-width:0"><div style="font-size:14px;color:#202124;font-weight:500">${esc(String(wiz.data[WIZARD_FIELDS.name] ?? "A minha loja"))}</div><div style="font-size:12px;color:#4d5156;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(url)}</div></div>
+    </div>
+    <div style="color:#1a0dab;font-size:20px;line-height:1.3;font-family:arial,sans-serif">${esc(title)}</div>
+    <div style="color:#4d5156;font-size:14px;line-height:1.58;margin-top:3px">${esc(description)}</div>
+  </div>`;
+}
+
 /* --------------------------------- Inputs -------------------------------- */
 
 function clearInput(): void { $("#chat-input")!.innerHTML = ""; }
@@ -137,11 +177,37 @@ function inputText(opts: { placeholder: string; type?: string; cta?: string; onS
 
 function inputChips(options: { value: string; label: string }[], onPick: (value: string, label: string) => void): void {
   const zone = $("#chat-input")!;
+  // Opções no laranja principal da plataforma (preenchidas), para destacar.
   zone.innerHTML = `<div class="flex flex-wrap gap-2 justify-center">${options
-    .map((o) => `<button data-v="${esc(o.value)}" class="mb-chip border border-gray-200 bg-white text-gray-700 text-sm font-medium px-4 py-2 rounded-full hover:border-[color:var(--mb-accent)] hover:text-[color:var(--mb-accent)]" style="--mb-accent:${ACCENT}">${esc(o.label)}</button>`)
+    .map((o) => `<button data-v="${esc(o.value)}" class="mb-chip text-white text-sm font-semibold px-4 py-2 rounded-full shadow-sm hover:opacity-95" style="background:${ACCENT}">${esc(o.label)}</button>`)
     .join("")}</div>`;
   zone.querySelectorAll<HTMLElement>("[data-v]").forEach((b) =>
     b.addEventListener("click", () => onPick(b.dataset.v!, b.textContent ?? b.dataset.v!)));
+}
+
+/** Campo de texto multilinha (para descrições detalhadas). */
+function inputTextarea(opts: { placeholder: string; cta?: string; onSubmit: (v: string) => void }): void {
+  const zone = $("#chat-input")!;
+  zone.innerHTML = `<form class="flex items-end gap-2">
+    <textarea class="mb-cinput" rows="3" style="border-radius:1.25rem;resize:none" placeholder="${esc(opts.placeholder)}"></textarea>
+    <button type="submit" class="shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center shadow-sm hover:opacity-95 transition-opacity" style="background:${ACCENT}" title="${esc(opts.cta ?? "Enviar")}"><span class="material-symbols-outlined">arrow_upward</span></button>
+  </form>`;
+  const form = zone.querySelector("form")!;
+  const ta = zone.querySelector("textarea")!;
+  ta.focus();
+  // Enter envia; Shift+Enter quebra linha.
+  ta.addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key === "Enter" && !(e as KeyboardEvent).shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = ta.value.trim();
+    if (!v) return;
+    opts.onSubmit(v);
+  });
 }
 
 function inputYesNo(onYes: () => void, onNo: () => void): void {
@@ -284,9 +350,98 @@ function askType(): void {
         return;
       }
       wiz.data = { ...wiz.data, ...res.data };
-      askSubdomainRecommend();
+      askAbout();
     });
   })();
+}
+
+/**
+ * Pede ao dono para descrever a loja em detalhe. O texto alimenta a IA que gera
+ * a melhor descrição de SEO (visibilidade no Google e nas partilhas).
+ */
+function askAbout(): void {
+  void (async () => {
+    await botSay("Conta-me tudo sobre a tua loja: o que vendes, o que te torna especial, para quem é, onde entregas… quanto mais detalhado, melhor.");
+    await botSay("Vou usar estas informações para criar a melhor descrição da tua loja para o Google e as redes sociais — isto ajuda mesmo a apareceres nas pesquisas. 😉");
+    inputTextarea({
+      placeholder: "Ex: Vendemos cosméticos naturais feitos em Angola, com entrega em Luanda…",
+      onSubmit: (v) => {
+        userSay(v);
+        wiz.data.aboutStore = v;
+        clearInput();
+        askSeoPreview();
+      },
+    });
+  })();
+}
+
+/** Gera título + descrição de SEO por IA e mostra a pré-visualização do Google. */
+function askSeoPreview(): void {
+  void (async () => {
+    inputBusy("A criar a melhor descrição para o Google…");
+    const storeName = String(wiz.data[WIZARD_FIELDS.name] ?? "A minha loja");
+    const about = String(wiz.data.aboutStore ?? "");
+    const description = await generateSeoDescription({
+      storeName,
+      storeType: String(wiz.data[WIZARD_FIELDS.storeType] ?? ""),
+      about,
+    });
+    wiz.data.seoTitle = wiz.data.seoTitle || `${storeName} | Compras em Angola`;
+    wiz.data.seoDescription = description;
+    clearInput();
+    showSeoPreview();
+  })();
+}
+
+/** Mostra o cartão de pré-visualização + pergunta de confirmação. */
+function showSeoPreview(): void {
+  void (async () => {
+    await botSay("Prontinho! A tua loja vai aparecer assim no Google:");
+    botCard(googlePreviewCard(String(wiz.data.seoTitle ?? ""), String(wiz.data.seoDescription ?? "")));
+    await botSay("Concordas? Podes editar o título e a descrição se quiseres.");
+    inputChips(
+      [
+        { value: "ok", label: "👍 Sim, está ótimo" },
+        { value: "edit", label: "✏️ Editar título e descrição" },
+      ],
+      (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "edit") seoEditForm();
+        else askSubdomainRecommend();
+      },
+    );
+  })();
+}
+
+/** Formulário para editar manualmente o título e a descrição de SEO. */
+function seoEditForm(): void {
+  const zone = $("#chat-input")!;
+  zone.innerHTML = `<form class="flex flex-col gap-3">
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Título (aparece no Google)</label>
+      <input data-seo-title class="mb-cinput" style="border-radius:.75rem" maxlength="70" value="${esc(String(wiz.data.seoTitle ?? ""))}" placeholder="Título da loja" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Descrição (até 160 caracteres)</label>
+      <textarea data-seo-desc class="mb-cinput" rows="3" style="border-radius:1.25rem;resize:none" maxlength="180" placeholder="Descrição da loja">${esc(String(wiz.data.seoDescription ?? ""))}</textarea>
+    </div>
+    <button type="submit" class="self-end inline-flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check</span> Guardar</button>
+  </form>`;
+  const form = zone.querySelector("form")!;
+  const titleEl = zone.querySelector("[data-seo-title]") as HTMLInputElement;
+  const descEl = zone.querySelector("[data-seo-desc]") as HTMLTextAreaElement;
+  titleEl.focus();
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const t = titleEl.value.trim();
+    const d = descEl.value.trim();
+    if (t) wiz.data.seoTitle = t;
+    if (d) wiz.data.seoDescription = d;
+    clearInput();
+    userSay("Atualizei o título e a descrição.");
+    showSeoPreview();
+  });
 }
 
 async function resolveSub(): Promise<{ ok: true; subdomain: string } | { ok: false; message: string; field: string }> {
@@ -376,42 +531,30 @@ function createStore(): void {
     appState.templateId = result.store.templateId;
     wiz.storeId = result.store.id; // Guarda para aplicar preset depois
 
-    await botSay("Está tudo feito! ✨ A tua loja foi criada e publicada.");
-    askTemplateChoice();
+    // Guarda o título + descrição de SEO aprovados pelo dono (pré-visualização).
+    const seoTitle = String(wiz.data.seoTitle ?? "").trim();
+    const seoDescription = String(wiz.data.seoDescription ?? "").trim();
+    if (seoTitle || seoDescription) {
+      try {
+        const c = await getCustomization(result.store.id);
+        c.seo = { ...(c.seo ?? {}), ...(seoTitle ? { title: seoTitle } : {}), ...(seoDescription ? { description: seoDescription } : {}) };
+        await saveCustomization(result.store.ownerId, result.store.id, c);
+      } catch { /* SEO é opcional; não bloquear a criação */ }
+    }
+
+    await botSay("Está tudo feito! ✨ A tua loja foi criada e publicada, e já ficou pronta para aparecer nas pesquisas do Google.");
+    goToModels();
   })();
 }
 
-/** Pergunta se quer usar um modelo pronto ou personalizar no construtor. */
-function askTemplateChoice(): void {
+/** Leva o dono à galeria de modelos prontos (por agora só usamos modelos). */
+function goToModels(): void {
   void (async () => {
-    await botSay("Agora podes escolher:");
-    await botSay("🎨 Usar um modelo pronto (visual completo em segundos) ou 🛠️ Personalizar no construtor (crias tudo ao teu gosto).");
-    inputChips(
-      [
-        { value: "preset", label: "📦 Modelo pronto" },
-        { value: "builder", label: "🎨 Construtor personalizado" },
-      ],
-      async (value, label) => {
-        userSay(label);
-        clearInput();
-        if (value === "preset") {
-          await botSay("Vou te levar à galeria de modelos prontos. Escolhe o que mais gostar!");
-          await wait(800);
-          go("#/modelos");
-        } else finishWizard();
-      },
-    );
-  })();
-}
-
-/** Finaliza o wizard e redireciona ao painel. */
-function finishWizard(): void {
-  void (async () => {
-    await botSay("Vou te direcionar ao painel, onde podes gerir os teus produtos e ver a tua loja.");
+    await botSay("Agora escolhe o modelo da tua loja — vou levar-te à galeria de modelos prontos. 🎨");
     clearInput();
-    await wait(1400);
+    await wait(900);
     // Reinicia o estado para uma próxima criação.
     wiz.data = {}; wiz.session = null; wiz.subdomain = ""; wiz.plan = DEFAULT_PLAN; wiz.storeId = "";
-    go("#/painel");
+    go("#/modelos");
   })();
 }

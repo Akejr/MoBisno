@@ -34,9 +34,26 @@ export interface OrderRow {
   invoiceUrl: string | null;
   referenceNumber: string | null;
   referenceEntity: string | null;
+  /** Data-limite da referência bancária (ISO), quando aplicável. */
+  dueDate: string | null;
   customer: { name?: string; nif?: string; phone?: string } | null;
   createdAt: string;
   paidAt: string | null;
+}
+
+/**
+ * Uma referência bancária por pagar (`open`) cuja data-limite já passou é
+ * considerada **expirada** — deixa de ficar "pendente" para sempre.
+ */
+export function isReferenceExpired(row: { status: string; method: string; dueDate: string | null }): boolean {
+  if (row.status !== "open" || row.method !== "reference" || !row.dueDate) return false;
+  const t = Date.parse(row.dueDate);
+  return Number.isFinite(t) && t < Date.now();
+}
+
+/** Estado efetivo de uma encomenda (com "expired" derivado da data-limite). */
+export function orderEffectiveStatus(row: { status: string; method: string; dueDate: string | null }): string {
+  return isReferenceExpired(row) ? "expired" : row.status;
 }
 
 export interface OrderStats {
@@ -82,7 +99,7 @@ export async function savePaymentConfig(storeId: string, cfg: PaymentConfig): Pr
 export async function listOrders(storeId: string, limit = 50): Promise<OrderRow[]> {
   const { data } = await supabase
     .from("orders")
-    .select("id, method, status, amount, fee, net, invoice_url, reference_number, reference_entity, customer, created_at, paid_at")
+    .select("id, method, status, amount, fee, net, invoice_url, reference_number, reference_entity, reference_due_date, customer, created_at, paid_at")
     .eq("store_id", storeId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -96,6 +113,7 @@ export async function listOrders(storeId: string, limit = 50): Promise<OrderRow[
     invoiceUrl: r.invoice_url,
     referenceNumber: r.reference_number,
     referenceEntity: r.reference_entity,
+    dueDate: r.reference_due_date ?? null,
     customer: r.customer,
     createdAt: r.created_at,
     paidAt: r.paid_at,
@@ -106,7 +124,7 @@ export async function listOrders(storeId: string, limit = 50): Promise<OrderRow[
 export async function getOrderStats(storeId: string): Promise<OrderStats> {
   const { data } = await supabase
     .from("orders")
-    .select("status, method, amount, fee, net")
+    .select("status, method, amount, fee, net, reference_due_date")
     .eq("store_id", storeId);
   const rows = data ?? [];
   const stats: OrderStats = { totalSales: 0, netReceived: 0, totalFees: 0, paidCount: 0, pendingCount: 0 };
@@ -116,7 +134,9 @@ export async function getOrderStats(storeId: string): Promise<OrderStats> {
       stats.netReceived += Number(r.net);
       stats.totalFees += Number(r.fee);
       stats.paidCount += 1;
-    } else if (r.status === "open" && r.method === "reference") {
+    } else if (r.status === "open" && r.method === "reference"
+      && !isReferenceExpired({ status: r.status, method: r.method, dueDate: r.reference_due_date ?? null })) {
+      // Só conta como pendente se ainda não expirou.
       stats.pendingCount += 1;
     }
   }

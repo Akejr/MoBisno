@@ -207,15 +207,24 @@ export interface AdminServiceTx {
   storeName: string | null;
   amount: number;
   method: string;
-  status: "open" | "paid" | "failed" | "cancelled";
+  status: "open" | "paid" | "failed" | "cancelled" | "expired";
   createdAt: string;
   paidAt: string | null;
+}
+
+/** Referência bancária por pagar cuja data-limite já passou = expirada. */
+function txStatus(status: string, method: string, dueDate: string | null): AdminServiceTx["status"] {
+  if (status === "open" && method === "reference" && dueDate) {
+    const t = Date.parse(dueDate);
+    if (Number.isFinite(t) && t < Date.now()) return "expired";
+  }
+  return (status as AdminServiceTx["status"]) ?? "open";
 }
 
 /** Lista as transações de serviços (planos + SMS), mais recentes primeiro. */
 export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
   const [{ data: plans }, { data: sms }, { data: stores }, pm] = await Promise.all([
-    supabase.from("plan_payments").select("id, owner_id, plan, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
+    supabase.from("plan_payments").select("id, owner_id, plan, amount, method, status, reference_due_date, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("sms_purchases").select("id, owner_id, store_id, quantity, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("stores").select("id, name"),
     profilesMap(),
@@ -238,7 +247,7 @@ export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
     storeName: null,
     amount: Number(r.amount),
     method: r.method,
-    status: (r.status as AdminServiceTx["status"]) ?? "open",
+    status: txStatus(String(r.status), String(r.method), r.reference_due_date ?? null),
     createdAt: r.created_at,
     paidAt: r.paid_at ?? null,
   }));

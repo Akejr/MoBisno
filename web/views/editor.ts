@@ -131,6 +131,8 @@ export async function renderEditor(): Promise<void> {
       beauty: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
       galeria: [{ label: "Cinza claro", value: "#f9fafb" }, { label: "Cinza", value: "#f3f4f6" }],
       desportivo: [{ label: "Cinza claro", value: "#f5f5f5" }, { label: "Escuro", value: "#171717" }],
+      // Neon Lab: fundo branco por omissão, com opções escuras (preto/carvão).
+      neonlab: [{ label: "Preto", value: "#121317" }, { label: "Carvão", value: "#1a1b1f" }, { label: "Cartão", value: "#1C1C1E" }],
     };
     const surfaces = byModel[store!.templateId] ?? [{ label: "Claro", value: "#f6f3f2" }];
     return [{ label: "Padrão", value: "" }, { label: "Branco", value: "#ffffff" }, ...surfaces];
@@ -633,6 +635,40 @@ export async function renderEditor(): Promise<void> {
       }
     });
 
+    // Cor de fundo da secção de produtos (modelos que a suportam, ex.: Neon Lab).
+    const prodBgHost = preview.querySelector<HTMLElement>("[data-edit-products-bg]");
+    if (prodBgHost) {
+      prodBgHost.style.position = prodBgHost.style.position || "relative";
+      const choices = sectionBgChoices();
+      const cur = custom.productsBg ?? "";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.title = "Cor de fundo dos produtos";
+      btn.className = "mb-ov-btn absolute top-4 right-4 z-20 inline-flex items-center gap-1 bg-white/95 hover:bg-white text-neutral-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow";
+      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]">format_color_fill</span> Fundo`;
+      const pop = document.createElement("div");
+      pop.className = "mb-ov-btn absolute top-14 right-4 z-30 hidden bg-white border border-neutral-200 rounded-xl shadow-xl p-2 flex flex-wrap gap-1.5 w-44";
+      pop.innerHTML = choices.map((c) => {
+        const active = c.value === cur;
+        const ring = active ? "ring-2 ring-offset-1 ring-[#F95901]" : "";
+        const border = c.value ? "border-neutral-200" : "border-dashed border-neutral-400";
+        const inner = c.value ? "" : `<span class="material-symbols-outlined text-[16px] text-neutral-400">format_color_reset</span>`;
+        return `<button data-bg-val="${esc(c.value)}" title="${esc(c.label)}" class="w-8 h-8 rounded-lg border ${border} ${ring} flex items-center justify-center" style="background:${esc(c.value || "#ffffff")}">${inner}</button>`;
+      }).join("");
+      btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
+      pop.querySelectorAll<HTMLElement>("[data-bg-val]").forEach((sw) => {
+        sw.addEventListener("click", (e) => {
+          e.preventDefault();
+          snapshot();
+          const v = sw.dataset.bgVal ?? "";
+          if (v) custom.productsBg = v; else delete custom.productsBg;
+          void rebuild();
+        });
+      });
+      prodBgHost.appendChild(btn);
+      prodBgHost.appendChild(pop);
+    }
+
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
     const footerLogo = preview.querySelector<HTMLElement>("[data-edit-footer-logo]");
     if (footerLogo) {
@@ -764,15 +800,17 @@ export async function renderEditor(): Promise<void> {
         </button>`;
       // Em modelos prontos (locked) só se pode adicionar produtos e informação
       // com foto; o resto das secções fica reservado ao construtor livre.
-      const addItems = locked
-        ? menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto") +
-          menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info") +
-          menuItem("title", "Título e texto", "Texto centrado de destaque", "text")
-        : menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto") +
-          menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info") +
-          menuItem("title", "Título e texto", "Texto centrado de destaque", "text") +
-          menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials") +
-          menuItem("location_on", "Localização", "Mapa com a morada da loja", "location");
+      const addParts = [
+        menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto"),
+        menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info"),
+        menuItem("title", "Título e texto", "Texto centrado de destaque", "text"),
+      ];
+      if (!locked) {
+        // O modelo "Neon Lab" não usa secção de testemunhos.
+        if (store!.templateId !== "neonlab") addParts.push(menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials"));
+        addParts.push(menuItem("location_on", "Localização", "Mapa com a morada da loja", "location"));
+      }
+      const addItems = addParts.join("");
       addSec.innerHTML = `
         <button data-add-toggle class="w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors"><span class="material-symbols-outlined">add</span> Adicionar secção</button>
         <div data-add-menu class="hidden absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 z-[70]">
