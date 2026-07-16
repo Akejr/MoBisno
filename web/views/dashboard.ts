@@ -569,7 +569,7 @@ export async function renderDashboard(): Promise<void> {
     const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#fff;";
 
     render(shell(`
-      <p class="text-gray-500 mb-5 max-w-2xl">Descreva o seu negócio e a IA cria <strong>duas variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir — fica guardada em "Meus logótipos".</p>
+      <p class="text-gray-500 mb-5 max-w-2xl">Descreva o seu negócio e a IA cria <strong>cinco variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir — fica guardada em "Meus logótipos".</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8 items-start">
         <section class="lg:col-span-3 bg-white border border-gray-200 rounded-3xl p-5 md:p-6">
@@ -579,7 +579,7 @@ export async function renderDashboard(): Promise<void> {
           </div>
           <div class="flex flex-col sm:flex-row gap-2.5 mt-3">
             <button id="logo-improve" class="sm:flex-1 px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 border transition-colors hover:bg-gray-50" style="border-color:${ACCENT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_fix_high</span> Melhorar com IA</button>
-            <button id="logo-gen" class="sm:flex-1 text-white px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar 2 variações</button>
+            <button id="logo-gen" class="sm:flex-1 text-white px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar 5 variações</button>
           </div>
         </section>
 
@@ -662,16 +662,16 @@ export async function renderDashboard(): Promise<void> {
       if (!resultsWrap || !resultsEl) return;
       resultsWrap.classList.remove("hidden");
       resultsEl.innerHTML = `
-        <div class="grid grid-cols-2 gap-4 max-w-md">
-          ${[0, 1].map(() => `
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          ${[0, 1, 2, 3, 4].map(() => `
             <div class="rounded-2xl border border-gray-200 overflow-hidden">
               <div class="aspect-square bg-gray-100 animate-pulse flex items-center justify-center">
-                <span class="material-symbols-outlined text-gray-300 animate-spin" style="font-size:28px">progress_activity</span>
+                <span class="material-symbols-outlined text-gray-300 animate-spin" style="font-size:26px">progress_activity</span>
               </div>
-              <div class="h-10 bg-gray-100 animate-pulse border-t border-gray-100"></div>
+              <div class="h-9 bg-gray-100 animate-pulse border-t border-gray-100"></div>
             </div>`).join("")}
         </div>
-        <p class="text-sm text-gray-400 mt-4">A criar duas variações… isto pode demorar alguns segundos.</p>`;
+        <p class="text-sm text-gray-400 mt-4">A criar cinco variações… isto pode demorar alguns segundos.</p>`;
       resultsWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
@@ -721,14 +721,14 @@ export async function renderDashboard(): Promise<void> {
       const display = await Promise.all(dataUrls.map((u) => watermark(u)));
       const guard = 'oncontextmenu="return false" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none"';
       resultsEl.innerHTML = `
-        <p class="text-sm text-gray-500 mb-4">Clique em <strong>Escolher esta</strong> para guardar a variação que prefere. As pré-visualizações têm marca de água — só a versão escolhida é guardada limpa.</p>
-        <div class="grid grid-cols-2 gap-4 max-w-md">
+        <p class="text-sm text-gray-500 mb-4">Clique em <strong>Escolher</strong> na variação que prefere para a guardar. As pré-visualizações têm marca de água — só a versão escolhida é guardada limpa.</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           ${display.map((src, i) => `
             <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white transition-shadow hover:shadow-md">
-              <div class="aspect-square flex items-center justify-center p-4" style="${checker}">
+              <div class="aspect-square flex items-center justify-center p-3" style="${checker}">
                 <img src="${src}" alt="Variação ${i + 1}" ${guard} />
               </div>
-              <button data-logo-pick="${i}" class="w-full py-2.5 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher esta</button>
+              <button data-logo-pick="${i}" class="w-full py-2.5 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher</button>
             </div>`).join("")}
         </div>`;
       resultsEl.querySelectorAll<HTMLButtonElement>("[data-logo-pick]").forEach((btn) => {

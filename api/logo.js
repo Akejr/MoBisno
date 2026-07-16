@@ -1,12 +1,12 @@
 /**
  * Função serverless (Vercel) — gerador de logótipos por IA.
  *
- * Recebe uma descrição do dono da loja e devolve DUAS variações de logótipo
- * em PNG com fundo transparente (base64), prontas a mostrar lado a lado no
+ * Recebe uma descrição do dono da loja e devolve CINCO variações de logótipo
+ * em PNG com fundo transparente (base64), prontas a mostrar em grelha no
  * painel. A escolha final é guardada pelo frontend na área "Meus logótipos".
  *
- * Gera as duas variações com direções de arte DIFERENTES (uma como
- * monograma/lettermark, outra como símbolo abstrato), procurando um resultado
+ * Gera as cinco variações com direções de arte DIFERENTES (monograma,
+ * símbolo abstrato, combinação, emblema e wordmark), procurando um resultado
  * moderno e premium (nível de agência), não "clip-art".
  *
  * A chave da OpenAI fica APENAS aqui, no servidor, via variável de ambiente
@@ -19,7 +19,7 @@
  */
 
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
-const IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "high";
+const IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
 
 /** Direção de arte comum às duas variações (o que torna o logo "premium"). */
 const ART_DIRECTION = [
@@ -31,12 +31,18 @@ const ART_DIRECTION = [
   "Se incluíres texto, escreve o nome da marca CORRETAMENTE, com tipografia sans-serif moderna e limpa; caso contrário não coloques texto nenhum.",
 ].join(" ");
 
-/** Duas direções distintas para dar variedade real entre as opções. */
+/** Cinco direções distintas para dar variedade real entre as opções. */
 const VARIATIONS = [
   // A — monograma / lettermark tipográfico premium.
   "Estilo: MONOGRAMA / LETTERMARK. Cria uma marca a partir da(s) inicial(is) do nome do negócio, com uma construção tipográfica geométrica e elegante, eventualmente com espaço negativo criativo. Sofisticado e corporativo.",
   // B — símbolo/ícone abstrato de marca.
   "Estilo: SÍMBOLO ABSTRATO. Cria um ícone de marca abstrato e distinto que evoque o conceito do negócio de forma simbólica (não literal), com formas geométricas modernas. Pode ter um gradiente subtil. Estilo tech/premium.",
+  // C — combinação símbolo + nome (lockup horizontal).
+  "Estilo: COMBINAÇÃO (símbolo + nome). Um pequeno símbolo/ícone à esquerda e o nome da marca à direita, em tipografia sans-serif moderna e limpa, bem alinhados. Equilibrado e profissional.",
+  // D — emblema / selo minimalista.
+  "Estilo: EMBLEMA / SELO. Uma marca compacta contida numa forma geométrica simples (círculo, escudo ou hexágono), minimalista e moderna, com a inicial ou um símbolo ao centro. Elegante e premium.",
+  // E — wordmark tipográfico puro.
+  "Estilo: WORDMARK. Apenas o nome da marca desenhado como logótipo, com tipografia personalizada, moderna e memorável (kerning cuidado, um detalhe distinto numa letra). Sem ícone. Escreve o nome CORRETAMENTE.",
 ];
 
 /** Constrói o prompt final combinando descrição + direção de arte + variação. */
@@ -91,11 +97,10 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Duas variações em paralelo, com direções de arte diferentes.
-    const results = await Promise.all([
-      generateOne(key, description, 0),
-      generateOne(key, description, 1),
-    ]);
+    // Cinco variações em paralelo, com direções de arte diferentes.
+    const results = await Promise.all(
+      VARIATIONS.map((_, i) => generateOne(key, description, i)),
+    );
 
     const images = results.filter((r) => r.ok).map((r) => r.b64);
     if (!images.length) {
