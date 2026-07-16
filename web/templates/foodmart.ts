@@ -9,7 +9,6 @@ import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
-import { renderProductPage } from "./productPage.js";
 import { productGalleryHtml } from "./gallery.js";
 import { gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
@@ -48,6 +47,22 @@ const STYLE = `<style>
   .fm-step button{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:0;cursor:pointer}
   .fm-banner-slide{transition:opacity .6s ease}
   .fm-link{color:var(--brand,#6995B1);font-weight:700}
+  /* Página de produto */
+  .fm-pdp-stage{background:#f7f8f9;border:1px solid #f0f0f0;border-radius:1.5rem}
+  .fm-pdp-perk{display:flex;align-items:center;gap:.65rem;background:#fff;border:1px solid #f0f0f0;border-radius:1rem;padding:.75rem .9rem}
+  .fm-pdp-perk .material-symbols-outlined{color:${YELLOW};font-size:26px}
+  .fm-qty{display:inline-flex;align-items:center;border:1px solid #e6e8ea;border-radius:.75rem;overflow:hidden}
+  .fm-qty button{width:44px;height:48px;display:flex;align-items:center;justify-content:center;background:#fff;transition:.2s}
+  .fm-qty button:hover{background:#f4f5f6}
+  /* Checkout — personalidade FoodMart (Nunito, cantos suaves, acentos) */
+  .fm-checkout{font-family:'Open Sans',sans-serif}
+  .fm-checkout :is(h1,h2,h3,h4,h5),.fm-checkout .font-black,.fm-checkout .font-bold{font-family:'Nunito',sans-serif;color:#222}
+  .fm-checkout .border-neutral-200{border-color:#f0f0f0 !important}
+  .fm-checkout .rounded-2xl{border-radius:1.5rem}
+  .fm-checkout .shadow-sm{box-shadow:0 18px 40px -28px rgba(0,0,0,.28) !important}
+  .fm-checkout input,.fm-checkout select,.fm-checkout textarea{border-radius:.7rem}
+  .fm-checkout [data-method]{border-radius:1rem}
+  .fm-checkout #pay{border-radius:.85rem}
 </style>`;
 
 let mbGridVariant: ProductVariant | undefined;
@@ -412,51 +427,65 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
 
 function renderProduct(view: StoreRenderView, product: StoreProductView, custom?: StoreCustomization): string {
   menuFor(view, custom);
-  if (custom?.productPage?.variant) {
-    return `${STYLE}<div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
-      ${headerHtml(view, custom)}
-      ${renderProductPage(custom.productPage.variant, view, product, custom, { container: CONTAINER, brand: PRIMARY })}
-      ${footerHtml(view, custom)}
-    </div>`;
-  }
   const phone = resolveWaPhone(custom);
   const waMsg = buildProductMessage(custom?.whatsapp?.messageTemplate, product.name, formatKz(product.price));
-  const related = view.products.filter((p) => p.id !== product.id).slice(0, 5);
+  const related = view.products.filter((p) => p.id !== product.id).slice(0, 10);
+  const perks = [
+    { icon: "local_shipping", text: "Entrega rápida em Luanda" },
+    { icon: "verified_user", text: "Pagamento 100% seguro" },
+    { icon: "spa", text: "Produtos frescos e selecionados" },
+  ];
   return `${STYLE}
   <div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
     ${headerHtml(view, custom)}
-    <main class="${CONTAINER} py-10 flex-grow">
-      <nav class="text-sm mb-8 flex items-center gap-1.5 flex-wrap text-gray-400">
+    <main class="${CONTAINER} py-8 md:py-10 flex-grow">
+      <nav class="text-sm mb-7 flex items-center gap-1.5 flex-wrap text-gray-400">
         <a href="${esc(homeHref(view))}" class="hover:text-gray-900">Início</a>
         <span class="material-symbols-outlined text-[16px]">chevron_right</span>
         ${product.category ? `<a href="${esc(categoryHref(view, product.category))}" class="hover:text-gray-900">${esc(product.category)}</a><span class="material-symbols-outlined text-[16px]">chevron_right</span>` : ""}
         <span style="color:#222">${esc(product.name)}</span>
       </nav>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
-        ${productGalleryHtml(product, custom, { stageClass: "aspect-square rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center", imgClass: "max-h-full w-auto object-contain p-6", brand: PRIMARY })}
-        <div class="flex flex-col">
-          ${product.category ? `<span class="fm-tag w-max mb-3">${esc(product.category)}</span>` : ""}
-          <h1 class="fm-head text-3xl md:text-4xl mb-2" style="color:#222">${esc(product.name)}</h1>
-          <div class="flex items-center gap-1 mb-4" style="color:var(--brand,#6995B1)"><span class="material-symbols-outlined text-[18px]">star</span><span class="material-symbols-outlined text-[18px]">star</span><span class="material-symbols-outlined text-[18px]">star</span><span class="material-symbols-outlined text-[18px]">star</span><span class="material-symbols-outlined text-[18px]">star_half</span><span class="text-sm text-gray-400 ml-1">(4.8)</span></div>
-          <p class="fm-head text-3xl mb-5" style="color:var(--brand,#6995B1)">${esc(formatKz(product.price))}</p>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+        ${productGalleryHtml(product, custom, { stageClass: "fm-pdp-stage aspect-square overflow-hidden flex items-center justify-center", imgClass: "max-h-full w-auto object-contain p-8", brand: PRIMARY })}
+        <div class="flex flex-col lg:sticky lg:top-6">
+          <div class="flex items-center gap-3 mb-3">
+            ${product.category ? `<span class="fm-tag w-max">${esc(product.category)}</span>` : ""}
+            ${product.featured ? `<span class="text-white text-xs font-bold px-2.5 py-1 rounded" style="background:#3fb95a">Destaque</span>` : ""}
+          </div>
+          <h1 class="fm-head text-3xl md:text-4xl mb-3 leading-tight" style="color:#222">${esc(product.name)}</h1>
+          <div class="flex items-center gap-2 mb-5">
+            <span class="inline-flex items-center gap-0.5" style="color:${YELLOW}">
+              <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' 1">star</span>
+              <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' 1">star</span>
+              <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' 1">star</span>
+              <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' 1">star</span>
+              <span class="material-symbols-outlined text-[18px]">star_half</span>
+            </span>
+            <span class="text-sm text-gray-400">4.8 · 126 avaliações</span>
+          </div>
+          <div class="flex items-baseline gap-3 mb-6">
+            <span class="fm-head text-4xl" style="color:var(--brand,#6995B1)">${esc(formatKz(product.price))}</span>
+            <span class="text-xs text-gray-400 uppercase tracking-wide">IVA incluído</span>
+          </div>
           ${product.description ? `<p class="text-gray-600 leading-relaxed mb-7 whitespace-pre-line">${esc(product.description)}</p>` : `<p class="text-gray-400 italic mb-7">Sem descrição.</p>`}
-          <div class="flex items-center gap-4 mb-6">
-            <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-              <button type="button" data-qty-dec class="w-11 h-11 flex items-center justify-center hover:bg-gray-50" style="color:#222"><span class="material-symbols-outlined text-[20px]">remove</span></button>
-              <input data-qty type="text" inputmode="numeric" value="1" class="w-12 h-11 text-center outline-none border-x border-gray-200" />
-              <button type="button" data-qty-inc class="w-11 h-11 flex items-center justify-center hover:bg-gray-50" style="color:#222"><span class="material-symbols-outlined text-[20px]">add</span></button>
+          <div class="flex flex-col sm:flex-row items-stretch gap-3 mb-6">
+            <div class="fm-qty self-start sm:self-auto">
+              <button type="button" data-qty-dec style="color:#dc3545"><span class="material-symbols-outlined text-[20px]">remove</span></button>
+              <input data-qty type="text" inputmode="numeric" value="1" class="w-14 h-12 text-center outline-none border-x border-gray-200 fm-head" />
+              <button type="button" data-qty-inc style="color:#198754"><span class="material-symbols-outlined text-[20px]">add</span></button>
             </div>
+            <button type="button" data-add-cart="${esc(product.id)}" class="flex-1 inline-flex items-center justify-center gap-2 fm-head text-white px-6 py-3.5 rounded-xl hover:opacity-90 transition-opacity" style="background:var(--brand,#6995B1)"><span class="material-symbols-outlined text-[20px]">shopping_cart</span> Adicionar ao carrinho</button>
           </div>
-          <div class="flex flex-col sm:flex-row gap-3">
-            <button type="button" data-add-cart="${esc(product.id)}" class="flex-1 inline-flex items-center justify-center gap-2 fm-head text-white px-6 py-4 rounded-xl hover:opacity-90 transition-opacity" style="background:var(--brand,#6995B1)"><span class="material-symbols-outlined text-[20px]">shopping_cart</span> Adicionar ao carrinho</button>
-            <a href="${esc(waLink(phone, waMsg))}" data-edit-whatsapp target="_blank" rel="noopener" class="flex-1 inline-flex items-center justify-center gap-2 fm-head px-6 py-4 rounded-xl border-2 border-gray-900 hover:bg-gray-900 hover:text-white transition-colors" style="color:#222"><span class="material-symbols-outlined text-[20px]">chat</span> WhatsApp</a>
+          <a href="${esc(waLink(phone, waMsg))}" data-edit-whatsapp target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-2 fm-head px-6 py-3.5 rounded-xl border-2 border-gray-900 hover:bg-gray-900 hover:text-white transition-colors mb-7" style="color:#222"><span class="material-symbols-outlined text-[20px]">chat</span> Comprar via WhatsApp</a>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-7">
+            ${perks.map((p) => `<div class="fm-pdp-perk"><span class="material-symbols-outlined">${p.icon}</span><span class="text-sm text-gray-600 leading-snug">${p.text}</span></div>`).join("")}
           </div>
-          <ul data-edit-perks class="mt-7 space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-6">
+          <ul data-edit-perks class="space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-6">
             ${perksItemsHtml(custom, PRIMARY)}
           </ul>
         </div>
       </div>
-      ${related.length
+      ${related.length >= 3
         ? `<section data-related data-fm-carousel class="mt-16">
             <div class="flex items-center justify-between mb-8">
               <h2 class="fm-title fm-head text-2xl md:text-3xl" style="color:#222">Também pode gostar</h2>
@@ -503,7 +532,12 @@ function renderCheckout(view: StoreRenderView, innerHtml: string, custom?: Store
   return `${STYLE}
   <div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
     ${headerHtml(view, custom)}
-    <main class="${CONTAINER} py-10 flex-grow">${innerHtml}</main>
+    <main class="${CONTAINER} py-8 md:py-10 flex-grow">
+      <div class="mb-8">
+        <h1 class="fm-title fm-head text-2xl md:text-3xl" style="color:#222">Finalizar compra</h1>
+      </div>
+      <div class="fm-checkout">${innerHtml}</div>
+    </main>
     ${footerHtml(view, custom)}
   </div>`;
 }
