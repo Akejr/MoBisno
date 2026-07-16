@@ -662,37 +662,79 @@ export async function renderDashboard(): Promise<void> {
       if (!resultsWrap || !resultsEl) return;
       resultsWrap.classList.remove("hidden");
       resultsEl.innerHTML = `
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div class="grid grid-cols-2 gap-4 max-w-md">
           ${[0, 1].map(() => `
             <div class="rounded-2xl border border-gray-200 overflow-hidden">
               <div class="aspect-square bg-gray-100 animate-pulse flex items-center justify-center">
-                <span class="material-symbols-outlined text-gray-300 animate-spin" style="font-size:32px">progress_activity</span>
+                <span class="material-symbols-outlined text-gray-300 animate-spin" style="font-size:28px">progress_activity</span>
               </div>
-              <div class="h-11 bg-gray-100 animate-pulse border-t border-gray-100"></div>
+              <div class="h-10 bg-gray-100 animate-pulse border-t border-gray-100"></div>
             </div>`).join("")}
         </div>
-        <p class="text-center text-sm text-gray-400 mt-4">A criar duas variações… isto pode demorar alguns segundos.</p>`;
+        <p class="text-sm text-gray-400 mt-4">A criar duas variações… isto pode demorar alguns segundos.</p>`;
       resultsWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
-    function renderVariations(dataUrls: string[]): void {
+    /**
+     * Desenha uma marca de água (grelha + texto diagonal) por cima da imagem
+     * num canvas e devolve o PNG resultante. Assim, qualquer cópia feita a
+     * partir da pré-visualização (screenshot, arrastar, botão direito) leva a
+     * marca de água. A versão limpa só é usada ao "Escolher esta".
+     */
+    function watermark(src: string): Promise<string> {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const size = 420;
+          const canvas = document.createElement("canvas");
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { resolve(src); return; }
+          ctx.drawImage(img, 0, 0, size, size);
+          // Grelha subtil.
+          ctx.strokeStyle = "rgba(120,120,120,0.30)";
+          ctx.lineWidth = 1;
+          const step = 30;
+          for (let x = step; x < size; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke(); }
+          for (let y = step; y < size; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke(); }
+          // Texto diagonal repetido.
+          ctx.save();
+          ctx.translate(size / 2, size / 2);
+          ctx.rotate(-Math.PI / 6);
+          ctx.font = "bold 20px Inter, Arial, sans-serif";
+          ctx.fillStyle = "rgba(249,89,1,0.38)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          for (let i = -3; i <= 3; i++) ctx.fillText("MôBisno · pré-visualização", 0, i * 52);
+          ctx.restore();
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.onerror = () => resolve(src);
+        img.src = src;
+      });
+    }
+
+    async function renderVariations(dataUrls: string[]): Promise<void> {
       if (!resultsWrap || !resultsEl) return;
       resultsWrap.classList.remove("hidden");
+      // Gera as versões com marca de água para pré-visualização.
+      const display = await Promise.all(dataUrls.map((u) => watermark(u)));
+      const guard = 'oncontextmenu="return false" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none"';
       resultsEl.innerHTML = `
-        <p class="text-sm text-gray-500 mb-4">Clique em <strong>Escolher esta</strong> para guardar a variação que prefere.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          ${dataUrls.map((src, i) => `
+        <p class="text-sm text-gray-500 mb-4">Clique em <strong>Escolher esta</strong> para guardar a variação que prefere. As pré-visualizações têm marca de água — só a versão escolhida é guardada limpa.</p>
+        <div class="grid grid-cols-2 gap-4 max-w-md">
+          ${display.map((src, i) => `
             <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white transition-shadow hover:shadow-md">
-              <div class="aspect-square flex items-center justify-center p-6" style="${checker}">
-                <img src="${src}" alt="Variação ${i + 1}" class="max-w-full max-h-full object-contain" />
+              <div class="aspect-square flex items-center justify-center p-4" style="${checker}">
+                <img src="${src}" alt="Variação ${i + 1}" ${guard} />
               </div>
-              <button data-logo-pick="${i}" class="w-full py-3 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher esta</button>
+              <button data-logo-pick="${i}" class="w-full py-2.5 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher esta</button>
             </div>`).join("")}
         </div>`;
       resultsEl.querySelectorAll<HTMLButtonElement>("[data-logo-pick]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const idx = Number(btn.dataset.logoPick);
-          const src = dataUrls[idx];
+          const src = dataUrls[idx]; // versão LIMPA (sem marca de água)
           if (!src) return;
           await withButton(btn, async () => {
             const content = dataUrlToUint8Array(src);
@@ -720,7 +762,7 @@ export async function renderDashboard(): Promise<void> {
           toast("Não foi possível gerar os logótipos. Tenta de novo dentro de instantes.", "error");
           return;
         }
-        renderVariations(images);
+        await renderVariations(images);
       }, "A gerar…");
     });
 
