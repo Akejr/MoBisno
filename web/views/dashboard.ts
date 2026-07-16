@@ -589,10 +589,10 @@ export async function renderDashboard(): Promise<void> {
             <h4 class="font-black text-gray-900">Dicas para um bom logótipo</h4>
           </div>
           <ul class="space-y-3 text-sm text-gray-600">
-            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Indique o <strong>nome</strong> da marca (curto sai melhor).</li>
-            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Diga <strong>o que vende</strong> ou o setor do negócio.</li>
-            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Escolha <strong>1 a 2 cores</strong> e um estilo (moderno, elegante…).</li>
-            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Sem ideias? Escreva o essencial e use <strong>Melhorar com IA</strong>.</li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0 mt-0.5" style="color:${ACCENT}">check_circle</span><span>Indique o <strong>nome</strong> da marca (curto sai melhor).</span></li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0 mt-0.5" style="color:${ACCENT}">check_circle</span><span>Diga <strong>o que vende</strong> ou o setor do negócio.</span></li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0 mt-0.5" style="color:${ACCENT}">check_circle</span><span>Escolha <strong>1 a 2 cores</strong> e um estilo (moderno, elegante…).</span></li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0 mt-0.5" style="color:${ACCENT}">check_circle</span><span>Sem ideias? Escreva o essencial e use <strong>Melhorar com IA</strong>.</span></li>
           </ul>
         </aside>
       </div>
