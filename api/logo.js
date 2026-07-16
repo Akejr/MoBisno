@@ -21,28 +21,34 @@
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 const IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
 
-/** Direção de arte comum às duas variações (o que torna o logo "premium"). */
+/**
+ * Direção de arte comum a todas as variações. Objetivo: logótipos de marca de
+ * tecnologia/startup, elegantes, modernos e minimalistas — do nível do que se
+ * vê em Dribbble/Behance ou de marcas como Stripe, Vercel, Notion. NUNCA
+ * "ícone literal + texto" ao estilo clip-art.
+ */
 const ART_DIRECTION = [
-  "Design de logótipo profissional de nível de agência, moderno, minimalista e memorável, para uma marca de topo.",
-  "Estética premium 2025: formas geométricas limpas e equilibradas, proporções perfeitas, uso inteligente de espaço negativo, traço consistente.",
-  "Marca vetorial simples e escalável (deve funcionar bem pequena, como favicon). Máximo 2 ou 3 cores harmoniosas; podes usar um gradiente subtil e sofisticado.",
-  "Composição centrada, isolada. Fundo TOTALMENTE transparente — sem fundo, sem moldura, sem cartão, sem sombra por baixo, sem mockup, sem cenário.",
-  "NÃO uses estilo clip-art, NÃO uses ilustrações realistas ou detalhadas, NÃO uses efeitos 3D pesados, NÃO uses múltiplas cores desorganizadas.",
-  "Se incluíres texto, escreve o nome da marca CORRETAMENTE, com tipografia sans-serif moderna e limpa; caso contrário não coloques texto nenhum.",
+  "Cria um logótipo de marca elegante, moderno e minimalista, de nível de estúdio de branding profissional (qualidade Dribbble/Behance).",
+  "O SÍMBOLO deve ser uma MARCA ABSTRACTA e geométrica/fluida — uma forma única, distinta e memorável (ex.: fita curva, forma orgânica, marca geométrica com espaço negativo). NÃO uses ícones literais nem pictogramas (nada de envelopes, carrinhos, telefones, lâmpadas, casas, engrenagens, balões de fala).",
+  "Usa um GRADIENTE suave e sofisticado no símbolo (transições limpas entre 2 tons da mesma família de cor), com acabamento premium e cantos suaves/arredondados. Nada de contornos duros de clip-art.",
+  "Se houver nome, apresenta-o como WORDMARK ao lado do símbolo (lockup), em tipografia sans-serif moderna, geométrica e limpa, minúsculas, kerning perfeito, cor sólida escura (quase preto) ou a cor da marca. O nome tem de estar escrito CORRETAMENTE.",
+  "Marca vetorial simples e escalável (tem de ficar bem como favicon). Composição equilibrada, muito espaço em branco, isolada e centrada.",
+  "Fundo TOTALMENTE transparente — sem fundo, sem moldura, sem cartão, sem sombras, sem mockups, sem cenário, sem texto extra além do nome da marca.",
+  "PROIBIDO: clip-art, ícones de stock, ilustrações realistas ou detalhadas, 3D pesado, muitas cores, texturas, efeitos baratos, um ícone literal com uma etiqueta por baixo.",
 ].join(" ");
 
-/** Cinco direções distintas para dar variedade real entre as opções. */
+/** Cinco direções distintas — todas elegantes e modernas (nunca clip-art). */
 const VARIATIONS = [
-  // A — monograma / lettermark tipográfico premium.
-  "Estilo: MONOGRAMA / LETTERMARK. Cria uma marca a partir da(s) inicial(is) do nome do negócio, com uma construção tipográfica geométrica e elegante, eventualmente com espaço negativo criativo. Sofisticado e corporativo.",
-  // B — símbolo/ícone abstrato de marca.
-  "Estilo: SÍMBOLO ABSTRATO. Cria um ícone de marca abstrato e distinto que evoque o conceito do negócio de forma simbólica (não literal), com formas geométricas modernas. Pode ter um gradiente subtil. Estilo tech/premium.",
-  // C — combinação símbolo + nome (lockup horizontal).
-  "Estilo: COMBINAÇÃO (símbolo + nome). Um pequeno símbolo/ícone à esquerda e o nome da marca à direita, em tipografia sans-serif moderna e limpa, bem alinhados. Equilibrado e profissional.",
-  // D — emblema / selo minimalista.
-  "Estilo: EMBLEMA / SELO. Uma marca compacta contida numa forma geométrica simples (círculo, escudo ou hexágono), minimalista e moderna, com a inicial ou um símbolo ao centro. Elegante e premium.",
-  // E — wordmark tipográfico puro.
-  "Estilo: WORDMARK. Apenas o nome da marca desenhado como logótipo, com tipografia personalizada, moderna e memorável (kerning cuidado, um detalhe distinto numa letra). Sem ícone. Escreve o nome CORRETAMENTE.",
+  // A — lockup símbolo abstrato + wordmark (estilo do exemplo "lumi").
+  "Estilo: SÍMBOLO ABSTRACTO + WORDMARK (lockup horizontal). Um símbolo abstrato fluido com gradiente à esquerda e o nome da marca em minúsculas à direita, tipografia geométrica moderna. Elegante, tech, premium (pensa Stripe/Notion).",
+  // B — só símbolo abstrato com gradiente.
+  "Estilo: APENAS SÍMBOLO ABSTRACTO. Uma marca abstrata e distinta com gradiente suave e espaço negativo criativo, sem qualquer texto. Forma única e memorável, moderna e sofisticada.",
+  // C — monograma geométrico.
+  "Estilo: MONOGRAMA. Constrói uma marca a partir da(s) inicial(is) do nome, de forma geométrica e abstrata (não uma letra de fonte comum), com gradiente subtil e espaço negativo inteligente. Sofisticado e premium.",
+  // D — wordmark tipográfico puro.
+  "Estilo: WORDMARK puro. Só o nome da marca, em minúsculas, com tipografia personalizada moderna e um detalhe subtil e distinto numa letra (ligadura, corte, ponto). Sem símbolo. Cor sólida elegante.",
+  // E — lockup vertical símbolo + nome.
+  "Estilo: SÍMBOLO ABSTRACTO + NOME (empilhado na vertical). Símbolo abstrato com gradiente em cima e o nome centrado por baixo, tipografia sans-serif moderna e limpa. Composição equilibrada e premium.",
 ];
 
 /** Constrói o prompt final combinando descrição + direção de arte + variação. */

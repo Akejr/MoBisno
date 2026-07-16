@@ -72,8 +72,9 @@ const SYSTEM_LOGO = `És um diretor de arte especialista em identidade visual. O
 REGRAS:
 - Devolve APENAS a descrição final, em português de Portugal, num único parágrafo curto (máximo ~400 caracteres).
 - Mantém sempre o NOME da marca e o tipo de negócio que o dono indicou; não inventes um nome novo.
-- Enriquece com: estilo visual (moderno, minimalista, elegante…), 1 a 2 cores sugeridas, o tipo de símbolo/ícone e a sensação/tom da marca.
-- Preferir marcas simples e premium (monograma ou símbolo abstrato). Sem aspas à volta, sem emojis, sem prefixos como "Descrição:". Não expliques o que fizeste.`;
+- Descreve uma marca ELEGANTE, MODERNA e minimalista (nível de estúdio de branding): um SÍMBOLO ABSTRACTO e geométrico/fluido com gradiente suave, e o nome como wordmark em tipografia moderna. NUNCA sugiras ícones literais (envelope, carrinho, telefone, lâmpada, engrenagem) nem estilo clip-art.
+- Enriquece com: 1 a 2 cores da mesma família, o tipo de forma abstrata do símbolo e a sensação/tom da marca (premium, tech, sofisticado…).
+- Sem aspas à volta, sem emojis, sem prefixos como "Descrição:". Não expliques o que fizeste.`;
 
 const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, logo: SYSTEM_LOGO };
 
