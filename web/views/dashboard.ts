@@ -566,34 +566,78 @@ export async function renderDashboard(): Promise<void> {
     const custom = await getCustomization(store!.id);
     const logos = Array.isArray(custom.logos) ? custom.logos : [];
     // Fundo axadrezado para evidenciar a transparência do PNG.
-    const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:18px 18px;background-position:0 0,0 9px,9px -9px,-9px 0;background-color:#fff;";
+    const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#fff;";
+
+    const examples = [
+      "Marca de moda chamada 'Nara', minimalista e elegante, tons de preto e dourado.",
+      "Loja de eletrónica 'VoltZ', moderna e tecnológica, azul com um símbolo geométrico.",
+      "Mercearia 'Kimbo', fresca e amigável, verde, com um símbolo simples.",
+    ];
 
     render(shell(`
-      <section class="mb-6">
-        <h3 class="text-2xl md:text-3xl font-black tracking-tight">Criar logótipo</h3>
-        <p class="text-gray-500 mt-1 max-w-2xl">Descreva o seu negócio e a IA cria <strong>duas variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir e ela fica guardada em "Meus logótipos".</p>
+      <section class="mb-6 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden" style="background:linear-gradient(135deg,#F95901,#ff8a4c)">
+        <div class="relative z-10 max-w-2xl">
+          <span class="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-xs font-bold mb-3"><span class="material-symbols-outlined text-[16px]">auto_awesome</span> Gerador com IA</span>
+          <h3 class="text-2xl md:text-3xl font-black tracking-tight">O logótipo da sua marca em segundos</h3>
+          <p class="text-white/90 mt-2 leading-relaxed">Descreva o seu negócio e a IA cria <strong>duas variações</strong> profissionais em PNG com fundo transparente. Escolhe a que preferir — fica guardada em "Meus logótipos" e pode descarregá-la quando quiser.</p>
+        </div>
+        <span class="material-symbols-outlined absolute -right-4 -bottom-6 text-white/15 pointer-events-none" style="font-size:180px">brush</span>
       </section>
 
-      <section class="bg-white border border-gray-200 rounded-3xl p-6 md:p-7 mb-8">
-        <label class="block text-sm font-bold text-gray-800 mb-2" for="logo-desc">Descrição do logótipo</label>
-        <textarea id="logo-desc" rows="4" maxlength="1000" placeholder="Ex.: Loja de doces artesanais chamada 'Doce Mel', tons de rosa e dourado, com um favo de mel e uma abelha simpática." class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#F95901] resize-y"></textarea>
-        <div class="flex items-center justify-between gap-3 mt-3 flex-wrap">
-          <p class="text-xs text-gray-400">Quanto mais detalhes (cores, símbolo, estilo, nome), melhor o resultado.</p>
-          <button id="logo-gen" class="text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar 2 variações</button>
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8 items-start">
+        <section class="lg:col-span-3 bg-white border border-gray-200 rounded-3xl p-6 md:p-7">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">edit</span></span>
+            <h4 class="font-black text-gray-900">Descreva o logótipo</h4>
+          </div>
+          <div class="relative">
+            <textarea id="logo-desc" rows="4" maxlength="600" placeholder="Ex.: Loja de doces artesanais chamada 'Doce Mel', tons de rosa e dourado, com um símbolo delicado." class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 pb-7 text-sm outline-none focus:border-[#F95901] focus:bg-white transition-colors resize-none"></textarea>
+            <span id="logo-count" class="absolute right-3 bottom-2.5 text-[11px] text-gray-400 pointer-events-none">0 / 600</span>
+          </div>
+          <div class="mt-3">
+            <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sugestões</p>
+            <div class="flex flex-wrap gap-2">
+              ${examples.map((ex) => `<button type="button" data-logo-example="${esc(ex)}" class="text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full px-3 py-1.5 transition-colors">${esc(ex.split("'")[1] ?? ex.slice(0, 18))}</button>`).join("")}
+            </div>
+          </div>
+          <button id="logo-gen" class="w-full mt-5 text-white px-5 py-3 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">auto_awesome</span> Gerar 2 variações</button>
+        </section>
+
+        <aside class="lg:col-span-2 bg-white border border-gray-200 rounded-3xl p-6">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">tips_and_updates</span></span>
+            <h4 class="font-black text-gray-900">Dicas para um bom logótipo</h4>
+          </div>
+          <ul class="space-y-3 text-sm text-gray-600">
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Indique o <strong>nome</strong> da marca (curto sai melhor).</li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Diga <strong>o que vende</strong> ou o setor do negócio.</li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Escolha <strong>1 a 2 cores</strong> e um estilo (moderno, elegante…).</li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Um <strong>símbolo</strong> em mente? Descreva-o (ex.: folha, seta).</li>
+          </ul>
+        </aside>
+      </div>
+
+      <section id="logo-results-wrap" class="mb-8 hidden">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">palette</span></span>
+          <h4 class="font-black text-gray-900">Variações geradas</h4>
         </div>
-        <div id="logo-results" class="mt-6"></div>
+        <div id="logo-results"></div>
       </section>
 
       <section class="mb-4">
         <div class="flex items-center justify-between gap-3 mb-4">
-          <h4 class="text-lg font-black text-gray-900">Meus logótipos</h4>
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">collections_bookmark</span></span>
+            <h4 class="font-black text-gray-900">Meus logótipos</h4>
+          </div>
           <span class="text-sm text-gray-400">${logos.length} guardado(s)</span>
         </div>
         <div id="my-logos">
           ${logos.length
             ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                  ${logos.map((url, i) => `
-                   <div class="group relative rounded-2xl border border-gray-200 overflow-hidden">
+                   <div class="group relative rounded-2xl border border-gray-200 overflow-hidden bg-white transition-shadow hover:shadow-md">
                      <div class="aspect-square flex items-center justify-center p-4" style="${checker}">
                        <img src="${esc(url)}" alt="Logótipo ${i + 1}" class="max-w-full max-h-full object-contain" />
                      </div>
@@ -603,28 +647,65 @@ export async function renderDashboard(): Promise<void> {
                      </div>
                    </div>`).join("")}
                </div>`
-            : `<div class="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center text-gray-400 text-sm">Ainda não guardou nenhum logótipo. Gere e escolha uma variação acima.</div>`}
+            : `<div class="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center">
+                 <span class="material-symbols-outlined text-gray-300" style="font-size:40px">image</span>
+                 <p class="text-gray-400 text-sm mt-2">Ainda não guardou nenhum logótipo.<br/>Gere e escolha uma variação acima.</p>
+               </div>`}
         </div>
       </section>`));
     bindShell();
 
     const descEl = $("#logo-desc") as HTMLTextAreaElement | null;
     const resultsEl = $("#logo-results");
+    const resultsWrap = $("#logo-results-wrap");
+    const countEl = $("#logo-count");
+
+    // Contador de caracteres.
+    const updateCount = (): void => { if (countEl && descEl) countEl.textContent = `${descEl.value.length} / 600`; };
+    descEl?.addEventListener("input", updateCount);
+    updateCount();
+
+    // Sugestões clicáveis preenchem a descrição.
+    document.querySelectorAll<HTMLButtonElement>("[data-logo-example]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        if (!descEl) return;
+        descEl.value = chip.dataset.logoExample ?? "";
+        updateCount();
+        descEl.focus();
+      });
+    });
+
+    // Estado "a gerar": esqueletos animados no lugar das variações.
+    function showGenerating(): void {
+      if (!resultsWrap || !resultsEl) return;
+      resultsWrap.classList.remove("hidden");
+      resultsEl.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          ${[0, 1].map(() => `
+            <div class="rounded-2xl border border-gray-200 overflow-hidden">
+              <div class="aspect-square bg-gray-100 animate-pulse flex items-center justify-center">
+                <span class="material-symbols-outlined text-gray-300 animate-spin" style="font-size:32px">progress_activity</span>
+              </div>
+              <div class="h-11 bg-gray-100 animate-pulse border-t border-gray-100"></div>
+            </div>`).join("")}
+        </div>
+        <p class="text-center text-sm text-gray-400 mt-4">A criar duas variações… isto pode demorar alguns segundos.</p>`;
+      resultsWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
 
     function renderVariations(dataUrls: string[]): void {
-      if (!resultsEl) return;
+      if (!resultsWrap || !resultsEl) return;
+      resultsWrap.classList.remove("hidden");
       resultsEl.innerHTML = `
-        <div class="border-t border-gray-100 pt-6">
-          <p class="text-sm font-bold text-gray-800 mb-4">Escolha a variação que prefere:</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            ${dataUrls.map((src, i) => `
-              <div class="rounded-2xl border border-gray-200 overflow-hidden">
-                <div class="aspect-square flex items-center justify-center p-6" style="${checker}">
-                  <img src="${src}" alt="Variação ${i + 1}" class="max-w-full max-h-full object-contain" />
-                </div>
-                <button data-logo-pick="${i}" class="w-full py-3 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher esta</button>
-              </div>`).join("")}
-          </div>
+        <p class="text-sm text-gray-500 mb-4">Clique em <strong>Escolher esta</strong> para guardar a variação que prefere.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          ${dataUrls.map((src, i) => `
+            <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white transition-shadow hover:shadow-md">
+              <div class="aspect-square flex items-center justify-center p-6" style="${checker}">
+                <img src="${src}" alt="Variação ${i + 1}" class="max-w-full max-h-full object-contain" />
+              </div>
+              <button data-logo-pick="${i}" class="w-full py-3 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher esta</button>
+            </div>`).join("")}
         </div>`;
       resultsEl.querySelectorAll<HTMLButtonElement>("[data-logo-pick]").forEach((btn) => {
         btn.addEventListener("click", async () => {
@@ -649,9 +730,11 @@ export async function renderDashboard(): Promise<void> {
     $("#logo-gen")?.addEventListener("click", async () => {
       const desc = (descEl?.value ?? "").trim();
       if (desc.length < 6) { toast("Escreva uma descrição do logótipo primeiro.", "error"); descEl?.focus(); return; }
+      showGenerating();
       await withButton($("#logo-gen") as HTMLButtonElement, async () => {
         const images = await generateLogos(desc);
         if (!images.length) {
+          resultsWrap?.classList.add("hidden");
           toast("Não foi possível gerar os logótipos. Tenta de novo dentro de instantes.", "error");
           return;
         }
