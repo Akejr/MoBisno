@@ -247,6 +247,9 @@ No editor (`web/views/editor.ts`, `mountLumiereSections`), o slot ganha um botã
   Testemunhos, Localização.
 - **Modelo pronto (`__locked`):** só **Produtos**, **Informação com foto** e
   **Título e texto**.
+- **Override por modelo:** um modelo pode restringir ainda mais. Ex.: **FoodMart**
+  só permite adicionar **Secção de produtos** (as outras não fazem sentido na
+  mercearia). Ver `productsOnly` em `editor.ts`.
 
 ### Cor de fundo das secções
 Ao adicionar/editar uma secção de conteúdo (`info`/`text`), há um seletor de cor

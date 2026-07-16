@@ -967,17 +967,22 @@ export async function renderEditor(): Promise<void> {
           <span class="material-symbols-outlined text-[20px] text-neutral-500 mt-0.5">${icon}</span>
           <span><span class="block text-sm font-semibold text-neutral-900">${title}</span><span class="block text-xs text-neutral-500">${desc}</span></span>
         </button>`;
+      // O modelo "FoodMart" só permite adicionar secções de produtos (as
+      // restantes secções não fazem sentido nesta mercearia).
+      const productsOnly = store!.templateId === "foodmart";
       // Em modelos prontos (locked) só se pode adicionar produtos e informação
       // com foto; o resto das secções fica reservado ao construtor livre.
       const addParts = [
         menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto"),
-        menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info"),
-        menuItem("title", "Título e texto", "Texto centrado de destaque", "text"),
       ];
-      if (!locked) {
-        // O modelo "Neon Lab" não usa secção de testemunhos.
-        if (store!.templateId !== "neonlab") addParts.push(menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials"));
-        addParts.push(menuItem("location_on", "Localização", "Mapa com a morada da loja", "location"));
+      if (!productsOnly) {
+        addParts.push(menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info"));
+        addParts.push(menuItem("title", "Título e texto", "Texto centrado de destaque", "text"));
+        if (!locked) {
+          // O modelo "Neon Lab" não usa secção de testemunhos.
+          if (store!.templateId !== "neonlab") addParts.push(menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials"));
+          addParts.push(menuItem("location_on", "Localização", "Mapa com a morada da loja", "location"));
+        }
       }
       const addItems = addParts.join("");
       addSec.innerHTML = `
