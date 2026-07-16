@@ -177,10 +177,19 @@ export interface StoreCustomization {
   foodmart?: {
     /** Slides do banner principal (o cliente pode adicionar/remover). */
     banners?: { tag?: string; title?: string; subtitle?: string; ctaLabel?: string; ctaTarget?: string; imageUrl?: string }[];
-    /** Dois blocos de anúncio ao lado do banner principal. */
-    ads?: { tag?: string; title?: string; ctaTarget?: string; imageUrl?: string; bg?: string }[];
-    /** Faixa promocional (secção de desconto). */
-    promo?: { title?: string; text?: string; enabled?: boolean };
+    /**
+     * Dois blocos de anúncio ao lado do banner principal. `bg` = cor do cartão,
+     * `tagBg` = cor da etiqueta, `ctaLabel`/`ctaIcon`/`ctaTarget` = botão.
+     */
+    ads?: { tag?: string; title?: string; ctaLabel?: string; ctaIcon?: string; ctaTarget?: string; imageUrl?: string; bg?: string; tagBg?: string }[];
+    /** Faixa promocional (secção de desconto), com botão editável. */
+    promo?: { title?: string; text?: string; enabled?: boolean; ctaLabel?: string; ctaIcon?: string; ctaTarget?: string };
+    /** Telefone de apoio ao cliente mostrado no cabeçalho. */
+    supportPhone?: string;
+    /** Faixa de garantias/benefícios antes do rodapé (ícone + textos editáveis). */
+    features?: { icon?: string; title?: string; text?: string }[];
+    /** Cor dos ícones da faixa de garantias. */
+    featuresIconColor?: string;
   };
 
   /** Definições específicas do modelo Lumière Chic. */

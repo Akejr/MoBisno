@@ -92,8 +92,9 @@ function searchHost(_view: StoreRenderView): string {
   </div>`;
 }
 
-function headerHtml(view: StoreRenderView): string {
+function headerHtml(view: StoreRenderView, custom?: StoreCustomization): string {
   const cats = headerCategories(view);
+  const supportPhone = custom?.foodmart?.supportPhone || DEFAULT_PHONE;
   const mnav = mobileMenuParts(view, CONTAINER);
   const linkCls = "fm-head text-[15px] hover:text-[color:var(--brand,#6995B1)] transition-colors";
   const catsMenu = cats.length
@@ -119,7 +120,7 @@ function headerHtml(view: StoreRenderView): string {
           <div class="flex items-center gap-4 md:gap-6 ml-auto">
             <div class="hidden xl:block text-right">
               <span class="text-xs text-gray-400">Apoio ao cliente</span>
-              <p class="fm-head text-sm mb-0" style="color:#222">${esc(DEFAULT_PHONE)}</p>
+              <p data-edit="foodmart.supportPhone" class="fm-head text-sm mb-0" style="color:#222">${esc(supportPhone)}</p>
             </div>
             <a href="${esc(cartHref(view))}" data-cart-link class="relative flex items-center gap-2" style="color:#222">
               <span class="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center"><span class="material-symbols-outlined">shopping_cart</span></span>
@@ -179,15 +180,18 @@ function bannerBlocks(view: StoreRenderView, custom?: StoreCustomization): strin
     : "";
   const arrows = "";
 
-  const adBlock = (a: NonNullable<typeof ads>[number], i: number): string => `
-    <div class="relative rounded-3xl overflow-hidden flex items-center min-h-[188px]" style="background:${esc(a.bg ?? "#eef1f3")}">
+  const adBlock = (a: NonNullable<typeof ads>[number], i: number): string => {
+    const tagStyle = a.tagBg ? `background:${esc(a.tagBg)};color:#fff` : "";
+    return `
+    <div data-fm-ad="${i}" class="relative rounded-3xl overflow-hidden flex items-center min-h-[188px]" style="background:${esc(a.bg ?? "#eef1f3")}">
       <div class="p-7 pr-24 z-10">
-        <span data-edit="foodmart.ads.${i}.tag" class="fm-tag sale w-max mb-3">${esc(a.tag ?? "")}</span>
+        <span data-edit="foodmart.ads.${i}.tag" class="fm-tag sale w-max mb-3" style="${tagStyle}">${esc(a.tag ?? "")}</span>
         <h3 data-edit="foodmart.ads.${i}.title" class="fm-head text-xl md:text-2xl mb-3 leading-tight" style="color:#222">${esc(a.title ?? "")}</h3>
-        <a href="${esc(targetHref(view, a.ctaTarget))}" class="fm-link inline-flex items-center gap-1">Comprar <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        <a href="${esc(targetHref(view, a.ctaTarget))}" data-fm-ad-cta="${i}" class="fm-link inline-flex items-center gap-1"><span data-edit="foodmart.ads.${i}.ctaLabel">${esc(a.ctaLabel ?? "Comprar")}</span> <span class="material-symbols-outlined text-[18px]">${esc(a.ctaIcon ?? "arrow_forward")}</span></a>
       </div>
       ${a.imageUrl ? `<img src="${esc(a.imageUrl)}" alt="" class="absolute right-0 bottom-0 h-full w-[45%] object-cover" style="mask-image:linear-gradient(to left,#000 60%,transparent);-webkit-mask-image:linear-gradient(to left,#000 60%,transparent)" onerror="this.style.display='none'" />` : ""}
     </div>`;
+  };
 
   return `
   <section class="${CONTAINER} py-6">
@@ -302,39 +306,49 @@ function popularCarousel(view: StoreRenderView): string {
 }
 
 /** Faixa promocional editável (desconto). */
-function promoSection(custom?: StoreCustomization): string {
+function promoSection(view: StoreRenderView, custom?: StoreCustomization): string {
   if (custom?.foodmart?.promo?.enabled === false) return "";
   const title = custom?.foodmart?.promo?.title || "25% de desconto na primeira compra";
   const text = custom?.foodmart?.promo?.text || "Subscreva a nossa newsletter e receba as melhores ofertas de mercearia, todas as semanas.";
+  const ctaLabel = custom?.foodmart?.promo?.ctaLabel || "Ver produtos";
+  const ctaIcon = custom?.foodmart?.promo?.ctaIcon || "arrow_forward";
   return `
-  <section class="${CONTAINER} py-10">
+  <section data-fm-promo class="${CONTAINER} py-10">
     <div class="rounded-[2rem] p-8 md:p-14 grid md:grid-cols-2 gap-8 items-center" style="background:#eef1f3">
       <div>
         <h2 data-edit="foodmart.promo.title" class="fm-head text-3xl md:text-4xl mb-4 leading-tight" style="color:#222">${esc(title)}</h2>
         <p data-edit="foodmart.promo.text" class="text-gray-600 max-w-md">${esc(text)}</p>
       </div>
       <div class="md:text-right">
-        <a href="#produtos" class="inline-flex items-center gap-2 fm-head text-white px-8 py-4 rounded-xl hover:opacity-90 transition-opacity" style="background:#222">Ver produtos <span class="material-symbols-outlined text-[20px]">arrow_forward</span></a>
+        <a href="${esc(targetHref(view, custom?.foodmart?.promo?.ctaTarget))}" data-fm-promo-cta class="inline-flex items-center gap-2 fm-head text-white px-8 py-4 rounded-xl hover:opacity-90 transition-opacity" style="background:#222"><span data-edit="foodmart.promo.ctaLabel">${esc(ctaLabel)}</span> <span class="material-symbols-outlined text-[20px]">${esc(ctaIcon)}</span></a>
       </div>
     </div>
   </section>`;
 }
 
-/** Faixa de garantias (5 cartões). */
-function featuresRow(): string {
-  const feats = [
+/** Garantias por omissão (usadas quando o dono ainda não editou). */
+export function foodmartDefaultFeatures(): NonNullable<NonNullable<StoreCustomization["foodmart"]>["features"]> {
+  return [
     { icon: "local_shipping", title: "Entrega grátis", text: "Em encomendas acima do valor definido." },
     { icon: "verified_user", title: "Pagamento seguro", text: "Multicaixa Express, Referência e WhatsApp." },
     { icon: "workspace_premium", title: "Garantia de qualidade", text: "Produtos frescos e selecionados." },
     { icon: "savings", title: "Poupança garantida", text: "Os melhores preços do mercado." },
     { icon: "redeem", title: "Ofertas diárias", text: "Descontos novos todos os dias." },
   ];
+}
+
+/** Faixa de garantias (5 cartões editáveis: ícone, textos e cor do ícone). */
+function featuresRow(custom?: StoreCustomization): string {
+  const feats = custom?.foodmart?.features && custom.foodmart.features.length
+    ? custom.foodmart.features
+    : foodmartDefaultFeatures();
+  const iconColor = custom?.foodmart?.featuresIconColor || "#222";
   return `
-  <section class="${CONTAINER} py-10">
+  <section data-fm-features class="${CONTAINER} py-10">
     <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-6">
-      ${feats.map((f) => `<div class="flex items-start gap-3">
-        <span class="material-symbols-outlined text-3xl shrink-0" style="color:#222">${f.icon}</span>
-        <div><h5 class="fm-head text-base mb-1" style="color:#222">${f.title}</h5><p class="text-sm text-gray-500">${f.text}</p></div>
+      ${feats.map((f, i) => `<div class="flex items-start gap-3" data-fm-feature="${i}">
+        <span class="material-symbols-outlined text-3xl shrink-0 fm-feature-icon" style="color:${esc(iconColor)}">${esc(f.icon ?? "check_circle")}</span>
+        <div><h5 data-edit="foodmart.features.${i}.title" class="fm-head text-base mb-1" style="color:#222">${esc(f.title ?? "")}</h5><p data-edit="foodmart.features.${i}.text" class="text-sm text-gray-500">${esc(f.text ?? "")}</p></div>
       </div>`).join("")}
     </div>
   </section>`;
@@ -384,14 +398,14 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
   menuFor(view, custom);
   return `${STYLE}
   <div class="fm-root relative min-h-screen flex flex-col overflow-x-hidden">
-    ${headerHtml(view)}
+    ${headerHtml(view, custom)}
     ${bannerBlocks(view, custom)}
     ${categoryGrid(view, custom)}
     ${sectionsArea(view, custom)}
     ${popularCarousel(view)}
-    ${promoSection(custom)}
+    ${promoSection(view, custom)}
     ${blocksHtml(custom, { container: CONTAINER, brand: PRIMARY, variant: "default" })}
-    ${featuresRow()}
+    ${featuresRow(custom)}
     ${footerHtml(view, custom)}
   </div>`;
 }
@@ -400,7 +414,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
   menuFor(view, custom);
   if (custom?.productPage?.variant) {
     return `${STYLE}<div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
-      ${headerHtml(view)}
+      ${headerHtml(view, custom)}
       ${renderProductPage(custom.productPage.variant, view, product, custom, { container: CONTAINER, brand: PRIMARY })}
       ${footerHtml(view, custom)}
     </div>`;
@@ -410,7 +424,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
   const related = view.products.filter((p) => p.id !== product.id).slice(0, 5);
   return `${STYLE}
   <div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
-    ${headerHtml(view)}
+    ${headerHtml(view, custom)}
     <main class="${CONTAINER} py-10 flex-grow">
       <nav class="text-sm mb-8 flex items-center gap-1.5 flex-wrap text-gray-400">
         <a href="${esc(homeHref(view))}" class="hover:text-gray-900">Início</a>
@@ -467,7 +481,7 @@ function renderCategory(view: StoreRenderView, category: string, custom?: StoreC
     : `<div class="py-16 text-center text-gray-400"><span class="material-symbols-outlined" style="font-size:48px">grocery</span><p class="mt-2">Ainda não há produtos nesta categoria.</p></div>`;
   return `${STYLE}
   <div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
-    ${headerHtml(view)}
+    ${headerHtml(view, custom)}
     <main class="${CONTAINER} py-10 flex-grow">
       <nav class="text-sm mb-8 flex items-center gap-1.5 text-gray-400">
         <a href="${esc(homeHref(view))}" class="hover:text-gray-900">Início</a>
@@ -488,7 +502,7 @@ function renderCheckout(view: StoreRenderView, innerHtml: string, custom?: Store
   menuFor(view, custom);
   return `${STYLE}
   <div class="fm-root min-h-screen flex flex-col overflow-x-hidden">
-    ${headerHtml(view)}
+    ${headerHtml(view, custom)}
     <main class="${CONTAINER} py-10 flex-grow">${innerHtml}</main>
     ${footerHtml(view, custom)}
   </div>`;

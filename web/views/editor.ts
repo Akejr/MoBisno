@@ -40,6 +40,7 @@ import { mountAiAgent } from "../lib/aiAgent.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
 import { mountTestimonials } from "../lib/testimonialsCarousel.js";
 import { mountFoodmartCarousels } from "../lib/foodmartCarousel.js";
+import { foodmartDefaultFeatures } from "../templates/foodmart.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -120,6 +121,14 @@ export async function renderEditor(): Promise<void> {
   const backHref = appState.editorReturn ?? "/painel";
 
   const custom: StoreCustomization = await getCustomization(store.id);
+  // FoodMart: materializa a faixa de garantias para ficar 100% editável (ícone,
+  // textos e cor). Feito ANTES da baseline para não marcar alterações por si só.
+  if (store.templateId === "foodmart") {
+    if (!custom.foodmart) custom.foodmart = {};
+    if (!custom.foodmart.features || !custom.foodmart.features.length) {
+      custom.foodmart.features = foodmartDefaultFeatures();
+    }
+  }
   /** Loja baseada num modelo pronto: edição estrutural bloqueada (só textos/fotos/cores). */
   const locked = custom.__locked === true;
   /**
@@ -709,6 +718,125 @@ export async function renderEditor(): Promise<void> {
       cell.appendChild(btn);
       cell.appendChild(pop);
     });
+
+    // ---- FoodMart: cartões de anúncio, faixa promo e garantias ----
+    if (store!.templateId === "foodmart") {
+      const FM_CARD_BGS = ["#eaf5ea", "#fdeaea", "#eef1f3", "#fff4e0", "#e8f0fe", "#f3e8ff", "#fde8f3", "#e0f7f4", "#f5f5f5", "#ffffff"];
+      const FM_TAG_BGS = ["#dc3545", "#3fb95a", "#FFC43F", "#6995B1", "#f97316", "#8b5cf6", "#0ea5e9", "#111827"];
+      const FM_CTA_ICONS = ["arrow_forward", "shopping_cart", "local_mall", "bolt", "redeem", "sell", "trending_flat", "chevron_right"];
+      const FM_ICON_COLORS = [ACCENT, "#222222", "#6995B1", "#3fb95a", "#dc3545", "#f97316", "#8b5cf6", "#0ea5e9"];
+
+      /** Popover de controlos, aberto por um botão "tune" (lado direito ou esquerdo). */
+      const fmTune = (host: HTMLElement, build: (pop: HTMLElement) => void, side: "right" | "left" = "right"): void => {
+        host.style.position = host.style.position || "relative";
+        const pos = side === "left" ? "top-2 left-2" : "top-2 right-2";
+        const popPos = side === "left" ? "top-11 left-2" : "top-11 right-2";
+        const btn = document.createElement("button");
+        btn.type = "button"; btn.title = "Editar";
+        btn.className = `mb-ov-btn absolute ${pos} z-30 w-8 h-8 rounded-full bg-white shadow border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900`;
+        btn.innerHTML = `<span class="material-symbols-outlined text-[16px]">tune</span>`;
+        const pop = document.createElement("div");
+        pop.className = `mb-ov-btn absolute z-40 hidden ${popPos} bg-white border border-neutral-200 rounded-xl shadow-xl p-3 w-64 text-left space-y-3 normal-case tracking-normal`;
+        build(pop);
+        btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
+        host.appendChild(btn); host.appendChild(pop);
+      };
+
+      const swatchRow = (pop: HTMLElement, label: string, colors: string[], current: string | undefined, onPick: (c: string) => void): void => {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1">${esc(label)}</p><div class="flex flex-wrap gap-1.5"></div>`;
+        const row = wrap.querySelector("div")!;
+        colors.forEach((c) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = `w-7 h-7 rounded-lg border ${c === current ? "ring-2 ring-[#F95901]" : "border-neutral-200"}`;
+          b.style.background = c;
+          b.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onPick(c); void rebuild(); });
+          row.appendChild(b);
+        });
+        pop.appendChild(wrap);
+      };
+
+      const iconRow = (pop: HTMLElement, label: string, icons: string[], current: string | undefined, onPick: (ic: string) => void): void => {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1">${esc(label)}</p><div class="grid grid-cols-6 gap-1"></div>`;
+        const grid = wrap.querySelector("div")!;
+        icons.forEach((ic) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = `w-8 h-8 rounded-lg flex items-center justify-center hover:bg-neutral-100 ${ic === current ? "ring-2 ring-[#F95901]" : ""}`;
+          b.style.color = "#333";
+          b.innerHTML = `<span class="material-symbols-outlined text-[18px]">${ic}</span>`;
+          b.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onPick(ic); void rebuild(); });
+          grid.appendChild(b);
+        });
+        pop.appendChild(wrap);
+      };
+
+      const selectRow = (pop: HTMLElement, label: string, current: string | undefined, onPick: (v: string) => void): void => {
+        const cats = currentCategories();
+        const wrap = document.createElement("div");
+        wrap.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1">${esc(label)}</p>`;
+        const sel = document.createElement("select");
+        sel.className = "w-full text-sm border border-neutral-300 rounded-lg px-2 py-1.5 bg-white text-neutral-800";
+        sel.innerHTML = `<option value="">Secção de produtos</option>` +
+          cats.map((c) => `<option value="${esc(c)}" ${c === current ? "selected" : ""}>${esc(c)}</option>`).join("");
+        sel.addEventListener("change", () => { snapshot(); onPick(sel.value); void rebuild(); });
+        wrap.appendChild(sel);
+        pop.appendChild(wrap);
+      };
+
+      const c = custom as Record<string, any>;
+
+      // Cartões de anúncio do hero ("20% desconto"…): cor do cartão, cor da
+      // etiqueta, ícone e destino do botão. (Textos são editáveis inline.)
+      preview.querySelectorAll<HTMLElement>("[data-fm-ad]").forEach((card) => {
+        const i = Number(card.dataset.fmAd);
+        const ad = custom.foodmart?.ads?.[i];
+        fmTune(card, (pop) => {
+          swatchRow(pop, "Cor do cartão", FM_CARD_BGS, ad?.bg, (v) => setPath(c, `foodmart.ads.${i}.bg`, v));
+          swatchRow(pop, "Cor da etiqueta", FM_TAG_BGS, ad?.tagBg, (v) => setPath(c, `foodmart.ads.${i}.tagBg`, v));
+          iconRow(pop, "Ícone do botão", FM_CTA_ICONS, ad?.ctaIcon ?? "arrow_forward", (v) => setPath(c, `foodmart.ads.${i}.ctaIcon`, v));
+          selectRow(pop, "Destino do botão", ad?.ctaTarget, (v) => setPath(c, `foodmart.ads.${i}.ctaTarget`, v));
+        });
+      });
+
+      // Faixa promocional final: ícone + destino do botão.
+      const promoEl = preview.querySelector<HTMLElement>("[data-fm-promo]");
+      if (promoEl) {
+        fmTune(promoEl, (pop) => {
+          iconRow(pop, "Ícone do botão", FM_CTA_ICONS, custom.foodmart?.promo?.ctaIcon ?? "arrow_forward", (v) => setPath(c, "foodmart.promo.ctaIcon", v));
+          selectRow(pop, "Destino do botão", custom.foodmart?.promo?.ctaTarget, (v) => setPath(c, "foodmart.promo.ctaTarget", v));
+        }, "left");
+      }
+
+      // Faixa de garantias: cor dos ícones (secção) + ícone por cartão.
+      const featsEl = preview.querySelector<HTMLElement>("[data-fm-features]");
+      if (featsEl) {
+        fmTune(featsEl, (pop) => {
+          swatchRow(pop, "Cor dos ícones", FM_ICON_COLORS, custom.foodmart?.featuresIconColor, (v) => setPath(c, "foodmart.featuresIconColor", v));
+        }, "left");
+        featsEl.querySelectorAll<HTMLElement>("[data-fm-feature]").forEach((cell) => {
+          const i = Number(cell.dataset.fmFeature);
+          const cur = custom.foodmart?.features?.[i]?.icon ?? "";
+          cell.style.position = cell.style.position || "relative";
+          const btn = document.createElement("button");
+          btn.type = "button"; btn.title = "Escolher ícone";
+          btn.className = "mb-ov-btn absolute top-0 right-0 z-20 w-7 h-7 rounded-full bg-white shadow border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900";
+          btn.innerHTML = `<span class="material-symbols-outlined text-[15px]">edit</span>`;
+          const pop = document.createElement("div");
+          pop.className = "mb-ov-btn absolute z-30 hidden top-8 right-0 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 grid grid-cols-6 gap-1 w-64 max-h-64 overflow-y-auto";
+          pop.innerHTML = FM_CATEGORY_ICONS
+            .map((ic) => `<button type="button" data-ic="${ic}" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-neutral-100 ${ic === cur ? "ring-2 ring-[#F95901]" : ""}" style="color:#333"><span class="material-symbols-outlined text-[20px]">${ic}</span></button>`)
+            .join("");
+          btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
+          pop.querySelectorAll<HTMLElement>("[data-ic]").forEach((b) =>
+            b.addEventListener("click", (e) => { e.preventDefault(); snapshot(); setPath(c, `foodmart.features.${i}.icon`, b.dataset.ic!); void rebuild(); }));
+          cell.appendChild(btn);
+          cell.appendChild(pop);
+        });
+      }
+    }
 
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
     const footerLogo = preview.querySelector<HTMLElement>("[data-edit-footer-logo]");

@@ -27,8 +27,12 @@
 6. **Cores:** a plataforma usa `#F95901` (`ACCENT`, só na UI do editor/admin). As
    **lojas** usam sempre `var(--brand)` (cor de marca editável) e
    `var(--brand-ink)` (tinta legível calculada por contraste).
-7. **Não fazer commit/push** até o utilizador mandar.
-8. **Validar sempre** no fim: `npm run build`, `npm run web:build`, `npx vitest run`.
+7. **Editabilidade TOTAL (não negociável).** Em qualquer secção do modelo, **TUDO
+   o que é conteúdo tem de ser editável pelo dono**: textos, **cores** (de cartões,
+   etiquetas/badges e ícones), **ícones**, e **botões** (texto, ícone e destino).
+   Nenhum texto/cor/ícone/botão pode ficar "chumbado" no código. Ver §6.1.
+8. **Não fazer commit/push** até o utilizador mandar.
+9. **Validar sempre** no fim: `npm run build`, `npm run web:build`, `npx vitest run`.
 
 ---
 
@@ -186,6 +190,44 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
 
 ---
 
+## 6.1 Editabilidade TOTAL — obrigatória em TODAS as secções
+
+> Regra de ouro nº7. Ao criar/rever um modelo, **percorre cada secção** (hero,
+> banners, cartões de anúncio, categorias, produtos, faixas promo, garantias/
+> benefícios, blocos, rodapé) e garante que **cada elemento visível é editável**.
+> Se um elemento não é editável, **não está pronto**.
+
+**O que TEM de ser editável em cada elemento:**
+
+| Elemento | Como o tornar editável |
+|---|---|
+| **Texto** (títulos, subtítulos, etiquetas, rótulos de botão, telefone de apoio, etc.) | `data-edit="foodmart.ads.0.ctaLabel"` — fica contenteditable e escreve em `custom` via `setPath`. **Inclui o telefone/apoio do header.** |
+| **Cor de um cartão / superfície** | Guardar em `custom` (ex.: `ads[i].bg`) e ligar um **seletor de cor** no editor (popover de swatches). |
+| **Cor de etiqueta/badge** | Campo próprio (ex.: `ads[i].tagBg`) + seletor de cor. Aplicar inline com override do CSS fixo. |
+| **Cor de ícones** | Campo (ex.: `featuresIconColor`) + seletor de cor. |
+| **Ícone** | Campo (ex.: `ads[i].ctaIcon`, `features[i].icon`) + **picker de ícones** (`FM_CATEGORY_ICONS` ou lista própria). |
+| **Botão (CTA)** | Texto (`data-edit …ctaLabel`) **+** ícone (`…ctaIcon`, picker) **+** destino (`…ctaTarget`, `selectRow` com categorias / "Secção de produtos" via `targetHref`). |
+
+**Padrão de implementação no editor** (`web/views/editor.ts`), dentro do bloco
+`if (store!.templateId === "<modelo>")`:
+- Marca cada zona editável no template com um `data-*` âncora (ex.: `data-fm-ad="i"`,
+  `data-fm-promo`, `data-fm-features`, `data-fm-feature="i"`).
+- Usa um **popover "tune"** por zona com: `swatchRow` (cores), `iconRow` (ícones)
+  e `selectRow` (destino do botão). Ver o bloco FoodMart como referência.
+- Os textos usam sempre `data-edit` (ficam editáveis e coloríveis por `fieldColors`).
+
+**Materialização de defaults:** se uma secção usa um **array com fallback** (ex.:
+`features`, `ads`), materializa o array em `custom` **no arranque do editor**
+(antes da baseline `savedJson`) — senão, editar um item via `setPath` cria um
+objeto `{0:…}` sem `.length` e o template volta aos defaults, perdendo a edição.
+Ver `foodmartDefaultFeatures()` + a materialização no topo de `renderEditor`.
+
+**Destino de botões:** todo o botão/CTA leva para uma **categoria** ou para a
+**secção de produtos**. Usa sempre o helper `targetHref(view, target)` no template
+e um `selectRow` (categorias + "Secção de produtos") no editor.
+
+---
+
 ## 7. Secções removíveis (exceto produtos)
 
 O dono pode **apagar qualquer secção exceto a de produtos**. Para secções
@@ -303,6 +345,9 @@ editor). Guardado em `blocks[i].bg` e aplicado em `blocks.ts` (`bgStyle`).
 - [ ] Testemunhos/mapa/avaliações do modelo **reproduzidos e funcionais**.
 - [ ] Carrinho e checkout com a **mesma UI** (bordas, fontes, cores).
 - [ ] Secções removíveis (exceto produtos) + cor de fundo entre as do modelo.
+- [ ] **Editabilidade total (§6.1):** em TODAS as secções — textos, **cores**
+      (cartões, etiquetas, ícones), **ícones** e **botões** (texto+ícone+destino)
+      editáveis. Nada chumbado. Telefone de apoio do header editável.
 - [ ] Todos os `data-*` presentes; carrinho/pesquisa/editor a funcionar.
 - [ ] pt-PT/pt-AO em todo o texto. `var(--brand)`/`--brand-ink` nos botões.
 - [ ] `npm run build` + `npm run web:build` + `npx vitest run` verdes.
