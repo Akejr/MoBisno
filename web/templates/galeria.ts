@@ -19,7 +19,7 @@ import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
@@ -87,7 +87,7 @@ function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: Store
   if (custom?.header?.variant) return renderHeader(custom.header.variant, view, custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)" });
   const linkCls = "hover:text-gray-900 cursor-pointer transition-colors";
   const menu = `<a href="${esc(storeHomeHref(view))}" class="${linkCls}">Início</a>` +
-    `<a href="${esc(storeHomeHref(view))}#produtos" class="${linkCls}">Produtos</a>`;
+    `<a href="${esc(allProductsHref(view))}" class="${linkCls}">Produtos</a>`;
   const cats = categoriesOf(view);
   const mnav = mobileMenuParts(view, CONTAINER);
   const categoriesMenu = cats.length

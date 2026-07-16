@@ -167,6 +167,16 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
   (`sectionsModel.ts`); tokens `__all__` / `__featured__`.
 - "Ver mais": `data-load-more data-step="N"` (ligado por `sections.ts`).
 
+**Menu "Produtos" → página de todos os produtos**
+- O link **"Produtos"** do cabeçalho/rodapé usa sempre **`allProductsHref(view)`**
+  (`sectionsModel.ts`), que abre a página de listagem com **todos** os produtos
+  (`#/loja/<id>/categoria/Produtos`). Não usar `#produtos` (isso só faz scroll na
+  home). `filterForCategoryPage` trata `"Produtos"`/`"Todos"` como todos.
+- A página de categoria/listagem ganha automaticamente uma **barra de filtros**
+  (chips de categoria + ordenação) injetada por `category.ts` (`mountListingToolbar`).
+  Funciona em qualquer modelo desde que os cartões tenham **`data-edit-product`**
+  (hook padrão) e estejam numa grelha comum. Não é preciso código por modelo.
+
 **Página de produto**
 - Imagem/galeria: usar **`productGalleryHtml`** de `gallery.ts` (ver §9).
 - `data-qty` / `data-qty-dec` / `data-qty-inc` (quantidade).

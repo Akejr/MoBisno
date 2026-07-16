@@ -13,7 +13,7 @@ import { productGalleryHtml } from "./gallery.js";
 import { gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
 import { mobileMenuParts } from "./headers.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
@@ -152,7 +152,7 @@ function headerHtml(view: StoreRenderView, custom?: StoreCustomization): string 
         <div class="${CONTAINER} py-3 flex items-center gap-6">
           <nav class="flex items-center gap-2 md:gap-4 flex-wrap">
             <a href="${esc(homeHref(view))}" class="fm-head text-sm px-4 py-2 rounded-lg text-white" style="background:var(--brand,#6995B1)">Início</a>
-            <a href="${esc(homeHref(view))}#produtos" class="${linkCls} px-3 py-2" style="color:#222">Produtos</a>
+            <a href="${esc(allProductsHref(view))}" class="${linkCls} px-3 py-2" style="color:#222">Produtos</a>
             ${catsMenu}
           </nav>
         </div>
@@ -387,7 +387,7 @@ function footerHtml(view: StoreRenderView, custom?: StoreCustomization): string 
           <h5 class="fm-head text-base mb-4" style="color:#222">Loja</h5>
           <ul class="space-y-2.5 text-sm">
             <li><a href="${esc(homeHref(view))}" class="text-gray-500 hover:text-gray-900">Início</a></li>
-            <li><a href="${esc(homeHref(view))}#produtos" class="text-gray-500 hover:text-gray-900">Produtos</a></li>
+            <li><a href="${esc(allProductsHref(view))}" class="text-gray-500 hover:text-gray-900">Produtos</a></li>
           </ul>
         </div>
         <div>

@@ -6,7 +6,7 @@
  * group-hover, sem JS). Cor de marca via `var(--brand)`.
  */
 import { esc } from "../lib/dom.js";
-import { headerCategories } from "./sectionsModel.js";
+import { headerCategories, allProductsHref } from "./sectionsModel.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
 export type HeaderVariant = "classico" | "centrado" | "promo" | "transparente";
@@ -40,7 +40,7 @@ function brandHtml(view: StoreRenderView, custom?: StoreCustomization): string {
 function menuLinks(view: StoreRenderView): string {
   const cls = "hover:opacity-70 cursor-pointer transition-opacity";
   return `<a href="${esc(homeHref(view))}" class="${cls}">Início</a>` +
-    `<a href="${esc(homeHref(view))}#produtos" class="${cls}">Produtos</a>`;
+    `<a href="${esc(allProductsHref(view))}" class="${cls}">Produtos</a>`;
 }
 
 function categoriesDropdown(view: StoreRenderView): string {
@@ -77,7 +77,7 @@ export function mobileMenuParts(view: StoreRenderView, container: string): { hea
   const cats = headerCategories(view);
   const linkCls = "block px-1 py-3 text-[15px] font-medium border-b border-black/5 hover:opacity-70 transition-opacity";
   const items = `<a href="${esc(homeHref(view))}" class="${linkCls}">Início</a>` +
-    `<a href="${esc(homeHref(view))}#produtos" class="${linkCls}">Produtos</a>`;
+    `<a href="${esc(allProductsHref(view))}" class="${linkCls}">Produtos</a>`;
   const catBlock = cats.length
     ? `<p class="px-1 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Categorias</p>` +
       cats.map((c) => `<a href="${esc(categoryHref(view, c))}" class="${linkCls}">${esc(c)}</a>`).join("")

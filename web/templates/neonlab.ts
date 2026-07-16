@@ -16,7 +16,7 @@ import { productGalleryHtml } from "./gallery.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
 import { mobileMenuParts } from "./headers.js";
 import type { ContentBlock, StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
@@ -98,7 +98,7 @@ function headerHtml(view: StoreRenderView): string {
   const linkCls = "nl-body text-[13px] uppercase tracking-widest hover:text-[#e3e2e7] transition-colors";
   const links =
     `<a href="${esc(homeHref(view))}" class="nl-body text-[13px] uppercase tracking-widest pb-1 font-bold" style="color:#c8c6c5;border-bottom:2px solid var(--brand,#2E5BFF)">Início</a>` +
-    `<a href="${esc(homeHref(view))}#produtos" class="${linkCls}" style="color:#c4c7c7">Produtos</a>`;
+    `<a href="${esc(allProductsHref(view))}" class="${linkCls}" style="color:#c4c7c7">Produtos</a>`;
   const catsMenu = cats.length
     ? `<div class="relative group" data-categories-menu>
         <button type="button" class="${linkCls} flex items-center gap-0.5" style="color:#c4c7c7">Categorias <span class="material-symbols-outlined text-[16px]">expand_more</span></button>
@@ -341,7 +341,7 @@ function footerHtml(view: StoreRenderView, custom?: StoreCustomization): string 
           <h3 class="nl-label text-[12px] mb-5" style="color:#c8c6c5">Explorar</h3>
           <ul class="space-y-3 nl-body text-sm">
             <li><a href="${esc(homeHref(view))}" class="hover:text-white transition-colors" style="color:#8e9192">Início</a></li>
-            <li><a href="${esc(homeHref(view))}#produtos" class="hover:text-white transition-colors" style="color:#8e9192">Produtos</a></li>
+            <li><a href="${esc(allProductsHref(view))}" class="hover:text-white transition-colors" style="color:#8e9192">Produtos</a></li>
           </ul>
         </div>
         <div class="md:col-span-4">

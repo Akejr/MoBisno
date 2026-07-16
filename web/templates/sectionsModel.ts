@@ -39,6 +39,11 @@ function catHref(view: StoreRenderView, label: string): string {
   return `#/loja/${encodeURIComponent(identifier(view))}/categoria/${encodeURIComponent(label)}`;
 }
 
+/** Link para a página com TODOS os produtos (rótulo "Produtos"). */
+export function allProductsHref(view: StoreRenderView): string {
+  return catHref(view, ALL_LABEL);
+}
+
 /** Resolve as secções configuradas para produtos concretos. */
 export function resolveSections(view: StoreRenderView, custom?: StoreCustomization): RenderSection[] {
   const list = custom?.sections && custom.sections.length ? custom.sections : [{ category: SEC_ALL }];
@@ -53,10 +58,10 @@ export function resolveSections(view: StoreRenderView, custom?: StoreCustomizati
   });
 }
 
-/** Filtra os produtos para a página de categoria (aceita "Destaques" e "Todos"). */
+/** Filtra os produtos para a página de categoria (aceita "Destaques" e "Todos"/"Produtos"). */
 export function filterForCategoryPage(view: StoreRenderView, label: string): StoreProductView[] {
   if (label === FEATURED_LABEL) return view.products.filter((p) => p.featured);
-  if (label === "Todos") return [...view.products];
+  if (label === "Todos" || label === ALL_LABEL) return [...view.products];
   return view.products.filter((p) => (p.category ?? "") === label);
 }
 

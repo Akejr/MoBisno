@@ -13,7 +13,7 @@ import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
 import { mobileMenuParts } from "./headers.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -79,7 +79,7 @@ function headerHtml(view: StoreRenderView): string {
   const linkCls = "lx-body lx-track uppercase text-[12px] font-semibold hover:opacity-60 transition-opacity";
   const links =
     `<a href="${esc(homeHref(view))}" class="${linkCls}" style="color:#464742">Início</a>` +
-    `<a href="${esc(homeHref(view))}#produtos" class="${linkCls}" style="color:#464742">Produtos</a>`;
+    `<a href="${esc(allProductsHref(view))}" class="${linkCls}" style="color:#464742">Produtos</a>`;
   const catsMenu = cats.length
     ? `<div class="relative group" data-categories-menu>
         <button type="button" class="lx-body lx-track uppercase text-[12px] font-semibold flex items-center gap-0.5 hover:opacity-60 transition-opacity" style="color:#464742">Categorias <span class="material-symbols-outlined text-[16px]">expand_more</span></button>
