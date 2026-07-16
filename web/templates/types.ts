@@ -164,6 +164,25 @@ export interface StoreCustomization {
   /** Cor de fundo da secção de produtos (padrão branco em modelos que a suportam). */
   productsBg?: string;
 
+  /**
+   * Logótipos gerados por IA e guardados pelo dono ("Meus logótipos" no painel).
+   * URLs de PNG com fundo transparente no object storage.
+   */
+  logos?: string[];
+
+  /** Ícone (Material Symbols) escolhido para cada categoria (modelos com grelha de categorias). */
+  categoryIcons?: Record<string, string>;
+
+  /** Definições específicas do modelo "FoodMart" (mercearia). */
+  foodmart?: {
+    /** Slides do banner principal (o cliente pode adicionar/remover). */
+    banners?: { tag?: string; title?: string; subtitle?: string; ctaLabel?: string; ctaTarget?: string; imageUrl?: string }[];
+    /** Dois blocos de anúncio ao lado do banner principal. */
+    ads?: { tag?: string; title?: string; ctaTarget?: string; imageUrl?: string; bg?: string }[];
+    /** Faixa promocional (secção de desconto). */
+    promo?: { title?: string; text?: string; enabled?: boolean };
+  };
+
   /** Definições específicas do modelo Lumière Chic. */
   lumiere?: {
     /** Título da secção do mapa/lojas. */

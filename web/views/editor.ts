@@ -39,6 +39,7 @@ import { openMapPicker } from "../lib/mapPicker.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
 import { mountTestimonials } from "../lib/testimonialsCarousel.js";
+import { mountFoodmartCarousels } from "../lib/foodmartCarousel.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
@@ -46,6 +47,18 @@ import { openProductForm } from "../lib/productForm.js";
 import { openWhatsappForm } from "../lib/whatsappForm.js";
 
 const ACCENT = "#F95901";
+
+/** Galeria alargada de ícones para categorias (Material Symbols). */
+const FM_CATEGORY_ICONS = [
+  "nutrition", "grocery", "bakery_dining", "local_bar", "wine_bar", "liquor",
+  "egg", "egg_alt", "icecream", "cake", "local_pizza", "lunch_dining",
+  "ramen_dining", "restaurant", "coffee", "emoji_food_beverage", "local_cafe", "water_drop",
+  "kitchen", "blender", "set_meal", "kebab_dining", "rice_bowl", "bento",
+  "fastfood", "local_drink", "sports_bar", "tapas", "soup_kitchen", "dinner_dining",
+  "spa", "eco", "agriculture", "park", "yard", "grass",
+  "pets", "cruelty_free", "medication", "cleaning_services", "soap", "sanitizer",
+  "shopping_basket", "shopping_cart", "storefront", "redeem", "checkroom", "toys",
+];
 
 /** Ícones predefinidos para as garantias da página de produto. */
 const PERK_ICON_CHOICES = [
@@ -669,6 +682,34 @@ export async function renderEditor(): Promise<void> {
       prodBgHost.appendChild(pop);
     }
 
+    // FoodMart: escolher o ícone de cada categoria (galeria de ícones).
+    preview.querySelectorAll<HTMLElement>("[data-fm-cat]").forEach((cell) => {
+      const cat = cell.dataset.fmCat!;
+      cell.style.position = cell.style.position || "relative";
+      const cur = custom.categoryIcons?.[cat] ?? "";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.title = "Escolher ícone";
+      btn.className = "mb-ov-btn absolute top-2 right-2 z-20 w-7 h-7 rounded-full bg-white shadow border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900";
+      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit</span>`;
+      const pop = document.createElement("div");
+      pop.className = "mb-ov-btn absolute z-30 hidden top-10 right-2 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 grid grid-cols-6 gap-1 w-64 max-h-64 overflow-y-auto";
+      pop.innerHTML = FM_CATEGORY_ICONS
+        .map((ic) => `<button type="button" data-ic="${ic}" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-neutral-100 ${ic === cur ? "ring-2 ring-[#F95901]" : ""}" style="color:#333"><span class="material-symbols-outlined text-[20px]">${ic}</span></button>`)
+        .join("");
+      btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
+      pop.querySelectorAll<HTMLElement>("[data-ic]").forEach((b) =>
+        b.addEventListener("click", (e) => {
+          e.preventDefault();
+          snapshot();
+          if (!custom.categoryIcons) custom.categoryIcons = {};
+          custom.categoryIcons[cat] = b.dataset.ic!;
+          void rebuild();
+        }));
+      cell.appendChild(btn);
+      cell.appendChild(pop);
+    });
+
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
     const footerLogo = preview.querySelector<HTMLElement>("[data-edit-footer-logo]");
     if (footerLogo) {
@@ -994,6 +1035,7 @@ export async function renderEditor(): Promise<void> {
     mountTestimonials(preview);
     mountTestimonialEditor(preview);
     mountLumiereSections(preview);
+    mountFoodmartCarousels(preview);
     if (previewOpen) renderPreviewDrawer(view);
   }
 

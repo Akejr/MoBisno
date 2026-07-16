@@ -232,6 +232,41 @@ const NEONLAB_PRODUCTS: DemoProductInput[] = [
   { name: "Titan Grid", price: 2100000, category: "Colunas", featured: true, description: "Coluna de estúdio com grelha de titânio.", imageUrl: "https://images.unsplash.com/photo-1545454675-3531b543be5d?q=80&w=600" },
 ];
 
+/** Customização base do modelo "FoodMart" (mercearia). */
+function foodmartBase(): StoreCustomization {
+  return {
+    colors: { primary: "#6995B1" },
+    foodmart: {
+      banners: [
+        { tag: "100% natural", title: "Sumos & Smoothies Frescos", subtitle: "Feitos com fruta selecionada, entregues à sua porta em Luanda.", ctaLabel: "Comprar agora", imageUrl: "https://images.unsplash.com/photo-1622597467836-f3285f2131b8?q=80&w=800" },
+        { tag: "Novidade", title: "Mercearia fresca todos os dias", subtitle: "Os melhores produtos, ao melhor preço.", ctaLabel: "Ver coleção", imageUrl: "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=800" },
+      ],
+      ads: [
+        { tag: "20% desconto", title: "Frutas & Vegetais", imageUrl: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=600", bg: "#eaf5ea" },
+        { tag: "15% desconto", title: "Pães & Padaria", imageUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600", bg: "#fdeaea" },
+      ],
+      promo: { enabled: true, title: "25% de desconto na primeira compra", text: "Subscreva a nossa newsletter e receba as melhores ofertas de mercearia, todas as semanas." },
+    },
+    footer: {
+      about: "A sua mercearia online em Angola. Produtos frescos, entrega rápida e os melhores preços.",
+      location: "Luanda, Angola",
+    },
+  };
+}
+
+const FOODMART_PRODUCTS: DemoProductInput[] = [
+  { name: "Bananas frescas", price: 900, category: "Frutas & Vegetais", featured: true, description: "Cacho de bananas maduras.", imageUrl: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?q=80&w=600" },
+  { name: "Tomate maduro", price: 750, category: "Frutas & Vegetais", description: "Tomate fresco para saladas e molhos.", imageUrl: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?q=80&w=600" },
+  { name: "Sumo de laranja natural", price: 1800, category: "Bebidas", featured: true, description: "Sumo de laranja 100% natural, 1L.", imageUrl: "https://images.unsplash.com/photo-1600271886742-f049cd451bba?q=80&w=600" },
+  { name: "Leite meio-gordo", price: 1200, category: "Mercearia", description: "Leite fresco, 1L.", imageUrl: "https://images.unsplash.com/photo-1550583724-b2692b85b150?q=80&w=600" },
+  { name: "Pão artesanal", price: 650, category: "Padaria", description: "Pão acabado de fazer.", imageUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=600" },
+  { name: "Bolachas integrais", price: 1100, category: "Mercearia", description: "Bolachas integrais, pacote 200g.", imageUrl: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?q=80&w=600" },
+  { name: "Mel puro", price: 3500, category: "Mercearia", featured: true, description: "Mel natural, frasco 500g.", imageUrl: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?q=80&w=600" },
+  { name: "Água mineral 1,5L", price: 400, category: "Bebidas", description: "Água mineral natural.", imageUrl: "https://images.unsplash.com/photo-1560023907-5f339617ea30?q=80&w=600" },
+  { name: "Abacate", price: 950, category: "Frutas & Vegetais", description: "Abacate cremoso e maduro.", imageUrl: "https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?q=80&w=600" },
+  { name: "Ketchup", price: 1400, category: "Mercearia", description: "Molho de tomate ketchup, 400g.", imageUrl: "https://images.unsplash.com/photo-1613919113640-25732ec5e61f?q=80&w=600" },
+];
+
 /** Modelos de fábrica que o admin pode importar como lojas-modelo editáveis. */
 export interface FactoryModel { name: string; description: string; templateId: string; base: StoreCustomization; products: DemoProductInput[]; }
 
@@ -259,6 +294,7 @@ export function defaultFactoryModels(): FactoryModel[] {
   if (vermelho) out.push({ name: vermelho.name, description: vermelho.description, templateId: "galeria", base: vermelho.customization, products: VERMELHO_PRODUCTS });
   out.push({ name: "Lumière Chic", description: "Luxo minimalista para beleza e cosmética — tipografia editorial e tons creme.", templateId: "lumiere", base: lumiereBase(), products: LUMIERE_PRODUCTS });
   out.push({ name: "Neon Lab", description: "Techno-luxury escuro para eletrónica e áudio premium — Sora + Geist, vidro e acento cobalto.", templateId: "neonlab", base: neonlabBase(), products: NEONLAB_PRODUCTS });
+  out.push({ name: "FoodMart", description: "Mercearia/supermercado online — banners, categorias e produtos com carrosséis animados.", templateId: "foodmart", base: foodmartBase(), products: FOODMART_PRODUCTS });
   return out;
 }
 

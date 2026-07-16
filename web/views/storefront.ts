@@ -10,6 +10,7 @@ import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
 import { mountTestimonials } from "../lib/testimonialsCarousel.js";
+import { mountFoodmartCarousels, mountFoodmartSearch } from "../lib/foodmartCarousel.js";
 import { publicStoreUrl } from "../composition.js";
 import { applySeo } from "../lib/seo.js";
 import { storeTitle, storeDescription, storeJsonLd } from "../../src/services/seo.js";
@@ -43,6 +44,8 @@ export async function renderStorefront(identifier: string): Promise<void> {
   fadeInImages(app);
   mountParticlesHeroes(app);
   mountTestimonials(app);
+  mountFoodmartCarousels(app);
+  mountFoodmartSearch(app);
   if (result.kind === "render") updateCartBadge(result.store.id);
 
   // SEO da loja (foco na loja, não na MôBisno).

@@ -36,6 +36,20 @@ function ensureCartDarkStyle(): void {
   document.head.appendChild(st);
 }
 
+/** Tema claro do mini-carrinho para o modelo FoodMart (Nunito + cantos redondos). */
+function ensureCartFmStyle(): void {
+  if (document.getElementById("mb-cart-fm-style")) return;
+  const st = document.createElement("style");
+  st.id = "mb-cart-fm-style";
+  st.textContent = `
+    #mb-cart-drawer.fm-theme [data-panel]{font-family:'Open Sans',sans-serif}
+    #mb-cart-drawer.fm-theme h3,#mb-cart-drawer.fm-theme [data-foot] a[data-go],#mb-cart-drawer.fm-theme [data-foot] button,#mb-cart-drawer.fm-theme .font-medium{font-family:'Nunito',sans-serif}
+    #mb-cart-drawer.fm-theme [data-foot] a[data-go],#mb-cart-drawer.fm-theme [data-foot] button[data-checkout]{border-radius:9999px !important;font-weight:800}
+    #mb-cart-drawer.fm-theme [data-row] img,#mb-cart-drawer.fm-theme [data-row] .bg-neutral-100{border-radius:.9rem !important}
+  `;
+  document.head.appendChild(st);
+}
+
 /** Extrai o identificador da loja a partir de um href `#/loja/<id>/carrinho`. */
 function identifierFromHref(href: string): string | null {
   const m = href.match(/#\/loja\/([^/]+)\/carrinho/);
@@ -102,6 +116,7 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   applyTheme(host, custom);
   applyIconColor(host, custom);
   if (darkTheme) { ensureCartDarkStyle(); host.classList.add("nl-dark"); }
+  if (templateId === "foodmart") { ensureCartFmStyle(); host.classList.add("fm-theme"); }
 
   const overlay = host.querySelector<HTMLElement>("[data-overlay]")!;
   const panel = host.querySelector<HTMLElement>("[data-panel]")!;

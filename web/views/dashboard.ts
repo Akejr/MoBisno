@@ -12,6 +12,8 @@ import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
+import { generateLogos, dataUrlToUint8Array } from "../lib/logoApi.js";
+import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
 import { openSmsCheckout } from "../lib/smsCheckout.js";
@@ -101,6 +103,7 @@ export async function renderDashboard(): Promise<void> {
         <nav class="flex flex-col gap-1 px-2">
           ${navItem("#/painel", "home", "Início", tab === "inicio")}
           ${navItem("#/painel/produtos", "inventory_2", "Produtos", tab === "produtos")}
+          ${navItem("#/painel/logotipo", "auto_awesome", "Criar logótipo", tab === "logotipo")}
           ${navItem("#/painel/analises", "monitoring", "Análises", tab === "analises")}
           ${navItem("#/painel/pagamentos", "payments", "Pagamentos", tab === "pagamentos")}
           ${navItem("#/painel/plano", "workspace_premium", "Plano", tab === "plano")}
@@ -114,7 +117,7 @@ export async function renderDashboard(): Promise<void> {
 
       <div class="flex-1 min-w-0 flex flex-col">
         <header class="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-8 py-3">
-          <h2 class="text-xl font-black tracking-tight capitalize">${tab === "inicio" ? "Início" : tab === "config" ? "Configurações" : tab === "plano" ? "Plano" : tab === "analises" ? "Análises" : esc(tab)}</h2>
+          <h2 class="text-xl font-black tracking-tight capitalize">${tab === "inicio" ? "Início" : tab === "config" ? "Configurações" : tab === "plano" ? "Plano" : tab === "analises" ? "Análises" : tab === "logotipo" ? "Criar logótipo" : esc(tab)}</h2>
           <div class="flex items-center gap-2 shrink-0">
             <a href="#/personalizar" class="text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">palette</span><span class="hidden sm:inline">Personalizar loja</span></a>
             <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="text-gray-500 hover:text-gray-900 text-sm font-semibold flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
@@ -137,6 +140,7 @@ export async function renderDashboard(): Promise<void> {
   }
 
   if (tab === "produtos") { await renderProdutos(); return; }
+  if (tab === "logotipo") { await renderLogotipo(); return; }
   if (tab === "analises") { await renderAnalises(); return; }
   if (tab === "plano") { await renderPlano(); return; }
   if (tab === "pagamentos") { await renderPagamentos(); return; }
@@ -555,6 +559,117 @@ export async function renderDashboard(): Promise<void> {
       await saveCustomization(ownerId, store!.id, mirrored);
       if (okSave) { toast("Pagamentos online guardados."); await renderPagamentos(); }
       else toast("Não foi possível guardar.", "error");
+    });
+  }
+
+  async function renderLogotipo(): Promise<void> {
+    const custom = await getCustomization(store!.id);
+    const logos = Array.isArray(custom.logos) ? custom.logos : [];
+    // Fundo axadrezado para evidenciar a transparência do PNG.
+    const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:18px 18px;background-position:0 0,0 9px,9px -9px,-9px 0;background-color:#fff;";
+
+    render(shell(`
+      <section class="mb-6">
+        <h3 class="text-2xl md:text-3xl font-black tracking-tight">Criar logótipo</h3>
+        <p class="text-gray-500 mt-1 max-w-2xl">Descreva o seu negócio e a IA cria <strong>duas variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir e ela fica guardada em "Meus logótipos".</p>
+      </section>
+
+      <section class="bg-white border border-gray-200 rounded-3xl p-6 md:p-7 mb-8">
+        <label class="block text-sm font-bold text-gray-800 mb-2" for="logo-desc">Descrição do logótipo</label>
+        <textarea id="logo-desc" rows="4" maxlength="1000" placeholder="Ex.: Loja de doces artesanais chamada 'Doce Mel', tons de rosa e dourado, com um favo de mel e uma abelha simpática." class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#F95901] resize-y"></textarea>
+        <div class="flex items-center justify-between gap-3 mt-3 flex-wrap">
+          <p class="text-xs text-gray-400">Quanto mais detalhes (cores, símbolo, estilo, nome), melhor o resultado.</p>
+          <button id="logo-gen" class="text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar 2 variações</button>
+        </div>
+        <div id="logo-results" class="mt-6"></div>
+      </section>
+
+      <section class="mb-4">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <h4 class="text-lg font-black text-gray-900">Meus logótipos</h4>
+          <span class="text-sm text-gray-400">${logos.length} guardado(s)</span>
+        </div>
+        <div id="my-logos">
+          ${logos.length
+            ? `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                 ${logos.map((url, i) => `
+                   <div class="group relative rounded-2xl border border-gray-200 overflow-hidden">
+                     <div class="aspect-square flex items-center justify-center p-4" style="${checker}">
+                       <img src="${esc(url)}" alt="Logótipo ${i + 1}" class="max-w-full max-h-full object-contain" />
+                     </div>
+                     <div class="flex border-t border-gray-100">
+                       <a href="${esc(url)}" download="logotipo-${i + 1}.png" target="_blank" rel="noopener" class="flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"><span class="material-symbols-outlined text-[16px]">download</span> Descarregar</a>
+                       <button data-logo-remove="${i}" class="flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 border-l border-gray-100 transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span> Remover</button>
+                     </div>
+                   </div>`).join("")}
+               </div>`
+            : `<div class="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center text-gray-400 text-sm">Ainda não guardou nenhum logótipo. Gere e escolha uma variação acima.</div>`}
+        </div>
+      </section>`));
+    bindShell();
+
+    const descEl = $("#logo-desc") as HTMLTextAreaElement | null;
+    const resultsEl = $("#logo-results");
+
+    function renderVariations(dataUrls: string[]): void {
+      if (!resultsEl) return;
+      resultsEl.innerHTML = `
+        <div class="border-t border-gray-100 pt-6">
+          <p class="text-sm font-bold text-gray-800 mb-4">Escolha a variação que prefere:</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            ${dataUrls.map((src, i) => `
+              <div class="rounded-2xl border border-gray-200 overflow-hidden">
+                <div class="aspect-square flex items-center justify-center p-6" style="${checker}">
+                  <img src="${src}" alt="Variação ${i + 1}" class="max-w-full max-h-full object-contain" />
+                </div>
+                <button data-logo-pick="${i}" class="w-full py-3 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher esta</button>
+              </div>`).join("")}
+          </div>
+        </div>`;
+      resultsEl.querySelectorAll<HTMLButtonElement>("[data-logo-pick]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const idx = Number(btn.dataset.logoPick);
+          const src = dataUrls[idx];
+          if (!src) return;
+          await withButton(btn, async () => {
+            const content = dataUrlToUint8Array(src);
+            const validation = panel.services.fileService.validate({ content, fileName: "logotipo.png" }, LOGO_POLICY);
+            if (!validation.ok) { toast(validation.error.message, "error"); return; }
+            const stored = await panel.services.fileService.store(store!.id, "logo", validation.value);
+            const fresh = await getCustomization(store!.id);
+            const next = { ...fresh, logos: [...(Array.isArray(fresh.logos) ? fresh.logos : []), stored.url] };
+            const okSave = await saveCustomization(ownerId, store!.id, next);
+            if (okSave) { toast("Logótipo guardado em \"Meus logótipos\"."); await renderLogotipo(); }
+            else toast("Não foi possível guardar o logótipo.", "error");
+          }, "A guardar…");
+        });
+      });
+    }
+
+    $("#logo-gen")?.addEventListener("click", async () => {
+      const desc = (descEl?.value ?? "").trim();
+      if (desc.length < 6) { toast("Escreva uma descrição do logótipo primeiro.", "error"); descEl?.focus(); return; }
+      await withButton($("#logo-gen") as HTMLButtonElement, async () => {
+        const images = await generateLogos(desc);
+        if (!images.length) {
+          toast("Não foi possível gerar os logótipos. Tenta de novo dentro de instantes.", "error");
+          return;
+        }
+        renderVariations(images);
+      }, "A gerar…");
+    });
+
+    $("#my-logos")?.querySelectorAll<HTMLButtonElement>("[data-logo-remove]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const idx = Number(btn.dataset.logoRemove);
+        if (!confirm("Remover este logótipo dos guardados?")) return;
+        const fresh = await getCustomization(store!.id);
+        const arr = Array.isArray(fresh.logos) ? [...fresh.logos] : [];
+        arr.splice(idx, 1);
+        const okSave = await saveCustomization(ownerId, store!.id, { ...fresh, logos: arr });
+        if (okSave) { toast("Logótipo removido."); await renderLogotipo(); }
+        else toast("Não foi possível remover.", "error");
+      });
     });
   }
 

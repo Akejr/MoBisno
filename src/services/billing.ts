@@ -97,6 +97,8 @@ export function resolveBilling(input: BillingInput, now: number = Date.now()): B
   let paidExpiresAt: string | null = null;
   let transition: BillingTransition | null = null;
 
+  let permanent = false;
+
   if (Number.isFinite(expMs) && expMs > now) {
     paidPlan = stored;
     paidExpiresAt = new Date(expMs).toISOString();
@@ -110,8 +112,18 @@ export function resolveBilling(input: BillingInput, now: number = Date.now()): B
     }
   }
 
+  const timedActive = paidPlan !== null;
+  const inTrial = !timedActive && Number.isFinite(trialMs) && trialMs > now;
+
+  // Atribuição PERMANENTE: plano pago SEM data de expiração (ex.: concedido pelo
+  // administrador) e sem teste ativo → nunca expira. Mantém-se ativo.
+  if (!timedActive && !inTrial && stored !== "basico" && !Number.isFinite(expMs)) {
+    paidPlan = stored;
+    paidExpiresAt = null;
+    permanent = true;
+  }
+
   const paidActive = paidPlan !== null;
-  const inTrial = !paidActive && Number.isFinite(trialMs) && trialMs > now;
   const accessActive = isAdmin || paidActive || inTrial;
 
   const trialDaysRemaining = inTrial ? daysUntil(trialMs, now) : null;
@@ -125,7 +137,7 @@ export function resolveBilling(input: BillingInput, now: number = Date.now()): B
     nextPlan: next,
     daysRemaining,
     expired: !paidActive && !inTrial && stored !== "basico",
-    permanent: false,
+    permanent,
     inTrial,
     trialDaysRemaining,
     accessActive,
