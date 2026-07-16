@@ -200,6 +200,20 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
 
 ---
 
+## 6.0.1 Compra de logótipo por IA (5.000 Kz)
+
+O wizard oferece criar um logótipo por IA no fim da criação da loja (pergunta se
+já tem logo → oferece gerar 5 propostas → escolhe → paga MCX/Referência). O
+cumprimento é no servidor:
+- Tabela `logo_purchases` (migração `0018_logo_purchases.sql` — aplicar no Supabase).
+- `api/payment.js` aceita `kind:"logo"` (5.000 Kz) e guarda `logo_url` (já carregado
+  para o storage no cliente antes do pagamento).
+- Quando o pagamento confirma (inline no MCX, ou via `webhook.js`/`payment-status.js`
+  na Referência), `fulfillLogo` (em `_shared.js`) acrescenta o `logo_url` a
+  `stores.customization.logos` → aparece em "Criar logótipo → Meus logótipos".
+- As compras entram nas **Transações** do admin (`listServiceTransactions`, serviço
+  `logo`) e podem ser apagadas pelo botão de lixo (`adminDeleteServiceTransaction`).
+
 ## 6.1 Editabilidade TOTAL — obrigatória em TODAS as secções
 
 > Regra de ouro nº7. Ao criar/rever um modelo, **percorre cada secção** (hero,

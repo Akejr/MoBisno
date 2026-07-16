@@ -20,7 +20,7 @@
 import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
-  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, bumpDiscountUse,
+  mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, fulfillLogo, bumpDiscountUse,
   effectivePlanId, planAllowsOnline, checkStock, decrementStock,
 } from "./_shared.js";
 
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   let body;
   try { body = await readBody(req); } catch { return send(res, 400, { success: false, error: "Corpo inválido." }); }
 
-  const kind = body.kind === "plan" ? "plan" : body.kind === "sms" ? "sms" : "store";
+  const kind = body.kind === "plan" ? "plan" : body.kind === "sms" ? "sms" : body.kind === "logo" ? "logo" : "store";
   const method = body.method === "mcx" ? "mcx" : body.method === "reference" ? "reference" : null;
   if (!method) return send(res, 400, { success: false, error: "Método inválido.", code: "INVALID_METHOD" });
 
@@ -76,9 +76,12 @@ export default async function handler(req, res) {
     if (outName) {
       return send(res, 400, { success: false, error: `Sem stock suficiente para "${outName}".`, code: "OUT_OF_STOCK" });
     }
-  } else if (kind === "sms") {
+  } else if (kind === "sms" || kind === "logo") {
     storeId = String(body.storeId || "");
     if (!storeId) return send(res, 400, { success: false, error: "Loja não identificada.", code: "MISSING_STORE" });
+    if (kind === "logo" && !String(body.logoUrl || "").trim()) {
+      return send(res, 400, { success: false, error: "Logótipo não identificado.", code: "MISSING_LOGO" });
+    }
   }
 
   // Aplicar código de desconto (só em encomendas de loja). Escala os preços dos
@@ -186,6 +189,20 @@ export default async function handler(req, res) {
         await creditSms(db, storeId, quantity);
         if (orderId) await db.from("sms_purchases").update({ credited: true }).eq("id", orderId);
       }
+    } else if (kind === "logo") {
+      const ins = await db.from("logo_purchases").insert({
+        store_id: storeId,
+        owner_id: String(body.ownerId || ""),
+        logo_url: String(body.logoUrl || ""),
+        amount, method, status,
+        merchant_transaction_id: d.transactionId || null,
+        operation_id: d.operationId || null,
+        fulfilled: false,
+        paid_at: status === "paid" ? nowIso : null,
+      }).select("id").maybeSingle();
+      orderId = ins.data?.id || null;
+      // MCX pago → entregar o logótipo de imediato.
+      if (status === "paid" && orderId) await fulfillLogo(db, orderId);
     } else {
       const ins = await db.from("orders").insert({
         store_id: storeId,

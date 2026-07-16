@@ -199,7 +199,7 @@ export async function listAllWithdrawals(): Promise<AdminWithdrawal[]> {
 /** Transação de um serviço da plataforma (plano ou pacote de SMS). */
 export interface AdminServiceTx {
   id: string;
-  service: "plan" | "sms";
+  service: "plan" | "sms" | "logo";
   description: string;
   ownerId: string;
   ownerEmail: string;
@@ -223,9 +223,10 @@ function txStatus(status: string, method: string, dueDate: string | null): Admin
 
 /** Lista as transações de serviços (planos + SMS), mais recentes primeiro. */
 export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
-  const [{ data: plans }, { data: sms }, { data: stores }, pm] = await Promise.all([
+  const [{ data: plans }, { data: sms }, { data: logos }, { data: stores }, pm] = await Promise.all([
     supabase.from("plan_payments").select("id, owner_id, plan, amount, method, status, reference_due_date, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("sms_purchases").select("id, owner_id, store_id, quantity, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
+    supabase.from("logo_purchases").select("id, owner_id, store_id, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("stores").select("id, name"),
     profilesMap(),
   ]);
@@ -267,7 +268,22 @@ export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
     paidAt: r.paid_at ?? null,
   }));
 
-  return [...planTx, ...smsTx].sort(
+  const logoTx: AdminServiceTx[] = (logos ?? []).map((r) => ({
+    id: String(r.id),
+    service: "logo",
+    description: "Criação de logótipo",
+    ownerId: r.owner_id,
+    ownerEmail: pm.get(r.owner_id)?.email ?? "",
+    ownerName: pm.get(r.owner_id)?.name ?? "",
+    storeName: storeNames.get(r.store_id) ?? null,
+    amount: Number(r.amount),
+    method: r.method,
+    status: (r.status as AdminServiceTx["status"]) ?? "open",
+    createdAt: r.created_at,
+    paidAt: r.paid_at ?? null,
+  }));
+
+  return [...planTx, ...smsTx, ...logoTx].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 }
@@ -310,6 +326,7 @@ export async function adminProcessWithdrawal(id: string, status: "approved" | "p
 const TX_TABLE: Record<AdminServiceTx["service"], string> = {
   plan: "plan_payments",
   sms: "sms_purchases",
+  logo: "logo_purchases",
 };
 
 /**

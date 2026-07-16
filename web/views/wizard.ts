@@ -8,7 +8,10 @@
  * authService, wizardFlow, identifierService).
  */
 import { render, $, go, esc } from "../lib/dom.js";
-import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores, STORE_APEX } from "../composition.js";
+import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores, adminPanelFor, STORE_APEX } from "../composition.js";
+import { generateLogos, dataUrlToUint8Array } from "../lib/logoApi.js";
+import { openLogoCheckout, LOGO_PRICE_KZ } from "../lib/logoPurchase.js";
+import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
@@ -543,8 +546,122 @@ function createStore(): void {
     }
 
     await botSay("Está tudo feito! ✨ A tua loja foi criada e publicada, e já ficou pronta para aparecer nas pesquisas do Google.");
-    goToModels();
+    askLogo(result.store.ownerId, result.store.id);
   })();
+}
+
+/* ------------------------------ Logótipo ------------------------------ */
+
+/** Pergunta se o dono já tem logótipo; se não, oferece criar por IA (pago). */
+function askLogo(ownerId: string, storeId: string): void {
+  void (async () => {
+    await botSay("Antes de escolheres o modelo: já tens um logótipo para a tua loja?");
+    inputChips(
+      [
+        { value: "sim", label: "Sim, já tenho" },
+        { value: "nao", label: "Ainda não tenho" },
+      ],
+      async (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "sim") {
+          await botSay("Perfeito! Podes carregá-lo a qualquer momento no editor da loja. 👍");
+          goToModels();
+        } else {
+          offerLogo(ownerId, storeId);
+        }
+      },
+    );
+  })();
+}
+
+/** Oferece gerar 5 propostas de logótipo por IA (custo 5.000 Kz). */
+function offerLogo(ownerId: string, storeId: string): void {
+  void (async () => {
+    await botSay(`Queres que eu crie um logótipo profissional agora, com IA? Gero 5 propostas e ficas com a que escolheres — por ${LOGO_PRICE_KZ.toLocaleString("pt-PT")} Kz.`);
+    inputChips(
+      [
+        { value: "sim", label: "✨ Sim, criar logótipo" },
+        { value: "nao", label: "Agora não" },
+      ],
+      async (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "sim") generateWizardLogos(ownerId, storeId);
+        else {
+          await botSay("Sem problema! Podes criá-lo mais tarde no painel, em \"Criar logótipo\". 🙂");
+          goToModels();
+        }
+      },
+    );
+  })();
+}
+
+/** Gera 5 propostas e mostra-as no chat para o dono escolher. */
+function generateWizardLogos(ownerId: string, storeId: string): void {
+  void (async () => {
+    inputBusy("A criar 5 propostas de logótipo…");
+    const storeName = String(wiz.data[WIZARD_FIELDS.name] ?? "A minha loja");
+    const about = String(wiz.data.aboutStore ?? "");
+    const images = await generateLogos(`${storeName}. ${about}`.trim());
+    clearInput();
+    if (!images.length) {
+      await botSay("Não consegui criar os logótipos agora. Não faz mal — podes tentar mais tarde no painel, em \"Criar logótipo\".");
+      goToModels();
+      return;
+    }
+    await botSay("Aqui estão 5 propostas. Escolhe a tua preferida:");
+    showLogoOptions(images, ownerId, storeId);
+  })();
+}
+
+/** Mostra as 5 propostas num cartão do chat, com botão "Escolher" em cada. */
+function showLogoOptions(images: string[], ownerId: string, storeId: string): void {
+  const row = document.createElement("div");
+  row.className = "flex items-end gap-2";
+  const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0;background-color:#fff;";
+  const cells = images.map((src, i) => `
+    <div class="rounded-xl border border-gray-200 overflow-hidden bg-white">
+      <div class="aspect-square flex items-center justify-center p-2" style="${checker}"><img src="${src}" alt="Proposta ${i + 1}" class="max-w-full max-h-full object-contain" oncontextmenu="return false" draggable="false" /></div>
+      <button data-wlogo-pick="${i}" class="w-full py-2 text-xs font-bold text-white hover:opacity-95 transition-opacity" style="background:${ACCENT}">Escolher</button>
+    </div>`).join("");
+  row.innerHTML = `${botAvatar()}<div class="mb-bubble bg-white border border-gray-100 rounded-2xl rounded-bl-md p-3 shadow-sm" style="max-width:96%"><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cells}</div></div>`;
+  $("#chat")!.appendChild(row);
+  scrollDown();
+  row.querySelectorAll<HTMLElement>("[data-wlogo-pick]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const src = images[Number(b.dataset.wlogoPick)];
+      if (src) void pickWizardLogo(src, ownerId, storeId);
+    }));
+}
+
+/** Carrega o logótipo escolhido, inicia o pagamento e continua a conversa. */
+async function pickWizardLogo(dataUrl: string, ownerId: string, storeId: string): Promise<void> {
+  userSay("Escolhi este logótipo. ✨");
+  inputBusy("A preparar o teu logótipo…");
+  let logoUrl = "";
+  try {
+    const content = dataUrlToUint8Array(dataUrl);
+    const fileService = adminPanelFor(storeId).services.fileService;
+    const validation = fileService.validate({ content, fileName: "logotipo.png" }, LOGO_POLICY);
+    if (!validation.ok) {
+      clearInput();
+      await botSay("Não consegui preparar esse logótipo. Podes tentar outro mais tarde no painel.");
+      goToModels();
+      return;
+    }
+    const stored = await fileService.store(storeId, "logo", validation.value);
+    logoUrl = stored.url;
+  } catch {
+    clearInput();
+    await botSay("Houve um problema a preparar o logótipo. Podes tentar mais tarde no painel.");
+    goToModels();
+    return;
+  }
+  clearInput();
+  await botSay(`Boa escolha! Só falta o pagamento de ${LOGO_PRICE_KZ.toLocaleString("pt-PT")} Kz. Vou abrir o pagamento — assim que for processado, o teu logótipo aparece em "Criar logótipo › Meus logótipos".`);
+  openLogoCheckout({ ownerId, storeId, logoUrl });
+  goToModels();
 }
 
 /** Leva o dono à galeria de modelos prontos (por agora só usamos modelos). */

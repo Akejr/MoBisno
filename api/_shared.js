@@ -167,6 +167,27 @@ export async function creditSms(db, storeId, quantity) {
   await db.from("stores").update({ sms_credits: cur + qty }).eq("id", storeId);
 }
 
+/**
+ * Cumpre uma compra de logótipo: acrescenta o `logo_url` a
+ * `stores.customization.logos` e marca a compra como cumprida (idempotente).
+ */
+export async function fulfillLogo(db, purchaseId) {
+  if (!purchaseId) return;
+  const { data: lp } = await db
+    .from("logo_purchases")
+    .select("id, store_id, logo_url, fulfilled")
+    .eq("id", purchaseId)
+    .maybeSingle();
+  if (!lp || lp.fulfilled || !lp.store_id || !lp.logo_url) return;
+  const { data: st } = await db.from("stores").select("customization").eq("id", lp.store_id).maybeSingle();
+  const custom = (st && st.customization && typeof st.customization === "object") ? st.customization : {};
+  const logos = Array.isArray(custom.logos) ? custom.logos.slice() : [];
+  if (!logos.includes(lp.logo_url)) logos.push(lp.logo_url);
+  custom.logos = logos;
+  await db.from("stores").update({ customization: custom }).eq("id", lp.store_id);
+  await db.from("logo_purchases").update({ fulfilled: true }).eq("id", lp.id);
+}
+
 /** Incrementa os usos de um código de desconto. */
 export async function bumpDiscountUse(db, discountCodeId) {
   if (!discountCodeId) return;

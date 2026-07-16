@@ -7,7 +7,7 @@
  *   (para planos use ownerId em vez de storeId)
  */
 
-import { admin, momenu, send, mapStatusString, PLATFORM_API_KEY, activatePlan, creditSms, decrementStock } from "./_shared.js";
+import { admin, momenu, send, mapStatusString, PLATFORM_API_KEY, activatePlan, creditSms, fulfillLogo, decrementStock } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return send(res, 405, { success: false, error: "Método não permitido." });
@@ -65,6 +65,14 @@ export default async function handler(req, res) {
             await creditSms(db, sp.store_id, sp.quantity);
             await db.from("sms_purchases").update({ credited: true }).eq("id", sp.id);
           }
+        }
+        // Compra de logótipo (a tabela não tem invoice_url).
+        const logoPatch = { status };
+        if (status === "paid") logoPatch.paid_at = nowIso;
+        const { data: lp } = await db.from("logo_purchases").select("id, fulfilled").eq("operation_id", operationId).maybeSingle();
+        if (lp) {
+          await db.from("logo_purchases").update(logoPatch).eq("id", lp.id);
+          if (status === "paid" && !lp.fulfilled) await fulfillLogo(db, lp.id);
         }
       }
     }

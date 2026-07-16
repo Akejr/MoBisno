@@ -6,12 +6,14 @@
 import type { PaymentProduct, PaymentCustomer } from "../../src/services/payments.js";
 
 export interface InitPaymentInput {
-  kind?: "store" | "plan" | "sms";
+  kind?: "store" | "plan" | "sms" | "logo";
   storeId?: string;
   ownerId?: string;
   plan?: string;
   /** Quantidade de mensagens, quando kind="sms". */
   smsQuantity?: number;
+  /** URL do logótipo escolhido (já carregado), quando kind="logo". */
+  logoUrl?: string;
   method: "mcx" | "reference";
   products: PaymentProduct[];
   amount?: number;

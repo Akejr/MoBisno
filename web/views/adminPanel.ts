@@ -755,6 +755,7 @@ export async function renderAdminPanel(): Promise<void> {
           <option value="">Todos os serviços</option>
           <option value="plan">Planos</option>
           <option value="sms">Pacotes de SMS</option>
+          <option value="logo">Logótipos</option>
         </select>
       </div>
       <div id="tx-list"></div>`));
@@ -762,7 +763,7 @@ export async function renderAdminPanel(): Promise<void> {
 
     let q = "";
     let tf: "all" | "paid" | "open" | "failed" = "all";
-    let svc: "" | "plan" | "sms" = "";
+    let svc: "" | "plan" | "sms" | "logo" = "";
     const applyTf = (): void => {
       document.querySelectorAll<HTMLElement>("[data-tf]").forEach((b) => {
         const active = b.dataset.tf === tf;
@@ -821,7 +822,7 @@ export async function renderAdminPanel(): Promise<void> {
   }
 
   function txRow(t: AdminServiceTx): string {
-    const icon = t.service === "plan" ? "workspace_premium" : "sms";
+    const icon = t.service === "plan" ? "workspace_premium" : t.service === "logo" ? "auto_awesome" : "sms";
     const method = t.method === "mcx" ? "Multicaixa Express" : t.method === "reference" ? "Referência" : t.method;
     return `<div class="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors flex-wrap">
       <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">${icon}</span></div>

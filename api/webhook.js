@@ -12,7 +12,7 @@
  * Entrega fire-and-forget: respondemos sempre 200.
  */
 
-import { admin, readBody, send, mapMomenuStatus, activatePlan, creditSms, decrementStock } from "./_shared.js";
+import { admin, readBody, send, mapMomenuStatus, activatePlan, creditSms, fulfillLogo, decrementStock } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { received: false });
@@ -58,6 +58,15 @@ export default async function handler(req, res) {
         await creditSms(db, sp.store_id, sp.quantity);
         await db.from("sms_purchases").update({ credited: true }).eq("id", sp.id);
       }
+    }
+
+    // Compra de logótipo (entregar uma única vez; tabela sem invoice_url).
+    const { data: lp } = await db.from("logo_purchases").select("id, fulfilled").eq("merchant_transaction_id", mtx).maybeSingle();
+    if (lp) {
+      const logoPatch = { status };
+      if (status === "paid") logoPatch.paid_at = nowIso;
+      await db.from("logo_purchases").update(logoPatch).eq("id", lp.id);
+      if (status === "paid" && !lp.fulfilled) await fulfillLogo(db, lp.id);
     }
   } catch (e) {
     console.error("webhook persist", e);
