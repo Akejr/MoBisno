@@ -9,7 +9,7 @@ import { appState, logout, publicStoreUrl, currentOwnerId, STORE_APEX } from "..
 import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
   adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
-  listServiceTransactions,
+  listServiceTransactions, adminDeleteServiceTransaction,
   type AdminStore, type AdminAccount, type AdminWithdrawal, type AdminServiceTx,
 } from "../supabase/admin.js";
 import { listTemplateModels, createTemplateModel, deleteTemplateModel, seedDefaultModels, defaultFactoryModels, type TemplateModel } from "../supabase/models.js";
@@ -785,6 +785,20 @@ export async function renderAdminPanel(): Promise<void> {
       el.innerHTML = rows.length
         ? `<div class="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden">${rows.map(txRow).join("")}</div>`
         : `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">Nenhuma transação corresponde aos filtros.</div>`;
+      el.querySelectorAll<HTMLElement>("[data-tx-del]").forEach((b) =>
+        b.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const id = b.dataset.txDel!;
+          const svc = b.dataset.txSvc as AdminServiceTx["service"];
+          if (!confirm("Apagar esta transação? Esta ação não pode ser anulada.")) return;
+          const ok = await withBusy(() => adminDeleteServiceTransaction(id, svc), "A apagar transação…");
+          if (ok) {
+            const idx = items.findIndex((t) => t.id === id && t.service === svc);
+            if (idx >= 0) items.splice(idx, 1);
+            toast("Transação apagada.");
+            draw();
+          } else toast("Não foi possível apagar a transação.", "error");
+        }));
     }
 
     applyTf();
@@ -817,6 +831,7 @@ export async function renderAdminPanel(): Promise<void> {
         <p class="text-xs text-gray-300 truncate">${esc(method)} · ${esc(fmtDate(t.createdAt))}</p>
       </div>
       ${txStatusBadge(t.status)}
+      <button data-tx-del="${esc(t.id)}" data-tx-svc="${esc(t.service)}" title="Apagar transação" class="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>
     </div>`;
   }
 

@@ -305,3 +305,21 @@ export async function adminProcessWithdrawal(id: string, status: "approved" | "p
   if (error) console.error("adminProcessWithdrawal", error);
   return !error;
 }
+
+/** Tabela de origem de cada tipo de transação de serviço. */
+const TX_TABLE: Record<AdminServiceTx["service"], string> = {
+  plan: "plan_payments",
+  sms: "sms_purchases",
+};
+
+/**
+ * Apaga uma transação de serviço (ex.: uma referência pendente que ficou
+ * "presa"). Usado pelo admin para limpar transações que nunca concluem.
+ */
+export async function adminDeleteServiceTransaction(id: string, service: AdminServiceTx["service"]): Promise<boolean> {
+  const table = TX_TABLE[service];
+  if (!table) return false;
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) console.error("adminDeleteServiceTransaction", error);
+  return !error;
+}

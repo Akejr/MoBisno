@@ -42,3 +42,40 @@ export async function generateSeoDescription(input: {
     return fallback;
   }
 }
+
+/**
+ * Gera o TÍTULO de SEO completo ("Nome | frase"). A frase a seguir ao "|" é
+ * gerada por IA (melhor posicionamento) a partir da descrição da loja. Se a IA
+ * não estiver disponível, cai num fallback razoável.
+ */
+export async function generateSeoTitle(input: {
+  storeName: string;
+  storeType?: string;
+  about: string;
+}): Promise<string> {
+  const name = String(input.storeName ?? "").trim() || "A minha loja";
+  const fallbackTagline = (input.storeType && input.storeType.trim())
+    ? `${input.storeType.trim()} em Angola`
+    : "Compras em Angola";
+  const compose = (tagline: string): string => {
+    const clean = tagline.replace(/^["']|["']$/g, "").replace(/[|]/g, "").replace(/\.+$/, "").trim();
+    const t = clean.length > 45 ? clean.slice(0, 45).trim() : clean;
+    return `${name} | ${t || fallbackTagline}`;
+  };
+  const question =
+    `Loja: ${name}\nTipo: ${input.storeType ?? "loja"}\nDescrição do dono: ${input.about}\n` +
+    `Escreve a frase curta de posicionamento (3 a 6 palavras) para o título do Google.`;
+  try {
+    const r = await fetch("/api/assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "seotitle", question }),
+    });
+    if (!r.ok) return compose(fallbackTagline);
+    const data = (await r.json()) as { answer?: string };
+    const answer = (data?.answer ?? "").trim();
+    return compose(answer || fallbackTagline);
+  } catch {
+    return compose(fallbackTagline);
+  }
+}

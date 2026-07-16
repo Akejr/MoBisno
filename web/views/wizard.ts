@@ -12,7 +12,7 @@ import { TEMPLATES, identifierService, authService, wizardFlow, appState, publis
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
-import { generateSeoDescription } from "../lib/seoGen.js";
+import { generateSeoDescription, generateSeoTitle } from "../lib/seoGen.js";
 import type { Session } from "../../src/services/authService.js";
 
 const ACCENT = "#F95901";
@@ -380,13 +380,13 @@ function askSeoPreview(): void {
   void (async () => {
     inputBusy("A criar a melhor descrição para o Google…");
     const storeName = String(wiz.data[WIZARD_FIELDS.name] ?? "A minha loja");
+    const storeType = String(wiz.data[WIZARD_FIELDS.storeType] ?? "");
     const about = String(wiz.data.aboutStore ?? "");
-    const description = await generateSeoDescription({
-      storeName,
-      storeType: String(wiz.data[WIZARD_FIELDS.storeType] ?? ""),
-      about,
-    });
-    wiz.data.seoTitle = wiz.data.seoTitle || `${storeName} | Compras em Angola`;
+    const [description, title] = await Promise.all([
+      generateSeoDescription({ storeName, storeType, about }),
+      generateSeoTitle({ storeName, storeType, about }),
+    ]);
+    wiz.data.seoTitle = title;
     wiz.data.seoDescription = description;
     clearInput();
     showSeoPreview();

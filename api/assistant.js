@@ -66,6 +66,15 @@ REGRAS:
 - Apelativa e com palavras-chave naturais (o que vende, para quem, onde entrega).
 - Sem aspas, sem emojis, sem prefixos como "Meta-descrição:". Devolve só o texto final.`;
 
+/** Contexto SEO-TÍTULO (gerar o "slogan" que aparece a seguir ao nome no Google). */
+const SYSTEM_SEOTITLE = `És um especialista de SEO para lojas online em Angola. A partir da descrição da loja, escreve uma frase CURTA de posicionamento para aparecer no título do Google, a seguir ao nome da loja (a parte depois do "|").
+
+REGRAS:
+- Só a frase, em português de Portugal, entre 3 e 6 palavras, com no máximo 45 caracteres.
+- Deve incluir palavras-chave do que a loja vende e, se fizer sentido, "Angola" ou a cidade.
+- Apelativa e específica (ex.: "Cosmética natural em Luanda", "Moda feminina com entrega em Angola").
+- Sem o nome da loja, sem aspas, sem emojis, sem o símbolo "|", sem pontos finais. Devolve só a frase.`;
+
 /** Contexto LOGO (reestruturar a ideia do dono numa boa descrição de logótipo). */
 const SYSTEM_LOGO = `És um diretor de arte especialista em identidade visual. O dono de uma loja online vai dar uma ideia (por vezes vaga) do logótipo que quer. A tua tarefa é REESCREVER essa ideia numa descrição clara, rica e bem estruturada, pronta a alimentar um gerador de logótipos por IA.
 
@@ -76,7 +85,7 @@ REGRAS:
 - Enriquece com: 1 a 2 cores da mesma família, o tipo de forma abstrata do símbolo e a sensação/tom da marca (premium, tech, sofisticado…).
 - Sem aspas à volta, sem emojis, sem prefixos como "Descrição:". Não expliques o que fizeste.`;
 
-const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, logo: SYSTEM_LOGO };
+const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seotitle: SYSTEM_SEOTITLE, logo: SYSTEM_LOGO };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -93,7 +102,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const question = String(body.question || "").slice(0, 2000);
     const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
-    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : body.scope === "logo" ? "logo" : "editor";
+    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : body.scope === "seotitle" ? "seotitle" : body.scope === "logo" ? "logo" : "editor";
     if (!question.trim()) {
       res.status(400).json({ error: "Pergunta em falta." });
       return;
