@@ -12,7 +12,7 @@ import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
-import { generateLogos, dataUrlToUint8Array } from "../lib/logoApi.js";
+import { generateLogos, improveLogoDescription, dataUrlToUint8Array } from "../lib/logoApi.js";
 import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
@@ -568,39 +568,19 @@ export async function renderDashboard(): Promise<void> {
     // Fundo axadrezado para evidenciar a transparência do PNG.
     const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#fff;";
 
-    const examples = [
-      "Marca de moda chamada 'Nara', minimalista e elegante, tons de preto e dourado.",
-      "Loja de eletrónica 'VoltZ', moderna e tecnológica, azul com um símbolo geométrico.",
-      "Mercearia 'Kimbo', fresca e amigável, verde, com um símbolo simples.",
-    ];
-
     render(shell(`
-      <section class="mb-6 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden" style="background:linear-gradient(135deg,#F95901,#ff8a4c)">
-        <div class="relative z-10 max-w-2xl">
-          <span class="inline-flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1 text-xs font-bold mb-3"><span class="material-symbols-outlined text-[16px]">auto_awesome</span> Gerador com IA</span>
-          <h3 class="text-2xl md:text-3xl font-black tracking-tight">O logótipo da sua marca em segundos</h3>
-          <p class="text-white/90 mt-2 leading-relaxed">Descreva o seu negócio e a IA cria <strong>duas variações</strong> profissionais em PNG com fundo transparente. Escolhe a que preferir — fica guardada em "Meus logótipos" e pode descarregá-la quando quiser.</p>
-        </div>
-        <span class="material-symbols-outlined absolute -right-4 -bottom-6 text-white/15 pointer-events-none" style="font-size:180px">brush</span>
-      </section>
+      <p class="text-gray-500 mb-5 max-w-2xl">Descreva o seu negócio e a IA cria <strong>duas variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir — fica guardada em "Meus logótipos".</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8 items-start">
-        <section class="lg:col-span-3 bg-white border border-gray-200 rounded-3xl p-6 md:p-7">
-          <div class="flex items-center gap-2 mb-4">
-            <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">edit</span></span>
-            <h4 class="font-black text-gray-900">Descreva o logótipo</h4>
-          </div>
+        <section class="lg:col-span-3 bg-white border border-gray-200 rounded-3xl p-5 md:p-6">
           <div class="relative">
             <textarea id="logo-desc" rows="4" maxlength="600" placeholder="Ex.: Loja de doces artesanais chamada 'Doce Mel', tons de rosa e dourado, com um símbolo delicado." class="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 pb-7 text-sm outline-none focus:border-[#F95901] focus:bg-white transition-colors resize-none"></textarea>
             <span id="logo-count" class="absolute right-3 bottom-2.5 text-[11px] text-gray-400 pointer-events-none">0 / 600</span>
           </div>
-          <div class="mt-3">
-            <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sugestões</p>
-            <div class="flex flex-wrap gap-2">
-              ${examples.map((ex) => `<button type="button" data-logo-example="${esc(ex)}" class="text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full px-3 py-1.5 transition-colors">${esc(ex.split("'")[1] ?? ex.slice(0, 18))}</button>`).join("")}
-            </div>
+          <div class="flex flex-col sm:flex-row gap-2.5 mt-3">
+            <button id="logo-improve" class="sm:flex-1 px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 border transition-colors hover:bg-gray-50" style="border-color:${ACCENT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_fix_high</span> Melhorar com IA</button>
+            <button id="logo-gen" class="sm:flex-1 text-white px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar 2 variações</button>
           </div>
-          <button id="logo-gen" class="w-full mt-5 text-white px-5 py-3 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">auto_awesome</span> Gerar 2 variações</button>
         </section>
 
         <aside class="lg:col-span-2 bg-white border border-gray-200 rounded-3xl p-6">
@@ -612,7 +592,7 @@ export async function renderDashboard(): Promise<void> {
             <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Indique o <strong>nome</strong> da marca (curto sai melhor).</li>
             <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Diga <strong>o que vende</strong> ou o setor do negócio.</li>
             <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Escolha <strong>1 a 2 cores</strong> e um estilo (moderno, elegante…).</li>
-            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Um <strong>símbolo</strong> em mente? Descreva-o (ex.: folha, seta).</li>
+            <li class="flex gap-2.5"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> Sem ideias? Escreva o essencial e use <strong>Melhorar com IA</strong>.</li>
           </ul>
         </aside>
       </div>
@@ -665,14 +645,16 @@ export async function renderDashboard(): Promise<void> {
     descEl?.addEventListener("input", updateCount);
     updateCount();
 
-    // Sugestões clicáveis preenchem a descrição.
-    document.querySelectorAll<HTMLButtonElement>("[data-logo-example]").forEach((chip) => {
-      chip.addEventListener("click", () => {
-        if (!descEl) return;
-        descEl.value = chip.dataset.logoExample ?? "";
-        updateCount();
-        descEl.focus();
-      });
+    // Melhorar/estruturar a descrição com IA.
+    $("#logo-improve")?.addEventListener("click", async () => {
+      const desc = (descEl?.value ?? "").trim();
+      if (desc.length < 4) { toast("Escreva primeiro a sua ideia, mesmo que simples.", "error"); descEl?.focus(); return; }
+      await withButton($("#logo-improve") as HTMLButtonElement, async () => {
+        const improved = await improveLogoDescription(desc);
+        if (!improved) { toast("Não foi possível melhorar o texto agora. Tenta de novo.", "error"); return; }
+        if (descEl) { descEl.value = improved.slice(0, 600); updateCount(); }
+        toast("Descrição melhorada pela IA.");
+      }, "A melhorar…");
     });
 
     // Estado "a gerar": esqueletos animados no lugar das variações.

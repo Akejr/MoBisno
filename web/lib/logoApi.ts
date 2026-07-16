@@ -25,6 +25,27 @@ export async function generateLogos(description: string): Promise<string[]> {
   }
 }
 
+/**
+ * Melhora/estrutura a descrição do logótipo escrita pelo dono, via IA
+ * (`/api/assistant`, scope "logo"). Devolve o texto melhorado, ou `null` se a
+ * IA não estiver disponível (ex.: dev local) para o chamador tratar o caso.
+ */
+export async function improveLogoDescription(text: string): Promise<string | null> {
+  try {
+    const res = await fetch("/api/assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "logo", question: text }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { answer?: string };
+    const answer = (data?.answer ?? "").replace(/^["']|["']$/g, "").trim();
+    return answer || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Converte uma data URL base64 (PNG) em bytes para o FileService. */
 export function dataUrlToUint8Array(dataUrl: string): Uint8Array {
   const comma = dataUrl.indexOf(",");

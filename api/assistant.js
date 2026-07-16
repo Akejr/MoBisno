@@ -66,7 +66,16 @@ REGRAS:
 - Apelativa e com palavras-chave naturais (o que vende, para quem, onde entrega).
 - Sem aspas, sem emojis, sem prefixos como "Meta-descrição:". Devolve só o texto final.`;
 
-const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO };
+/** Contexto LOGO (reestruturar a ideia do dono numa boa descrição de logótipo). */
+const SYSTEM_LOGO = `És um diretor de arte especialista em identidade visual. O dono de uma loja online vai dar uma ideia (por vezes vaga) do logótipo que quer. A tua tarefa é REESCREVER essa ideia numa descrição clara, rica e bem estruturada, pronta a alimentar um gerador de logótipos por IA.
+
+REGRAS:
+- Devolve APENAS a descrição final, em português de Portugal, num único parágrafo curto (máximo ~400 caracteres).
+- Mantém sempre o NOME da marca e o tipo de negócio que o dono indicou; não inventes um nome novo.
+- Enriquece com: estilo visual (moderno, minimalista, elegante…), 1 a 2 cores sugeridas, o tipo de símbolo/ícone e a sensação/tom da marca.
+- Preferir marcas simples e premium (monograma ou símbolo abstrato). Sem aspas à volta, sem emojis, sem prefixos como "Descrição:". Não expliques o que fizeste.`;
+
+const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, logo: SYSTEM_LOGO };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -83,7 +92,7 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const question = String(body.question || "").slice(0, 2000);
     const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
-    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : "editor";
+    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : body.scope === "logo" ? "logo" : "editor";
     if (!question.trim()) {
       res.status(400).json({ error: "Pergunta em falta." });
       return;
