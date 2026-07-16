@@ -3,7 +3,7 @@
  * Identidade visual MôBisno (branco + #F95901). Logótipo, banners e aparência
  * vivem no ecrã "Personalizar".
  */
-import { render, $, go, esc, toast, formatKz, withBusy, fadeInImages } from "../lib/dom.js";
+import { render, $, go, esc, toast, formatKz, withBusy, withButton, fadeInImages } from "../lib/dom.js";
 import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerBilling, countPublishedStores, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
 import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
