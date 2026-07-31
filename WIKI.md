@@ -640,25 +640,40 @@ Se o `account_active(owner_id)` for falso, devolve o shell sem conteúdo (loja s
 
 ## 13. SEO e Pré-renderização
 
-### Camada 1 — Cliente (`web/lib/seo.ts` + `src/services/seo.ts`)
+> **Documento dedicado: [SEO.md](SEO.md).** Descreve a arquitetura completa, as
+> invariantes que não se podem partir (e os testes que as guardam), como
+> verificar em produção e o que está pendente. Leia-o antes de mexer em
+> `api/prerender.js`, `api/_seo.js`, `src/services/seo.ts`, `web/lib/seo.ts` ou
+> nas ligações dos modelos de loja.
 
-`applySeo(opts)` define no browser:
-- `<title>` + `<meta name="description">`
-- `<link rel="canonical">`
-- Open Graph (`og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `og:site_name`)
-- Twitter Card (`summary_large_image`)
-- JSON-LD (`Product`, `OnlineStore`, `Organization`)
+Resumo da arquitetura:
+
+### Camada 1 — Servidor (`api/prerender.js` + `api/_seo.js`)
+
+Serve HTML **com conteúdo real** (`<h1>`, preços, descrições, grelha de
+produtos) e não apenas meta tags. É isto que torna as lojas indexáveis: o Google
+só executa JavaScript numa segunda passagem, e o Bing e os crawlers sociais não
+o executam de todo.
+
+Cobre lojas em subdomínio, `mobisno.store` (landing, `/lojas`, legais) e
+`mobisno.store/loja/<id>`. Devolve **404** para loja inexistente e **410** para
+conta suspensa — antes devolvia 200 com o canónico da plataforma, o que criava
+centenas de duplicados.
+
+O conteúdo fica no HTML mas recortado do ecrã; o visitante vê um ecrã de
+carregamento com a marca da loja. Ver [SEO.md §3.3](SEO.md).
+
+### Camada 2 — Cliente (`web/lib/seo.ts` + `src/services/seo.ts`)
+
+`applySeo(opts)` define no browser título, descrição, canónico, robots, Open
+Graph, Twitter Card e JSON-LD (`Product`, `OnlineStore`, `CollectionPage`,
+`BreadcrumbList`, `ItemList`, `Organization`, `FAQPage`).
 
 Formatos dos títulos:
-- Loja: `Nome da Loja | Compras em Angola`
+- Loja: `custom.seo.title` do dono, ou `Nome da Loja | Compras em Angola`
 - Produto: `Nome do Produto — Nome da Loja`
-- Plataforma: `MôBisno — Crie a sua loja online em Angola`
-
-### Camada 2 — Servidor (`api/prerender.js`)
-
-Os crawlers sociais (WhatsApp, Facebook, LinkedIn) **não executam JavaScript**. O `prerender.js` serve HTML com meta tags corretas para estes bots.
-
-**Deteção de crawler**: qualquer pedido ao `/` ou a caminhos de loja (`/(...)`) é enviado para `api/prerender` pelo `vercel.json`. A função decide se serve o shell estático ou injecta meta tags com base no `User-Agent` e host.
+- Categoria: `Categoria — Nome da Loja | Comprar em Angola`
+- Plataforma: `MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais`
 
 ### `vercel.json` — Rewrites
 
@@ -669,7 +684,29 @@ Os crawlers sociais (WhatsApp, Facebook, LinkedIn) **não executam JavaScript**.
 { "source": "/((?!api/)(?!.*\\.).*)", "destination": "/api/prerender" }
 ```
 
-**Nota crítica**: a Vercel usa RE2 (Go) para os rewrites. Negative lookaheads `(?!...)` **funcionam** nesta versão (`vercel.json` v2 com rewrites). Não usar regex de `routes` (legado); usar apenas `rewrites`.
+**Nota crítica 1**: a Vercel avalia os rewrites **depois** de procurar um
+ficheiro estático. Enquanto existiu um `index.html` na raiz do output, a regra
+de `/` nunca disparou e a página inicial de cada loja era a única que não era
+pré-renderizada. Por isso o shell passou a chamar-se `app.html`
+(`scripts/rename-shell.mjs`, no fim de `web:build`). **Não repor o
+`index.html`.**
+
+**Nota crítica 2**: a Vercel usa RE2 (Go) para os rewrites. Negative lookaheads
+`(?!...)` **funcionam** nesta versão (`vercel.json` v2 com rewrites). Não usar
+regex de `routes` (legado); usar apenas `rewrites`.
+
+### Ligações internas
+
+Nenhuma ligação interna pode usar `#` — o Google descarta o fragmento e a página
+de destino nunca é seguida. Usar `storeBasePath()` / `storeHomePath()` de
+`web/lib/routing.ts`. Há testes a guardar isto (`tests/seoInfra.test.ts`).
+
+### Descoberta de lojas novas
+
+Automática por três vias: o diretório `/lojas`, o índice
+`www.sualoja.digital/sitemap.xml` e o `robots.txt` de cada loja. A **indexação**
+nunca é automática — conte 1 a 4 semanas para um subdomínio novo. Ver
+[SEO.md §3.4](SEO.md).
 
 ### Cache de Crawlers Sociais
 
