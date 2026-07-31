@@ -117,7 +117,7 @@ export function renderLegal(page: LegalPage): void {
     </section>`).join("");
 
   const links = (["termos", "privacidade", "politica"] as LegalPage[]).map((p) =>
-    `<a href="#/${p}" class="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors" style="${p === page ? `background:rgba(249,89,1,.1);color:${ACCENT}` : "color:#6b7280"}">${esc(PAGES[p].title)}</a>`).join("");
+    `<a href="/${p}" class="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors" style="${p === page ? `background:rgba(249,89,1,.1);color:${ACCENT}` : "color:#6b7280"}">${esc(PAGES[p].title)}</a>`).join("");
 
   render(`
   <div class="min-h-screen bg-gray-50 font-sans text-gray-900">

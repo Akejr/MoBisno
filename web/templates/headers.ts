@@ -6,8 +6,10 @@
  * group-hover, sem JS). Cor de marca via `var(--brand)`.
  */
 import { esc } from "../lib/dom.js";
+import { storeBasePath, storeHomePath } from "../lib/routing.js";
 import { headerCategories, allProductsHref } from "./sectionsModel.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
+import { categorySlug } from "../lib/slug.js";
 
 export type HeaderVariant = "classico" | "centrado" | "promo" | "transparente";
 
@@ -21,9 +23,13 @@ export const HEADER_VARIANTS: { id: HeaderVariant; label: string }[] = [
 export interface HeaderCtx { container: string; brand: string; }
 
 function storeIdentifier(view: StoreRenderView): string { return view.subdomain.split(".")[0] ?? view.subdomain; }
-function homeHref(view: StoreRenderView): string { return `#/loja/${encodeURIComponent(storeIdentifier(view))}`; }
-function categoryHref(view: StoreRenderView, c: string): string { return `${homeHref(view)}/categoria/${encodeURIComponent(c)}`; }
-function cartHref(view: StoreRenderView): string { return `${homeHref(view)}/carrinho`; }
+/** Prefixo das subpáginas da loja: "" em subdomínio, "/loja/<id>" no domínio principal. */
+function storeBase(view: StoreRenderView): string {
+  return storeBasePath(storeIdentifier(view));
+}
+function homeHref(view: StoreRenderView): string { return storeHomePath(storeIdentifier(view)); }
+function categoryHref(view: StoreRenderView, c: string): string { return `${storeBase(view)}/categoria/${categorySlug(c)}`; }
+function cartHref(view: StoreRenderView): string { return `${storeBase(view)}/carrinho`; }
 
 function brandHtml(view: StoreRenderView, custom?: StoreCustomization): string {
   const b = view.header.brand;

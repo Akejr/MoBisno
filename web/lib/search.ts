@@ -6,7 +6,7 @@
 import { esc, formatKz } from "./dom.js";
 import { loadStorefront } from "./storeCache.js";
 import { brandOf } from "./brand.js";
-import { currentStoreIdentifier, storeSubdomain } from "./routing.js";
+import { currentStoreIdentifier, storeSubdomain, storeBasePath } from "./routing.js";
 import { appState } from "../composition.js";
 import { productSlugPath } from "./slug.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
@@ -83,7 +83,7 @@ export async function openSearch(identifier: string, btn: HTMLElement): Promise<
   if (loaded.result.kind !== "render") { close(); return; }
   const products = loaded.view.kind === "render" ? loaded.view.products : [];
   const brand = brandOf(loaded.custom, loaded.result.store.templateId);
-  const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
+  const homeHref = storeBasePath(identifier);
   bar.style.setProperty("--brand", brand);
 
   function row(p: StoreProductView): string {

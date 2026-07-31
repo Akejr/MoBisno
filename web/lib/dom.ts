@@ -46,19 +46,12 @@ export function esc(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Formata um preço em Kwanza (pt-AO): "1.234,56 Kz". */
-export function formatKz(price: number): string {
-  const safe = Number.isFinite(price) ? price : 0;
-  const cents = Math.round(Math.abs(safe) * 100);
-  const whole = Math.floor(cents / 100).toString();
-  const frac = (cents % 100).toString().padStart(2, "0");
-  let grouped = "";
-  for (let i = 0; i < whole.length; i++) {
-    if (i > 0 && (whole.length - i) % 3 === 0) grouped += ".";
-    grouped += whole[i];
-  }
-  return `${safe < 0 ? "-" : ""}${grouped},${frac} Kz`;
-}
+/**
+ * Formata um preço em Kwanza (pt-AO): "1.234,56 Kz".
+ * A implementação vive em `src/services/format.ts` (domínio puro) porque o
+ * mesmo formato é gerado no servidor, na SPA e nos testes.
+ */
+export { formatKz } from "../../src/services/format.js";
 
 /** Lê um ficheiro do input como Uint8Array (para o FileService). */
 export async function fileToUint8Array(file: File): Promise<Uint8Array> {

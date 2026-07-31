@@ -8,6 +8,8 @@
  */
 import type { StoreRenderView, StoreProductView } from "../../src/storefront/storeRenderer.js";
 import type { StoreCustomization } from "./types.js";
+import { storeBasePath } from "../lib/routing.js";
+import { categorySlug } from "../lib/slug.js";
 
 export const SEC_ALL = "__all__";
 export const SEC_FEATURED = "__featured__";
@@ -35,8 +37,9 @@ export interface RenderSection {
 function identifier(view: StoreRenderView): string {
   return view.subdomain.split(".")[0] ?? view.subdomain;
 }
+/** Caminho REAL (nunca `#`) da página de uma categoria — indexável pelo Google. */
 function catHref(view: StoreRenderView, label: string): string {
-  return `#/loja/${encodeURIComponent(identifier(view))}/categoria/${encodeURIComponent(label)}`;
+  return `${storeBasePath(identifier(view))}/categoria/${categorySlug(label)}`;
 }
 
 /** Link para a página com TODOS os produtos (rótulo "Produtos"). */

@@ -10,6 +10,7 @@
 import { esc, formatKz } from "./dom.js";
 import { loadStorefront } from "./storeCache.js";
 import { productSlugPath } from "./slug.js";
+import { currentStoreIdentifier, storeBasePath } from "./routing.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
 /** Pesquisa inline do cabeçalho FoodMart (dropdown ancorado ao campo). */
@@ -18,10 +19,10 @@ export function mountFoodmartSearch(root: HTMLElement): void {
   const hosts = Array.from(root.querySelectorAll<HTMLElement>("[data-fm-search-host]"));
   if (!hosts.length) return;
   const cart = root.querySelector<HTMLAnchorElement>("[data-cart-link]");
-  const m = cart?.getAttribute("href")?.match(/#\/loja\/([^/]+)\/carrinho/);
-  const identifier = m ? decodeURIComponent(m[1]) : null;
+  const m = cart?.getAttribute("href")?.match(/(?:^|#)\/loja\/([^/]+)\/carrinho/);
+  const identifier = m ? decodeURIComponent(m[1]) : currentStoreIdentifier();
   if (!identifier) return;
-  const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
+  const homeHref = storeBasePath(identifier);
   const norm = (s: string): string => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   let products: StoreProductView[] = [];
   let loaded = false;

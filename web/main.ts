@@ -25,6 +25,7 @@ const lazy = {
   editor: () => import("./views/editor.js").then((m) => m.renderEditor()),
   preview: (id: string) => import("./views/preview.js").then((m) => m.renderTemplatePreview(id)),
   legal: (p: "termos" | "privacidade" | "politica") => import("./views/legal.js").then((m) => m.renderLegal(p)),
+  directory: () => import("./views/directory.js").then((m) => m.renderDirectory()),
   presetGallery: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery()),
   presetGalleryTest: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery(true)),
 };
@@ -86,6 +87,9 @@ function route(): void {
     resetBranding();
     applyNoindexSeo("Entrar — MôBisno");
     renderLogin();
+  } else if (path === "/lojas") {
+    resetBranding();
+    void lazy.directory();
   } else if (path === "/termos" || path === "/privacidade" || path === "/politica") {
     resetBranding();
     void lazy.legal(path.slice(1) as "termos" | "privacidade" | "politica");

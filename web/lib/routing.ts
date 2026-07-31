@@ -68,6 +68,26 @@ export function currentStoreIdentifier(): string | null {
 }
 
 /**
+ * Prefixo de caminho REAL (nunca `#`) para as páginas de uma loja.
+ *
+ * - Em subdomínio de loja (`nomedaloja.sualoja.digital`) → `""`, porque o host
+ *   já identifica a loja e as rotas são `/produto/...`, `/categoria/...`.
+ * - No domínio principal ou em `localhost` → `/loja/<identificador>`.
+ *
+ * Usar caminhos reais é obrigatório para SEO: o Google descarta o fragmento de
+ * uma URL, por isso ligações `#/loja/x/produto/y` NÃO são seguidas nem
+ * indexadas — todas as páginas da loja ficariam invisíveis na pesquisa.
+ */
+export function storeBasePath(identifier: string): string {
+  return storeSubdomain() ? "" : `/loja/${encodeURIComponent(identifier)}`;
+}
+
+/** Caminho da página inicial da loja (`/` em subdomínio, `/loja/<id>` fora). */
+export function storeHomePath(identifier: string): string {
+  return storeBasePath(identifier) || "/";
+}
+
+/**
  * Normaliza uma rota para um caminho limpo. Aceita o formato antigo (`#/x`) e o
  * novo (`/x`). Em subdomínio de loja, remove o prefixo redundante
  * `/loja/<identificador>` (o host já identifica a loja).

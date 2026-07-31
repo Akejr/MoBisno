@@ -4,15 +4,15 @@ import { getTemplate } from "../templates/registry.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
 import { brandOf, readableInk } from "../lib/brand.js";
-import { productSlugPath } from "../lib/slug.js";
+import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { navigate } from "../lib/routing.js";
 import { applyInk } from "../lib/ink.js";
 import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { publicStoreUrl } from "../composition.js";
-import { applySeo } from "../lib/seo.js";
-import { productTitle, productDescription, productJsonLd } from "../../src/services/seo.js";
+import { applySeo, shippingFromCustom } from "../lib/seo.js";
+import { productTitle, productDescription, productJsonLd, breadcrumbJsonLd } from "../../src/services/seo.js";
 import { trackPixel } from "../lib/pixels.js";
 import { trackStoreEvent } from "../supabase/analytics.js";
 import { listProductReviews, summarize, submitReview, type Review } from "../supabase/reviews.js";
@@ -71,8 +71,16 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   try { reviews = await listProductReviews(product.id); } catch { reviews = []; }
   const rating = summarize(reviews);
 
-  // SEO do produto (imagem do produto + foco na loja).
-  const productUrl = `${publicStoreUrl(identifier)}/produto/${productSlugPath(product)}`;
+  // SEO do produto (imagem do produto + foco na loja). O trilho de navegação
+  // dá ao Google a hierarquia Loja › Categoria › Produto no resultado.
+  const storeUrl = publicStoreUrl(identifier);
+  const productUrl = `${storeUrl}/produto/${productSlugPath(product)}`;
+  const crumbs = [{ name: view.storeName, url: `${storeUrl}/` }];
+  if (product.category) {
+    crumbs.push({ name: product.category, url: `${storeUrl}/categoria/${categorySlug(product.category)}` });
+  }
+  crumbs.push({ name: product.name, url: productUrl });
+
   applySeo({
     title: productTitle(product.name, view.storeName),
     description: productDescription({
@@ -85,16 +93,23 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
     image: product.imageUrl,
     type: "product",
     siteName: view.storeName,
-    jsonLd: productJsonLd({
-      name: product.name,
-      description: product.description,
-      image: product.imageUrl,
-      price: product.price,
-      url: productUrl,
-      storeName: view.storeName,
-      available: !outOfStock,
-      rating: rating.count > 0 ? rating : null,
-    }),
+    jsonLd: [
+      productJsonLd({
+        name: product.name,
+        description: product.description,
+        image: product.imageUrl,
+        price: product.price,
+        url: productUrl,
+        storeName: view.storeName,
+        storeUrl,
+        sku: product.id,
+        category: product.category,
+        available: !outOfStock,
+        rating: rating.count > 0 ? rating : null,
+        shipping: shippingFromCustom(custom),
+      }),
+      breadcrumbJsonLd(crumbs),
+    ],
   });
   trackPixel(custom, { type: "PageView" });
   trackPixel(custom, { type: "ViewContent", name: product.name, id: product.id, value: product.price });

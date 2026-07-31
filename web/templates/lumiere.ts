@@ -6,12 +6,12 @@
  * `data-search-btn`, `data-add-cart`, etc.), tal como os outros modelos.
  */
 import { esc, formatKz } from "../lib/dom.js";
-import { productSlugPath } from "../lib/slug.js";
+import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
-import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
+import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
 import { mobileMenuParts } from "./headers.js";
@@ -44,17 +44,21 @@ let mbLogoScale: number | undefined;
 function storeIdentifier(view: StoreRenderView): string {
   return view.subdomain.split(".")[0] ?? view.subdomain;
 }
+/** Prefixo das subpáginas da loja: "" em subdomínio, "/loja/<id>" no domínio principal. */
+function storeBase(view: StoreRenderView): string {
+  return storeBasePath(storeIdentifier(view));
+}
 function homeHref(view: StoreRenderView): string {
-  return `#/loja/${encodeURIComponent(storeIdentifier(view))}`;
+  return storeHomePath(storeIdentifier(view));
 }
 function productHref(view: StoreRenderView, p: StoreProductView): string {
-  return `${homeHref(view)}/produto/${productSlugPath(p)}`;
+  return `${storeBase(view)}/produto/${productSlugPath(p)}`;
 }
 function categoryHref(view: StoreRenderView, c: string): string {
-  return `${homeHref(view)}/categoria/${encodeURIComponent(c)}`;
+  return `${storeBase(view)}/categoria/${categorySlug(c)}`;
 }
 function cartHref(view: StoreRenderView): string {
-  return `${homeHref(view)}/carrinho`;
+  return `${storeBase(view)}/carrinho`;
 }
 
 function menuFor(view: StoreRenderView, custom?: StoreCustomization): string[] {

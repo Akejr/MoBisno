@@ -10,6 +10,7 @@ import { brandOf, readableInk } from "./brand.js";
 import { applyInk } from "./ink.js";
 import { applyIconColor } from "./iconColor.js";
 import { applyTheme } from "./theme.js";
+import { currentStoreIdentifier, storeBasePath } from "./routing.js";
 
 let mounted = false;
 
@@ -50,10 +51,15 @@ function ensureCartFmStyle(): void {
   document.head.appendChild(st);
 }
 
-/** Extrai o identificador da loja a partir de um href `#/loja/<id>/carrinho`. */
+/**
+ * Extrai o identificador da loja a partir do href do ícone do carrinho.
+ * Aceita `/loja/<id>/carrinho` (domínio principal), `/carrinho` (subdomínio,
+ * onde o host identifica a loja) e o formato antigo com `#`.
+ */
 function identifierFromHref(href: string): string | null {
-  const m = href.match(/#\/loja\/([^/]+)\/carrinho/);
-  return m ? decodeURIComponent(m[1]) : null;
+  const m = href.match(/(?:^|#)\/loja\/([^/]+)\/carrinho/);
+  if (m) return decodeURIComponent(m[1]);
+  return /(?:^|#)\/carrinho$/.test(href) ? currentStoreIdentifier() : null;
 }
 
 function itemRow(it: CartItem): string {
@@ -82,8 +88,8 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   const custom = loaded.custom;
   const templateId = loaded.result.store.templateId;
   const brand = brandOf(custom, templateId);
-  const cartPageHref = `#/loja/${encodeURIComponent(identifier)}/carrinho`;
-  const checkoutHref = `#/loja/${encodeURIComponent(identifier)}/checkout`;
+  const cartPageHref = `${storeBasePath(identifier)}/carrinho`;
+  const checkoutHref = `${storeBasePath(identifier)}/checkout`;
   const online = !!custom.payments?.onlineEnabled;
   // Loja baseada num modelo (ou a própria loja-modelo): mostra "Comprar agora"
   // (leva ao checkout com os métodos visíveis), mesmo sem pagamentos ativos.

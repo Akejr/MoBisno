@@ -7,7 +7,7 @@
  * (inofensivos na loja publicada).
  */
 import { esc, formatKz } from "../lib/dom.js";
-import { productSlugPath } from "../lib/slug.js";
+import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderHero } from "./heroes.js";
@@ -15,7 +15,7 @@ import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
-import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
+import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
 import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
 import { productGalleryHtml } from "./gallery.js";
@@ -47,23 +47,27 @@ function storeIdentifier(view: StoreRenderView): string {
 }
 
 /** URL (hash) da home da própria loja. */
+/** Prefixo das subpáginas da loja: "" em subdomínio, "/loja/<id>" no domínio principal. */
+function storeBase(view: StoreRenderView): string {
+  return storeBasePath(storeIdentifier(view));
+}
 function storeHomeHref(view: StoreRenderView): string {
-  return `#/loja/${encodeURIComponent(storeIdentifier(view))}`;
+  return storeHomePath(storeIdentifier(view));
 }
 
 /** URL da página de um produto da loja (`/produto/<categoria>/<nome>`). */
 function productHref(view: StoreRenderView, p: StoreProductView): string {
-  return `${storeHomeHref(view)}/produto/${productSlugPath(p)}`;
+  return `${storeBase(view)}/produto/${productSlugPath(p)}`;
 }
 
 /** URL (hash) da página de uma categoria da loja. */
 function categoryHref(view: StoreRenderView, category: string): string {
-  return `${storeHomeHref(view)}/categoria/${encodeURIComponent(category)}`;
+  return `${storeBase(view)}/categoria/${categorySlug(category)}`;
 }
 
 /** URL (hash) do carrinho da loja. */
 function cartHref(view: StoreRenderView): string {
-  return `${storeHomeHref(view)}/carrinho`;
+  return `${storeBase(view)}/carrinho`;
 }
 
 /** Categorias distintas (não vazias) dos produtos da loja, por ordem de aparição. */

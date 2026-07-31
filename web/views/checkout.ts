@@ -10,6 +10,7 @@
  * Para testar sem cobrar, abra com `?qa=1` no URL.
  */
 import { render, $, esc, formatKz, fadeInImages, toast } from "../lib/dom.js";
+import { storeHomePath } from "../lib/routing.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { getCart, cartTotal, clearCart, updateCartBadge, type CartItem } from "../lib/cart.js";
 import { resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -45,7 +46,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   const storeName = view.storeName;
   const template = getTemplate(result.store.templateId);
   const brand = brandOf(custom, result.store.templateId);
-  const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
+  const homeHref = storeHomePath(identifier);
   const online = !!custom.payments?.onlineEnabled;
   // Loja baseada num modelo (ou a loja-modelo): mostra SEMPRE os métodos online
   // no checkout (visível), mesmo que ainda não estejam ativos (não cobram).

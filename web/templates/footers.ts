@@ -4,7 +4,7 @@
  * links do menu e a ligação à plataforma. Cor de marca via `var(--brand)`.
  */
 import { esc } from "../lib/dom.js";
-import { platformHomeUrl, STORE_APEX } from "../lib/routing.js";
+import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
 export type FooterVariant = "colunas" | "centrado" | "moderno";
@@ -18,7 +18,7 @@ export const FOOTER_VARIANTS: { id: FooterVariant; label: string }[] = [
 export interface FooterCtx { container: string; brand: string; }
 
 function storeIdentifier(view: StoreRenderView): string { return view.subdomain.split(".")[0] ?? view.subdomain; }
-function homeHref(view: StoreRenderView): string { return `#/loja/${encodeURIComponent(storeIdentifier(view))}`; }
+function homeHref(view: StoreRenderView): string { return storeHomePath(storeIdentifier(view)); }
 
 function footerBrandHtml(view: StoreRenderView, custom: StoreCustomization | undefined, dark: boolean): string {
   const url = custom?.footer?.logoUrl || (view.header.brand.kind === "logo" ? view.header.brand.url : null);

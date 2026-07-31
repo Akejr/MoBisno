@@ -5,7 +5,8 @@
  * `data-edit-perks`. O cabeçalho/rodapé são fornecidos pelo modelo.
  */
 import { esc, formatKz } from "../lib/dom.js";
-import { productSlugPath } from "../lib/slug.js";
+import { storeBasePath, storeHomePath } from "../lib/routing.js";
+import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { productGalleryHtml } from "./gallery.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -22,9 +23,13 @@ export const PRODUCTPAGE_VARIANTS: { id: ProductPageVariant; label: string }[] =
 export interface ProductPageCtx { container: string; brand: string; }
 
 function storeIdentifier(view: StoreRenderView): string { return view.subdomain.split(".")[0] ?? view.subdomain; }
-function homeHref(view: StoreRenderView): string { return `#/loja/${encodeURIComponent(storeIdentifier(view))}`; }
-function categoryHref(view: StoreRenderView, c: string): string { return `${homeHref(view)}/categoria/${encodeURIComponent(c)}`; }
-function productHref(view: StoreRenderView, p: StoreProductView): string { return `${homeHref(view)}/produto/${productSlugPath(p)}`; }
+/** Prefixo das subpáginas da loja: "" em subdomínio, "/loja/<id>" no domínio principal. */
+function storeBase(view: StoreRenderView): string {
+  return storeBasePath(storeIdentifier(view));
+}
+function homeHref(view: StoreRenderView): string { return storeHomePath(storeIdentifier(view)); }
+function categoryHref(view: StoreRenderView, c: string): string { return `${storeBase(view)}/categoria/${categorySlug(c)}`; }
+function productHref(view: StoreRenderView, p: StoreProductView): string { return `${storeBase(view)}/produto/${productSlugPath(p)}`; }
 
 function imgHtml(p: StoreProductView, cls: string): string {
   return p.imageUrl

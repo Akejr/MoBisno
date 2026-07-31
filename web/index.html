@@ -24,12 +24,28 @@
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"Organization","name":"MôBisno","url":"https://mobisno.store","logo":"https://mobisno.store/logo-header.png","description":"Plataforma para criar lojas online em Angola.","areaServed":{"@type":"Country","name":"Angola"}}
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <!--
+      Fontes: um único pedido em vez de seis, e sem bloquear a renderização.
+      Seis <link rel="stylesheet"> separados obrigavam o browser a esperar por
+      seis respostas antes de pintar o primeiro pixel — o que penaliza o LCP
+      (fator de posicionamento) sobretudo em redes móveis lentas.
+      `preconnect` abre a ligação a fonts.gstatic.com em antecipação; o padrão
+      media="print"/onload aplica a folha só depois de descarregada.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Bebas+Neue&family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700&family=Montserrat:wght@300;400;500;600&family=Sora:wght@400;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist:wght@400;500;600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Bebas+Neue&family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700&family=Montserrat:wght@300;400;500;600&family=Sora:wght@400;600;700&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist:wght@400;500;600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      />
+    </noscript>
   </head>
   <body class="bg-background text-on-background antialiased overflow-x-hidden">
     <div id="app" class="w-full"></div>

@@ -1,7 +1,7 @@
 /** Página de categoria — resolve a loja e mostra só os produtos dessa categoria. */
-import { render, fadeInImages, esc } from "../lib/dom.js";
+import { render, fadeInImages, esc, formatKz } from "../lib/dom.js";
 import { getTemplate } from "../templates/registry.js";
-import { headerCategories, allProductsHref, ALL_LABEL } from "../templates/sectionsModel.js";
+import { headerCategories, allProductsHref, filterForCategoryPage, ALL_LABEL, FEATURED_LABEL } from "../templates/sectionsModel.js";
 import type { StoreRenderView } from "../templates/types.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
@@ -11,10 +11,17 @@ import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { publicStoreUrl } from "../composition.js";
+import { storeBasePath } from "../lib/routing.js";
 import { applySeo } from "../lib/seo.js";
-import { storeTitle, storeDescription, truncate } from "../../src/services/seo.js";
+import { categoryTitle, categoryDescription, collectionJsonLd, breadcrumbJsonLd } from "../../src/services/seo.js";
+import { categorySlug, resolveCategoryLabel, productSlugPath } from "../lib/slug.js";
 
-export async function renderCategoryPage(identifier: string, category: string): Promise<void> {
+/**
+ * Página de categoria. `slugOrLabel` vem da URL (`/categoria/tenis-de-corrida`)
+ * e é resolvido para o rótulo real da loja. As ligações antigas com o rótulo
+ * percent-encoded continuam a funcionar (o resolvedor compara por slug).
+ */
+export async function renderCategoryPage(identifier: string, slugOrLabel: string): Promise<void> {
   const { result, view, custom } = await loadStorefront(identifier);
 
   if (view.kind !== "render" || result.kind !== "render") {
@@ -26,6 +33,12 @@ export async function renderCategoryPage(identifier: string, category: string): 
     </div>`);
     return;
   }
+
+  // Slug da URL → rótulo real. Inclui os rótulos especiais ("Produtos",
+  // "Destaques", "Todos") para que /categoria/produtos e /categoria/destaques
+  // continuem a resolver.
+  const known = [ALL_LABEL, FEATURED_LABEL, "Todos", ...headerCategories(view)];
+  const category = resolveCategoryLabel(slugOrLabel, known) ?? slugOrLabel;
 
   const template = getTemplate(view.templateId);
 
@@ -43,14 +56,44 @@ export async function renderCategoryPage(identifier: string, category: string): 
   updateCartBadge(result.store.id);
   mountListingToolbar(app, view, identifier, category);
 
-  const url = `${publicStoreUrl(identifier)}/categoria/${encodeURIComponent(category)}`;
+  // SEO da listagem: descrição ÚNICA por categoria (nunca a da loja repetida),
+  // trilho de navegação e a coleção de produtos em dados estruturados.
+  const storeUrl = publicStoreUrl(identifier);
+  const url = `${storeUrl}/categoria/${categorySlug(category)}`;
+  const items = filterForCategoryPage(view, category);
+  const prices = items.map((p) => p.price).filter((n) => Number.isFinite(n));
+  const description = categoryDescription({
+    category,
+    storeName: view.storeName,
+    count: items.length,
+    sampleNames: items.slice(0, 3).map((p) => p.name),
+    priceFrom: prices.length ? formatKz(Math.min(...prices)) : null,
+  });
+
   applySeo({
-    title: `${category} — ${storeTitle(view.storeName)}`,
-    description: truncate(`${category} na ${view.storeName}. ${storeDescription(view.storeName)}`, 160),
+    title: categoryTitle(category, view.storeName),
+    description,
     canonical: url,
-    image: result.logo?.url ?? null,
+    image: items.find((p) => p.imageUrl)?.imageUrl ?? result.logo?.url ?? null,
     type: "website",
     siteName: view.storeName,
+    jsonLd: [
+      collectionJsonLd({
+        name: category,
+        url,
+        description,
+        items: items.map((p) => ({
+          name: p.name,
+          url: `${storeUrl}/produto/${productSlugPath(p)}`,
+          image: p.imageUrl ?? null,
+          price: p.price,
+        })),
+      }),
+      breadcrumbJsonLd([
+        { name: view.storeName, url: `${storeUrl}/` },
+        { name: category, url },
+      ]),
+    ],
   });
 }
 
@@ -71,7 +114,7 @@ function mountListingToolbar(
   const grid = cards[0].parentElement;
   if (!grid) return;
 
-  const catHref = (label: string): string => `#/loja/${encodeURIComponent(identifier)}/categoria/${encodeURIComponent(label)}`;
+  const catHref = (label: string): string => `${storeBasePath(identifier)}/categoria/${categorySlug(label)}`;
   const cats = headerCategories(view);
   const isAll = activeLabel === ALL_LABEL || activeLabel === "Todos";
 

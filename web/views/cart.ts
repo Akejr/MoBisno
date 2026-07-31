@@ -1,5 +1,6 @@
 /** Carrinho da loja — lista, quantidades, total e finalização via WhatsApp. */
 import { render, $, esc, formatKz, fadeInImages, toast } from "../lib/dom.js";
+import { storeBasePath, storeHomePath } from "../lib/routing.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { getCart, setQuantity, removeFromCart, cartTotal, updateCartBadge, type CartItem } from "../lib/cart.js";
 import { resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -41,9 +42,9 @@ export async function renderCartPage(identifier: string): Promise<void> {
 
   const storeId = result.store.id;
   const brand = brandOf(custom, result.store.templateId);
-  const homeHref = `#/loja/${encodeURIComponent(identifier)}`;
+  const homeHref = storeHomePath(identifier);
   const online = !!custom.payments?.onlineEnabled;
-  const checkoutHref = `${homeHref}/checkout`;
+  const checkoutHref = `${storeBasePath(identifier)}/checkout`;
 
   function draw(): void {
     const items = getCart(storeId);

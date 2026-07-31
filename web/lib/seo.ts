@@ -6,7 +6,11 @@
  * acontece no servidor (`api/prerender.js`) — este módulo trata do Google
  * (que renderiza JS) e da experiência no navegador.
  */
-import { SEO_LOCALE, platformTitle, platformDescription, platformKeywords, platformJsonLd } from "../../src/services/seo.js";
+import {
+  SEO_LOCALE, platformTitle, platformDescription, platformKeywords, platformJsonLd,
+  type SeoShipping, type SeoAddress,
+} from "../../src/services/seo.js";
+import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 
 export interface SeoInput {
   title: string;
@@ -71,6 +75,7 @@ export function applySeo(input: SeoInput): void {
   setMeta("property", "og:type", type);
   setMeta("property", "og:url", url);
   setMeta("property", "og:image", image);
+  setMeta("property", "og:image:alt", input.title);
   setMeta("property", "og:site_name", siteName);
   setMeta("property", "og:locale", SEO_LOCALE);
 
@@ -81,6 +86,42 @@ export function applySeo(input: SeoInput): void {
   setMeta("name", "twitter:image", image);
 
   applyJsonLd(input.jsonLd);
+}
+
+/**
+ * Converte a configuração de entregas da loja em portes para o JSON-LD.
+ *
+ * Só devolve um valor quando o dono configurou mesmo uma taxa — declarar portes
+ * inexistentes ao Google é motivo de penalização. Em modo "por área" usa a taxa
+ * mais baixa (é o "a partir de" que o comprador vê).
+ */
+export function shippingFromCustom(custom?: StoreCustomization | null): SeoShipping | null {
+  const d = custom?.delivery;
+  if (!d) return null;
+  if (d.mode === "perArea") {
+    const fees = Object.values(d.fees ?? {}).filter((n): n is number => Number.isFinite(n));
+    return fees.length ? { cost: Math.min(...fees) } : null;
+  }
+  return Number.isFinite(d.flatFee) ? { cost: Number(d.flatFee) } : null;
+}
+
+/** Morada da loja para SEO local, a partir dos blocos de localização do editor. */
+export function addressFromCustom(custom?: StoreCustomization | null): SeoAddress | null {
+  const block = custom?.blocks?.find((b): b is Extract<ContentBlock, { type: "location" }> => b.type === "location");
+  if (block && (block.address || typeof block.lat === "number")) {
+    return {
+      street: block.address ?? null,
+      latitude: typeof block.lat === "number" ? block.lat : null,
+      longitude: typeof block.lng === "number" ? block.lng : null,
+    };
+  }
+  const boutique = custom?.map?.boutiques?.find((b) => b.address || typeof b.lat === "number");
+  if (!boutique) return null;
+  return {
+    street: boutique.address ?? null,
+    latitude: typeof boutique.lat === "number" ? boutique.lat : null,
+    longitude: typeof boutique.lng === "number" ? boutique.lng : null,
+  };
 }
 
 /** Injeta (substituindo) os blocos JSON-LD geridos por este módulo. */
