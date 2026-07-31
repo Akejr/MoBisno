@@ -304,36 +304,45 @@ export function faqJsonLd(items) {
 /* ----------------------------- Conteúdo (SSR) ----------------------------- */
 
 /**
- * Folha de estilo mínima do conteúdo pré-renderizado.
+ * Folha de estilo do conteúdo pré-renderizado.
  *
- * Este HTML é substituído pela SPA assim que ela tem os dados prontos
- * (`render()` troca o `innerHTML` de `#app` de uma só vez). Até lá funciona
- * como ecrã de carregamento com conteúdo real — o que também melhora o LCP em
- * ligações móveis lentas, em vez de mostrar uma página em branco.
+ * O bloco `.mb-ssr` está no HTML mas é INVISÍVEL para quem visita o site. Isso
+ * é deliberado: enquanto era visível, o visitante via primeiro uma página de
+ * texto simples e só depois a loja real — parecia outro site a carregar.
+ *
+ * Não perde SEO nenhum. Os rastreadores que não executam JavaScript (Bing,
+ * crawlers sociais, primeira passagem do Google) leem o HTML em bruto, onde o
+ * texto continua todo presente — o CSS não é aplicado nessa leitura. O Google,
+ * quando executa o JavaScript, vê a loja verdadeira renderizada pela SPA, com
+ * a mesma informação. Não é cloaking: o conteúdo é o mesmo, muda a
+ * apresentação.
+ *
+ * O que o visitante vê é `.mb-boot` — um ecrã de carregamento com o logótipo e
+ * a cor da loja. Ambos desaparecem de uma vez quando a SPA substitui `#app`.
  */
 function ssrStyle(brand) {
   return `<style id="mb-ssr-style">
-    .mb-ssr{max-width:1120px;margin:0 auto;padding:24px 20px 64px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#1c1b1b;line-height:1.55}
-    .mb-ssr a{color:inherit;text-decoration:none}
-    .mb-ssr-top{display:flex;align-items:center;gap:12px;padding-bottom:20px;border-bottom:1px solid #ececec;margin-bottom:28px}
-    .mb-ssr-top img{height:40px;width:auto}
-    .mb-ssr-top strong{font-size:19px;letter-spacing:-.01em}
-    .mb-ssr h1{font-size:30px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 10px}
-    .mb-ssr h2{font-size:20px;font-weight:700;margin:36px 0 14px}
-    .mb-ssr p{margin:0 0 14px;color:#524345;max-width:70ch}
-    .mb-ssr-nav{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
-    .mb-ssr-nav a{border:1px solid #e3e0e0;border-radius:999px;padding:7px 15px;font-size:14px}
-    .mb-ssr-grid{list-style:none;padding:0;margin:0;display:grid;gap:20px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
-    .mb-ssr-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#f4f2f2}
-    .mb-ssr-grid .n{display:block;margin-top:9px;font-size:14px;font-weight:600}
-    .mb-ssr-grid .p{display:block;font-size:14px;color:${brand}}
-    .mb-ssr-prod{display:grid;gap:28px;grid-template-columns:minmax(0,1fr)}
-    @media(min-width:760px){.mb-ssr-prod{grid-template-columns:minmax(0,440px) minmax(0,1fr)}}
-    .mb-ssr-prod img{width:100%;border-radius:14px;background:#f4f2f2}
-    .mb-ssr-price{font-size:26px;font-weight:800;color:${brand};margin:6px 0 16px}
-    .mb-ssr-crumb{font-size:13px;color:#7a6f70;margin-bottom:14px}
-    .mb-ssr-foot{margin-top:56px;padding-top:20px;border-top:1px solid #ececec;font-size:13px;color:#7a6f70}
+    .mb-ssr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+    .mb-boot{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:40px 20px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+    .mb-boot img{height:56px;width:auto;max-width:70vw;object-fit:contain}
+    .mb-boot-name{font-size:20px;font-weight:800;letter-spacing:-.01em;color:#1c1b1b;text-align:center}
+    .mb-boot-bar{width:132px;height:3px;border-radius:99px;background:rgba(128,128,128,.18);overflow:hidden}
+    .mb-boot-bar span{display:block;width:40%;height:100%;border-radius:99px;background:${brand};animation:mb-boot-slide 1.1s ease-in-out infinite}
+    @keyframes mb-boot-slide{0%{transform:translateX(-100%)}100%{transform:translateX(330%)}}
+    @media(prefers-reduced-motion:reduce){.mb-boot-bar span{animation:none;width:100%}}
   </style>`;
+}
+
+/**
+ * Ecrã de carregamento com a marca da loja — é isto que o visitante vê até a
+ * SPA ter os dados prontos. Substitui a antiga página de texto, que parecia
+ * outro site a abrir antes da loja verdadeira.
+ */
+function bootScreen(name, logoUrl) {
+  const mark = logoUrl
+    ? `<img src="${esc(logoUrl)}" alt="${esc(name)}" />`
+    : `<p class="mb-boot-name">${esc(name)}</p>`;
+  return `<div class="mb-boot" aria-hidden="true">${mark}<div class="mb-boot-bar"><span></span></div></div>`;
 }
 
 function topBar(storeName, logoUrl, homeHref) {
@@ -365,7 +374,7 @@ export function storeHomeHtml({ storeName, description, logoUrl, products, categ
   const grid = products.length
     ? `<h2>Produtos</h2><ul class="mb-ssr-grid">${productCards(products, base)}</ul>`
     : "";
-  return `${ssrStyle(brand)}<div class="mb-ssr">
+  return `${ssrStyle(brand)}${bootScreen(storeName, logoUrl)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
     <h1>${esc(storeName)}</h1>
     <p>${esc(description)}</p>
@@ -380,7 +389,7 @@ export function categoryHtml({ storeName, category, description, logoUrl, produc
   const grid = products.length
     ? `<ul class="mb-ssr-grid">${productCards(products, base)}</ul>`
     : `<p>Ainda não há produtos nesta categoria.</p>`;
-  return `${ssrStyle(brand)}<div class="mb-ssr">
+  return `${ssrStyle(brand)}${bootScreen(storeName, logoUrl)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
     <p class="mb-ssr-crumb"><a href="${esc(base || "/")}">${esc(storeName)}</a> › ${esc(category)}</p>
     <h1>${esc(category)}</h1>
@@ -400,7 +409,7 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
     : "";
   const stock = outOfStock ? `<p><strong>Esgotado</strong></p>` : "";
   const full = String(product.description ?? "").trim();
-  return `${ssrStyle(brand)}<div class="mb-ssr">
+  return `${ssrStyle(brand)}${bootScreen(storeName, logoUrl)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
     <p class="mb-ssr-crumb"><a href="${esc(base || "/")}">${esc(storeName)}</a>${crumbCat} › ${esc(product.name)}</p>
     <div class="mb-ssr-prod">
@@ -429,7 +438,7 @@ export function platformHtml({ heading, intro, sections = [], links = [], extraH
   const nav = links.length
     ? `<nav class="mb-ssr-nav">${links.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join("")}</nav>`
     : "";
-  return `${ssrStyle("#F95901")}<div class="mb-ssr">
+  return `${ssrStyle("#F95901")}${bootScreen("MôBisno", "/logo-header.png")}<div class="mb-ssr">
     <div class="mb-ssr-top"><a href="/"><img src="/logo-header.png" alt="MôBisno" width="40" height="40" /><strong>MôBisno</strong></a></div>
     <h1>${esc(heading)}</h1>
     <p>${esc(intro)}</p>

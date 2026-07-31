@@ -41,6 +41,11 @@ interface ApiSeo {
   identifierFromHost(host: string): string | null;
   metaTags(i: Record<string, unknown>): string;
   inject(shell: string, i: { title: string; tags: string; bodyHtml?: string; lang?: string }): string;
+  storeHomeHtml(i: {
+    storeName: string; description: string; logoUrl: string | null;
+    products: { id: string; name: string; category: string | null; price: number; image_url: string | null }[];
+    categories: string[]; base: string; brand: string;
+  }): string;
 }
 
 // `api/_seo.js` é JavaScript puro: as funções serverless não passam pelo
@@ -196,5 +201,41 @@ describe("SEO — injeção no HTML servido", () => {
 
   it("páginas públicas permitem imagem grande no resultado", () => {
     expect(tags).toContain("max-image-preview:large");
+  });
+});
+
+describe("SEO — conteudo presente no HTML mas invisivel ao visitante", () => {
+  const html = apiSeo.storeHomeHtml({
+    storeName: "Juddy Cosmetics",
+    description: "Compre online na Juddy Cosmetics em Angola.",
+    logoUrl: "https://cdn/logo.webp",
+    products: [
+      { id: "1", name: "Perfume Capilar Bee Bee", category: "Cabelos", price: 30000, image_url: null },
+      { id: "2", name: "Lip Oil", category: "Labios", price: 15000, image_url: null },
+    ],
+    categories: ["Cabelos", "Labios"],
+    base: "",
+    brand: "#C2185B",
+  });
+
+  it("o texto que posiciona a loja continua no HTML servido", () => {
+    // Se isto falhar, os rastreadores que nao executam JavaScript deixam de ver
+    // qualquer conteudo e as lojas voltam a ser invisiveis na pesquisa.
+    expect(html).toContain("<h1>Juddy Cosmetics</h1>");
+    expect(html).toContain("Perfume Capilar Bee Bee");
+    expect(html).toContain("30.000,00 Kz");
+    expect(html.match(/href="\/produto\//g) ?? []).toHaveLength(2);
+  });
+
+  it("o visitante ve o ecra de carregamento, nao a pagina de texto", () => {
+    expect(html).toContain('class="mb-boot"');
+    // Recorte em vez de display:none — conteudo escondido com display:none e
+    // desvalorizado pelo Google.
+    expect(html).toMatch(/\.mb-ssr\{position:absolute;width:1px/);
+    expect(html).not.toMatch(/\.mb-ssr\{[^}]*display:none/);
+  });
+
+  it("o ecra de carregamento nao entra na arvore de acessibilidade", () => {
+    expect(html).toContain('class="mb-boot" aria-hidden="true"');
   });
 });
