@@ -29,6 +29,9 @@ export default function handler(req, res) {
     "Disallow: /preview",
     "Disallow: /teste-modelos",
     "Disallow: /api/",
+    // Shell da SPA (sem conteúdo). Servido em /app.html para que a raiz "/"
+    // caia no prerender em vez de num ficheiro estático.
+    "Disallow: /app.html",
     // Variantes da mesma listagem (ordenação, paginação de filtros, QA).
     "Disallow: /*?ordenar=",
     "Disallow: /*?qa=",

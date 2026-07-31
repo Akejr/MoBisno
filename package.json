@@ -8,7 +8,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "vite --config vite.config.web.ts",
-    "web:build": "vite build --config vite.config.web.ts"
+    "web:build": "vite build --config vite.config.web.ts && node scripts/rename-shell.mjs"
   },
   "license": "UNLICENSED",
   "private": true,

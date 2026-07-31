@@ -41,13 +41,39 @@ let shellCache = null;
 let shellCachedAt = 0;
 const SHELL_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Caminhos do shell da SPA, por ordem de preferência.
+ *
+ * `app.html` é o nome usado desde que o `index.html` deixou de existir na raiz
+ * do output (ver `scripts/rename-shell.mjs`): enquanto existia, a Vercel servia
+ * esse ficheiro em `/` e o rewrite para esta função nunca disparava. O
+ * `index.html` fica como alternativa para deployments antigos.
+ */
+const SHELL_PATHS = ["/app.html", "/index.html"];
+
 async function fetchShell(host) {
   const now = Date.now();
   if (shellCache && now - shellCachedAt < SHELL_TTL_MS) return shellCache;
-  const r = await fetch(`https://${host}/index.html`, { headers: { "x-prerender": "1" } });
-  const text = await r.text();
-  if (text && text.includes("<head>")) { shellCache = text; shellCachedAt = now; }
-  return text;
+
+  let lastError = null;
+  for (const path of SHELL_PATHS) {
+    try {
+      const r = await fetch(`https://${host}${path}`, { headers: { "x-prerender": "1" } });
+      if (!r.ok) { lastError = new Error(`${path} devolveu ${r.status}`); continue; }
+      const text = await r.text();
+      // Validar: sem isto, a página 404 da Vercel passava a servir de shell.
+      if (!text || !text.includes("<head>") || !text.includes('id="app"')) {
+        lastError = new Error(`${path} não é um shell válido`);
+        continue;
+      }
+      shellCache = text;
+      shellCachedAt = now;
+      return text;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError ?? new Error("shell indisponível");
 }
 
 /** Rótulos de categoria de uma loja, pela ordem em que aparecem. */
@@ -109,10 +135,14 @@ export default async function handler(req, res) {
   let shell = "";
   try {
     shell = await fetchShell(host);
-  } catch {
-    res.statusCode = 302;
-    res.setHeader("Location", "/index.html");
-    return res.end();
+  } catch (e) {
+    // Sem shell não há SPA para servir. Redirecionar seria pior (mudava a URL
+    // da loja); devolve-se 503 para a Vercel/CDN não guardar o erro em cache.
+    console.error("prerender: shell indisponível", e);
+    res.statusCode = 503;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    return res.end("<!doctype html><meta charset=\"utf-8\"><title>Indisponível</title><p>Serviço temporariamente indisponível. Tente novamente dentro de instantes.</p>");
   }
 
   const send = (html, status = 200, cacheable = true) => {
