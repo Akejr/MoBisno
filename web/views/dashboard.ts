@@ -494,7 +494,25 @@ export async function renderDashboard(): Promise<void> {
 
   async function renderPagamentos(): Promise<void> {
     const cfg = await getPaymentConfig(store!.id);
-    const custom = await getCustomization(store!.id);
+    let custom = await getCustomization(store!.id);
+
+    // Auto-reparação do espelho público de pagamentos.
+    //
+    // `store_payments` é a fonte de verdade (é o que `api/payment.js` consulta),
+    // mas não tem leitura pública, por isso o storefront decide a partir do
+    // espelho `customization.payments.onlineEnabled`. Uma loja pode ter ficado
+    // com o espelho divergente — herdado de uma loja-modelo, ou escrito quando a
+    // gravação da verdade falhou. Quando o Dono abre este separador temos as duas
+    // leituras em mão: se divergirem, corrigimos o espelho a partir da verdade,
+    // uma só escrita e em silêncio. Sem divergência não se escreve nada.
+    if ((custom.payments?.onlineEnabled === true) !== cfg.onlineEnabled) {
+      const repaired = { ...custom, payments: { ...(custom.payments ?? {}), onlineEnabled: cfg.onlineEnabled } };
+      const okRepair = await saveCustomization(ownerId, store!.id, repaired);
+      if (okRepair) custom = repaired;
+      // A correção é invisível para o Dono: uma falha aqui não é erro dele.
+      else console.error("renderPagamentos: espelho de pagamentos divergente não corrigido");
+    }
+
     const waPhone = custom.whatsapp?.phone || resolveWaPhone(custom);
     const online = plan.features.multicaixaCheckout;
 
@@ -587,11 +605,15 @@ export async function renderDashboard(): Promise<void> {
       };
       if (enabled && !next.iban) { toast("Indique o IBAN da conta bancária para ativar.", "error"); return; }
       const okSave = await withBusy(() => savePaymentConfig(store!.id, next), "A guardar…");
+      // A fonte de verdade primeiro. Se falhar, o espelho não é tocado: escrevê-lo
+      // mesmo assim anunciaria os métodos online no checkout com `store_payments`
+      // a dizer o contrário, e o servidor recusaria a compra.
+      if (!okSave) { toast("Não foi possível guardar.", "error"); return; }
       // Espelha o flag público (não sensível) na customização, para o storefront.
       const mirrored = { ...custom, payments: { ...(custom.payments ?? {}), onlineEnabled: enabled } };
       await saveCustomization(ownerId, store!.id, mirrored);
-      if (okSave) { toast("Pagamentos online guardados."); await renderPagamentos(); }
-      else toast("Não foi possível guardar.", "error");
+      toast("Pagamentos online guardados.");
+      await renderPagamentos();
     });
   }
 

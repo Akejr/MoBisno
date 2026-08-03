@@ -20,39 +20,6 @@ function isMobile(): boolean {
   return window.matchMedia("(max-width: 767px)").matches;
 }
 
-/** Injeta (uma vez) o tema escuro do mini-carrinho para modelos escuros (ex.: Neon Lab). */
-function ensureCartDarkStyle(): void {
-  if (document.getElementById("mb-cart-dark-style")) return;
-  const st = document.createElement("style");
-  st.id = "mb-cart-dark-style";
-  st.textContent = `
-    #mb-cart-drawer.nl-dark [data-panel]{background:#121317 !important;color:#e3e2e7}
-    #mb-cart-drawer.nl-dark :is(.text-neutral-900){color:#e3e2e7 !important}
-    #mb-cart-drawer.nl-dark :is(.text-neutral-600,.text-neutral-500){color:#8e9192 !important}
-    #mb-cart-drawer.nl-dark :is(.text-neutral-400){color:#5f5e5e !important}
-    #mb-cart-drawer.nl-dark :is(.bg-neutral-100){background:#1e1f23 !important}
-    #mb-cart-drawer.nl-dark :is(.border-neutral-100,.border-neutral-200,.border-neutral-300){border-color:#444748 !important}
-    #mb-cart-drawer.nl-dark .hover\\:bg-neutral-100:hover{background:rgba(255,255,255,.06) !important}
-    #mb-cart-drawer.nl-dark .hover\\:text-neutral-900:hover{color:#e3e2e7 !important}
-    #mb-cart-drawer.nl-dark .divide-neutral-100 > * + *{border-color:rgba(68,71,72,.4) !important}
-  `;
-  document.head.appendChild(st);
-}
-
-/** Tema claro do mini-carrinho para o modelo FoodMart (Nunito + cantos redondos). */
-function ensureCartFmStyle(): void {
-  if (document.getElementById("mb-cart-fm-style")) return;
-  const st = document.createElement("style");
-  st.id = "mb-cart-fm-style";
-  st.textContent = `
-    #mb-cart-drawer.fm-theme [data-panel]{font-family:'Open Sans',sans-serif}
-    #mb-cart-drawer.fm-theme h3,#mb-cart-drawer.fm-theme [data-foot] a[data-go],#mb-cart-drawer.fm-theme [data-foot] button,#mb-cart-drawer.fm-theme .font-medium{font-family:'Nunito',sans-serif}
-    #mb-cart-drawer.fm-theme [data-foot] a[data-go],#mb-cart-drawer.fm-theme [data-foot] button[data-checkout]{border-radius:9999px !important;font-weight:800}
-    #mb-cart-drawer.fm-theme [data-row] img,#mb-cart-drawer.fm-theme [data-row] .bg-neutral-100{border-radius:.9rem !important}
-  `;
-  document.head.appendChild(st);
-}
-
 /**
  * Extrai o identificador da loja a partir do href do ícone do carrinho.
  * Aceita `/loja/<id>/carrinho` (domínio principal), `/carrinho` (subdomínio,
@@ -98,7 +65,6 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   // copiados para a Loja do cliente e levavam lojas reais a um checkout com
   // métodos que não aceitam (R3.3).
   const showCheckout = onlinePaymentsVisible(custom) || isPaymentsDemo(custom);
-  const darkTheme = templateId === "neonlab";
 
   // Remove instância anterior, se existir.
   document.getElementById("mb-cart-drawer")?.remove();
@@ -124,8 +90,8 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   applyInk(host, custom);
   applyTheme(host, custom);
   applyIconColor(host, custom);
-  if (darkTheme) { ensureCartDarkStyle(); host.classList.add("nl-dark"); }
-  if (templateId === "foodmart") { ensureCartFmStyle(); host.classList.add("fm-theme"); }
+  // Os temas próprios do mini-carrinho para «Neon Lab» e «FoodMart» saíram com
+  // os modelos: nenhuma Loja é servida com esses ids desde a remoção do registo.
 
   const overlay = host.querySelector<HTMLElement>("[data-overlay]")!;
   const panel = host.querySelector<HTMLElement>("[data-panel]")!;

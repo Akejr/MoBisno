@@ -13,8 +13,6 @@ import { desportivoTemplate } from "./desportivo.js";
 import { beautyTemplate } from "./beauty.js";
 import { galeriaTemplate } from "./galeria.js";
 import { lumiereTemplate } from "./lumiere.js";
-import { neonlabTemplate } from "./neonlab.js";
-import { foodmartTemplate } from "./foodmart.js";
 
 /** Render genérico (usado por enquanto pelos modelos não-desportivos). */
 function renderDefault(view: StoreRenderView, _custom?: StoreCustomization): string {
@@ -42,14 +40,24 @@ function renderDefault(view: StoreRenderView, _custom?: StoreCustomization): str
   </div>`;
 }
 
-/** Lista de Modelos registados. (render = renderDefault até chegarem os desenhos.) */
+/**
+ * Lista de Modelos registados. (render = renderDefault até chegarem os desenhos.)
+ *
+ * Os modelos «Neon Lab» (`neonlab`) e «FoodMart» (`foodmart`) saíram do registo
+ * (R1.4). Os ficheiros de desenho `neonlab.ts` e `foodmart.ts` ficam no
+ * repositório — não são importados por aqui, logo não entram no pacote — porque
+ * `foodmart.ts` exporta `foodmartDefaultFeatures`, ainda usado pelo editor para
+ * materializar as garantias de Personalizações legadas.
+ *
+ * Uma Loja gravada com `template_id` igual a `neonlab` ou `foodmart` passa a ser
+ * servida com o primeiro Modelo registado (`desportivo`), pelo comportamento
+ * inalterado de `getTemplate` (R1.10).
+ */
 export const TEMPLATE_REGISTRY: StoreTemplate[] = [
   desportivoTemplate,
   beautyTemplate,
   galeriaTemplate,
   lumiereTemplate,
-  neonlabTemplate,
-  foodmartTemplate,
   { id: "boutique-elegante", name: "Boutique Elegante", previewUrl: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=600&q=70", render: renderDefault },
   { id: "tech-dinamico", name: "Tech Dinâmico", previewUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=70", render: renderDefault },
   { id: "sabor-artesanal", name: "Sabor Artesanal", previewUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&q=70", render: renderDefault },
