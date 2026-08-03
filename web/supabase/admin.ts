@@ -19,6 +19,12 @@ export interface AdminAccount {
   planExpiresAt: string | null;
   /** Plano agendado para o próximo período, ou null. */
   nextPlan: string | null;
+  /**
+   * Fim do período de teste grátis (ISO) ou null. A coluna `trial_ends_at`
+   * existe em `profiles` desde a migração `0018_trial.sql`; é a fonte das
+   * «contas em teste a expirar» e da conversão de teste para pago (R7.2).
+   */
+  trialEndsAt: string | null;
 }
 
 /** Funcionalidades ativas numa loja (vistas pelo admin). */
@@ -148,7 +154,7 @@ export async function adminOverview(): Promise<AdminOverview> {
 /** Lista de contas com o nº de lojas. */
 export async function listAccounts(): Promise<AdminAccount[]> {
   const [{ data: profiles }, { data: stores }] = await Promise.all([
-    supabase.from("profiles").select("id, email, name, plan, is_admin, created_at, plan_expires_at, next_plan").order("created_at", { ascending: false }),
+    supabase.from("profiles").select("id, email, name, plan, is_admin, created_at, plan_expires_at, next_plan, trial_ends_at").order("created_at", { ascending: false }),
     supabase.from("stores").select("owner_id"),
   ]);
   const counts = new Map<string, number>();
@@ -163,7 +169,40 @@ export async function listAccounts(): Promise<AdminAccount[]> {
     storeCount: counts.get(p.id) ?? 0,
     planExpiresAt: p.plan_expires_at ?? null,
     nextPlan: p.next_plan ?? null,
+    trialEndsAt: p.trial_ends_at ?? null,
   }));
+}
+
+/**
+ * Contagem de Produtos por Loja, indexada pelo `id` da Loja (decisão D5).
+ *
+ * **Só leitura.** Não escreve, não apaga, não migra.
+ *
+ * Traz uma linha por Produto da Plataforma com uma única coluna (`store_id`) e
+ * conta em memória, sem `join` — a mesma abordagem que `listAccounts` já usa
+ * para contar Lojas por dono. À escala atual o custo é irrelevante; se crescer,
+ * troca-se por uma vista agregada no Supabase.
+ *
+ * Lojas sem Produtos não aparecem no `Map`: quem consome trata a ausência como
+ * zero. Em caso de erro de leitura segue a convenção das **listagens** deste
+ * ficheiro — registar no `console` e devolver resultado vazio —, e não a de
+ * `adminStoresUsingTemplate`, que lança de propósito por ser guarda de uma
+ * eliminação irreversível. Aqui um resultado vazio degrada a lista «Lojas sem
+ * Produtos» (mostra Lojas a mais), não autoriza nenhuma ação destrutiva.
+ */
+export async function adminStoreProductCounts(): Promise<ReadonlyMap<string, number>> {
+  const counts = new Map<string, number>();
+  const { data, error } = await supabase.from("products").select("store_id");
+  if (error) {
+    console.error("adminStoreProductCounts", error);
+    return counts;
+  }
+  (data ?? []).forEach((r) => {
+    const id = typeof r.store_id === "string" ? r.store_id : "";
+    if (!id) return;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  });
+  return counts;
 }
 
 /** Lista de todas as lojas, com o dono, plano e funcionalidades ativas. */

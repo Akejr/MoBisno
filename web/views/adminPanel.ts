@@ -10,11 +10,16 @@ import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
   adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
   listServiceTransactions, adminDeleteServiceTransaction, adminStoresUsingTemplate,
+  adminStoreProductCounts,
   type AdminStore, type AdminAccount, type AdminWithdrawal, type AdminServiceTx,
   type AdminTemplateUsage, type AdminTemplateUser, type TemplateMatch,
 } from "../supabase/admin.js";
 import { listTemplateModels, createTemplateModel, deleteTemplateModel, seedDefaultModels, defaultFactoryModels, factoryModelNameKeys, type TemplateModel } from "../supabase/models.js";
 import { getPlan, isPlanId, PLAN_ORDER, type PlanId } from "../../src/services/plans.js";
+import {
+  businessHealth, monthlyEvolution, attentionLists, ADMIN_HREFS, ATTENTION_WINDOW_DAYS, MONTHS_IN_EVOLUTION,
+  type AdminMetricsInput, type AttentionItem, type MonthPoint,
+} from "../../src/services/adminMetrics.js";
 
 const ACCENT = "#F95901";
 const ACCENT_TINT = "rgba(249,89,1,.1)";
@@ -88,6 +93,161 @@ const WD_STATUS = {
 function wdStatusBadge(s: string): string {
   const cfg = (WD_STATUS as Record<string, { label: string; bg: string; color: string }>)[s];
   return cfg ? badge(cfg.label, cfg.bg, cfg.color) : badge(s, "#f3f4f6", "#6b7280");
+}
+
+/* -------------------- Blocos da Visão geral (R7.1–R7.13) ------------------ */
+
+/**
+ * Cor da série «contas novas» na evolução mensal. Deliberadamente diferente de
+ * `ACCENT`: as duas séries do mesmo gráfico têm de se distinguir sem legenda.
+ */
+const SERIES_ACCOUNTS = "#1d4ed8";
+
+/** Nº de linhas apresentadas em cada lista de «A precisar de atenção». */
+const ATTENTION_ROWS = 5;
+
+/** Nº de linhas apresentadas em cada lista do histórico recente (R7.7). */
+const HISTORY_ROWS = 6;
+
+/**
+ * Cartão de métrica com uma nota curta debaixo do número.
+ *
+ * A nota não é enfeite: é a guarda da armadilha de rótulos da decisão **D5**. A
+ * «receita da Plataforma» (transações de serviço: planos, SMS, logótipos) e o
+ * «volume de vendas das Lojas» (`orders`, dinheiro dos Donos) são grandezas
+ * diferentes, e um número sozinho não as distingue. Um Administrador que as
+ * confunda toma decisões erradas.
+ */
+function healthCard(icon: string, label: string, value: string, hint: string, accent = false): string {
+  const ic = accent ? `background:${ACCENT};color:#fff` : `background:${ACCENT_TINT};color:${ACCENT}`;
+  return `<div class="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col gap-3 min-w-0">
+    <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="${ic}"><span class="material-symbols-outlined">${icon}</span></div>
+    <div class="min-w-0">
+      <p class="text-sm text-gray-500 mb-0.5 break-words">${esc(label)}</p>
+      <p class="text-2xl font-black text-gray-900 break-words">${esc(value)}</p>
+      <p class="text-xs text-gray-400 mt-1 break-words">${esc(hint)}</p>
+    </div>
+  </div>`;
+}
+
+/** Cabeçalho de uma das três secções da Visão geral (R7.1). */
+function sectionHeader(icon: string, title: string, subtitle: string): string {
+  return `<div class="flex items-start gap-3 mb-4 min-w-0">
+    <span class="material-symbols-outlined shrink-0" style="color:${ACCENT}">${icon}</span>
+    <div class="min-w-0">
+      <h3 class="text-lg font-black text-gray-900 break-words">${esc(title)}</h3>
+      <p class="text-sm text-gray-500 break-words">${esc(subtitle)}</p>
+    </div>
+  </div>`;
+}
+
+/** Cartão com cabeçalho, contagem opcional e ligação para o separador que resolve. */
+function overviewCard(title: string, countBadge: string, action: { href: string; label: string } | null, body: string): string {
+  return `<div class="bg-white border border-gray-200 rounded-2xl overflow-hidden min-w-0">
+    <div class="px-4 md:px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2 flex-wrap min-w-0">
+      <div class="flex items-center gap-2 flex-wrap min-w-0">
+        <h4 class="font-black text-gray-900 break-words min-w-0">${esc(title)}</h4>
+        ${countBadge}
+      </div>
+      ${action ? `<a href="${esc(action.href)}" class="text-sm font-semibold hover:underline shrink-0" style="color:${ACCENT}">${esc(action.label)}</a>` : ""}
+    </div>
+    ${body}
+  </div>`;
+}
+
+/**
+ * Uma linha de «A precisar de atenção». **É toda ela uma ligação** para o ecrã
+ * onde a ação se resolve (R7.5), com o `href` que o próprio item traz de
+ * `attentionLists`.
+ */
+function attentionRow(item: AttentionItem): string {
+  const amount = typeof item.amount === "number" && item.amount > 0
+    ? `<span class="text-sm font-bold text-gray-900 break-words text-right shrink-0">${esc(formatKz(item.amount))}</span>`
+    : "";
+  return `<a href="${esc(item.href)}" class="flex items-start gap-3 px-4 md:px-5 py-3 hover:bg-gray-50 transition-colors min-w-0">
+    <div class="flex-1 min-w-0">
+      <p class="font-semibold text-gray-900 break-words">${esc(item.title)}</p>
+      <p class="text-xs text-gray-400 break-words">${esc(item.detail)}</p>
+    </div>
+    ${amount}
+    <span class="material-symbols-outlined text-gray-300 text-[18px] shrink-0">chevron_right</span>
+  </a>`;
+}
+
+/**
+ * Uma das cinco listas de «A precisar de atenção» (R7.4).
+ *
+ * Sem itens, apresenta a mensagem de estado vazio **desta** lista (R7.6): cada
+ * chamador passa o seu texto, porque «Sem pedidos pendentes» não descreve uma
+ * Loja sem Produtos nem uma conta com o teste a terminar.
+ */
+function attentionCard(
+  title: string,
+  items: readonly AttentionItem[],
+  empty: string,
+  href: string,
+  actionLabel: string,
+): string {
+  const count = items.length;
+  const countBadge = count ? badge(String(count), "#fff7ed", "#c2410c") : badge("0", "#ecfdf5", "#047857");
+  const rest = count - ATTENTION_ROWS;
+  const body = count
+    ? `<div class="divide-y divide-gray-50 min-w-0">${items.slice(0, ATTENTION_ROWS).map(attentionRow).join("")}</div>
+       ${rest > 0
+         ? `<a href="${esc(href)}" class="block px-4 md:px-5 py-3 text-sm font-semibold border-t border-gray-100 hover:bg-gray-50 break-words" style="color:${ACCENT}">Ver os restantes ${rest}</a>`
+         : ""}`
+    : `<p class="px-5 py-8 text-center text-sm text-gray-400 break-words">${esc(empty)}</p>`;
+  return overviewCard(title, countBadge, { href, label: actionLabel }, body);
+}
+
+/** «AAAA-MM» → «mar. 25». UTC, a mesma base de `monthlyEvolution`. */
+function monthLabel(key: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) return key;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+  return d.toLocaleDateString("pt-PT", { month: "short", year: "2-digit", timeZone: "UTC" });
+}
+
+/**
+ * Evolução mensal da receita e do número de contas (R7.3).
+ *
+ * Duas barras por mês, no padrão de barras com `width`/`height` em percentagem
+ * já usado na distribuição por plano e em `renderAnalises` de
+ * `web/views/dashboard.ts` — sem biblioteca de gráficos. As duas séries têm
+ * escalas próprias, porque Kwanzas e contas não se comparam no mesmo eixo; a
+ * leitura exata está na tabela debaixo do gráfico, que é também o que torna a
+ * evolução legível a 360 px, onde uma barra de 20 px de largura não é.
+ */
+function evolutionChart(points: readonly MonthPoint[]): string {
+  const maxRevenue = Math.max(1, ...points.map((p) => p.revenue));
+  const maxAccounts = Math.max(1, ...points.map((p) => p.accounts));
+  const cols = points.map((p) => {
+    const hr = p.revenue > 0 ? Math.max(4, Math.round((p.revenue / maxRevenue) * 100)) : 2;
+    const ha = p.accounts > 0 ? Math.max(4, Math.round((p.accounts / maxAccounts) * 100)) : 2;
+    return `<div class="flex-1 min-w-0 flex flex-col items-center gap-1">
+      <div class="w-full flex items-end justify-center gap-0.5" style="height:110px">
+        <div class="w-1/2 rounded-t-md" style="height:${hr}%;background:${ACCENT}" title="Receita da Plataforma em ${esc(monthLabel(p.month))}: ${esc(formatKz(p.revenue))}"></div>
+        <div class="w-1/2 rounded-t-md" style="height:${ha}%;background:${SERIES_ACCOUNTS}" title="Contas novas em ${esc(monthLabel(p.month))}: ${p.accounts}"></div>
+      </div>
+      <span class="text-[10px] text-gray-400 w-full text-center truncate">${esc(monthLabel(p.month))}</span>
+    </div>`;
+  }).join("");
+  const rows = points.map((p) => `<div class="flex items-center justify-between gap-2 py-1.5 text-xs border-b border-gray-50 last:border-0 min-w-0">
+      <span class="text-gray-500 shrink-0">${esc(monthLabel(p.month))}</span>
+      <span class="flex-1 min-w-0 text-right font-semibold text-gray-900 break-words">${esc(formatKz(p.revenue))}</span>
+      <span class="shrink-0 text-gray-400">${p.accounts} conta(s)</span>
+    </div>`).join("");
+  const legend = `<div class="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-3">
+    <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm shrink-0" style="background:${ACCENT}"></span> Receita da Plataforma</span>
+    <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm shrink-0" style="background:${SERIES_ACCOUNTS}"></span> Contas novas</span>
+  </div>`;
+  return `<div class="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 min-w-0">
+    <h4 class="font-black text-gray-900 break-words">Evolução mensal — ${points.length} meses mais recentes</h4>
+    <p class="text-xs text-gray-400 mt-0.5 mb-3 break-words">Receita da Plataforma (transações de serviço pagas) e contas criadas em cada mês.</p>
+    ${legend}
+    <div class="flex items-end gap-1 min-w-0">${cols}</div>
+    <div class="mt-4 min-w-0">${rows}</div>
+  </div>`;
 }
 
 /* ---------------- Verificação de uso de Modelo_De_Loja (R1.7) ------------- */
@@ -384,122 +544,192 @@ export async function renderAdminPanel(): Promise<void> {
   await renderOverview();
 
   /* ------------------------------- Visão geral ------------------------------ */
+  /**
+   * Três secções, por esta ordem (R7.1): **saúde do negócio**, **«A precisar de
+   * atenção»** e **histórico recente**. As métricas e as listas são calculadas
+   * por `src/services/adminMetrics.ts` — esta função lê os dados, escolhe os
+   * rótulos e desenha; não agrega nada.
+   *
+   * `businessHealth`, `monthlyEvolution` e `attentionLists` recebem o **mesmo**
+   * `input`, por isso o número da secção de saúde e o comprimento da lista
+   * correspondente nunca divergem.
+   *
+   * **Rótulos, e não é detalhe (decisão D5):** `adminOverview().salesTotal` é o
+   * **volume de vendas das Lojas** (encomendas pagas, dinheiro dos Donos);
+   * `businessHealth().monthRevenue` é a **receita da Plataforma** (transações de
+   * serviço: planos, SMS, logótipos). Ficam em blocos distintos, com nomes
+   * distintos e com a diferença escrita por palavras.
+   */
   async function renderOverview(): Promise<void> {
+    // Estado de carregamento enquanto as seis leituras estão a correr (R7.10).
     render(shell(loadingBlock()));
     bindShell();
 
-    const [o, accounts, stores, withdrawals] = await Promise.all([
+    // «Atualizar» chama `renderAdminPanel()`, que volta aqui e refaz estas seis
+    // leituras: as três secções recarregam sempre juntas (R7.11).
+    const [o, accounts, stores, withdrawals, transactions, productCounts] = await Promise.all([
       adminOverview(), listAccounts(), listStores(), listAllWithdrawals(),
+      listServiceTransactions(), adminStoreProductCounts(),
     ]);
-    const vms = buildAccountVMs(accounts, stores);
-    const activeCount = vms.filter((v) => v.active).length;
 
-    const planDist = PLAN_ORDER.map((id) => ({ id, n: accounts.filter((a) => a.plan === id).length }));
+    const input: AdminMetricsInput = {
+      now: Date.now(),
+      accounts, stores, withdrawals, transactions, productCounts,
+    };
+    const health = businessHealth(input);
+    const evolution = monthlyEvolution(input, MONTHS_IN_EVOLUTION);
+    const attention = attentionLists(input);
+    const attentionTotal = attention.withdrawalsToApprove.length + attention.paymentsStuck.length
+      + attention.accountsExpiring7d.length + attention.storesWithoutProducts.length
+      + attention.storesUnpublished.length;
+
+    // Distribuição por plano das contas de cliente (contas de Administrador fora,
+    // pelo mesmo critério do R7.8 aplicado por `adminMetrics`).
+    const clientAccounts = accounts.filter((a) => !a.isAdmin);
+    const planDist = PLAN_ORDER.map((id) => ({ id, n: clientAccounts.filter((a) => a.plan === id).length }));
     const planMax = Math.max(1, ...planDist.map((p) => p.n));
-    const pendingWd = withdrawals.filter((w) => w.status === "requested");
-    const recentAccounts = vms.slice(0, 6);
-    const recentStores = stores.slice(0, 6);
 
-    const DAY = 86400000;
-    const expiring = accounts
-      .filter((a) => a.planExpiresAt && a.plan !== "basico")
-      .map((a) => ({ a, days: Math.ceil((Date.parse(a.planExpiresAt as string) - Date.now()) / DAY) }))
-      .filter((x) => Number.isFinite(x.days) && x.days <= 7)
-      .sort((x, y) => x.days - y.days);
+    const pct = (v: number): string => `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
 
-    render(shell(`
-      <section class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        ${metric("group", "Contas", String(o.accounts), true)}
-        ${metric("verified_user", "Contas ativas", String(activeCount))}
-        ${metric("storefront", "Lojas", String(o.stores))}
-        ${metric("public", "Lojas publicadas", String(o.published))}
-        ${metric("trending_up", "Vendas (total)", formatKz(o.salesTotal))}
-        ${metric("account_balance_wallet", "Levant. pendentes", String(o.pendingWithdrawals))}
-      </section>
+    /* --- Secção 1: saúde do negócio (R7.2, R7.3) --- */
+    const healthGrid = `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+      ${healthCard("payments", "Receita da Plataforma (este mês)", formatKz(health.monthRevenue), "Transações de serviço pagas: planos, SMS e logótipos.", true)}
+      ${healthCard("workspace_premium", "Assinaturas ativas", String(health.activeSubscriptions), "Contas com plano pago em vigor.")}
+      ${healthCard("hourglass_bottom", "Contas em teste a expirar", String(health.trialsExpiring), `Teste a terminar nos próximos ${ATTENTION_WINDOW_DAYS} dias.`)}
+      ${healthCard("trending_up", "Conversão de teste para pago", pct(health.trialConversion), "Contas que já pagaram um plano, sobre o total de contas.")}
+      ${healthCard("public", "Lojas publicadas", String(health.publishedStores), "Lojas de cliente visíveis ao público.")}
+      ${healthCard("block", "Lojas suspensas", String(health.suspendedStores), "Lojas cujo dono está sem acesso ativo.")}
+    </div>`;
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white border border-gray-200 rounded-2xl p-5 lg:col-span-1">
-          <h3 class="font-black text-gray-900 mb-4">Distribuição por plano</h3>
-          <div class="space-y-3">
-            ${planDist.map((p) => `
-              <div>
-                <div class="flex items-center justify-between text-sm mb-1">
-                  <span class="font-semibold text-gray-700">${esc(getPlan(p.id).name)}</span>
-                  <span class="text-gray-400">${p.n}</span>
-                </div>
-                <div class="h-2 rounded-full bg-gray-100 overflow-hidden"><div class="h-full rounded-full" style="width:${Math.round((p.n / planMax) * 100)}%;background:${ACCENT}"></div></div>
-              </div>`).join("")}
-          </div>
-        </div>
+    const salesNote = `<div class="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 min-w-0">
+      <h4 class="font-black text-gray-900 break-words">Volume de vendas das Lojas</h4>
+      <p class="text-2xl font-black text-gray-900 mt-1 break-words">${esc(formatKz(o.salesTotal))}</p>
+      <p class="text-xs text-gray-500 mt-2 break-words">Total das encomendas pagas nas Lojas dos clientes, desde sempre. <b>Não é receita da Plataforma</b>: este dinheiro é dos Donos das Lojas. A receita da Plataforma é a do primeiro cartão desta secção, «Receita da Plataforma (este mês)».</p>
+      <div class="flex flex-wrap gap-2 mt-3">
+        ${badge(`${o.accounts} conta(s) registada(s)`, "#f3f4f6", "#6b7280")}
+        ${badge(`${o.stores} loja(s) registada(s)`, "#f3f4f6", "#6b7280")}
+      </div>
+    </div>`;
 
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden lg:col-span-2">
-          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-black text-gray-900">Pedidos de levantamento pendentes</h3>
-            <a href="#/adminPainel/levantamentos" class="text-sm font-semibold hover:underline" style="color:${ACCENT}">Ver todos</a>
-          </div>
-          ${pendingWd.length
-            ? `<div class="divide-y divide-gray-50">${pendingWd.slice(0, 5).map((w) => `
-                <div class="flex items-center gap-3 px-5 py-3">
-                  <div class="flex-1 min-w-0"><p class="font-bold text-gray-900">${esc(formatKz(w.amount))}</p><p class="text-xs text-gray-400 truncate">${esc(w.storeName)} · ${esc(w.ownerEmail)}</p></div>
-                  ${wdStatusBadge(w.status)}
-                </div>`).join("")}</div>`
-            : `<p class="px-5 py-10 text-center text-gray-400 text-sm">Sem pedidos pendentes.</p>`}
+    const planCard = `<div class="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 min-w-0">
+      <h4 class="font-black text-gray-900 break-words">Distribuição por plano</h4>
+      <p class="text-xs text-gray-400 mt-0.5 mb-3 break-words">${clientAccounts.length} conta(s) de cliente.</p>
+      <div class="space-y-3 min-w-0">
+        ${planDist.map((p) => `
+          <div class="min-w-0">
+            <div class="flex items-center justify-between gap-2 text-sm mb-1 min-w-0">
+              <span class="font-semibold text-gray-700 break-words min-w-0">${esc(getPlan(p.id).name)}</span>
+              <span class="text-gray-400 shrink-0">${p.n}</span>
+            </div>
+            <div class="h-2 rounded-full bg-gray-100 overflow-hidden"><div class="h-full rounded-full" style="width:${Math.round((p.n / planMax) * 100)}%;background:${ACCENT}"></div></div>
+          </div>`).join("")}
+      </div>
+    </div>`;
+
+    const secHealth = `<section class="mb-8 min-w-0">
+      ${sectionHeader("monitoring", "Saúde do negócio", "Como está a Plataforma neste momento. As lojas-modelo e as contas de administração ficam fora destes números.")}
+      ${healthGrid}
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        ${evolutionChart(evolution)}
+        <div class="grid grid-cols-1 gap-4 min-w-0">
+          ${salesNote}
+          ${planCard}
         </div>
       </div>
+    </section>`;
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-black text-gray-900 flex items-center gap-2"><span class="material-symbols-outlined" style="color:${ACCENT}">hourglass_bottom</span> Planos a expirar</h3>
-            <a href="#/adminPainel/contas" class="text-sm font-semibold hover:underline" style="color:${ACCENT}">Contas</a>
-          </div>
-          ${expiring.length
-            ? `<div class="divide-y divide-gray-50">${expiring.slice(0, 8).map(({ a, days }) => {
-                const tone = days <= 0 ? { bg: "#fef2f2", color: "#b91c1c", txt: "Expirado" } : days <= 2 ? { bg: "#fff7ed", color: "#c2410c", txt: `${days} dia(s)` } : { bg: "#eff6ff", color: "#1d4ed8", txt: `${days} dias` };
-                return `<div class="flex items-center gap-3 px-5 py-3">
-                  <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ACCENT}">${esc(initials(a.name || a.email))}</div>
-                  <div class="flex-1 min-w-0"><p class="font-semibold text-gray-900 truncate">${esc(a.name || a.email)}</p><p class="text-xs text-gray-400 truncate">${esc(getPlan(a.plan).name)}${a.nextPlan ? ` → ${esc(getPlan(a.nextPlan).name)}` : ""}</p></div>
-                  ${badge(tone.txt, tone.bg, tone.color)}
-                </div>`;
-              }).join("")}</div>`
-            : `<p class="px-5 py-10 text-center text-gray-400 text-sm">Nenhum plano a expirar nos próximos 7 dias.</p>`}
-        </div>
-
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-black text-gray-900">Contas recentes</h3>
-            <a href="#/adminPainel/contas" class="text-sm font-semibold hover:underline" style="color:${ACCENT}">Gerir</a>
-          </div>
-          <div class="divide-y divide-gray-50">
-            ${recentAccounts.map((a) => `
-              <div class="flex items-center gap-3 px-5 py-3">
-                <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ACCENT}">${esc(initials(a.name || a.email))}</div>
-                <div class="flex-1 min-w-0"><p class="font-semibold text-gray-900 truncate">${esc(a.name || "—")}</p><p class="text-xs text-gray-400 truncate">${esc(a.email)}</p></div>
-                ${planBadge(a.plan)}
-              </div>`).join("") || `<p class="px-5 py-10 text-center text-gray-400 text-sm">Sem contas.</p>`}
-          </div>
-        </div>
+    /* --- Secção 2: «A precisar de atenção» (R7.4, R7.5, R7.6) --- */
+    const secAttention = `<section class="mb-8 min-w-0">
+      ${sectionHeader("notifications_active", "A precisar de atenção", attentionTotal
+        ? `${attentionTotal} item(ns) à espera de ação. Cada linha abre o separador onde se resolve.`
+        : "Nada à espera de ação. Cada lista mostra o seu estado abaixo.")}
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
+        ${attentionCard(
+          "Levantamentos por aprovar",
+          attention.withdrawalsToApprove,
+          "Nenhum pedido de levantamento à espera de aprovação.",
+          ADMIN_HREFS.levantamentos,
+          "Levantamentos",
+        )}
+        ${attentionCard(
+          "Pagamentos pendentes ou falhados",
+          attention.paymentsStuck,
+          "Nenhum pagamento pendente, falhado ou expirado.",
+          ADMIN_HREFS.transacoes,
+          "Transações",
+        )}
+        ${attentionCard(
+          `Contas a expirar (${ATTENTION_WINDOW_DAYS} dias)`,
+          attention.accountsExpiring7d,
+          `Nenhuma conta com o teste a terminar nos próximos ${ATTENTION_WINDOW_DAYS} dias.`,
+          ADMIN_HREFS.contas,
+          "Contas",
+        )}
+        ${attentionCard(
+          "Lojas sem produtos",
+          attention.storesWithoutProducts,
+          "Todas as lojas já têm produtos.",
+          ADMIN_HREFS.lojas,
+          "Lojas",
+        )}
+        ${attentionCard(
+          "Lojas não publicadas",
+          attention.storesUnpublished,
+          "Todas as lojas estão publicadas.",
+          ADMIN_HREFS.lojas,
+          "Lojas",
+        )}
       </div>
+    </section>`;
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-black text-gray-900">Lojas recentes</h3>
-            <a href="#/adminPainel/lojas" class="text-sm font-semibold hover:underline" style="color:${ACCENT}">Gerir</a>
-          </div>
-          <div class="divide-y divide-gray-50">
-            ${recentStores.map((s) => `
-              <div class="flex items-center gap-3 px-5 py-3">
-                <span class="material-symbols-outlined text-gray-300">storefront</span>
-                <div class="flex-1 min-w-0">
-                  <p class="font-semibold text-gray-900 truncate">${esc(s.name)}</p>
-                  <div class="mt-1">${featureChips(s.features, true)}</div>
-                </div>
-                ${stateBadge(s.state)}
-              </div>`).join("") || `<p class="px-5 py-10 text-center text-gray-400 text-sm">Sem lojas.</p>`}
-          </div>
+    /* --- Secção 3: histórico recente (R7.7) --- */
+    const historyTxRow = (t: AdminServiceTx): string => {
+      const icon = t.service === "plan" ? "workspace_premium" : t.service === "logo" ? "auto_awesome" : "sms";
+      return `<a href="${esc(ADMIN_HREFS.transacoes)}" class="flex items-start gap-3 px-4 md:px-5 py-3 hover:bg-gray-50 transition-colors min-w-0">
+        <div class="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[20px]">${icon}</span></div>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-gray-900 break-words">${esc(t.description)} · ${esc(formatKz(t.amount))}</p>
+          <p class="text-xs text-gray-400 break-words">${esc(t.ownerEmail || t.ownerName || "dono desconhecido")} · ${esc(fmtDate(t.paidAt || t.createdAt))}</p>
         </div>
-      </div>`));
+        <span class="shrink-0">${txStatusBadge(t.status)}</span>
+      </a>`;
+    };
+
+    const historyAccountRow = (a: AdminAccount): string => `<a href="${esc(ADMIN_HREFS.contas)}" class="flex items-start gap-3 px-4 md:px-5 py-3 hover:bg-gray-50 transition-colors min-w-0">
+      <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ACCENT}">${esc(initials(a.name || a.email))}</div>
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-gray-900 break-words">${esc(a.name || a.email || "—")}</p>
+        <p class="text-xs text-gray-400 break-words">${esc(a.email)} · criada a ${esc(fmtDate(a.createdAt))}</p>
+      </div>
+      <span class="shrink-0">${planBadge(a.plan)}</span>
+    </a>`;
+
+    const recentTx = transactions.slice(0, HISTORY_ROWS);
+    const recentAccounts = accounts.slice(0, HISTORY_ROWS);
+
+    const secHistory = `<section class="min-w-0">
+      ${sectionHeader("history", "Histórico recente", `As ${HISTORY_ROWS} transações de serviço e as ${HISTORY_ROWS} contas mais recentes. As listas completas estão nos separadores.`)}
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
+        ${overviewCard(
+          "Transações de serviço mais recentes",
+          recentTx.length ? badge(String(transactions.length), ACCENT_TINT, ACCENT) : "",
+          { href: ADMIN_HREFS.transacoes, label: "Ver todas" },
+          recentTx.length
+            ? `<div class="divide-y divide-gray-50 min-w-0">${recentTx.map(historyTxRow).join("")}</div>`
+            : `<p class="px-5 py-8 text-center text-sm text-gray-400 break-words">Ainda não há transações de serviço.</p>`,
+        )}
+        ${overviewCard(
+          "Contas mais recentes",
+          recentAccounts.length ? badge(String(accounts.length), ACCENT_TINT, ACCENT) : "",
+          { href: ADMIN_HREFS.contas, label: "Gerir contas" },
+          recentAccounts.length
+            ? `<div class="divide-y divide-gray-50 min-w-0">${recentAccounts.map(historyAccountRow).join("")}</div>`
+            : `<p class="px-5 py-8 text-center text-sm text-gray-400 break-words">Ainda não há contas registadas.</p>`,
+        )}
+      </div>
+    </section>`;
+
+    render(shell(`${secHealth}${secAttention}${secHistory}`));
     bindShell();
   }
 

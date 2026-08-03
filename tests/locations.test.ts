@@ -113,11 +113,41 @@ describe("resolveLocations — caso 2: localização única legada (R5.9)", () =
     // Esta é a regra que impede um `places: [null]` — deixado por uma remoção
     // no editor, ou por JSON editado à mão — de fazer desaparecer a morada que
     // a Loja tem gravada e publicada. A cascata continua para o caso 2 em vez
-    // de aceitar uma lista sem nada para desenhar.
-    const lista = resolveLocations({ places: [null, 3], address: "Viana", lat: -8.9, lng: 13.37 });
+    // de aceitar uma lista sem nada para desenhar. Nenhuma das quatro entradas
+    // é um objeto onde se possa ler campos: `null` e números não têm campos, e
+    // arrays são listas, não localizações.
+    const lista = resolveLocations({
+      places: [null, 3, "x", []],
+      address: "Viana",
+      lat: -8.9,
+      lng: 13.37,
+    });
 
     expect(lista).toHaveLength(1);
     expect(lista[0]).toEqual({ address: "Viana", lat: -8.9, lng: 13.37 });
+  });
+
+  it("`lat`/`lng` a `NaN` ou `Infinity` contam como ausentes e o mapa cai na morada", () => {
+    // `NaN` e `Infinity` são do tipo `number` e passariam uma barreira de tipos
+    // ingénua, mas produziriam uma caixa de enquadramento com `NaN` no URL — um
+    // mapa em branco. Tratá-los como ausentes faz a localização cair no mapa
+    // por morada, que mostra alguma coisa útil.
+    const [comNaN] = resolveLocations({ address: "Cacuaco", lat: NaN, lng: NaN });
+    expect(comNaN).toEqual({ address: "Cacuaco", lat: undefined, lng: undefined });
+    expect(mapEmbedSrc(comNaN!)).toBe(
+      "https://maps.google.com/maps?q=Cacuaco&z=15&output=embed",
+    );
+
+    const [comInfinito] = resolveLocations({
+      places: [{ name: "Viana", address: "Viana", lat: Infinity, lng: -Infinity }],
+    });
+    expect(comInfinito!.lat).toBeUndefined();
+    expect(comInfinito!.lng).toBeUndefined();
+
+    const url = mapEmbedSrc(comInfinito!);
+    expect(url).toBe("https://maps.google.com/maps?q=Viana&z=15&output=embed");
+    expect(url).not.toContain("NaN");
+    expect(url).not.toContain("Infinity");
   });
 });
 

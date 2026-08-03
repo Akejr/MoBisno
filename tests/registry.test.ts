@@ -27,8 +27,17 @@
  * `document`/`location` **dentro** das funções, e nem `registry.ts` nem os
  * módulos de desenho correm código de DOM no carregamento: só declaram funções
  * `render` e objetos `StoreTemplate`.
+ *
+ * Uma única asserção fica pelo **texto-fonte** (`readFileSync`, padrão de
+ * `tests/seoInfra.test.ts` e `tests/seedRename.test.ts`): a ausência dos imports
+ * de `neonlab.js` e `foodmart.js`. Não é observável em execução — os ficheiros de
+ * desenho continuam no repositório, e importá-los sem os registar deixaria o
+ * `TEMPLATE_REGISTRY` correto mas o pacote maior, com os modelos removidos ainda
+ * lá dentro à espera de voltarem.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /** Especificador em constante: mantém `web/templates/registry.ts` fora do `tsc`. */
 const ESPECIFICADOR_REGISTO = "../web/templates/registry.js";
@@ -100,5 +109,22 @@ describe("getTemplate — id desconhecido devolve o primeiro registado (R1.10)",
     expect(lumiere.id).toBe("lumiere");
     expect(lumiere.name).toBe("Lumière Chic");
     for (const modelo of TEMPLATE_REGISTRY) expect(getTemplate(modelo.id)).toBe(modelo);
+  });
+});
+
+describe("registry.ts — os módulos de desenho removidos não são importados (R1.4)", () => {
+  const FONTE = readFileSync(join(__dirname, "..", "web", "templates", "registry.ts"), "utf8");
+
+  it("não importa `neonlab.js` nem `foodmart.js`", () => {
+    // Sem esta guarda, alguém pode repor o import «só para reutilizar uma
+    // função» e o passo seguinte — voltar a pôr a entrada no registo — deixa de
+    // ter atrito. O `tsc` não olha para `web/`, logo nada mais o apanha.
+    const imports = FONTE.split("\n").filter((l) => /^\s*import\b/.test(l));
+    for (const proibido of ["neonlab", "foodmart"]) {
+      expect(
+        imports.filter((l) => l.includes(proibido)),
+        `registry.ts não pode importar ${proibido}.js`,
+      ).toEqual([]);
+    }
   });
 });

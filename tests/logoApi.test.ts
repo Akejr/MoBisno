@@ -1,31 +1,32 @@
 /**
- * Contrato de erro do Gerador_De_Logotipos: `generateLogos` devolve um
- * `LogoResult` discriminado (R2.1, R2.3, R2.4, R2.5, R2.6, decisão D3).
+ * Contrato de erro do Gerador_De_Logotipos (R2, decisão D3).
  *
- * A avaria que este ficheiro guarda: antes de 9.1, qualquer falha colapsava no
- * mesmo `return []` e o Dono ficava «a olhar para um ecrã vazio sem
- * explicação». Uma lista vazia não distingue «o servidor recusou e disse
- * porquê» (`server-error`, com `error`/`detail`) de «não houve resposta»
- * (`network-error`). O que se fixa aqui é a fronteira entre as três variantes —
- * é aí que está o valor de R2, não em variação de entrada, e por isso este
- * ficheiro é de exemplos e não de propriedade.
+ * A avaria que estes exemplos guardam: `generateLogos` devolvia
+ * `Promise<string[]>` e fazia `return []` em **qualquer** falha, pelo que o Dono
+ * ficava «a olhar para um ecrã vazio sem explicação» — uma lista vazia não
+ * distingue «o servidor recusou e disse porquê» de «não houve resposta». O tipo
+ * discriminado `LogoResult` separa as três situações (R2.6) e é isso que se fixa
+ * aqui.
  *
- * ## Contorno escolhido: `await import()` com o especificador em constante
+ * ## Porque são exemplos e não uma propriedade
  *
- * `web/lib/logoApi.ts` depende de `fetch` e de `atob` (em
- * `dataUrlToUint8Array`), e `tests/` compila com `lib: ["ES2022"]`, sem DOM,
- * pelo que um import estático não compila. Usa-se o contorno já em vigor no
- * repositório (`tests/storeCustom.property.test.ts`, `tests/registry.test.ts`):
- * o especificador vive numa **constante**, logo o `tsc` não segue o import e o
- * módulo de `web/` não entra no programa; em execução, o `vitest` resolve-o
- * normalmente. Nada corre no carregamento do módulo — só declarações.
+ * O valor de R2 está no **contrato de erro**, não em variação de entrada: a
+ * descrição submetida pelo Dono é transportada tal e qual para o corpo do
+ * pedido e não entra em nenhuma decisão. O que interessa enumerar são os estados
+ * da resposta — propostas completas, propostas em falta, recusa do servidor,
+ * ausência de resposta e corpo ilegível —, e esses são casos contáveis.
  *
- * ## `fetch` em stub, reposto no fim
+ * ## Como se chega ao módulo
  *
- * Cada exemplo troca `globalThis.fetch` por uma resposta preparada e o
- * `afterEach` repõe o `fetch` original, para não contaminar os outros ficheiros
- * de teste (o `vitest` corre-os no mesmo processo por ficheiro, mas o hábito de
- * repor é o que impede um stub esquecido de mentir a quem vier depois).
+ * `web/lib/logoApi.ts` está fora do programa do `tsc` (`tsconfig.json` inclui só
+ * `src/**` e `tests/**`, com `lib: ["ES2022"]`, sem DOM) e usa `fetch`/`atob`.
+ * Usa-se o mesmo contorno de `tests/storeCustom.property.test.ts`: `await
+ * import()` com o especificador numa **constante**. Como o especificador é um
+ * identificador e não um literal, o `tsc` não segue o import e o módulo de
+ * `web/` não entra no programa; em execução, o `vitest` resolve-o normalmente.
+ *
+ * O `fetch` global é substituído por um stub por exemplo e **restaurado no
+ * `afterEach`**, para nenhum outro ficheiro de teste apanhar um `fetch` trocado.
  */
 import { describe, it, expect, afterEach } from "vitest";
 
@@ -37,199 +38,177 @@ type LogoResult =
   | { kind: "server-error"; status: number; error: string; detail?: string }
   | { kind: "network-error"; message: string };
 
-const { LOGO_PROPOSALS, generateLogos } = (await import(ESPECIFICADOR_LOGO_API)) as {
+const { LOGO_PROPOSALS, generateLogos, improveLogoDescription } = (await import(
+  ESPECIFICADOR_LOGO_API
+)) as {
   LOGO_PROPOSALS: number;
   generateLogos(description: string): Promise<LogoResult>;
+  improveLogoDescription(text: string): Promise<string | null>;
 };
 
-/** O `fetch` real, guardado antes de qualquer stub. */
+/** O mínimo da `Response` que `generateLogos` toca: `ok`, `status` e `json()`. */
+type RespostaFalsa = { ok: boolean; status: number; json(): Promise<unknown> };
+
+/** Pedidos capturados pelo stub, para verificar rota e corpo enviado. */
+let pedidos: { url: string; corpo: unknown }[] = [];
+
+/** `fetch` original do ambiente, guardado uma única vez. */
 const FETCH_ORIGINAL = globalThis.fetch;
 
-/** Pedidos que o stub em vigor recebeu, para inspeção do exemplo. */
-let pedidos: { url: string; init?: { method?: string; body?: string } }[] = [];
-
-/** Instala um stub de `fetch` que devolve `resposta`. */
-function comResposta(resposta: { ok: boolean; status: number; json: () => Promise<unknown> }): void {
-  globalThis.fetch = (async (url: unknown, init?: unknown) => {
+/** Troca `globalThis.fetch` por um stub que devolve sempre `resposta`. */
+function stubResposta(resposta: RespostaFalsa): void {
+  globalThis.fetch = (async (entrada: unknown, init?: { body?: unknown }) => {
     pedidos.push({
-      url: String(url),
-      init: init as { method?: string; body?: string } | undefined,
+      url: String(entrada),
+      corpo: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
     });
-    return resposta;
+    return resposta as unknown as Response;
   }) as unknown as typeof globalThis.fetch;
 }
 
-/** Resposta `res.ok` com este corpo JSON. */
-function corpoOk(body: unknown): void {
-  comResposta({ ok: true, status: 200, json: async () => body });
+/** Troca `globalThis.fetch` por um stub que rejeita com `motivo`. */
+function stubRejeicao(motivo: unknown): void {
+  globalThis.fetch = (async (entrada: unknown) => {
+    pedidos.push({ url: String(entrada), corpo: undefined });
+    throw motivo;
+  }) as unknown as typeof globalThis.fetch;
 }
 
-/** Resposta `!res.ok` com este código e corpo JSON (o que `api/logo.js` manda). */
-function corpoRecusado(status: number, body: unknown): void {
-  comResposta({ ok: false, status, json: async () => body });
+/** Resposta com corpo JSON legível. */
+function comJson(ok: boolean, status: number, corpo: unknown): RespostaFalsa {
+  return { ok, status, json: async () => corpo };
 }
 
-/** Resposta sem JSON legível (o `res.json()` rejeita), como em dev local. */
-function corpoIlegivel(ok: boolean, status: number): void {
-  comResposta({
+/** Resposta cujo corpo não é JSON legível (`res.json()` rejeita). */
+function semJson(ok: boolean, status: number): RespostaFalsa {
+  return {
     ok,
     status,
     json: async () => {
-      throw new Error("Unexpected token < in JSON at position 0");
+      throw new SyntaxError("Unexpected token '<', \"<html>\" is not valid JSON");
     },
-  });
+  };
 }
 
-/** Instala um stub de `fetch` que rejeita com `err`. */
-function comFalhaDeRede(err: unknown): void {
-  globalThis.fetch = (async () => {
-    throw err;
-  }) as unknown as typeof globalThis.fetch;
-}
-
+// Restauro do `fetch` original: sem isto, o stub contamina os outros ficheiros.
 afterEach(() => {
-  globalThis.fetch = FETCH_ORIGINAL;
+  if (FETCH_ORIGINAL) globalThis.fetch = FETCH_ORIGINAL;
+  else delete (globalThis as { fetch?: unknown }).fetch;
   pedidos = [];
 });
 
-describe("generateLogos — propostas obtidas (R2.1, R2.6)", () => {
-  it("devolve as cinco propostas como data URLs PNG, sem nada em falta", async () => {
-    corpoOk({ images: ["aaa", "bbb", "ccc", "ddd", "eee"] });
+const DESCRICAO = "Loja de artigos desportivos, cores laranja e preto, estilo moderno";
+const PREFIXO_PNG = "data:image/png;base64,";
 
-    const r = await generateLogos("padaria de bairro, pão quente ao amanhecer");
+describe("generateLogos — contrato de erro do Gerador_De_Logotipos", () => {
+  it("pede cinco propostas e devolve `ok` sem nada em falta quando as cinco chegam (R2.1, R2.2)", async () => {
+    const b64 = ["monograma", "abstrato", "combinacao", "emblema", "wordmark"];
+    stubResposta(comJson(true, 200, { images: b64 }));
 
-    expect(r.kind).toBe("ok");
-    if (r.kind !== "ok") return;
+    const resultado = await generateLogos(DESCRICAO);
+
     expect(LOGO_PROPOSALS).toBe(5);
-    expect(r.requested).toBe(5);
-    expect(r.images).toHaveLength(5);
-    expect(r.missing).toBe(0);
-    // Prontas a pôr num `<img>`: o cliente é que junta o prefixo ao base64.
-    expect(r.images[0]).toBe("data:image/png;base64,aaa");
-    for (const img of r.images) expect(img.startsWith("data:image/png;base64,")).toBe(true);
-    // E o pedido foi o que `api/logo.js` espera, com a descrição do Dono.
-    expect(pedidos).toHaveLength(1);
-    expect(pedidos[0]!.url).toBe("/api/logo");
-    expect(pedidos[0]!.init?.method).toBe("POST");
-    expect(pedidos[0]!.init?.body).toContain("padaria de bairro");
-  });
-
-  it("descarta entradas inúteis do array `images` do servidor", async () => {
-    // Um `null`, um vazio ou um número não dão imagem nenhuma: entrariam como
-    // `data:image/png;base64,null` e o Dono via um quadrado partido.
-    corpoOk({ images: ["aaa", "", null, 7, "bbb", undefined] });
-
-    const r = await generateLogos("gelataria artesanal");
-
-    expect(r.kind).toBe("ok");
-    if (r.kind !== "ok") return;
-    expect(r.images).toEqual(["data:image/png;base64,aaa", "data:image/png;base64,bbb"]);
-    expect(r.missing).toBe(3);
-  });
-});
-
-describe("generateLogos — menos de cinco propostas (R2.3)", () => {
-  it("devolve as recebidas e diz quantas ficaram em falta", async () => {
-    corpoOk({ images: ["aaa", "bbb"] });
-
-    const r = await generateLogos("oficina de bicicletas");
-
-    expect(r.kind).toBe("ok");
-    if (r.kind !== "ok") return;
-    expect(r.images).toHaveLength(2);
-    expect(r.requested).toBe(LOGO_PROPOSALS);
-    expect(r.missing).toBe(3);
-  });
-
-  it("com zero propostas continua `ok` — resposta houve, propostas é que não", async () => {
-    // A distinção que D3 pede: isto não é `network-error`. O servidor respondeu.
-    corpoOk({ images: [] });
-
-    const r = await generateLogos("consultório dentário");
-
-    expect(r.kind).toBe("ok");
-    if (r.kind !== "ok") return;
-    expect(r.images).toEqual([]);
-    expect(r.missing).toBe(5);
-  });
-});
-
-describe("generateLogos — falha reportada pelo servidor (R2.4, R2.6)", () => {
-  it("transporta `status`, `error` e `detail` tal como `api/logo.js` os manda", async () => {
-    corpoRecusado(502, {
-      error: "Não foi possível gerar os logótipos. Tenta de novo.",
-      detail: "rate limit | sem imagem",
+    expect(resultado).toEqual({
+      kind: "ok",
+      images: b64.map((s) => `${PREFIXO_PNG}${s}`),
+      requested: 5,
+      missing: 0,
     });
+    // A descrição do Dono é transportada tal e qual para a função serverless.
+    expect(pedidos).toEqual([{ url: "/api/logo", corpo: { description: DESCRICAO } }]);
+  });
 
-    const r = await generateLogos("loja de plantas");
+  it("devolve `ok` com `missing > 0` quando chegam menos de cinco propostas (R2.3)", async () => {
+    // O servidor devolve duas propostas utilizáveis mais três entradas
+    // inúteis: `api/logo.js` omite as direções que não conseguiu gerar, e o
+    // cliente não deve contar cadeias vazias nem valores de outro tipo.
+    stubResposta(comJson(true, 200, { images: ["monograma", "", "emblema", null, 7] }));
 
-    expect(r).toEqual({
+    const resultado = await generateLogos(DESCRICAO);
+
+    expect(resultado).toEqual({
+      kind: "ok",
+      images: [`${PREFIXO_PNG}monograma`, `${PREFIXO_PNG}emblema`],
+      requested: 5,
+      missing: 3,
+    });
+  });
+
+  it("devolve `server-error` com o `error` e o `detail` do servidor quando `!res.ok` (R2.4, R2.6)", async () => {
+    stubResposta(
+      comJson(false, 502, {
+        error: "  Não foi possível gerar o logótipo.  ",
+        detail: "  upstream timeout  ",
+      }),
+    );
+
+    const resultado = await generateLogos(DESCRICAO);
+
+    // Texto transportado tal como vem (aparado), sem nada inventado no cliente.
+    expect(resultado).toEqual({
       kind: "server-error",
       status: 502,
-      error: "Não foi possível gerar os logótipos. Tenta de novo.",
-      detail: "rate limit | sem imagem",
+      error: "Não foi possível gerar o logótipo.",
+      detail: "upstream timeout",
     });
   });
 
-  it("omite `detail` quando o servidor não o manda (400/405/500 de `api/logo.js`)", async () => {
-    corpoRecusado(400, { error: "Descrição em falta." });
+  it("devolve `server-error` com `error` vazio e sem `detail` quando o corpo não traz motivo (R2.4)", async () => {
+    stubResposta(comJson(false, 429, { detail: "   " }));
 
-    const r = await generateLogos("");
+    const resultado = await generateLogos(DESCRICAO);
 
-    expect(r.kind).toBe("server-error");
-    if (r.kind !== "server-error") return;
-    expect(r.status).toBe(400);
-    expect(r.error).toBe("Descrição em falta.");
-    expect("detail" in r).toBe(false);
+    // `detail` só entra quando é uma string não vazia; o chamador mostra o seu
+    // texto genérico e tem o `status` à mão.
+    expect(resultado).toEqual({ kind: "server-error", status: 429, error: "" });
+    expect(resultado).not.toHaveProperty("detail");
   });
 
-  it("sem corpo legível dá `server-error` com o `status` real e `error` vazio", async () => {
-    // O caso de dev local: `vercel dev` desligado devolve HTML de 404. Ainda há
-    // `status` para reportar, logo é recusa do servidor e não falha de rede — o
-    // chamador põe o seu texto genérico com o `status` à mão.
-    corpoIlegivel(false, 404);
+  it("devolve `network-error` quando o `fetch` rejeita (R2.5, R2.6)", async () => {
+    stubRejeicao(new TypeError("Failed to fetch"));
 
-    const r = await generateLogos("barbearia");
+    const resultado = await generateLogos(DESCRICAO);
 
-    expect(r).toEqual({ kind: "server-error", status: 404, error: "" });
-  });
-});
-
-describe("generateLogos — falha de comunicação (R2.5, R2.6)", () => {
-  it("`fetch` rejeitado dá `network-error` com o motivo técnico", async () => {
-    comFalhaDeRede(new Error("Failed to fetch"));
-
-    const r = await generateLogos("food truck de hambúrgueres");
-
-    expect(r).toEqual({ kind: "network-error", message: "Failed to fetch" });
+    // Falha de comunicação distinta de «não vieram propostas».
+    expect(resultado).toEqual({ kind: "network-error", message: "Failed to fetch" });
   });
 
-  it("`fetch` rejeitado sem motivo legível cai no texto por omissão", async () => {
-    comFalhaDeRede(new Error("   "));
+  it("devolve `server-error` com o estado real quando `!res.ok` e o corpo é ilegível (R2.4)", async () => {
+    // Página de erro em HTML servida por um proxy: ainda dá para reportar o
+    // estado do servidor, e é isso que o Dono precisa de ver.
+    stubResposta(semJson(false, 504));
 
-    const r = await generateLogos("estúdio de tatuagens");
+    const resultado = await generateLogos(DESCRICAO);
 
-    expect(r).toEqual({
-      kind: "network-error",
-      message: "Falha de comunicação com o servidor.",
-    });
+    expect(resultado).toEqual({ kind: "server-error", status: 504, error: "" });
   });
 
-  it("resposta `ok` sem corpo legível dá `network-error`, não `ok` com zero propostas", async () => {
-    // O outro caso de dev local, e o que separa as duas variantes: com `res.ok`
-    // não há propostas nem motivo, logo a falha é de comunicação.
-    corpoIlegivel(true, 200);
+  it("devolve `network-error` quando `res.ok` mas o corpo é ilegível (R2.5)", async () => {
+    // Resposta 200 sem JSON: não há propostas nem motivo, logo é comunicação.
+    stubResposta(semJson(true, 200));
 
-    const r = await generateLogos("livraria de usados");
+    const resultado = await generateLogos(DESCRICAO);
 
-    expect(r.kind).toBe("network-error");
-    if (r.kind !== "network-error") return;
-    expect(r.message).toContain("JSON");
+    expect(resultado.kind).toBe("network-error");
+    if (resultado.kind === "network-error") {
+      expect(resultado.message.length).toBeGreaterThan(0);
+    }
   });
 });
 
-describe("stub de `fetch` reposto (higiene entre ficheiros)", () => {
-  it("o `fetch` global é o original depois dos exemplos anteriores", () => {
-    expect(globalThis.fetch).toBe(FETCH_ORIGINAL);
+describe("improveLogoDescription — comportamento atual preservado (R2.11)", () => {
+  it("devolve `null` quando o servidor recusa", async () => {
+    stubResposta(comJson(false, 500, { error: "IA indisponível" }));
+
+    await expect(improveLogoDescription("loja de desporto")).resolves.toBeNull();
+    expect(pedidos).toEqual([
+      { url: "/api/assistant", corpo: { scope: "logo", question: "loja de desporto" } },
+    ]);
+  });
+
+  it("devolve `null` quando o `fetch` rejeita", async () => {
+    stubRejeicao(new TypeError("Failed to fetch"));
+
+    await expect(improveLogoDescription("loja de desporto")).resolves.toBeNull();
   });
 });

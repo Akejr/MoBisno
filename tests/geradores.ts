@@ -24,23 +24,30 @@
  * |---|---|
  * | `customizationArb` | Propriedade 1 (`paymentVisibility.property`), Propriedade 3 (`storeCustom.property`) |
  * | `orderLineArb`, `orderLinesArb`, `orderExtrasArb` | Propriedade 4 (`cartMessage.property`) |
+ * | `adminSnapshotArb`, `lojaModeloArb` | Propriedade 5 (`adminMetrics.property`) |
  *
  * ## Crescimento previsto
  *
- * Duas tarefas posteriores estendem este ficheiro, e é para isso que as secções
- * estão separadas por título:
+ * Falta uma tarefa posterior estender este ficheiro, e é para isso que as
+ * secções estão separadas por título:
  *
- *  - `adminSnapshotArb` (Fase C) — conjunto arbitrário de contas, Lojas,
- *    levantamentos, transações de serviço e contagens de Produtos, para a
- *    Propriedade 5;
  *  - `variationsArb` e `combinationArb` (Fase D) — Variação e Combinação de
  *    Produto, para a Propriedade 2.
  *
- * Nenhum dos dois é implementado aqui: ficam para as tarefas 12.4 e 14.4.
+ * Não é implementado aqui: fica para a tarefa 14.4.
  */
 
 import fc from "fast-check";
 import type { OrderExtras, OrderLine } from "../src/services/cartMessage.js";
+import {
+  ATTENTION_WINDOW_DAYS,
+  MONTHS_IN_EVOLUTION,
+  type AccountLike,
+  type AdminMetricsInput,
+  type ServiceTxLike,
+  type StoreLike,
+  type WithdrawalLike,
+} from "../src/services/adminMetrics.js";
 
 // ---------------------------------------------------------------------------
 // Blocos de base: valores hostis
@@ -346,3 +353,593 @@ export const orderExtrasArb: fc.Arbitrary<OrderExtras | undefined> = fc.option(
   ),
   { nil: undefined },
 );
+
+// ---------------------------------------------------------------------------
+// Instantâneo do Painel_Admin (`src/services/adminMetrics.ts`)
+// ---------------------------------------------------------------------------
+
+const HORA_MS = 3_600_000;
+const DIA_MS = 86_400_000;
+
+/**
+ * Instantâneo completo do Painel_Admin, tal como `businessHealth`,
+ * `monthlyEvolution` e `attentionLists` o recebem.
+ *
+ * Estreita `AdminMetricsInput` em dois pontos, e ambos são deliberados:
+ *
+ *  - **`now` é obrigatório e é um número.** As três funções dependem do tempo
+ *    (mês corrente, janela de {@link ATTENTION_WINDOW_DAYS} dias, evolução de
+ *    {@link MONTHS_IN_EVOLUTION} meses). Um instantâneo sem momento de
+ *    referência próprio faria a Propriedade 5 depender do calendário do dia em
+ *    que corre — passaria hoje e falharia sozinha num 1 de janeiro;
+ *  - **as cinco coleções estão sempre presentes.** A ausência delas é
+ *    totalidade, coberta pelos exemplos da tarefa 12.6; o que a propriedade
+ *    precisa é de dados a sério.
+ */
+export interface AdminSnapshot extends AdminMetricsInput {
+  readonly now: number;
+  readonly accounts: readonly AccountLike[];
+  readonly stores: readonly StoreLike[];
+  readonly withdrawals: readonly WithdrawalLike[];
+  readonly transactions: readonly ServiceTxLike[];
+  readonly productCounts: ReadonlyMap<string, number>;
+}
+
+/**
+ * Momentos de referência fixos, escolhidos pelas fronteiras que o cálculo de
+ * meses em UTC atravessa: meio de janeiro (a evolução de 6 meses passa para o
+ * ano anterior), 29 de fevereiro de ano bissexto, último instante de um mês de
+ * 31 dias, primeiro instante de um mês, e fim de ano.
+ *
+ * São constantes e não `fc.date()`: com uma data arbitrária, o gerador teria de
+ * recalcular as janelas a cada amostra sem ganhar cobertura, e os
+ * contra-exemplos deixariam de ser legíveis.
+ */
+const MOMENTOS_DE_REFERENCIA: readonly number[] = [
+  Date.UTC(2024, 0, 15, 10, 0, 0),
+  Date.UTC(2024, 1, 29, 23, 30, 0),
+  Date.UTC(2024, 2, 31, 23, 59, 30),
+  Date.UTC(2024, 6, 1, 0, 0, 10),
+  Date.UTC(2024, 11, 31, 22, 0, 0),
+  Date.UTC(2025, 5, 10, 12, 0, 0),
+];
+
+/** Data ISO, a forma em que as colunas `timestamptz` chegam do Supabase. */
+function iso(ms: number): string {
+  return new Date(ms).toISOString();
+}
+
+/**
+ * Instante dentro do mês que fica `mesesAtras` meses antes do de referência,
+ * em UTC — o mesmo fuso em que `adminMetrics` calcula as chaves de mês.
+ *
+ * No mês corrente o resultado é limitado ao momento de referência: uma data de
+ * pagamento no futuro existiria em teoria, mas não acrescenta caso nenhum e
+ * tornaria as amostras implausíveis.
+ */
+function instanteNoMes(nowMs: number, mesesAtras: number, dia: number, hora: number): number {
+  const ref = new Date(nowMs);
+  const ms = Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() - mesesAtras, 1 + dia, hora);
+  return mesesAtras === 0 ? Math.min(ms, nowMs) : ms;
+}
+
+/**
+ * Cadeias que não são datas utilizáveis. `Date.parse` devolve `NaN` para todas,
+ * e o módulo tem de as tratar como data ausente em vez de lançar.
+ */
+const dataInvalidaArb: fc.Arbitrary<string> = fc.constantFrom(
+  "",
+  "   ",
+  "não é data",
+  "0000-13-45",
+  "31/02/2024",
+  "ontem",
+  "NaN",
+);
+
+/** Data ISO num mês entre `minMeses` e `maxMeses` antes do de referência. */
+function dataDeMesArb(nowMs: number, minMeses: number, maxMeses: number): fc.Arbitrary<string> {
+  return fc
+    .tuple(
+      fc.integer({ min: minMeses, max: maxMeses }),
+      fc.integer({ min: 0, max: 27 }),
+      fc.integer({ min: 0, max: 23 }),
+    )
+    .map(([meses, dia, hora]) => iso(instanteNoMes(nowMs, meses, dia, hora)));
+}
+
+/** Data ISO anterior à janela da evolução mensal: entra em nenhum dos 6 meses. */
+function dataAntigaArb(nowMs: number): fc.Arbitrary<string> {
+  return dataDeMesArb(nowMs, MONTHS_IN_EVOLUTION, MONTHS_IN_EVOLUTION + 18);
+}
+
+/**
+ * Data de criação de uma conta ou de uma Loja: espalhada pelos meses da
+ * evolução (para a série mensal de contas ter valores diferentes de zero),
+ * mais antiga do que a janela, ausente e inválida.
+ */
+function createdAtArb(nowMs: number): fc.Arbitrary<string | null> {
+  return fc.oneof(
+    { arbitrary: dataDeMesArb(nowMs, 0, MONTHS_IN_EVOLUTION - 1), weight: 5 },
+    { arbitrary: dataAntigaArb(nowMs), weight: 2 },
+    { arbitrary: fc.constant(null), weight: 1 },
+    { arbitrary: dataInvalidaArb, weight: 1 },
+  );
+}
+
+/**
+ * Data de pagamento de uma transação de serviço, correlacionada com o momento
+ * de referência:
+ *
+ *  - **no mês corrente** (peso maior) — é a única categoria que entra na receita
+ *    do mês, a primeira das seis métricas;
+ *  - nos 5 meses anteriores — entra na evolução mensal, não na receita do mês;
+ *  - mais antiga do que a janela — não entra em nenhuma das duas;
+ *  - ausente e inválida — transação `paid` sem data utilizável, que o módulo
+ *    ignora sem lançar.
+ */
+function paidAtArb(nowMs: number): fc.Arbitrary<string | null> {
+  return fc.oneof(
+    { arbitrary: dataDeMesArb(nowMs, 0, 0), weight: 5 },
+    { arbitrary: dataDeMesArb(nowMs, 1, MONTHS_IN_EVOLUTION - 1), weight: 3 },
+    { arbitrary: dataAntigaArb(nowMs), weight: 1 },
+    { arbitrary: fc.constant(null), weight: 1 },
+    { arbitrary: dataInvalidaArb, weight: 1 },
+  );
+}
+
+/**
+ * Montante gravado numa transação ou num levantamento. Inclui `0`, valores
+ * positivos e **tipos errados** — `null`, `undefined`, texto numérico, texto que
+ * não é número, negativos, `NaN` e `Infinity`. `asAmount` é total e limita tudo
+ * isto a zero por baixo; sem estes valores, essa guarda ficava por exercitar.
+ */
+const montanteArb: fc.Arbitrary<number | string | null | undefined> = fc.oneof(
+  { arbitrary: fc.integer({ min: 1, max: 5_000_000 }), weight: 5 },
+  { arbitrary: fc.constant(0), weight: 2 },
+  {
+    arbitrary: fc.constantFrom<(number | string | null | undefined)[]>(
+      null,
+      undefined,
+      "11000",
+      "abc",
+      "",
+      -5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ),
+    weight: 3,
+  },
+);
+
+/** Emails de conta: plausíveis, ausentes e vazios (o `textOr` cai no substituto). */
+const emailDeContaArb: fc.Arbitrary<string | null> = fc.oneof(
+  { arbitrary: fc.constantFrom("ana@example.com", "bruno@example.com", "loja@example.co.ao"), weight: 5 },
+  { arbitrary: fc.constantFrom<(string | null)[]>(null, "", "   "), weight: 2 },
+);
+
+/** Nomes de conta e de Loja plausíveis, ausentes e vazios. */
+const nomePlausivelArb: fc.Arbitrary<string | null> = fc.oneof(
+  { arbitrary: fc.constantFrom("Ana Silva", "Bruno Costa", "Ekolo Sports", "Boutique Lumière"), weight: 5 },
+  { arbitrary: fc.constantFrom<(string | null)[]>(null, "", "  "), weight: 2 },
+);
+
+/** A parte da conta que decide plano, teste e exclusão do R7.8. */
+type PerfilDeConta = Pick<AccountLike, "isAdmin" | "plan" | "planExpiresAt" | "nextPlan" | "trialEndsAt">;
+
+/**
+ * Perfis de conta, um por estado que `resolveBilling` distingue, para que as
+ * métricas de conta não saiam todas a zero:
+ *
+ *  - **Administrador** — a exclusão do R7.8. Sem contas destas não se testa
+ *    nada: é a fração de amostras em que a Propriedade 5 tem trabalho a fazer;
+ *  - **assinatura em vigor** e **atribuição permanente** — as duas formas de
+ *    contar em «assinaturas ativas»;
+ *  - **teste a expirar** — `trialEndsAt` dentro da janela de
+ *    {@link ATTENTION_WINDOW_DAYS} dias; alimenta a métrica e a lista, que
+ *    partilham critério;
+ *  - **teste longo** — fora da janela: conta como teste, não como aviso;
+ *  - **expirada** e **básica** — `suspended`, que é a sexta métrica;
+ *  - **dados sujos** — plano que não existe no catálogo e datas ilegíveis.
+ */
+function perfilDeContaArb(nowMs: number): fc.Arbitrary<PerfilDeConta> {
+  const futuro = (dias: number): string => iso(nowMs + dias * DIA_MS);
+  const passado = (dias: number): string => iso(nowMs - dias * DIA_MS);
+  const semAdmin = fc.constantFrom<(boolean | undefined)[]>(false, undefined);
+
+  return fc.oneof(
+    {
+      // Administrador: excluído de todas as agregações (R7.8).
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: fc.constant(true),
+        plan: fc.constantFrom("empresarial", "basico"),
+        planExpiresAt: fc.constant(null),
+        nextPlan: fc.constant(null),
+        trialEndsAt: fc.oneof(fc.constant(null), fc.integer({ min: 1, max: 5 }).map(futuro)),
+      }),
+      weight: 4,
+    },
+    {
+      // Assinatura paga em vigor (plano temporizado com data no futuro).
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constantFrom("profissional", "empresarial"),
+        planExpiresAt: fc.integer({ min: 1, max: 60 }).map(futuro),
+        nextPlan: fc.constantFrom<(string | null)[]>(null, "empresarial", "profissional"),
+        trialEndsAt: fc.constant(null),
+      }),
+      weight: 4,
+    },
+    {
+      // Atribuição permanente: plano pago sem data de expiração.
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constantFrom("profissional", "empresarial"),
+        planExpiresAt: fc.constant(null),
+        nextPlan: fc.constant(null),
+        trialEndsAt: fc.constant(null),
+      }),
+      weight: 2,
+    },
+    {
+      // Teste grátis a terminar dentro da janela de aviso.
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constantFrom("basico", "profissional"),
+        planExpiresAt: fc.constant(null),
+        nextPlan: fc.constant(null),
+        trialEndsAt: fc
+          .integer({ min: 1, max: ATTENTION_WINDOW_DAYS * 24 })
+          .map((horas) => iso(nowMs + horas * HORA_MS)),
+      }),
+      weight: 4,
+    },
+    {
+      // Teste grátis com folga: conta como teste, não como aviso.
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constant("basico"),
+        planExpiresAt: fc.constant(null),
+        nextPlan: fc.constant(null),
+        trialEndsAt: fc.integer({ min: ATTENTION_WINDOW_DAYS + 1, max: 60 }).map(futuro),
+      }),
+      weight: 2,
+    },
+    {
+      // Assinatura expirada, sem teste ativo: Loja suspensa.
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constantFrom("profissional", "empresarial"),
+        planExpiresAt: fc.integer({ min: 1, max: 120 }).map(passado),
+        nextPlan: fc.constant(null),
+        trialEndsAt: fc.oneof(fc.constant(null), fc.integer({ min: 1, max: 120 }).map(passado)),
+      }),
+      weight: 3,
+    },
+    {
+      // Conta básica sem teste: também suspensa (sem acesso ativo).
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constant("basico"),
+        planExpiresAt: fc.constant(null),
+        nextPlan: fc.constant(null),
+        trialEndsAt: fc.constant(null),
+      }),
+      weight: 2,
+    },
+    {
+      // Dados sujos: plano fora do catálogo e datas ilegíveis.
+      arbitrary: fc.record<PerfilDeConta>({
+        isAdmin: semAdmin,
+        plan: fc.constantFrom<(string | null)[]>("premium", "", null, "PROFISSIONAL"),
+        planExpiresAt: fc.oneof(dataInvalidaArb, fc.constant(null)),
+        nextPlan: fc.constantFrom<(string | null)[]>(null, "premium"),
+        trialEndsAt: fc.oneof(dataInvalidaArb, fc.constant(null)),
+      }),
+      weight: 2,
+    },
+  );
+}
+
+/**
+ * Contas da Plataforma, com identificadores `conta-<i>` atribuídos por índice —
+ * é o que garante identificadores únicos sem recorrer a filtros de rejeição.
+ *
+ * Nunca vazio: um instantâneo sem contas satisfaz a Propriedade 5
+ * trivialmente e não prova nada.
+ */
+function contasArb(nowMs: number): fc.Arbitrary<AccountLike[]> {
+  const contaArb = fc
+    .tuple(
+      perfilDeContaArb(nowMs),
+      fc.record({
+        email: emailDeContaArb,
+        name: nomePlausivelArb,
+        createdAt: createdAtArb(nowMs),
+        storeCount: fc.integer({ min: 0, max: 5 }),
+      }),
+    )
+    .map(([perfil, base]) => ({ ...base, ...perfil }));
+
+  return fc
+    .array(contaArb, { minLength: 1, maxLength: 7 })
+    .map((contas) => contas.map((conta, i) => ({ id: `conta-${i}`, ...conta })));
+}
+
+/**
+ * Personalização de uma **Loja_Modelo**: `__template` presente em todas as
+ * formas plausíveis que o Semeador_De_Modelos e a base de dados produzem —
+ * objeto com `id`/`name`, `true`, o identificador do modelo em texto, e um
+ * número. Todas fazem `isLojaModelo` devolver `true`.
+ */
+const customizationDeLojaModeloArb: fc.Arbitrary<unknown> = fc.oneof(
+  fc.record({
+    __template: fc.record({
+      id: fc.constantFrom("lumiere", "vermelho-moderno"),
+      name: fc.constantFrom("Lumière Chic", "Ekolo Sports"),
+    }),
+    __v: fc.integer({ min: 1, max: 9 }),
+    __demoPayments: fc.constant(true),
+  }),
+  fc.record({ __template: fc.constant(true) }),
+  fc.record({ __template: fc.constantFrom("lumiere", "foodmart") }),
+  fc.record({ __template: fc.integer({ min: 1, max: 3 }) }),
+);
+
+/**
+ * Personalização de uma Loja de cliente. O caso dominante é **ausente**, que é
+ * o que `listStores()` devolve; os restantes são os que não podem ser
+ * confundidos com uma Loja_Modelo: `{}`, `__basedOn` (copiado ao aplicar um
+ * Modelo_De_Loja), `__template` a `false`/`null` (marca desligada) e valores que
+ * nem são objetos.
+ */
+const customizationDeLojaNormalArb: fc.Arbitrary<unknown> = fc.oneof(
+  { arbitrary: fc.constant(undefined), weight: 6 },
+  { arbitrary: fc.constant({}), weight: 1 },
+  { arbitrary: fc.record({ __basedOn: fc.constantFrom("vermelho-moderno", "lumiere") }), weight: 2 },
+  { arbitrary: fc.record({ __template: fc.constantFrom<(boolean | null)[]>(false, null) }), weight: 1 },
+  { arbitrary: fc.constantFrom<unknown[]>(null, 0, "texto", [1, 2]), weight: 1 },
+);
+
+/** Estado da Loja: `"Publicada"` (a métrica), outros estados, ausente e vazio. */
+const estadoDeLojaArb: fc.Arbitrary<string | null | undefined> = fc.oneof(
+  { arbitrary: fc.constant("Publicada"), weight: 4 },
+  { arbitrary: fc.constantFrom("Rascunho", "Pausada", "Suspensa"), weight: 3 },
+  { arbitrary: fc.constantFrom<(string | null | undefined)[]>(null, undefined, "", "   ", "publicada"), weight: 1 },
+);
+
+/**
+ * Lojas do instantâneo, com identificadores `loja-<i>`.
+ *
+ * Três correlações deliberadas com as contas já geradas:
+ *
+ *  - `ownerId` aponta na maior parte dos casos para uma conta que **existe** no
+ *    instantâneo, senão nenhuma métrica que dependa de `resolveBilling` (Lojas
+ *    suspensas) teria valor diferente de zero;
+ *  - uma fatia aponta de propósito para uma **conta de Administrador**, quando o
+ *    instantâneo tem alguma: é a exclusão do R7.8 aplicada à Loja, e sem estes
+ *    casos não se testa nada;
+ *  - o resto aponta para nada (`conta-inexistente`) ou não tem dono, porque
+ *    `listAccounts()` pode não cobrir todos os donos.
+ *
+ * Cerca de três em cada dez Lojas são **Loja_Modelo**, o outro lado da exclusão.
+ */
+function lojasArb(nowMs: number, contas: readonly AccountLike[]): fc.Arbitrary<StoreLike[]> {
+  const idsDeContas = contas.map((conta) => conta.id);
+  const idsDeAdmin = contas.filter((conta) => conta.isAdmin === true).map((conta) => conta.id);
+  const donoAdminArb: fc.Arbitrary<string> =
+    idsDeAdmin.length > 0 ? fc.constantFrom(...idsDeAdmin) : fc.constant("conta-inexistente");
+
+  const ownerIdArb: fc.Arbitrary<string | null | undefined> = fc.oneof(
+    { arbitrary: fc.constantFrom(...idsDeContas), weight: 6 },
+    { arbitrary: donoAdminArb, weight: 3 },
+    { arbitrary: fc.constant("conta-inexistente"), weight: 1 },
+    { arbitrary: fc.constantFrom<(string | null | undefined)[]>(null, undefined), weight: 1 },
+  );
+
+  const lojaArb = fc.record({
+    name: nomePlausivelArb,
+    ownerId: ownerIdArb,
+    ownerEmail: emailDeContaArb,
+    ownerName: nomePlausivelArb,
+    state: estadoDeLojaArb,
+    identifier: fc.constantFrom("ekolo", "lumiere-chic", "loja-teste"),
+    createdAt: createdAtArb(nowMs),
+    customization: fc.oneof(
+      { arbitrary: customizationDeLojaModeloArb, weight: 3 },
+      { arbitrary: customizationDeLojaNormalArb, weight: 7 },
+    ),
+  });
+
+  return fc
+    .array(lojaArb, { minLength: 1, maxLength: 8 })
+    .map((lojas) => lojas.map((loja, i) => ({ id: `loja-${i}`, ...loja })));
+}
+
+/**
+ * Levantamentos, com identificadores `lev-<i>`.
+ *
+ * `storeId` aponta sobretudo para Lojas que **existem** no instantâneo — sem
+ * isso a lista de levantamentos por aprovar sairia sempre vazia, porque o
+ * módulo só conta levantamentos de uma Loja elegível. Uma fatia aponta para
+ * nada, para exercitar essa exclusão.
+ *
+ * O estado `requested` tem peso extra: é o único que entra na lista. As
+ * variantes `"REQUESTED"` e `"  requested  "` estão lá porque `asStatus`
+ * normaliza maiúsculas e espaços, e essa normalização tem de ser exercitada.
+ */
+function levantamentosArb(nowMs: number, lojas: readonly StoreLike[]): fc.Arbitrary<WithdrawalLike[]> {
+  const idsDeLojas = lojas.map((loja) => loja.id);
+
+  const levantamentoArb = fc.record({
+    storeId: fc.oneof(
+      { arbitrary: fc.constantFrom(...idsDeLojas), weight: 6 },
+      { arbitrary: fc.constant("loja-inexistente"), weight: 1 },
+      { arbitrary: fc.constantFrom<(string | null | undefined)[]>(null, undefined), weight: 1 },
+    ),
+    storeName: nomePlausivelArb,
+    ownerEmail: emailDeContaArb,
+    amount: montanteArb,
+    status: fc.oneof(
+      { arbitrary: fc.constant("requested"), weight: 4 },
+      { arbitrary: fc.constantFrom("approved", "paid", "rejected"), weight: 3 },
+      { arbitrary: fc.constantFrom("REQUESTED", "  requested  "), weight: 1 },
+      { arbitrary: fc.constantFrom<(string | null | undefined)[]>(null, undefined, ""), weight: 1 },
+    ),
+    createdAt: createdAtArb(nowMs),
+  });
+
+  return fc
+    .array(levantamentoArb, { maxLength: 6 })
+    .map((levs) => levs.map((lev, i) => ({ id: `lev-${i}`, ...lev })));
+}
+
+/**
+ * Transações de serviço, com identificadores `tx-<i>`.
+ *
+ * Correlações com as contas: `ownerId` aponta sobretudo para contas que
+ * existem, uma fatia para uma **conta de Administrador** (excluída pelo R7.8) e
+ * o resto para nada.
+ *
+ * `status` privilegia `paid`, o único que gera receita, e cobre os três estados
+ * por resolver (`open`, `failed`, `expired`) mais `cancelled`. `service`
+ * privilegia `plan`, o único que conta para a conversão de teste para pago;
+ * `"PLAN"` e `" plan "` estão lá porque essa comparação **não** normaliza, ao
+ * contrário da de `status`.
+ */
+function transacoesArb(nowMs: number, contas: readonly AccountLike[]): fc.Arbitrary<ServiceTxLike[]> {
+  const idsDeContas = contas.map((conta) => conta.id);
+  const idsDeAdmin = contas.filter((conta) => conta.isAdmin === true).map((conta) => conta.id);
+  const donoAdminArb: fc.Arbitrary<string> =
+    idsDeAdmin.length > 0 ? fc.constantFrom(...idsDeAdmin) : fc.constant("conta-inexistente");
+
+  const transacaoArb = fc.record({
+    service: fc.oneof(
+      { arbitrary: fc.constant("plan"), weight: 5 },
+      { arbitrary: fc.constantFrom("sms", "logo"), weight: 3 },
+      { arbitrary: fc.constantFrom<(string | null | undefined)[]>("PLAN", " plan ", null, undefined), weight: 1 },
+    ),
+    description: fc.constantFrom("Plano Profissional", "Créditos de SMS", "Logótipo por IA", ""),
+    ownerId: fc.oneof(
+      { arbitrary: fc.constantFrom(...idsDeContas), weight: 6 },
+      { arbitrary: donoAdminArb, weight: 3 },
+      { arbitrary: fc.constant("conta-inexistente"), weight: 1 },
+      { arbitrary: fc.constantFrom<(string | null | undefined)[]>(null, undefined), weight: 1 },
+    ),
+    ownerEmail: emailDeContaArb,
+    ownerName: nomePlausivelArb,
+    storeName: nomePlausivelArb,
+    amount: montanteArb,
+    method: fc.constantFrom("multicaixa", "referencia", "manual"),
+    status: fc.oneof(
+      { arbitrary: fc.constant("paid"), weight: 5 },
+      { arbitrary: fc.constantFrom("open", "failed", "expired"), weight: 4 },
+      { arbitrary: fc.constant("cancelled"), weight: 1 },
+      { arbitrary: fc.constantFrom<(string | null | undefined)[]>(null, undefined, "PAID"), weight: 1 },
+    ),
+    createdAt: createdAtArb(nowMs),
+    paidAt: paidAtArb(nowMs),
+  });
+
+  return fc
+    .array(transacaoArb, { maxLength: 8 })
+    .map((txs) => txs.map((tx, i) => ({ id: `tx-${i}`, ...tx })));
+}
+
+/**
+ * Contagens de Produtos por Loja, num `Map` **real** — o tipo é
+ * `ReadonlyMap<string, number>` e o módulo chama `counts.get(...)`.
+ *
+ * Cada Loja do instantâneo cai numa de quatro categorias: ausente do `Map`,
+ * zero, contagem positiva, ou contagem inválida (negativa, fracionária, `NaN`).
+ * Ausente e zero são o mesmo para a lista «Lojas sem Produtos», e é isso que se
+ * quer confirmar. Metade das amostras leva ainda uma entrada órfã, de uma Loja
+ * que não está no instantâneo.
+ */
+function contagensDeProdutosArb(lojas: readonly StoreLike[]): fc.Arbitrary<ReadonlyMap<string, number>> {
+  const total = lojas.length;
+  const contagemArb: fc.Arbitrary<number | null> = fc.oneof(
+    { arbitrary: fc.constant(null), weight: 3 },
+    { arbitrary: fc.constant(0), weight: 3 },
+    { arbitrary: fc.integer({ min: 1, max: 200 }), weight: 4 },
+    { arbitrary: fc.constantFrom(-2, 0.4, 3.7, Number.NaN), weight: 1 },
+  );
+
+  return fc
+    .tuple(fc.array(contagemArb, { minLength: total, maxLength: total }), fc.boolean())
+    .map(([contagens, comOrfa]) => {
+      const mapa = new Map<string, number>();
+      contagens.forEach((contagem, i) => {
+        const loja = lojas[i];
+        if (contagem !== null && loja !== undefined) mapa.set(loja.id, contagem);
+      });
+      if (comOrfa) mapa.set("loja-inexistente", 7);
+      return mapa;
+    });
+}
+
+/**
+ * Instantâneo arbitrário do Painel_Admin, para a Propriedade 5.
+ *
+ * Gerado em cadeia a partir do **momento de referência**, e é essa a decisão
+ * central deste gerador: `now` fica dentro do próprio instantâneo e todas as
+ * datas são calculadas a partir dele — datas de pagamento dentro e fora do mês
+ * corrente, fins de teste dentro e fora da janela de
+ * {@link ATTENTION_WINDOW_DAYS} dias, datas de criação espalhadas pelos
+ * {@link MONTHS_IN_EVOLUTION} meses da evolução e mais antigas. Sem isto, as
+ * métricas dependeriam do calendário do dia em que o teste corre.
+ *
+ * As referências são coerentes por construção, e é por isso que as contas são
+ * geradas primeiro, as Lojas a seguir (com `ownerId` de contas existentes,
+ * incluindo de Administrador) e os levantamentos e transações no fim (com
+ * `storeId`/`ownerId` de Lojas e contas existentes). Uma fatia de cada aponta
+ * deliberadamente para nada.
+ */
+export const adminSnapshotArb: fc.Arbitrary<AdminSnapshot> = fc
+  .constantFrom(...MOMENTOS_DE_REFERENCIA)
+  .chain((now) =>
+    contasArb(now).chain((accounts) =>
+      lojasArb(now, accounts).chain((stores) =>
+        fc
+          .record({
+            withdrawals: levantamentosArb(now, stores),
+            transactions: transacoesArb(now, accounts),
+            productCounts: contagensDeProdutosArb(stores),
+          })
+          .map(({ withdrawals, transactions, productCounts }) => ({
+            now,
+            accounts,
+            stores,
+            withdrawals,
+            transactions,
+            productCounts,
+          })),
+      ),
+    ),
+  );
+
+/**
+ * Uma **Loja_Modelo** isolada, para a Propriedade 5 a acrescentar a um
+ * instantâneo e confirmar que nenhuma métrica e nenhuma lista se movem.
+ *
+ * O identificador leva o prefixo `modelo-`, que não colide com os `loja-<i>` do
+ * instantâneo. O `ownerId` aponta de propósito para `conta-0` ou `conta-1` — que
+ * na maior parte dos instantâneos **existem** e são elegíveis: uma Loja_Modelo
+ * com dono conhecido é o caso que apanharia uma exclusão feita pela ordem
+ * errada (dono primeiro, marca de modelo depois).
+ */
+export const lojaModeloArb: fc.Arbitrary<StoreLike> = fc
+  .record({
+    sufixo: fc.integer({ min: 0, max: 9_999 }),
+    name: fc.constantFrom("Lumière Chic", "Ekolo Sports", "Modelo de demonstração"),
+    ownerId: fc.constantFrom<(string | null | undefined)[]>("conta-0", "conta-1", "conta-inexistente", null, undefined),
+    ownerEmail: emailDeContaArb,
+    state: estadoDeLojaArb,
+    createdAt: fc.constantFrom<(string | null)[]>(
+      iso(Date.UTC(2024, 0, 5, 9, 0, 0)),
+      iso(Date.UTC(2025, 4, 20, 15, 0, 0)),
+      null,
+    ),
+    customization: customizationDeLojaModeloArb,
+  })
+  .map(({ sufixo, ...loja }) => ({ id: `modelo-${sufixo}`, identifier: `modelo-${sufixo}`, ...loja }));
