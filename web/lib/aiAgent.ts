@@ -268,7 +268,7 @@ export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor
     // Repõe o histórico anterior (se houver) ou mostra a saudação.
     if (!chatHistory.length) {
       addMsg("assistant", scope === "site"
-        ? "Olá! Sou o assistente do MôBisno. Pergunta-me o que quiseres — o que é a plataforma, o que dá (ou não) para fazer, planos e como começar a tua loja."
+        ? "Olá! Sou o assistente do MôBisno. Aqui escolhes um modelo pronto de site — uma loja completa, já montada — e personalizas os textos, as fotografias e as cores. Pergunta-me o que quiseres: como começar a tua loja, os planos, ou o que dá (ou não) para fazer."
         : "Olá! Pergunta-me o que quiseres sobre o editor — por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d");
     } else {
       for (const m of chatHistory) addMsg(m.role, m.content);

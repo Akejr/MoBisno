@@ -6,7 +6,9 @@
  * O layout "Etapas" (moderno) é um fluxo real: Dados → Pagamento → Confirmação,
  * com transições animadas. Os restantes são de página única.
  *
- * As opções online só aparecem quando a loja tem `custom.payments.onlineEnabled`.
+ * As opções online só aparecem quando a loja tem `custom.payments.onlineEnabled`
+ * ou é uma loja-modelo de demonstração (`custom.__demoPayments`) — a decisão
+ * vive em `src/services/paymentVisibility.ts`.
  * Para testar sem cobrar, abra com `?qa=1` no URL.
  */
 import { render, $, esc, formatKz, fadeInImages, toast } from "../lib/dom.js";
@@ -30,28 +32,23 @@ import {
   type CheckoutVariant, type CheckoutMethodId, type CheckoutLayoutCtx,
 } from "../templates/checkoutLayouts.js";
 import type { PaymentProduct } from "../../src/services/payments.js";
-
-function notFoundShell(): void {
-  render(`<div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-    <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">storefront</span>
-    <h1 class="text-headline-lg text-on-surface">Loja não encontrada</h1>
-    <a href="#/" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar ao início</a></div>`);
-}
+import { onlinePaymentsVisible, isPaymentsDemo } from "../../src/services/paymentVisibility.js";
+import { buildCartWhatsAppMessage } from "../../src/services/cartMessage.js";
+import { storeNotFoundHtml } from "../templates/notFound.js";
 
 export async function renderCheckoutPage(identifier: string): Promise<void> {
   const { result, view, custom } = await loadStorefront(identifier);
-  if (view.kind !== "render" || result.kind !== "render") { notFoundShell(); return; }
+  if (view.kind !== "render" || result.kind !== "render") { render(storeNotFoundHtml(identifier)); return; }
 
   const storeId = result.store.id;
   const storeName = view.storeName;
   const template = getTemplate(result.store.templateId);
   const brand = brandOf(custom, result.store.templateId);
   const homeHref = storeHomePath(identifier);
-  const online = !!custom.payments?.onlineEnabled;
-  // Loja baseada num modelo (ou a loja-modelo): mostra SEMPRE os métodos online
-  // no checkout (visível), mesmo que ainda não estejam ativos (não cobram).
-  const isModel = !!((custom as { __basedOn?: string }).__basedOn || (custom as { __template?: unknown }).__template);
-  const showOnline = online || isModel;
+  // Decisão única (src/services/paymentVisibility.ts): os métodos online só
+  // aparecem quando a Loja os tem ativos, ou quando é uma Loja_Modelo de
+  // demonstração (`__demoPayments`, nunca herdada por lojas de clientes).
+  const showOnline = onlinePaymentsVisible(custom) || isPaymentsDemo(custom);
   const variant: CheckoutVariant = custom.checkout?.variant ?? "dividido";
   const qa = location.search.includes("qa=1");
   const waPhone = resolveWaPhone(custom);
@@ -298,10 +295,17 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     const grand = Math.max(0, gross - discount);
 
     if (selected === "whatsapp") {
-      const lines = items.map((i) => `• ${i.quantity}x ${i.name} (${formatKz(i.price * i.quantity)})`).join("\n");
-      const areaLine = physical && selectedArea ? `\nEntrega: ${selectedArea}${deliveryFee > 0 ? ` (${formatKz(deliveryFee)})` : " (grátis)"}` : "";
-      const discLine = discount > 0 ? `\nDesconto (${appliedDiscount?.code}): -${formatKz(discount)}` : "";
-      const msg = `Olá! Gostaria de encomendar:\n${lines}${areaLine}${discLine}\n\nTotal: ${formatKz(grand)}`;
+      // A mensagem é composta por src/services/cartMessage.ts — autor único do
+      // texto, partilhado com a Gaveta_Do_Carrinho. Os extras preservam a área
+      // de entrega e o desconto tal como aqui apareciam (R3.12).
+      const msg = buildCartWhatsAppMessage(
+        items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+        formatKz,
+        {
+          delivery: physical && selectedArea ? { area: selectedArea, fee: deliveryFee } : undefined,
+          discount: discount > 0 && appliedDiscount ? { code: appliedDiscount.code, amount: discount } : undefined,
+        },
+      );
       window.open(waLink(waPhone, msg), "_blank", "noopener");
       toast("A abrir o WhatsApp para finalizar…");
       return;

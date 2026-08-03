@@ -5,6 +5,8 @@
 import { esc, formatKz, toast } from "./dom.js";
 import { getCart, setQuantity, removeFromCart, cartTotal, updateCartBadge, type CartItem } from "./cart.js";
 import { resolveWaPhone, waLink } from "./whatsapp.js";
+import { onlinePaymentsVisible, isPaymentsDemo } from "../../src/services/paymentVisibility.js";
+import { buildCartWhatsAppMessage } from "../../src/services/cartMessage.js";
 import { loadStorefront } from "./storeCache.js";
 import { brandOf, readableInk } from "./brand.js";
 import { applyInk } from "./ink.js";
@@ -90,11 +92,12 @@ export async function openCartDrawer(identifier: string): Promise<void> {
   const brand = brandOf(custom, templateId);
   const cartPageHref = `${storeBasePath(identifier)}/carrinho`;
   const checkoutHref = `${storeBasePath(identifier)}/checkout`;
-  const online = !!custom.payments?.onlineEnabled;
-  // Loja baseada num modelo (ou a própria loja-modelo): mostra "Comprar agora"
-  // (leva ao checkout com os métodos visíveis), mesmo sem pagamentos ativos.
-  const isModel = !!((custom as { __basedOn?: string }).__basedOn || (custom as { __template?: unknown }).__template);
-  const showCheckout = online || isModel;
+  // Decisão ÚNICA (src/services/paymentVisibility.ts): "Comprar agora" só com
+  // pagamentos online ativos, ou numa Loja_Modelo de demonstração
+  // (`__demoPayments`). `__basedOn`/`__template` não são lidos aqui — são
+  // copiados para a Loja do cliente e levavam lojas reais a um checkout com
+  // métodos que não aceitam (R3.3).
+  const showCheckout = onlinePaymentsVisible(custom) || isPaymentsDemo(custom);
   const darkTheme = templateId === "neonlab";
 
   // Remove instância anterior, se existir.
@@ -159,7 +162,7 @@ export async function openCartDrawer(identifier: string): Promise<void> {
         </div>
         ${showCheckout
           ? `<a href="${esc(checkoutHref)}" data-go class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora</a>`
-          : `<button data-checkout class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">chat</span> Finalizar via WhatsApp</button>`}`;
+          : `<button data-checkout class="w-full py-3 rounded-lg font-bold inline-flex items-center justify-center gap-2" style="background:var(--brand);color:var(--brand-ink,#fff)"><span class="material-symbols-outlined text-[20px]">chat</span> Comprar pelo WhatsApp</button>`}`;
     }
     bindRows();
     updateCartBadge(storeId);
@@ -175,8 +178,9 @@ export async function openCartDrawer(identifier: string): Promise<void> {
     foot.querySelector("[data-checkout]")?.addEventListener("click", () => {
       const items = getCart(storeId);
       if (!items.length) return;
-      const lines = items.map((i) => `• ${i.quantity}x ${i.name} (${formatKz(i.price * i.quantity)})`).join("\n");
-      const msg = `Olá! Gostaria de encomendar:\n${lines}\n\nTotal: ${formatKz(cartTotal(storeId))}`;
+      // Autor único do texto (src/services/cartMessage.ts). Sem `extras`: a área
+      // de entrega e o desconto são do Checkout, não da Gaveta.
+      const msg = buildCartWhatsAppMessage(items, formatKz);
       window.open(waLink(resolveWaPhone(custom), msg), "_blank", "noopener");
       toast("A abrir o WhatsApp para finalizar…");
     });

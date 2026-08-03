@@ -1,5 +1,5 @@
 /** Loja publicada — resolve por subdomínio (com cache), aplica personalização e renderiza. */
-import { render, esc, fadeInImages, formatKz } from "../lib/dom.js";
+import { render, fadeInImages, formatKz } from "../lib/dom.js";
 import { getTemplate } from "../templates/registry.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
@@ -17,20 +17,14 @@ import { storeTitle, storeDescription, storeJsonLd, storeWebsiteJsonLd, collecti
 import { productSlugPath } from "../lib/slug.js";
 import { trackPixel } from "../lib/pixels.js";
 import { trackStoreEvent } from "../supabase/analytics.js";
+import { storeNotFoundHtml, STORE_NOT_FOUND_TITLE, STORE_NOT_FOUND_MESSAGE } from "../templates/notFound.js";
 
 export async function renderStorefront(identifier: string): Promise<void> {
-  const host = `${identifier}.mobisno.store`;
   const { result, view, custom } = await loadStorefront(identifier);
 
   if (view.kind === "not_found") {
-    applySeo({ title: "Loja não encontrada | MôBisno", description: "Esta loja não existe ou não está publicada.", noindex: true });
-    render(`
-    <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-      <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">storefront</span>
-      <h1 class="text-headline-lg text-on-surface">Loja não encontrada</h1>
-      <p class="text-on-surface-variant">O endereço <span class="font-medium">${esc(host)}</span> não corresponde a nenhuma loja publicada.</p>
-      <a href="#/" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar ao início</a>
-    </div>`);
+    applySeo({ title: `${STORE_NOT_FOUND_TITLE} | MôBisno`, description: STORE_NOT_FOUND_MESSAGE, noindex: true });
+    render(storeNotFoundHtml(identifier));
     return;
   }
 

@@ -382,17 +382,27 @@ O código já sabe distingui-las — a marca `customization.__template` é usada
 `web/views/checkout.ts`. Falta excluí-las de `/lojas`, do índice de sitemaps e
 da indexação, mantendo-as acessíveis a quem quer ver o modelo.
 
-### 7.3 O scope `seotitle` está partido
+### 7.3 O scope `seotitle` e o `/api/logo` estão de pé
 
-`web/lib/seoGen.ts` continua a enviar `scope: "seotitle"` a `/api/assistant`,
-mas esse scope foi removido do `api/assistant.js` numa alteração ainda por
-concluir (a remoção da compra de logótipos). O pedido cai no prompt do editor e
-o título SEO da loja gerado por IA sai errado.
+Esta secção descrevia os dois como avariados. Não estão, e o registo fica aqui
+corrigido para não induzir em erro quem o seguir.
 
-O mesmo se aplica a `/api/logo`, apagado, que `web/lib/logoApi.ts` continua a
-chamar a partir do wizard e do dashboard.
+`web/lib/seoGen.ts` envia `scope: "seotitle"` a `/api/assistant`, e esse scope
+existe no `api/assistant.js`: `SYSTEM_SEOTITLE` está definido e `seotitle` é uma
+das cinco entradas do mapa `PROMPTS`, ao lado de `editor`, `site`, `seo` e
+`logo`. O pedido cai no prompt certo e o título SEO da loja gerado por IA sai
+com as regras desse scope (3 a 6 palavras, até 45 caracteres, sem o nome da
+loja).
 
-Nenhum destes é apanhado pelo `tsc` — são chamadas HTTP em tempo de execução.
+O mesmo vale para `/api/logo`: o `api/logo.js` existe e pede cinco propostas em
+paralelo, uma por direção de arte, devolvendo em PNG com fundo transparente as
+que conseguiu gerar. É esse o endpoint que `web/lib/logoApi.ts` chama a partir
+do wizard e do dashboard.
+
+Fica a cautela que deu origem à secção: nem o scope enviado no corpo do pedido
+nem o caminho do endpoint são apanhados pelo `tsc` — são chamadas HTTP em tempo
+de execução. Uma divergência entre o cliente e a função serverless só se
+descobre a ler a fonte dos dois lados.
 
 ---
 

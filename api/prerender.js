@@ -340,6 +340,9 @@ export default async function handler(req, res) {
       title, tags, lang: LANGUAGE,
       bodyHtml: storeHomeHtml({
         storeName, description: storeDesc, logoUrl, products, categories: cats, base, brand,
+        // `custom` traz os blocos do editor: é daqui que saem as localizações e
+        // os mapas no HTML servido sem JavaScript (R5.10).
+        custom,
       }),
     }));
   } catch (e) {
@@ -506,23 +509,58 @@ async function renderDirectory(shell, db) {
   return inject(shell, { title, tags, lang: LANGUAGE, bodyHtml: body });
 }
 
-/** Página 404/410: conteúdo mínimo e `noindex` para não poluir o índice. */
+/* ------------------------ Loja não encontrada (R10) ------------------------ */
+
+/**
+ * Texto da Pagina_Loja_Nao_Encontrada servida sem JavaScript.
+ *
+ * É a **paridade** exigida pelo R10.7: um visitante sem JavaScript tem de ler a
+ * mesma mensagem e o mesmo convite que a SPA mostra. A fonte do texto é
+ * `web/templates/notFound.ts` — **ao alterar os literais lá, alterar aqui**
+ * (`SEO.md` §5.2, o mesmo princípio de `api/_seo.js` vs `src/services/`).
+ */
+const STORE_NOT_FOUND_MESSAGE = "Não encontrámos nenhuma loja publicada neste endereço.";
+const STORE_NOT_FOUND_INVITE = "Aproveite para criar a sua: escolha um modelo pronto, personalize os textos, as fotografias e as cores, e comece a vender online em Angola.";
+const STORE_NOT_FOUND_PRIMARY_LABEL = "Criar a minha loja";
+const STORE_NOT_FOUND_SECONDARY_LABEL = "Ver lojas criadas na MôBisno";
+
+/**
+ * Página 404/410: `noindex` para não poluir o índice, e um convite a criar loja
+ * em vez de um beco sem saída.
+ *
+ * As duas ações são **absolutas para o apex da plataforma**, porque `/criar` e
+ * `/lojas` vivem em `mobisno.store` e esta página é servida sobretudo no
+ * subdomínio de uma loja — é o equivalente servidor do `platformHomeUrl()` que
+ * a SPA usa. Caminhos reais, nunca um fragmento `#` (`SEO.md` §5.1).
+ *
+ * O endereço pedido sai do canónico (o endereço da loja procurada), o que
+ * dispensa passar `host`/`path` a cada um dos quatro pontos de chamada.
+ */
 function notFoundHtml(shell, heading, canonical) {
+  const title = `${heading} — ${PLATFORM_NAME}`;
+  const platform = `https://${PLATFORM_APEX}`;
+  const address = String(canonical || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const tags = metaTags({
-    title: `${heading} — ${PLATFORM_NAME}`,
+    title,
     description: "",
     canonical,
     siteName: PLATFORM_NAME,
     noindex: true,
   });
+  const addressHtml = address ? `<p><strong>${esc(address)}</strong></p>` : "";
+  const actionsHtml = `<nav class="mb-ssr-nav">`
+    + `<a href="${platform}/criar">${esc(STORE_NOT_FOUND_PRIMARY_LABEL)}</a>`
+    + `<a href="${platform}/lojas">${esc(STORE_NOT_FOUND_SECONDARY_LABEL)}</a>`
+    + `</nav>`;
   return inject(shell, {
-    title: `${heading} — ${PLATFORM_NAME}`,
+    title,
     tags,
     lang: LANGUAGE,
     bodyHtml: platformHtml({
       heading,
-      intro: "Esta página não está disponível. Veja as lojas criadas com a MôBisno ou crie a sua.",
-      links: [{ href: `https://${PLATFORM_APEX}/lojas`, label: "Ver lojas" }, { href: `https://${PLATFORM_APEX}/`, label: "MôBisno" }],
+      intro: STORE_NOT_FOUND_MESSAGE,
+      // Ordem igual à da SPA: mensagem, endereço pedido, convite, duas ações.
+      extraHtml: `${addressHtml}<p>${esc(STORE_NOT_FOUND_INVITE)}</p>${actionsHtml}`,
     }),
   });
 }

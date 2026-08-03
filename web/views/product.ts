@@ -5,7 +5,7 @@ import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
 import { brandOf, readableInk } from "../lib/brand.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
-import { navigate } from "../lib/routing.js";
+import { navigate, storeHomePath } from "../lib/routing.js";
 import { applyInk } from "../lib/ink.js";
 import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
@@ -16,13 +16,19 @@ import { productTitle, productDescription, productJsonLd, breadcrumbJsonLd } fro
 import { trackPixel } from "../lib/pixels.js";
 import { trackStoreEvent } from "../supabase/analytics.js";
 import { listProductReviews, summarize, submitReview, type Review } from "../supabase/reviews.js";
+import { storeNotFoundHtml } from "../templates/notFound.js";
 
-function notFound(message: string): void {
+/**
+ * Produto inexistente numa loja que existe. Distinto da
+ * Pagina_Loja_Nao_Encontrada: aqui a loja abre, por isso a ligação volta à loja
+ * — com caminho real, sem fragmento `#` (`SEO.md` §5.1).
+ */
+function productNotFound(identifier: string): void {
   render(`
   <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-    <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">${message.includes("Produto") ? "production_quantity_limits" : "storefront"}</span>
-    <h1 class="text-headline-lg text-on-surface">${esc(message)}</h1>
-    <a href="#/" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar ao início</a>
+    <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">production_quantity_limits</span>
+    <h1 class="text-headline-lg text-on-surface">Produto não encontrado</h1>
+    <a href="${esc(storeHomePath(identifier))}" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar à loja</a>
   </div>`);
 }
 
@@ -34,7 +40,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   const { result, view, custom } = await loadStorefront(identifier);
 
   if (view.kind === "not_found" || result.kind !== "render") {
-    notFound("Loja não encontrada");
+    render(storeNotFoundHtml(identifier));
     return;
   }
 
@@ -43,7 +49,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
     view.products.find((p) => productSlugPath(p).toLowerCase() === wanted) ??
     view.products.find((p) => p.id === slugOrId);
   if (!product) {
-    notFound("Produto não encontrado");
+    productNotFound(identifier);
     return;
   }
 

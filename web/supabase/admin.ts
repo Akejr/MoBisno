@@ -70,6 +70,43 @@ export interface AdminOverview {
   pendingWithdrawals: number;
 }
 
+/** Como é que uma Loja entrou no resultado de `adminStoresUsingTemplate`. */
+export type TemplateMatch = "templateId" | "basedOn";
+
+/**
+ * Uma Loja que usa um dos Modelo_De_Loja verificados. Só leitura: esta forma
+ * existe para ser apresentada ao Administrador antes de qualquer eliminação.
+ */
+export interface AdminTemplateUser {
+  id: string;
+  name: string;
+  ownerId: string;
+  ownerEmail: string;
+  state: string;
+  identifier: string;
+  templateId: string;
+  /** Valor de `customization.__basedOn`, ou null quando ausente/não textual. */
+  basedOn: string | null;
+  /** Loja_Modelo do Administrador (tem `customization.__template`). */
+  isModel: boolean;
+  /** Por que critérios foi encontrada (pode ser pelos dois). */
+  matchedBy: TemplateMatch[];
+  createdAt: string;
+}
+
+/**
+ * Resultado da verificação de uso de Modelo_De_Loja, partido nos dois grupos
+ * que a decisão de eliminação precisa de distinguir (R1.7, R1.8).
+ */
+export interface AdminTemplateUsage {
+  /** Identificadores efetivamente verificados (normalizados, sem vazios). */
+  ids: string[];
+  /** Loja_Modelo — as demonstrações do Administrador. */
+  models: AdminTemplateUser[];
+  /** Lojas de cliente. Grupo não vazio ⇒ a eliminação não avança (R1.8). */
+  customerStores: AdminTemplateUser[];
+}
+
 /** O utilizador autenticado é administrador? */
 export async function isCurrentUserAdmin(): Promise<boolean> {
   // getSession() espera pela hidratação a partir do armazenamento local,
@@ -170,6 +207,106 @@ export async function listStores(): Promise<AdminStore[]> {
       },
     };
   });
+}
+
+/** Normaliza um identificador de Modelo_De_Loja para comparação. */
+function normId(v: unknown): string {
+  return typeof v === "string" ? v.trim().toLowerCase() : "";
+}
+
+/**
+ * Verificação em base de dados de quem usa um ou mais Modelo_De_Loja (R1.7).
+ *
+ * **Só leitura.** Não escreve, não apaga, não migra. Existe para ser corrida e
+ * lida ANTES de qualquer eliminação de Loja_Modelo, que apaga Lojas publicadas
+ * reais e é irreversível (decisão D7, rede de segurança da assunção `[A4]`).
+ *
+ * Devolve **todas** as Lojas que usam os `ids` — Loja_Modelo incluídas, ao
+ * contrário de `listStores()`, que as filtra —, partidas em dois grupos:
+ *  - `models`: as Loja_Modelo (têm `customization.__template`), a mesma
+ *    convenção de `listTemplateModels` em `web/supabase/models.ts`;
+ *  - `customerStores`: as Lojas de cliente. Se este grupo não estiver vazio, a
+ *    eliminação **não avança** e o Modelo_De_Loja mantém-se registado (R1.8).
+ *
+ * Uma Loja entra no resultado se `template_id` estiver em `ids` **ou** se
+ * `customization.__basedOn` estiver em `ids`.
+ *
+ * **Porque é que o filtro corre em memória e não na consulta.** `__basedOn` vive
+ * dentro da coluna JSON `customization`, e combinar um `in` sobre `template_id`
+ * com um filtro `->>` sobre uma chave com dois sublinhados num único `or` do
+ * PostgREST é frágil (citação da chave, escape do valor). Aqui um falso negativo
+ * apaga a loja de um cliente, por isso trazemos as linhas — o Painel_Admin já
+ * carrega a tabela `stores` inteira em `listStores` e `adminOverview` — e
+ * comparamos em JavaScript, onde a regra é legível e determinística. Sem `join`,
+ * como as restantes consultas deste ficheiro: o email do dono vem de
+ * `profilesMap()`.
+ *
+ * **Erros não são silenciados.** Ao contrário das listagens deste ficheiro, que
+ * devolvem lista vazia em caso de erro, esta função lança: um resultado vazio
+ * por falha de leitura seria indistinguível de «nenhuma Loja afetada» — o falso
+ * negativo que autoriza uma eliminação irreversível.
+ */
+export async function adminStoresUsingTemplate(ids: string[]): Promise<AdminTemplateUsage> {
+  const wanted = new Set((ids ?? []).map(normId).filter((v) => v !== ""));
+  if (wanted.size === 0) return { ids: [], models: [], customerStores: [] };
+
+  const [{ data, error }, pm] = await Promise.all([
+    supabase
+      .from("stores")
+      .select("id, name, owner_id, state, subdomain, identifier, template_id, customization, created_at")
+      .order("created_at", { ascending: false }),
+    profilesMap(),
+  ]);
+  if (error) {
+    console.error("adminStoresUsingTemplate", error);
+    throw new Error(`adminStoresUsingTemplate: leitura de lojas falhou (${error.message})`);
+  }
+
+  type Row = {
+    id: string; name: string; owner_id: string; state: string; subdomain: string;
+    identifier: string; template_id: string; customization: unknown; created_at: string;
+  };
+  const rows = (data ?? []) as Row[];
+  const customOf = (r: Row) => (r.customization ?? {}) as { __template?: unknown; __basedOn?: unknown };
+
+  // `__basedOn` de uma Loja de cliente guarda o ID da loja-modelo aplicada
+  // (`applyModelToStore`), não o id do Modelo_De_Loja. Juntamos esses IDs ao
+  // conjunto procurado para que uma Loja baseada numa destas Loja_Modelo seja
+  // encontrada mesmo que o seu `template_id` já tenha divergido. Só pode
+  // acrescentar Lojas ao resultado — nunca retirar.
+  const keys = new Set(wanted);
+  for (const r of rows) {
+    if (customOf(r).__template && wanted.has(normId(r.template_id))) keys.add(normId(r.id));
+  }
+
+  const models: AdminTemplateUser[] = [];
+  const customerStores: AdminTemplateUser[] = [];
+  for (const r of rows) {
+    const c = customOf(r);
+    const basedOn = typeof c.__basedOn === "string" ? c.__basedOn : null;
+    const matchedBy: TemplateMatch[] = [];
+    if (wanted.has(normId(r.template_id))) matchedBy.push("templateId");
+    if (keys.has(normId(basedOn))) matchedBy.push("basedOn");
+    if (matchedBy.length === 0) continue;
+
+    const isModel = !!c.__template;
+    const entry: AdminTemplateUser = {
+      id: r.id,
+      name: r.name,
+      ownerId: r.owner_id,
+      ownerEmail: pm.get(r.owner_id)?.email ?? "",
+      state: r.state,
+      identifier: r.identifier,
+      templateId: r.template_id,
+      basedOn,
+      isModel,
+      matchedBy,
+      createdAt: r.created_at,
+    };
+    (isModel ? models : customerStores).push(entry);
+  }
+
+  return { ids: [...wanted], models, customerStores };
 }
 
 /** Lista de todos os pedidos de levantamento. */

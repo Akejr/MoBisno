@@ -25,7 +25,10 @@ export interface TemplatePreset {
 export const TEMPLATE_PRESETS: TemplatePreset[] = [
   {
     id: "vermelho-moderno",
-    name: "Vermelho Moderno",
+    // Nome apresentado. O `id` mantém-se `vermelho-moderno` de propósito:
+    // `getPreset(id)` e a marca `customization.__basedOn` das Lojas já criadas
+    // em produção dependem dele (R1.2, assunção [A1]).
+    name: "Ekolo Sports",
     description: "Vibrante e contemporâneo, perfeito para moda e acessórios.",
     previewUrl: "/presets/vermelho-moderno.jpg", // placeholder — criar screenshot depois
     customization: {

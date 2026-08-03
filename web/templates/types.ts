@@ -86,6 +86,10 @@ export interface StoreCustomization {
     logoUrl?: string;
     /** Variante de layout do rodapé. */
     variant?: "colunas" | "centrado" | "moderno";
+    /** Título do 4.º bloco do rodapé (modelos que o têm, ex.: Lumière). */
+    extraTitle?: string;
+    /** Texto do 4.º bloco do rodapé. */
+    extraText?: string;
   };
   /** Configuração do botão "Comprar via WhatsApp" na página de produto. */
   whatsapp?: {
@@ -226,6 +230,14 @@ export interface StoreCustomization {
   __locked?: boolean;
   /** (Interno) Versão do conteúdo de fábrica de um modelo (para re-sincronizar). */
   __v?: number;
+  /**
+   * (Interno) Marca de demonstração: uma loja-modelo apresenta os métodos de
+   * pagamento online mesmo sem `payments.onlineEnabled`. Escrita SÓ pelo
+   * semeador nas lojas-modelo e NUNCA herdada — `applyModelToStore` e
+   * `applyRawToStore` removem-na da cópia aplicada à loja do cliente, como já
+   * fazem a `__template`. É a diferença face a `__basedOn`, esse é copiado.
+   */
+  __demoPayments?: boolean;
 }
 
 /** Bloco de conteúdo de uma loja (secção adicional editável). */
@@ -233,7 +245,17 @@ export type ContentBlock =
   | { type: "info"; title?: string; text?: string; imageUrl?: string; imageSide?: "left" | "right"; variant?: "lado" | "sobreposto" | "cartao"; bg?: string; badge?: string }
   | { type: "text"; title?: string; text?: string; variant?: "centrado" | "destaque" | "linha"; bg?: string }
   | { type: "testimonials"; title?: string; variant?: "cards" | "editorial" | "marquee"; items?: { name?: string; role?: string; text?: string; avatarUrl?: string; avatarText?: string }[] }
-  | { type: "location"; title?: string; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "estilizado" };
+  /**
+   * Bloco de mapa. Aceita dois formatos de localização:
+   *
+   * - **lista** — `places`, com uma entrada por ponto de venda, cada uma com o
+   *   seu mapa e pin. Mesma forma de `lumiere.boutiques[]` (`MODELO-GUIA.md`
+   *   §8), para partilharem `mapEmbedSrc` de `src/services/locations.ts`;
+   * - **localização única (legado)** — `address`/`lat`/`lng` no próprio bloco,
+   *   como todas as lojas gravadas até aqui. **Continuam a ser lidos** quando
+   *   `places` está ausente ou vazio (ver `resolveLocations`).
+   */
+  | { type: "location"; title?: string; places?: { name?: string; address?: string; lat?: number; lng?: number }[]; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "estilizado" };
 
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */

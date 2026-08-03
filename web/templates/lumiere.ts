@@ -6,6 +6,10 @@
  * `data-search-btn`, `data-add-cart`, etc.), tal como os outros modelos.
  */
 import { esc, formatKz } from "../lib/dom.js";
+// Uma só função de mapa em toda a Plataforma (decisão D4): `mapEmbedSrc` é a
+// generalização do antigo `boutiqueMapSrc` deste ficheiro, com a mesma caixa de
+// enquadramento, o mesmo marcador e a mesma morada por omissão.
+import { mapEmbedSrc } from "../../src/services/locations.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
@@ -219,6 +223,8 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
   const location = custom?.footer?.location || "Luanda, Angola";
   const phone = custom?.footer?.phone || DEFAULT_PHONE;
   const email = custom?.footer?.email || "geral@minhaloja.ao";
+  const extraTitle = custom?.footer?.extraTitle || "Compras seguras";
+  const extraText = custom?.footer?.extraText || "Entrega em toda Angola, pagamento por Multicaixa ou na entrega, e apoio pelo WhatsApp.";
   return `
     <footer class="mt-auto" style="background:#f6f3f2">
       <div class="${CONTAINER} py-16 md:py-24 grid grid-cols-1 md:grid-cols-4 gap-10">
@@ -239,8 +245,8 @@ function footerHtml(view: StoreRenderView, custom: StoreCustomization | undefine
           </ul>
         </div>
         <div>
-          <h3 class="lx-body lx-track uppercase text-[12px] font-semibold mb-5" style="color:#1c1b1b">O Atelier</h3>
-          <p class="lx-body font-light mb-3" style="color:#464742">Junte-se ao círculo para pré-visualizações exclusivas.</p>
+          <h3 data-edit="footer.extraTitle" class="lx-body lx-track uppercase text-[12px] font-semibold mb-5" style="color:#1c1b1b">${esc(extraTitle)}</h3>
+          <p data-edit="footer.extraText" class="lx-body font-light mb-3" style="color:#464742">${esc(extraText)}</p>
         </div>
       </div>
       <div class="border-t border-black/5">
@@ -298,17 +304,6 @@ function testimonialSection(custom?: StoreCustomization): string {
   </section>`;
 }
 
-/** URL de mapa (com pin) para uma loja: por coordenadas ou por morada. */
-function boutiqueMapSrc(b: { address?: string; lat?: number; lng?: number }): string {
-  if (typeof b.lat === "number" && typeof b.lng === "number") {
-    const d = 0.008;
-    const bbox = `${b.lng - d},${b.lat - d},${b.lng + d},${b.lat + d}`;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${b.lat},${b.lng}`;
-  }
-  const addr = (b.address ?? "").trim() || "Luanda, Angola";
-  return `https://maps.google.com/maps?q=${encodeURIComponent(addr)}&z=15&output=embed`;
-}
-
 /** Secção "As nossas lojas": um mapa com pin por cada loja (ou um único mapa). */
 function boutiquesSection(custom?: StoreCustomization): string {
   const title = cx(custom, "lumiere.boutiquesTitle", "As nossas lojas");
@@ -323,7 +318,7 @@ function boutiquesSection(custom?: StoreCustomization): string {
       const address = (b.address ?? "").trim() || "Luanda, Angola";
       return `<div data-boutique="${i}" class="flex flex-col">
         <div class="w-full overflow-hidden rounded-xl" style="box-shadow:0 24px 50px -20px rgba(28,27,27,.12)">
-          <iframe title="Mapa ${esc(name || address)}" src="${esc(boutiqueMapSrc(b))}" class="w-full block" style="height:300px;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+          <iframe title="Mapa ${esc(name || address)}" src="${esc(mapEmbedSrc(b))}" class="w-full block" style="height:300px;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
         </div>
         <div class="text-center mt-4">
           <p data-edit="lumiere.boutiques.${i}.name" class="lx-serif text-xl mb-1" style="color:#1c1b1b">${esc(name)}</p>

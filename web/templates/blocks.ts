@@ -4,9 +4,13 @@
  * `data-edit-block` / `data-edit` para o editor.
  */
 import { esc } from "../lib/dom.js";
+import { resolveLocations, mapEmbedSrc, type StorePlace } from "../../src/services/locations.js";
 import type { ContentBlock, StoreCustomization } from "./types.js";
 
 export const DEFAULT_INFO_IMG = "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000";
+
+/** Morada apresentada quando nem a localização nem o rodapé têm morada. */
+const DEFAULT_LOCATION_ADDRESS = "Luanda, Angola";
 
 /** Estilo de cor de fundo de uma secção (vazio = fundo padrão/transparente). */
 function bgStyle(bg?: string): string {
@@ -42,6 +46,13 @@ export interface BlockCtx {
   brand: string;
   /** Variante visual (ex.: "galeria" para um estilo de testemunhos próprio). */
   variant?: "default" | "galeria";
+  /**
+   * Morada do rodapé da loja (`footer.location`). Último recurso do bloco de
+   * mapa quando nem `places` nem `address`/`lat`/`lng` estão preenchidos (R5.8).
+   * `blocksHtml` preenche-a a partir da Personalização, pelo que nenhum modelo
+   * precisa de a passar.
+   */
+  footerLocation?: string;
 }
 
 export const INFO_VARIANTS: { id: "lado" | "sobreposto" | "cartao"; label: string }[] = [
@@ -240,66 +251,143 @@ function locationBlock(b: Extract<ContentBlock, { type: "location" }>, i: number
   return locationByVariant(b.variant ?? "classico", b, i, ctx);
 }
 
-/** Renderiza o bloco "localização" numa variante específica. */
-export function locationByVariant(variant: "classico" | "cartao" | "estilizado", b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
-  const address = (b.address ?? "").trim() || "Luanda, Angola";
-  let src: string;
-  if (typeof b.lat === "number" && typeof b.lng === "number") {
-    const d = 0.008;
-    const bbox = `${b.lng - d},${b.lat - d},${b.lng + d},${b.lat + d}`;
-    src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${b.lat},${b.lng}`;
-  } else {
-    src = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
-  }
-  const title = esc(b.title ?? "");
-  const addrLine = `<span data-edit-loc-address data-edit="blocks.${i}.address">${esc(address)}</span>`;
-  const iframe = (extra: string): string =>
-    `<iframe title="Mapa" class="w-full border-0" style="${extra}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(src)}"></iframe>`;
+/** Morada a apresentar numa localização (a sua, ou a predefinida). */
+function placeAddress(p: StorePlace): string {
+  return (p.address ?? "").trim() || DEFAULT_LOCATION_ADDRESS;
+}
 
-  if (variant === "cartao") {
-    return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="cartao" class="relative py-12 md:py-16">
-      <div class="${ctx.container}">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
-          <div class="md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white">
-            <span class="material-symbols-outlined" style="font-size:32px;color:${ctx.brand}">location_on</span>
-            <h2 data-edit="blocks.${i}.title" class="mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-            <p class="mt-3 text-gray-500 leading-relaxed">${addrLine}</p>
-          </div>
-          <div class="md:col-span-2 min-h-[300px]">${iframe("height:100%;min-height:300px")}</div>
-        </div>
-      </div>
-    </section>`;
-  }
+/**
+ * `iframe` do mapa de uma localização. O `src` vem sempre de `mapEmbedSrc`
+ * (decisão D4: uma só função de mapa em toda a Plataforma), pelo que o HTML
+ * pré-renderizado já traz o mapa — não há JavaScript a carregá-lo (R5.10).
+ */
+function placeMap(p: StorePlace, ctx: BlockCtx, extra: string): string {
+  const label = (p.name ?? "").trim() || placeAddress(p);
+  return `<iframe title="Mapa ${esc(label)}" class="w-full border-0" style="${extra}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(mapEmbedSrc(p, ctx.footerLocation))}"></iframe>`;
+}
 
-  if (variant === "estilizado") {
-    return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="estilizado" class="relative py-12 md:py-16">
-      <div class="${ctx.container}">
-        <div class="text-center max-w-2xl mx-auto mb-8">
-          <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-          <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${addrLine}</p>
-        </div>
-        <div class="relative rounded-3xl overflow-hidden border border-gray-100 shadow-md">
-          <div style="filter:grayscale(1) contrast(1.05) brightness(1.02)">${iframe("height:420px")}</div>
+/**
+ * Nome da localização, editável (`MODELO-GUIA.md` §6.1). Só é emitido quando
+ * existe: um nó vazio não seria clicável no editor e acrescentaria espaço em
+ * branco às lojas gravadas no formato de localização única, que nunca teve nome.
+ */
+function placeName(p: StorePlace, i: number, j: number, cls: string): string {
+  const name = (p.name ?? "").trim();
+  return name ? `<p data-edit="blocks.${i}.places.${j}.name" class="${cls}">${esc(name)}</p>` : "";
+}
+
+/** Morada da localização, editável (`MODELO-GUIA.md` §6.1). */
+function placeAddressHtml(p: StorePlace, i: number, j: number): string {
+  return `<span data-edit-loc-address data-edit="blocks.${i}.places.${j}.address">${esc(placeAddress(p))}</span>`;
+}
+
+/** Linha "ícone + morada" usada nos cabeçalhos e nas legendas dos mapas. */
+function placeAddressLine(p: StorePlace, i: number, j: number, ctx: BlockCtx, cls: string): string {
+  return `<p class="${cls}"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${placeAddressHtml(p, i, j)}</p>`;
+}
+
+function locationBlockSection(variant: string, i: number, inner: string, ctx: BlockCtx): string {
+  return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="${variant}" class="relative py-12 md:py-16">
+    <div class="${ctx.container}">${inner}</div>
+  </section>`;
+}
+
+/** Cabeçalho centrado com o título da secção (usado quando há vários mapas). */
+function locationHeading(title: string, i: number): string {
+  return `<div class="text-center max-w-2xl mx-auto mb-8">
+        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+      </div>`;
+}
+
+/** Grelha dos mapas: uma coluna a 360 px, duas a partir de `md` (sem scroll horizontal). */
+function locationGrid(i: number, cards: string, cols = " md:grid-cols-2"): string {
+  return `<div data-edit-places="${i}" class="grid grid-cols-1${cols} gap-6 md:gap-8">${cards}</div>`;
+}
+
+/** Mapa "estilizado" (cinza + tinta da marca + selo), reutilizado nas duas formas. */
+function stylizedMap(p: StorePlace, ctx: BlockCtx, height: string): string {
+  return `<div class="relative rounded-3xl overflow-hidden border border-gray-100 shadow-md">
+          <div style="filter:grayscale(1) contrast(1.05) brightness(1.02)">${placeMap(p, ctx, `height:${height}`)}</div>
           <div class="pointer-events-none absolute inset-0" style="background:${ctx.brand};mix-blend-mode:multiply;opacity:.28"></div>
           <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl"></div>
           <div class="pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800">
             <span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">pin_drop</span> Estamos aqui
           </div>
-        </div>
+        </div>`;
+}
+
+/**
+ * Renderiza o bloco "localização" numa variante específica.
+ *
+ * As localizações vêm de `resolveLocations` (`src/services/locations.ts`), que
+ * cobre os dois formatos gravados: `places[]` (várias localizações, R5.5) e
+ * `address`/`lat`/`lng` no próprio bloco (localização única, R5.9), caindo para
+ * a morada do rodapé quando nenhum está preenchido (R5.8). Devolve sempre pelo
+ * menos uma entrada, pelo que uma loja com o formato antigo continua a mostrar
+ * **exatamente um mapa**, com a mesma disposição de sempre.
+ *
+ * Cada localização leva o seu mapa, o seu nome e a sua morada, todos marcados
+ * com `data-edit="blocks.<i>.places.<j>.…"` (R5.11, `MODELO-GUIA.md` §6.1).
+ */
+export function locationByVariant(variant: "classico" | "cartao" | "estilizado", b: Extract<ContentBlock, { type: "location" }>, i: number, ctx: BlockCtx): string {
+  const places = resolveLocations(b, ctx.footerLocation);
+  const title = esc(b.title ?? "");
+  const single = places.length === 1;
+  const first = places[0] as StorePlace;
+
+  if (variant === "cartao") {
+    // Um cartão por localização: coluna de texto à esquerda, mapa à direita.
+    const card = (p: StorePlace, j: number, withTitle: boolean): string =>
+      `<div data-edit-place="${j}" class="grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
+          <div class="md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white">
+            <span class="material-symbols-outlined" style="font-size:32px;color:${ctx.brand}">location_on</span>
+            ${withTitle ? `<h2 data-edit="blocks.${i}.title" class="mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>` : ""}
+            ${placeName(p, i, j, "mt-3 text-xl font-black tracking-tight text-gray-900")}
+            <p class="mt-3 text-gray-500 leading-relaxed">${placeAddressHtml(p, i, j)}</p>
+          </div>
+          <div class="md:col-span-2 min-h-[300px]">${placeMap(p, ctx, "height:100%;min-height:300px")}</div>
+        </div>`;
+    if (single) return locationBlockSection("cartao", i, card(first, 0, true), ctx);
+    const cards = places.map((p, j) => card(p, j, false)).join("");
+    return locationBlockSection("cartao", i, `${locationHeading(title, i)}${locationGrid(i, cards, "")}`, ctx);
+  }
+
+  if (variant === "estilizado") {
+    if (single) {
+      return locationBlockSection("estilizado", i, `<div class="text-center max-w-2xl mx-auto mb-8">
+        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+        ${placeName(first, i, 0, "mt-2 font-semibold text-gray-900")}
+        ${placeAddressLine(first, i, 0, ctx, "mt-2 text-gray-500 inline-flex items-center gap-1.5")}
       </div>
-    </section>`;
+      <div data-edit-place="0">${stylizedMap(first, ctx, "420px")}</div>`, ctx);
+    }
+    const cards = places.map((p, j) => `<div data-edit-place="${j}" class="flex flex-col">
+        ${stylizedMap(p, ctx, "320px")}
+        <div class="mt-4 text-center">
+          ${placeName(p, i, j, "font-semibold text-gray-900")}
+          ${placeAddressLine(p, i, j, ctx, "mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5")}
+        </div>
+      </div>`).join("");
+    return locationBlockSection("estilizado", i, `${locationHeading(title, i)}${locationGrid(i, cards)}`, ctx);
   }
 
   // "classico" (omissão).
-  return `<section data-edit-block="${i}" data-block-type="location" data-block-variant="classico" class="relative py-12 md:py-16">
-    <div class="${ctx.container}">
-      <div class="text-center max-w-2xl mx-auto mb-8">
+  if (single) {
+    return locationBlockSection("classico", i, `<div class="text-center max-w-2xl mx-auto mb-8">
         <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-        <p class="mt-2 text-gray-500 inline-flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${addrLine}</p>
+        ${placeName(first, i, 0, "mt-2 font-semibold text-gray-900")}
+        ${placeAddressLine(first, i, 0, ctx, "mt-2 text-gray-500 inline-flex items-center gap-1.5")}
       </div>
-      <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">${iframe("height:400px")}</div>
-    </div>
-  </section>`;
+      <div data-edit-place="0" class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">${placeMap(first, ctx, "height:400px")}</div>`, ctx);
+  }
+  const cards = places.map((p, j) => `<div data-edit-place="${j}" class="flex flex-col">
+        <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">${placeMap(p, ctx, "height:300px")}</div>
+        <div class="mt-4 text-center">
+          ${placeName(p, i, j, "font-semibold text-gray-900")}
+          ${placeAddressLine(p, i, j, ctx, "mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5")}
+        </div>
+      </div>`).join("");
+  return locationBlockSection("classico", i, `${locationHeading(title, i)}${locationGrid(i, cards)}`, ctx);
 }
 
 /** Variante de testemunhos para o modelo Galeria (editorial, minimalista). */
@@ -378,5 +466,9 @@ function blockHtml(b: ContentBlock, i: number, ctx: BlockCtx): string {
 /** Região de blocos (sempre presente, para o editor ancorar o botão "Adicionar"). */
 export function blocksHtml(custom: StoreCustomization | undefined, ctx: BlockCtx): string {
   const blocks = custom?.blocks ?? [];
-  return `<div data-edit-blocks>${blocks.map((b, i) => blockHtml(b, i, ctx)).join("")}</div>`;
+  // A morada do rodapé é o último recurso do bloco de mapa (R5.8). É injetada
+  // aqui para nenhum modelo ter de a passar no seu `BlockCtx`.
+  const footer = typeof custom?.footer?.location === "string" ? custom.footer.location : undefined;
+  const full: BlockCtx = ctx.footerLocation === undefined && footer !== undefined ? { ...ctx, footerLocation: footer } : ctx;
+  return `<div data-edit-blocks>${blocks.map((b, i) => blockHtml(b, i, full)).join("")}</div>`;
 }

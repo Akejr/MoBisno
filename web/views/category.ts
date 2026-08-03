@@ -15,6 +15,7 @@ import { storeBasePath } from "../lib/routing.js";
 import { applySeo } from "../lib/seo.js";
 import { categoryTitle, categoryDescription, collectionJsonLd, breadcrumbJsonLd } from "../../src/services/seo.js";
 import { categorySlug, resolveCategoryLabel, productSlugPath } from "../lib/slug.js";
+import { storeNotFoundHtml } from "../templates/notFound.js";
 
 /**
  * Página de categoria. `slugOrLabel` vem da URL (`/categoria/tenis-de-corrida`)
@@ -25,12 +26,7 @@ export async function renderCategoryPage(identifier: string, slugOrLabel: string
   const { result, view, custom } = await loadStorefront(identifier);
 
   if (view.kind !== "render" || result.kind !== "render") {
-    render(`
-    <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-      <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">storefront</span>
-      <h1 class="text-headline-lg text-on-surface">Loja não encontrada</h1>
-      <a href="#/" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar ao início</a>
-    </div>`);
+    render(storeNotFoundHtml(identifier));
     return;
   }
 

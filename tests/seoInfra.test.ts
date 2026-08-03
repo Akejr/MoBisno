@@ -23,6 +23,7 @@ import {
 } from "../src/services/seo.js";
 import { slugify, productSlugPath } from "../src/services/slug.js";
 import { formatKz } from "../src/services/format.js";
+import { resolveLocations, mapEmbedSrc, type StorePlace } from "../src/services/locations.js";
 
 const ROOT = join(__dirname, "..");
 
@@ -44,8 +45,11 @@ interface ApiSeo {
   storeHomeHtml(i: {
     storeName: string; description: string; logoUrl: string | null;
     products: { id: string; name: string; category: string | null; price: number; image_url: string | null }[];
-    categories: string[]; base: string; brand: string;
+    categories: string[]; base: string; brand: string; custom?: unknown;
   }): string;
+  resolveLocations(block: unknown, footerLocation?: string): StorePlace[];
+  mapEmbedSrc(place: StorePlace, fallbackAddress?: string): string;
+  locationsHtml(custom: unknown): string;
 }
 
 // `api/_seo.js` é JavaScript puro: as funções serverless não passam pelo
@@ -237,5 +241,115 @@ describe("SEO — conteudo presente no HTML mas invisivel ao visitante", () => {
 
   it("o ecra de carregamento nao entra na arvore de acessibilidade", () => {
     expect(html).toContain('class="mb-boot" aria-hidden="true"');
+  });
+});
+
+describe("SEO — paridade das localizações entre api/_seo.js e src/services/locations.ts", () => {
+  // Casos escolhidos para percorrer os quatro degraus da cascata de
+  // `resolveLocations` e as duas saídas de `mapEmbedSrc`, mais as entradas
+  // malformadas que já existem gravadas em produção (JSON editável à mão).
+  const casos: { nome: string; block: unknown; footer?: string }[] = [
+    { nome: "lista com coordenadas e sem coordenadas", block: { type: "location", title: "Onde estamos", places: [
+      { name: "Talatona", address: "Via S8, Talatona", lat: -8.918, lng: 13.184 },
+      { name: "Baixa", address: "Rua Rainha Ginga 12" },
+      { address: "Benfica" },
+    ] } },
+    { nome: "lista com uma única localização", block: { places: [{ name: "Loja", lat: 0, lng: 0 }] } },
+    { nome: "localização única legada (morada e coordenadas)", block: { type: "location", address: "Luanda Sul", lat: -8.9, lng: 13.2 } },
+    { nome: "localização única legada (só morada)", block: { type: "location", address: "Cacuaco" } },
+    { nome: "places vazio com morada legada no bloco", block: { places: [], address: "Viana" } },
+    { nome: "places só com entradas inúteis e morada legada", block: { places: [null, 3, "x", []], address: "Viana" } },
+    { nome: "sem nada, com morada de rodapé", block: { type: "location" }, footer: "Morro Bento" },
+    { nome: "sem nada e sem rodapé", block: { type: "location" } },
+    { nome: "rodapé só com espaços", block: {}, footer: "   " },
+    { nome: "places não é array", block: { places: { address: "x" } }, footer: "Kilamba" },
+    { nome: "coordenadas de tipo errado", block: { places: [{ address: "A", lat: "-8.9", lng: 13.2 }] } },
+    { nome: "coordenadas não finitas", block: { places: [{ address: "A", lat: Number.NaN, lng: Infinity }] } },
+    { nome: "morada só com espaços na entrada", block: { places: [{ name: "  ", address: "  " }] }, footer: "Cazenga" },
+    { nome: "bloco nulo", block: null, footer: "Talatona" },
+    { nome: "bloco que é número", block: 7 },
+    { nome: "bloco que é array", block: [{ address: "A" }], footer: "Cazenga" },
+    { nome: "bloco que é cadeia", block: "location" },
+  ];
+
+  it("resolveLocations devolve as mesmas localizações nos dois módulos", () => {
+    for (const { nome, block, footer } of casos) {
+      const esperado = resolveLocations(block, footer);
+      expect(apiSeo.resolveLocations(block, footer), `resolveLocations — ${nome}`).toEqual(esperado);
+      // A garantia de que quem desenha pode iterar sem casos especiais.
+      expect(apiSeo.resolveLocations(block, footer).length, `≥ 1 localização — ${nome}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("mapEmbedSrc produz o mesmo URL de mapa nos dois módulos", () => {
+    for (const { nome, block, footer } of casos) {
+      const places = resolveLocations(block, footer);
+      places.forEach((p, j) => {
+        expect(apiSeo.mapEmbedSrc(p, footer), `mapEmbedSrc — ${nome} [${j}]`).toBe(mapEmbedSrc(p, footer));
+      });
+    }
+  });
+
+  it("o HTML pré-renderizado traz todos os mapas e as respetivas moradas", () => {
+    // R5.10: sem JavaScript, o rastreador tem de ver o mesmo que a SPA mostra.
+    const custom = {
+      footer: { location: "Morro Bento" },
+      blocks: [
+        { type: "text", title: "Sobre" },
+        { type: "location", title: "As nossas lojas", places: [
+          { name: "Talatona", address: "Via S8, Talatona", lat: -8.918, lng: 13.184 },
+          { name: "Baixa", address: "Rua Rainha Ginga 12" },
+          { address: "Benfica" },
+        ] },
+        { type: "location", address: "Cacuaco" },
+      ],
+    };
+    const html = apiSeo.locationsHtml(custom);
+
+    expect(html).toContain("As nossas lojas");
+    for (const morada of ["Via S8, Talatona", "Rua Rainha Ginga 12", "Benfica", "Cacuaco"]) {
+      expect(html, `morada no HTML: ${morada}`).toContain(morada);
+    }
+    for (const nome of ["Talatona", "Baixa"]) {
+      expect(html, `nome no HTML: ${nome}`).toContain(nome);
+    }
+    // Um mapa por localização: três do primeiro bloco, um do segundo.
+    expect(html.match(/<iframe /g) ?? []).toHaveLength(4);
+    for (const block of custom.blocks.filter((b) => b.type === "location")) {
+      for (const place of resolveLocations(block, "Morro Bento")) {
+        const src = mapEmbedSrc(place, "Morro Bento").replace(/&/g, "&amp;");
+        expect(html, `src do mapa: ${src}`).toContain(src);
+      }
+    }
+  });
+
+  it("locationsHtml é total: qualquer personalização malformada não lança nem inventa mapas", () => {
+    for (const custom of [null, undefined, 5, "x", [], { blocks: null }, { blocks: [null, 3, "y"] },
+      { blocks: [{ type: "location" }], footer: 7 }, { blocks: [{ type: "text" }] }]) {
+      expect(() => apiSeo.locationsHtml(custom), `locationsHtml(${JSON.stringify(custom)})`).not.toThrow();
+    }
+    // Sem bloco `location` não sai HTML de localizações.
+    expect(apiSeo.locationsHtml({ blocks: [{ type: "text", title: "Sobre" }] })).toBe("");
+    // Bloco `location` sem morada nenhuma cai na morada predefinida, tal como a SPA.
+    const vazio = apiSeo.locationsHtml({ blocks: [{ type: "location" }] });
+    expect(vazio).toContain("Luanda, Angola");
+    expect(vazio).toContain(mapEmbedSrc({}).replace(/&/g, "&amp;"));
+  });
+
+  it("a página inicial servida inclui as localizações da loja", () => {
+    const custom = { blocks: [{ type: "location", title: "Onde estamos", places: [{ name: "Talatona", address: "Via S8" }] }] };
+    const html = apiSeo.storeHomeHtml({
+      storeName: "Juddy Cosmetics",
+      description: "Compre online na Juddy Cosmetics em Angola.",
+      logoUrl: null,
+      products: [],
+      categories: [],
+      base: "",
+      brand: "#C2185B",
+      custom,
+    });
+    expect(html).toContain("Onde estamos");
+    expect(html).toContain("Via S8");
+    expect(html).toContain("<iframe ");
   });
 });

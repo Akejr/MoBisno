@@ -9,6 +9,7 @@ import { applyInk } from "../lib/ink.js";
 import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
+import { storeNotFoundHtml } from "../templates/notFound.js";
 
 function itemRow(it: CartItem): string {
   const thumb = it.imageUrl
@@ -33,10 +34,7 @@ function itemRow(it: CartItem): string {
 export async function renderCartPage(identifier: string): Promise<void> {
   const { result, view, custom } = await loadStorefront(identifier);
   if (view.kind !== "render" || result.kind !== "render") {
-    render(`<div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-      <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">storefront</span>
-      <h1 class="text-headline-lg text-on-surface">Loja não encontrada</h1>
-      <a href="#/" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar ao início</a></div>`);
+    render(storeNotFoundHtml(identifier));
     return;
   }
 

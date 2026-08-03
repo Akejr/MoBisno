@@ -12,7 +12,7 @@ import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
-import { generateLogos, improveLogoDescription, dataUrlToUint8Array } from "../lib/logoApi.js";
+import { generateLogos, improveLogoDescription, dataUrlToUint8Array, LOGO_PROPOSALS } from "../lib/logoApi.js";
 import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
@@ -26,6 +26,39 @@ import { LUANDA_AREAS } from "../lib/areas.js";
 
 const ACCENT = "#F95901";
 const ACCENT_TINT = "rgba(249,89,1,.1)";
+
+/**
+ * Funcionalidades anunciadas mas ainda não disponíveis (decisão D6).
+ * Enquanto a bandeira está a `true`, a interface apresenta a etiqueta «Em breve»
+ * e os manipuladores devolvem antecipadamente, sem escrever nada.
+ * Reverter é pôr a bandeira a `false`.
+ */
+const COMING_SOON = { sms: true, customDomain: true };
+
+/** Etiqueta «Em breve» das funcionalidades por lançar. */
+function comingSoonBadge(): string {
+  return `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[14px]">schedule</span> Em breve</span>`;
+}
+
+/** Aviso dentro da secção de uma funcionalidade «Em breve». */
+function comingSoonNotice(text: string): string {
+  return `<div class="rounded-xl border p-4 mb-4 flex items-start gap-3" style="border-color:${ACCENT_TINT};background:${ACCENT_TINT}">
+    <span class="material-symbols-outlined shrink-0" style="color:${ACCENT}">schedule</span>
+    <div class="min-w-0">
+      <p class="text-sm font-bold text-gray-900 mb-0.5">Em breve</p>
+      <p class="text-sm text-gray-600">${esc(text)}</p>
+    </div>
+  </div>`;
+}
+
+/**
+ * Selo «Beta» das funcionalidades já disponíveis mas ainda em afinação (R2.9).
+ * Segue o estilo visual de `comingSoonBadge()` para a interface ficar coerente,
+ * mas diz outra coisa: «Beta» é usável hoje, «Em breve» não é.
+ */
+function betaBadge(): string {
+  return `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[14px]">science</span> Beta</span>`;
+}
 
 function navItem(href: string, icon: string, label: string, active: boolean): string {
   const base = "rounded-xl px-4 py-3 mx-2 flex items-center gap-3 text-sm font-semibold transition-colors";
@@ -569,7 +602,11 @@ export async function renderDashboard(): Promise<void> {
     const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#fff;";
 
     render(shell(`
-      <p class="text-gray-500 mb-5 max-w-2xl">Descreva o seu negócio e a IA cria <strong>cinco variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir — fica guardada em "Meus logótipos".</p>
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <h3 class="text-2xl md:text-3xl font-black tracking-tight">Criar logótipo</h3>
+        ${betaBadge()}
+      </div>
+      <p class="text-gray-500 mb-5 max-w-2xl">Descreva o seu negócio e a IA cria <strong>${LOGO_PROPOSALS} variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir — fica guardada em "Meus logótipos".</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8 items-start">
         <section class="lg:col-span-3 bg-white border border-gray-200 rounded-3xl p-5 md:p-6">
@@ -579,7 +616,7 @@ export async function renderDashboard(): Promise<void> {
           </div>
           <div class="flex flex-col sm:flex-row gap-2.5 mt-3">
             <button id="logo-improve" class="sm:flex-1 px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 border transition-colors hover:bg-gray-50" style="border-color:${ACCENT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_fix_high</span> Melhorar com IA</button>
-            <button id="logo-gen" class="sm:flex-1 text-white px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar 5 variações</button>
+            <button id="logo-gen" class="sm:flex-1 text-white px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Gerar ${LOGO_PROPOSALS} variações</button>
           </div>
         </section>
 
@@ -640,6 +677,17 @@ export async function renderDashboard(): Promise<void> {
     const resultsWrap = $("#logo-results-wrap");
     const countEl = $("#logo-count");
 
+    /**
+     * Descrição do último pedido submetido. É esta — e não o que estiver no
+     * campo no momento — que o «Tentar de novo» repete (R2.8).
+     */
+    let lastDescription = "";
+    /**
+     * Estado de progresso: enquanto está a `true` a secção mostra os esqueletos
+     * e qualquer submissão adicional é rejeitada (R2.7).
+     */
+    let generating = false;
+
     // Contador de caracteres.
     const updateCount = (): void => { if (countEl && descEl) countEl.textContent = `${descEl.value.length} / 600`; };
     descEl?.addEventListener("input", updateCount);
@@ -647,6 +695,7 @@ export async function renderDashboard(): Promise<void> {
 
     // Melhorar/estruturar a descrição com IA.
     $("#logo-improve")?.addEventListener("click", async () => {
+      if (generating) { toast("Aguarde: as propostas de logótipo estão a ser criadas.", "error"); return; }
       const desc = (descEl?.value ?? "").trim();
       if (desc.length < 4) { toast("Escreva primeiro a sua ideia, mesmo que simples.", "error"); descEl?.focus(); return; }
       await withButton($("#logo-improve") as HTMLButtonElement, async () => {
@@ -663,7 +712,7 @@ export async function renderDashboard(): Promise<void> {
       resultsWrap.classList.remove("hidden");
       resultsEl.innerHTML = `
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          ${[0, 1, 2, 3, 4].map(() => `
+          ${Array.from({ length: LOGO_PROPOSALS }, () => `
             <div class="rounded-2xl border border-gray-200 overflow-hidden">
               <div class="aspect-square bg-gray-100 animate-pulse flex items-center justify-center">
                 <span class="material-symbols-outlined text-gray-300 animate-spin" style="font-size:26px">progress_activity</span>
@@ -671,7 +720,7 @@ export async function renderDashboard(): Promise<void> {
               <div class="h-9 bg-gray-100 animate-pulse border-t border-gray-100"></div>
             </div>`).join("")}
         </div>
-        <p class="text-sm text-gray-400 mt-4">A criar cinco variações… isto pode demorar alguns segundos.</p>`;
+        <p class="text-sm text-gray-400 mt-4">A criar ${LOGO_PROPOSALS} variações… isto pode demorar alguns segundos. Aguarde sem sair desta página.</p>`;
       resultsWrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
@@ -714,13 +763,29 @@ export async function renderDashboard(): Promise<void> {
       });
     }
 
-    async function renderVariations(dataUrls: string[]): Promise<void> {
+    /**
+     * Desenha as propostas recebidas. `missing` é quantas das `LOGO_PROPOSALS`
+     * pedidas não chegaram: quando é maior que zero, mostra-se o que chegou e
+     * diz-se ao Dono quantas ficaram em falta (R2.3).
+     */
+    async function renderVariations(dataUrls: string[], missing: number): Promise<void> {
       if (!resultsWrap || !resultsEl) return;
       resultsWrap.classList.remove("hidden");
       // Gera as versões com marca de água para pré-visualização.
       const display = await Promise.all(dataUrls.map((u) => watermark(u)));
       const guard = 'oncontextmenu="return false" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none"';
+      const faltam = missing > 0
+        ? `<div class="rounded-2xl border p-4 mb-4 flex items-start gap-3" style="border-color:${ACCENT_TINT};background:${ACCENT_TINT}">
+             <span class="material-symbols-outlined shrink-0" style="color:${ACCENT}">info</span>
+             <div class="min-w-0">
+               <p class="text-sm font-bold text-gray-900 mb-0.5">${dataUrls.length} de ${LOGO_PROPOSALS} propostas</p>
+               <p class="text-sm text-gray-600">${missing === 1 ? "Uma proposta ficou em falta" : `${missing} propostas ficaram em falta`}. Pode escolher uma das que chegaram ou tentar de novo para ver outras.</p>
+               <button id="logo-retry" class="mt-2.5 px-4 py-2 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 border bg-white transition-colors hover:bg-gray-50" style="border-color:${ACCENT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">refresh</span> Tentar de novo</button>
+             </div>
+           </div>`
+        : "";
       resultsEl.innerHTML = `
+        ${faltam}
         <p class="text-sm text-gray-500 mb-4">Clique em <strong>Escolher</strong> na variação que prefere para a guardar. As pré-visualizações têm marca de água — só a versão escolhida é guardada limpa.</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           ${display.map((src, i) => `
@@ -749,21 +814,100 @@ export async function renderDashboard(): Promise<void> {
           }, "A guardar…");
         });
       });
+      bindRetry();
     }
 
-    $("#logo-gen")?.addEventListener("click", async () => {
-      const desc = (descEl?.value ?? "").trim();
+    /**
+     * Aviso de falha dentro da secção de resultados, sempre com a ação «Tentar
+     * de novo» (R2.8). `detail` é texto do servidor a mostrar ao Dono (R2.4);
+     * `tech` é diagnóstico técnico e vai em letra pequena, para não se confundir
+     * com a explicação.
+     */
+    function renderFailure(f: { icon: string; title: string; message: string; detail?: string; tech?: string }): void {
+      if (!resultsWrap || !resultsEl) return;
+      resultsWrap.classList.remove("hidden");
+      resultsEl.innerHTML = `
+        <div class="rounded-2xl border border-gray-200 bg-white p-6 md:p-8 text-center">
+          <span class="w-12 h-12 rounded-full mx-auto flex items-center justify-center" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">${f.icon}</span></span>
+          <p class="font-black text-gray-900 mt-3 break-words">${esc(f.title)}</p>
+          <p class="text-sm text-gray-600 mt-1.5 max-w-xl mx-auto break-words">${esc(f.message)}</p>
+          ${f.detail ? `<p class="text-sm text-gray-500 mt-2 max-w-xl mx-auto break-words">${esc(f.detail)}</p>` : ""}
+          ${f.tech ? `<p class="text-[11px] text-gray-400 mt-3 max-w-xl mx-auto break-words">Detalhe técnico: ${esc(f.tech)}</p>` : ""}
+          <button id="logo-retry" class="mt-4 px-4 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 text-white transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">refresh</span> Tentar de novo</button>
+        </div>`;
+      bindRetry();
+    }
+
+    /** Liga o «Tentar de novo» que repete o pedido com a mesma descrição (R2.8). */
+    function bindRetry(): void {
+      const btn = $("#logo-retry") as HTMLButtonElement | null;
+      btn?.addEventListener("click", () => { void generate(lastDescription, btn); });
+    }
+
+    /**
+     * Pede as propostas e trata as três variantes de `LogoResult` (decisão D3).
+     * Enquanto espera, a secção fica em estado de progresso e novas submissões
+     * são rejeitadas (R2.7).
+     */
+    async function generate(desc: string, btn: HTMLButtonElement | null): Promise<void> {
+      if (generating) { toast("Já estamos a criar as propostas. Aguarde um momento.", "error"); return; }
       if (desc.length < 6) { toast("Escreva uma descrição do logótipo primeiro.", "error"); descEl?.focus(); return; }
+      generating = true;
+      lastDescription = desc;
       showGenerating();
-      await withButton($("#logo-gen") as HTMLButtonElement, async () => {
-        const images = await generateLogos(desc);
-        if (!images.length) {
-          resultsWrap?.classList.add("hidden");
-          toast("Não foi possível gerar os logótipos. Tenta de novo dentro de instantes.", "error");
-          return;
-        }
-        await renderVariations(images);
-      }, "A gerar…");
+      try {
+        await withButton(btn, async () => {
+          const result = await generateLogos(desc);
+
+          if (result.kind === "network-error") {
+            // Falha de comunicação: não sabemos se havia propostas (R2.5).
+            renderFailure({
+              icon: "wifi_off",
+              title: "Não conseguimos falar com o servidor",
+              message: "O pedido não chegou ao servidor, por isso não sabemos se havia propostas. Verifique a ligação à internet e tente de novo.",
+              tech: result.message,
+            });
+            toast("Sem ligação ao servidor de logótipos. Verifique a internet.", "error");
+            return;
+          }
+
+          if (result.kind === "server-error") {
+            // O motivo é o que o servidor manda; o texto genérico só entra
+            // quando a resposta não trouxe motivo legível (R2.4).
+            const message = result.error || `O servidor recusou o pedido (código ${result.status}). Tente de novo dentro de instantes.`;
+            renderFailure({
+              icon: "report",
+              title: "O servidor não criou os logótipos",
+              message,
+              ...(result.detail ? { detail: result.detail } : {}),
+            });
+            toast(result.error || "Não foi possível criar os logótipos agora.", "error");
+            return;
+          }
+
+          if (!result.images.length) {
+            // Respondeu sem propostas: é aviso, não falha de comunicação.
+            renderFailure({
+              icon: "image_not_supported",
+              title: "O servidor respondeu sem propostas",
+              message: `Não veio nenhuma das ${LOGO_PROPOSALS} propostas pedidas. Tente de novo, ou acrescente detalhes à descrição (nome, setor, cores e estilo).`,
+            });
+            toast("Nenhuma proposta foi devolvida. Tente de novo.", "error");
+            return;
+          }
+
+          await renderVariations(result.images, result.missing);
+          if (result.missing > 0) {
+            toast(`Chegaram ${result.images.length} de ${LOGO_PROPOSALS} propostas.`);
+          }
+        }, "A gerar…");
+      } finally {
+        generating = false;
+      }
+    }
+
+    $("#logo-gen")?.addEventListener("click", () => {
+      void generate((descEl?.value ?? "").trim(), $("#logo-gen") as HTMLButtonElement | null);
     });
 
     $("#my-logos")?.querySelectorAll<HTMLButtonElement>("[data-logo-remove]").forEach((btn) => {
@@ -823,27 +967,31 @@ export async function renderDashboard(): Promise<void> {
         <span class="block text-xs text-gray-400 mt-1">Em pedidos com subtotal igual ou acima deste valor, a entrega fica grátis.</span></label>
       <button id="save-delivery" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar entregas</button>`;
 
+    const smsSoon = COMING_SOON.sms;
     const smsBody = `
+      ${smsSoon ? comingSoonNotice("O SMS de confirmação fica disponível em breve. Até lá não é possível comprar créditos nem ativar o envio, e o saldo que já tenha fica guardado.") : ""}
       <p class="text-sm text-gray-500 mb-3">Quando ativo, o seu cliente recebe um <b>SMS de confirmação</b> assim que a compra é concluída, com o resumo da encomenda. Isto transmite confiança, reduz dúvidas e diminui as desistências — o cliente sente que está a comprar numa loja séria.</p>
       <div class="rounded-xl border border-gray-200 p-4 mb-4 flex items-center justify-between gap-3 flex-wrap" style="background:#fafafa">
         <div>
           <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Saldo de mensagens</p>
           <p class="text-2xl font-black text-gray-900 flex items-center gap-2"><span class="material-symbols-outlined" style="color:${ACCENT}">sms</span> ${smsCredits} SMS</p>
         </div>
-        <p class="text-xs text-gray-500 max-w-[14rem]">Cada SMS custa <b style="color:${ACCENT}">${esc(formatKz(SMS_UNIT_PRICE))}</b>. Compre um pacote para ter saldo.</p>
+        <p class="text-xs text-gray-500 max-w-[14rem]">${smsSoon
+          ? "O seu saldo mantém-se intacto. A funcionalidade fica disponível em breve e só então começa a ser usado."
+          : `Cada SMS custa <b style="color:${ACCENT}">${esc(formatKz(SMS_UNIT_PRICE))}</b>. Compre um pacote para ter saldo.`}</p>
       </div>
       <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Comprar pacote</p>
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5 ${smsSoon ? "opacity-60" : ""}">
         ${SMS_PACKAGES.map((n) => `
-          <button type="button" data-sms-pack="${n}" class="rounded-xl border-2 border-gray-200 hover:border-[#F95901] p-3 text-center transition-colors">
+          <button type="button" data-sms-pack="${n}" ${smsSoon ? `disabled aria-disabled="true" title="Em breve"` : ""} class="rounded-xl border-2 border-gray-200 ${smsSoon ? "cursor-not-allowed" : "hover:border-[#F95901]"} p-3 text-center transition-colors">
             <span class="block text-xl font-black text-gray-900">${n}</span>
             <span class="block text-[11px] text-gray-400 mb-1">mensagens</span>
             <span class="block text-xs font-bold" style="color:${ACCENT}">${esc(formatKz(n * SMS_UNIT_PRICE))}</span>
           </button>`).join("")}
       </div>
-      <div class="mb-2">${toggle("sms-enabled", !!c.sms?.enabled, "Enviar SMS de confirmação ao cliente")}</div>
+      <div class="mb-2 ${smsSoon ? "opacity-60" : ""}">${toggle("sms-enabled", !!c.sms?.enabled, "Enviar SMS de confirmação ao cliente")}</div>
       <p class="text-xs text-gray-400">O número usado é o que o cliente indica no checkout. O envio consome 1 SMS do saldo.</p>
-      <button id="save-sms" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>`;
+      <button id="save-sms" ${smsSoon ? `disabled aria-disabled="true" title="Em breve"` : ""} class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity ${smsSoon ? "opacity-60 cursor-not-allowed" : "hover:opacity-95"}" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>`;
 
     const discountBody = `
       <p class="text-sm text-gray-500 mb-4">Crie códigos que os seus clientes inserem no checkout para ganhar desconto. Pode escolher uma <b>percentagem</b> ou um <b>valor fixo</b>, e acompanhar quantas vezes cada código foi usado.</p>
@@ -870,16 +1018,19 @@ export async function renderDashboard(): Promise<void> {
       <p class="text-sm text-gray-500 mb-4">As avaliações dos seus clientes aparecem na página de cada produto. Pode esconder ou apagar avaliações.</p>
       <div id="rv-list">${reviewsModerationHtml(reviews, productNames)}</div>`;
 
+    const domainSoon = COMING_SOON.customDomain;
     const domainBody = canDomain ? `
+      ${domainSoon ? comingSoonNotice("O domínio próprio fica disponível em breve. Até lá não é possível guardar um domínio para esta loja.") : ""}
       <p class="text-sm text-gray-500 mb-4">Ligue um domínio que já tenha (ex.: <b>www.minhaloja.co.ao</b>) à sua loja.</p>
       <label class="block"><span class="text-sm font-semibold text-gray-700">O seu domínio</span>
-        <input id="domain" type="text" value="${esc(c.customDomain ?? "")}" placeholder="www.minhaloja.co.ao" class="${inp} mt-1.5" /></label>
+        <input id="domain" type="text" value="${esc(c.customDomain ?? "")}" placeholder="www.minhaloja.co.ao" ${domainSoon ? "disabled" : ""} class="${inp} mt-1.5 ${domainSoon ? "opacity-60 cursor-not-allowed" : ""}" /></label>
       <div class="mt-4 rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600">
         <p class="font-semibold text-gray-800 mb-1 flex items-center gap-1.5"><span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">dns</span> Como ligar</p>
         No painel do seu domínio, crie um registo <b>CNAME</b> a apontar para <code class="px-1.5 py-0.5 rounded bg-white border border-gray-200">cname.vercel-dns.com</code>. Depois de guardar aqui, a ligação fica ativa em minutos.
       </div>
-      <button id="save-domain" class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar domínio</button>`
+      <button id="save-domain" ${domainSoon ? `disabled aria-disabled="true" title="Em breve"` : ""} class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity ${domainSoon ? "opacity-60 cursor-not-allowed" : "hover:opacity-95"}" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar domínio</button>`
       : `
+      ${domainSoon ? comingSoonNotice("O domínio próprio fica disponível em breve.") : ""}
       <p class="text-sm text-gray-500">O domínio próprio está disponível a partir do plano <b>Profissional</b>.</p>
       <a href="#/painel/plano" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Ver planos</a>`;
 
@@ -891,11 +1042,11 @@ export async function renderDashboard(): Promise<void> {
       <style>details.mb-acc>summary{list-style:none}details.mb-acc>summary::-webkit-details-marker{display:none}details.mb-acc[open] .mb-acc-chev{transform:rotate(180deg)}</style>
       <section class="space-y-4">
         ${settingsAccordion({ icon: "local_shipping", title: "Entregas", desc: "Declare as taxas de entrega da sua loja por zona.", body: deliveryBody })}
-        ${settingsAccordion({ icon: "sms", title: "SMS de confirmação", desc: "Ative o SMS de confirmação de compra que o seu cliente recebe.", body: smsBody })}
+        ${settingsAccordion({ icon: "sms", title: "SMS de confirmação", desc: "Ative o SMS de confirmação de compra que o seu cliente recebe.", body: smsBody, comingSoon: smsSoon })}
         ${settingsAccordion({ icon: "sell", title: "Código de desconto", desc: "Crie e gira códigos de desconto para os seus clientes.", body: discountBody })}
         ${settingsAccordion({ icon: "ads_click", title: "Marketing e Pixels", desc: "Meta Pixel e Google Analytics para medir e impulsionar vendas.", body: marketingBody })}
         ${settingsAccordion({ icon: "reviews", title: "Avaliações", desc: "Veja e modere as avaliações dos seus clientes.", body: reviewsBody })}
-        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Profissional" })}
+        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Profissional", comingSoon: domainSoon })}
         ${settingsAccordion({ icon: "warning", title: "Apagar a loja", desc: "Remove a loja para sempre. Ação irreversível.", body: dangerBody, danger: true })}
       </section>`));
     bindShell();
@@ -939,14 +1090,16 @@ export async function renderDashboard(): Promise<void> {
       ok ? toast("Entregas guardadas.") : toast("Não foi possível guardar.", "error");
     });
 
-    // SMS
+    // SMS — funcionalidade «Em breve» (D6): ativar e comprar créditos ficam bloqueados.
     $("#save-sms")?.addEventListener("click", async () => {
+      if (COMING_SOON.sms) { toast("O SMS de confirmação fica disponível em breve.", "error"); return; }
       c.sms = { enabled: ($("#sms-enabled") as HTMLInputElement)?.checked ?? false };
       const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
       ok ? toast("Preferência de SMS guardada.") : toast("Não foi possível guardar.", "error");
     });
     document.querySelectorAll<HTMLElement>("[data-sms-pack]").forEach((b) =>
       b.addEventListener("click", () => {
+        if (COMING_SOON.sms) { toast("A compra de créditos de SMS fica disponível em breve.", "error"); return; }
         const qty = parseInt(b.dataset.smsPack || "0", 10);
         if (qty > 0) openSmsCheckout({ ownerId, storeId: store!.id, quantity: qty, onPaid: () => { void renderConfig(); } });
       }));
@@ -1023,8 +1176,9 @@ export async function renderDashboard(): Promise<void> {
       ok ? toast("Pixels guardados.") : toast("Não foi possível guardar.", "error");
     });
 
-    // Domínio
+    // Domínio — funcionalidade «Em breve» (D6): guardar domínio fica bloqueado.
     $("#save-domain")?.addEventListener("click", async () => {
+      if (COMING_SOON.customDomain) { toast("O domínio próprio fica disponível em breve.", "error"); return; }
       c.customDomain = ($("#domain") as HTMLInputElement)?.value.trim() || undefined;
       const ok = await withBusy(() => saveCustomization(ownerId, store!.id, c), "A guardar…");
       ok ? toast("Domínio guardado.") : toast("Não foi possível guardar.", "error");
@@ -1345,15 +1499,16 @@ function discountRow(d: DiscountCode): string {
 }
 
 /** Secção em acordeão (Configurações). */
-function settingsAccordion(o: { icon: string; title: string; desc: string; body: string; open?: boolean; danger?: boolean; lockedPlan?: string }): string {
+function settingsAccordion(o: { icon: string; title: string; desc: string; body: string; open?: boolean; danger?: boolean; lockedPlan?: string; comingSoon?: boolean }): string {
   const danger = !!o.danger;
   const lock = o.lockedPlan
     ? `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[14px]">lock</span> ${esc(o.lockedPlan)}</span>`
     : "";
+  const soon = o.comingSoon ? comingSoonBadge() : "";
   return `<details ${o.open ? "open" : ""} class="mb-acc rounded-2xl border ${danger ? "border-red-200" : "border-gray-200"} bg-white overflow-hidden">
     <summary class="cursor-pointer flex items-center gap-4 p-5 hover:bg-gray-50/60 transition-colors">
       <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="${danger ? "background:#fef2f2;color:#dc2626" : `background:${ACCENT_TINT};color:${ACCENT}`}"><span class="material-symbols-outlined">${o.icon}</span></div>
-      <div class="flex-1 min-w-0"><h3 class="font-black ${danger ? "text-red-700" : "text-gray-900"} flex items-center gap-2">${esc(o.title)} ${lock}</h3><p class="text-sm text-gray-500">${esc(o.desc)}</p></div>
+      <div class="flex-1 min-w-0"><h3 class="font-black ${danger ? "text-red-700" : "text-gray-900"} flex items-center gap-2 flex-wrap">${esc(o.title)} ${lock} ${soon}</h3><p class="text-sm text-gray-500">${esc(o.desc)}</p></div>
       <span class="material-symbols-outlined text-gray-400 mb-acc-chev transition-transform shrink-0">expand_more</span>
     </summary>
     <div class="px-5 pb-5 pt-1 border-t border-gray-100">${o.body}</div>

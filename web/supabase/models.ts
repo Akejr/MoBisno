@@ -20,7 +20,7 @@ import type { StoreCustomization } from "../templates/types.js";
  * importados são re-sincronizados (customização) na próxima vez que o admin
  * abre a secção "Modelos" — sem precisar de apagar/reimportar à mão.
  */
-const MODEL_VERSION = 2;
+const MODEL_VERSION = 3;
 
 /** Produto de exemplo (fictício) semeado numa loja-modelo. */
 export interface DemoProductInput {
@@ -38,6 +38,14 @@ export interface TemplateModel {
   ownerId: string;
   identifier: string;
   name: string;
+  /**
+   * O `stores.name` tal como está gravado, antes de `__template.name` o
+   * substituir em `name`. Guardado para o Semeador poder comparar a grafia
+   * gravada com a do modelo de fábrica (R1.1): sem isto, uma loja-modelo com
+   * `__template.name` já corrigido mas `stores.name` na grafia antiga passaria
+   * por igual.
+   */
+  storeName?: string;
   description: string;
   templateId: string;
   customization: StoreCustomization;
@@ -59,6 +67,7 @@ function toModel(s: StoreRow): TemplateModel {
     ownerId: s.owner_id,
     identifier: s.identifier,
     name: t?.name ?? s.name,
+    storeName: s.name,
     description: t?.description ?? "",
     templateId: s.template_id,
     customization: (s.customization ?? {}) as StoreCustomization,
@@ -130,6 +139,9 @@ export async function createTemplateModel(
     ...source,
     __template: { id: created.value.id, name, description },
     __v: MODEL_VERSION,
+    // Marca de demonstração: só as lojas-modelo mostram os métodos de pagamento
+    // online sem os terem ativos. Nunca é herdada (ver `applyModelToStore`).
+    __demoPayments: true,
   };
   const ok = await saveCustomization(adminId, created.value.id, customization);
   if (!ok) return null;
@@ -158,7 +170,7 @@ export async function createTemplateModel(
     }
   }
 
-  return { storeId: created.value.id, ownerId: adminId, identifier, name, description, templateId, customization };
+  return { storeId: created.value.id, ownerId: adminId, identifier, name, storeName: name, description, templateId, customization };
 }
 
 /** Customização base do modelo "Lumière Chic". */
@@ -268,7 +280,35 @@ const FOODMART_PRODUCTS: DemoProductInput[] = [
 ];
 
 /** Modelos de fábrica que o admin pode importar como lojas-modelo editáveis. */
-export interface FactoryModel { name: string; description: string; templateId: string; base: StoreCustomization; products: DemoProductInput[]; }
+export interface FactoryModel {
+  name: string;
+  description: string;
+  templateId: string;
+  base: StoreCustomization;
+  products: DemoProductInput[];
+  /**
+   * Nomes por que este modelo de fábrica já se chamou. O Semeador emparelha as
+   * lojas-modelo existentes pelo nome, por isso renomear um modelo de fábrica
+   * sem declarar aqui o nome antigo levaria à criação de uma segunda
+   * loja-modelo do mesmo modelo. Com o nome antigo declarado, o Semeador
+   * reconhece a loja-modelo já existente e renomeia-a.
+   */
+  previousNames?: string[];
+}
+
+/** Chave de comparação de nomes de modelo (insensível a caixa e a espaços). */
+function nameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * Nome atual e nomes anteriores de um modelo de fábrica, já em chave comparável.
+ * Usado pelo Semeador e pela deteção de modelos «em falta» do painel de
+ * administração, para os dois concordarem no que conta como já existente.
+ */
+export function factoryModelNameKeys(fm: FactoryModel): string[] {
+  return [fm.name, ...(fm.previousNames ?? [])].map(nameKey);
+}
 
 const LUMIERE_PRODUCTS: DemoProductInput[] = [
   { name: "Crème de la Nuit", price: 45000, category: "Cuidado", featured: true, description: "Tratamento de noite rico que renova a pele.", imageUrl: "https://images.unsplash.com/photo-1631730359585-38a4935cbec4?q=80&w=600" },
@@ -291,7 +331,11 @@ const VERMELHO_PRODUCTS: DemoProductInput[] = [
 export function defaultFactoryModels(): FactoryModel[] {
   const vermelho = TEMPLATE_PRESETS[0];
   const out: FactoryModel[] = [];
-  if (vermelho) out.push({ name: vermelho.name, description: vermelho.description, templateId: "galeria", base: vermelho.customization, products: VERMELHO_PRODUCTS });
+  // O preset `vermelho-moderno` já se apresentou como «Vermelho Moderno» e como
+  // «Ekolo sports»; apresenta-se agora como «Ekolo Sports» (R1.1). TODOS os
+  // nomes anteriores ficam declarados, do mais recente para o mais antigo, para
+  // o Semeador renomear a loja-modelo já existente em vez de criar outra.
+  if (vermelho) out.push({ name: vermelho.name, description: vermelho.description, templateId: "galeria", base: vermelho.customization, products: VERMELHO_PRODUCTS, previousNames: ["Ekolo sports", "Vermelho Moderno"] });
   out.push({ name: "Lumière Chic", description: "Luxo minimalista para beleza e cosmética — tipografia editorial e tons creme.", templateId: "lumiere", base: lumiereBase(), products: LUMIERE_PRODUCTS });
   out.push({ name: "Neon Lab", description: "Techno-luxury escuro para eletrónica e áudio premium — Sora + Geist, vidro e acento cobalto.", templateId: "neonlab", base: neonlabBase(), products: NEONLAB_PRODUCTS });
   out.push({ name: "FoodMart", description: "Mercearia/supermercado online — banners, categorias e produtos com carrosséis animados.", templateId: "foodmart", base: foodmartBase(), products: FOODMART_PRODUCTS });
@@ -299,22 +343,102 @@ export function defaultFactoryModels(): FactoryModel[] {
 }
 
 /**
+ * Verdadeiro quando a loja-modelo encontrada está gravada com uma grafia
+ * diferente da do modelo de fábrica. A comparação é de cadeias **exatas**, não
+ * normalizada: `nameKey` ignora a caixa, logo «Ekolo sports» e «Ekolo Sports»
+ * emparelham, e sem esta verificação a loja-modelo continuaria a apresentar-se
+ * com a grafia antiga no painel de administração e na galeria (R1.1).
+ *
+ * Compara o nome apresentado (`__template.name ?? stores.name`) e também o
+ * `stores.name` gravado, porque os dois chegam a ecrãs diferentes.
+ */
+function storedNameDiffers(model: TemplateModel, name: string): boolean {
+  return model.name !== name || (model.storeName !== undefined && model.storeName !== name);
+}
+
+/**
+ * Resolve a loja-modelo que corresponde a um modelo de fábrica.
+ *
+ * Procura primeiro pelo nome atual e SÓ depois, se não existir nenhuma com o
+ * nome atual, pelos nomes anteriores. Esta ordem é a guarda que impede duas
+ * lojas-modelo com o mesmo nome: quando já existe uma com o nome atual, o ramo
+ * de nome anterior não corre e nada é renomeado — a loja-modelo com o nome
+ * antigo fica como está e a decisão de qual manter é do administrador.
+ *
+ * A loja-modelo emparelhada pelo nome atual pede renomeação apenas quando a
+ * grafia gravada difere: é a mesma loja-modelo a ser reescrita no lugar, sem
+ * tocar na ordem de procura, logo não há como surgir uma segunda com o mesmo
+ * nome. Com a grafia já corrigida devolve `false` e nada é escrito.
+ */
+function resolveExistingModel(
+  byName: ReadonlyMap<string, TemplateModel>,
+  fm: FactoryModel,
+): { model: TemplateModel; renameNeeded: boolean } | null {
+  const current = byName.get(nameKey(fm.name));
+  if (current) return { model: current, renameNeeded: storedNameDiffers(current, fm.name) };
+  for (const previous of fm.previousNames ?? []) {
+    const older = byName.get(nameKey(previous));
+    if (older) return { model: older, renameNeeded: true };
+  }
+  return null;
+}
+
+/**
+ * Renomeia uma loja-modelo existente: escreve `stores.name` e o nome
+ * apresentado em `customization.__template.name` — que é o nome que
+ * `listTemplateModels` (via `toModel`) mostra ao administrador e à galeria.
+ * Não apaga nada e não toca em mais nenhum campo da personalização.
+ */
+async function renameTemplateModel(adminId: string, model: TemplateModel, name: string): Promise<boolean> {
+  const customization: StoreCustomization = { ...model.customization };
+  const tpl = customization.__template;
+  if (tpl) customization.__template = { ...tpl, name };
+  const { error } = await supabase
+    .from("stores")
+    .update({ name, customization })
+    .eq("id", model.storeId)
+    .eq("owner_id", adminId);
+  if (error) { console.error("renameTemplateModel", error); return false; }
+  // Mantém a cópia em memória coerente: o ramo de re-sincronização que segue
+  // preserva `__template` tal como está, e tem de preservar já o nome novo.
+  model.name = name;
+  model.storeName = name;
+  model.customization = customization;
+  return true;
+}
+
+/**
  * Semeia os modelos de fábrica como lojas-modelo editáveis (com produtos
- * fictícios), ignorando os que já existem (pelo nome). Devolve quantos criou.
+ * fictícios), ignorando os que já existem. O emparelhamento é pelo nome atual
+ * do modelo de fábrica e, em falta desse, pelos nomes anteriores — nesse caso a
+ * loja-modelo existente é renomeada em vez de se criar uma segunda. A
+ * renomeação corre também quando o emparelhamento é pelo nome atual mas a
+ * grafia gravada difere (ex.: «Ekolo sports» → «Ekolo Sports»). Devolve quantas
+ * criou.
  */
 export async function seedDefaultModels(adminId: string): Promise<number> {
   const existing = await listTemplateModels();
-  const byName = new Map(existing.map((m) => [m.name.trim().toLowerCase(), m]));
+  const byName = new Map(existing.map((m) => [nameKey(m.name), m]));
   let created = 0;
   for (const fm of defaultFactoryModels()) {
-    const found = byName.get(fm.name.trim().toLowerCase());
-    if (found) {
+    const match = resolveExistingModel(byName, fm);
+    if (match) {
+      const found = match.model;
+      if (match.renameNeeded) {
+        const previousKey = nameKey(found.name);
+        // Sem renomeação não há emparelhamento fiável: não se cria nada, para
+        // não duplicar a loja-modelo por causa de uma escrita falhada.
+        if (!(await renameTemplateModel(adminId, found, fm.name))) continue;
+        byName.delete(previousKey);
+        byName.set(nameKey(fm.name), found);
+      }
       // Já existe: re-sincroniza a customização se estiver numa versão antiga.
       if ((found.customization.__v ?? 1) !== MODEL_VERSION) {
         const refreshed: StoreCustomization = {
           ...(JSON.parse(JSON.stringify(fm.base)) as StoreCustomization),
           __template: found.customization.__template ?? { id: found.storeId, name: fm.name, description: fm.description },
           __v: MODEL_VERSION,
+          __demoPayments: true,
         };
         await saveCustomization(adminId, found.storeId, refreshed);
       }
@@ -345,6 +469,9 @@ export async function applyModelToStore(
 ): Promise<boolean> {
   const applied: StoreCustomization = JSON.parse(JSON.stringify(model.customization));
   delete (applied as { __template?: unknown }).__template;
+  // A marca de demonstração nunca é herdada: a loja do cliente só mostra os
+  // métodos online quando os ativa em `payments.onlineEnabled`.
+  delete applied.__demoPayments;
   applied.__basedOn = model.storeId;
   applied.__locked = true;
   const { error } = await supabase
@@ -365,6 +492,8 @@ export async function applyRawToStore(
 ): Promise<boolean> {
   const applied: StoreCustomization = JSON.parse(JSON.stringify(customization));
   delete (applied as { __template?: unknown }).__template;
+  // Idem: a marca de demonstração fica na loja-modelo, não passa para a cópia.
+  delete applied.__demoPayments;
   applied.__locked = true;
   const { error } = await supabase
     .from("stores")

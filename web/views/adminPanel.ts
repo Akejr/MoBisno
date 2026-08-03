@@ -9,10 +9,11 @@ import { appState, logout, publicStoreUrl, currentOwnerId, STORE_APEX } from "..
 import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
   adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
-  listServiceTransactions, adminDeleteServiceTransaction,
+  listServiceTransactions, adminDeleteServiceTransaction, adminStoresUsingTemplate,
   type AdminStore, type AdminAccount, type AdminWithdrawal, type AdminServiceTx,
+  type AdminTemplateUsage, type AdminTemplateUser, type TemplateMatch,
 } from "../supabase/admin.js";
-import { listTemplateModels, createTemplateModel, deleteTemplateModel, seedDefaultModels, defaultFactoryModels, type TemplateModel } from "../supabase/models.js";
+import { listTemplateModels, createTemplateModel, deleteTemplateModel, seedDefaultModels, defaultFactoryModels, factoryModelNameKeys, type TemplateModel } from "../supabase/models.js";
 import { getPlan, isPlanId, PLAN_ORDER, type PlanId } from "../../src/services/plans.js";
 
 const ACCENT = "#F95901";
@@ -87,6 +88,188 @@ const WD_STATUS = {
 function wdStatusBadge(s: string): string {
   const cfg = (WD_STATUS as Record<string, { label: string; bg: string; color: string }>)[s];
   return cfg ? badge(cfg.label, cfg.bg, cfg.color) : badge(s, "#f3f4f6", "#6b7280");
+}
+
+/* ---------------- Verificação de uso de Modelo_De_Loja (R1.7) ------------- */
+
+/**
+ * Modelo_De_Loja que a decisão D7 retira da Plataforma. Quando se aciona a
+ * eliminação de uma das suas Loja_Modelo, a verificação corre sobre o par
+ * inteiro: é a fotografia que o Administrador tem de ler antes de confirmar
+ * (tarefa 7.5).
+ */
+const TEMPLATES_A_REMOVER: readonly string[] = ["neonlab", "foodmart"];
+
+/**
+ * Nome apresentado das duas Loja_Modelo em causa, tal como o R1.6 e o R1.7 as
+ * designam. Fica declarado aqui, e não derivado de `defaultFactoryModels()`,
+ * porque a tarefa 7.6 remove essas entradas do Semeador e a verificação tem de
+ * continuar a reconhecer as demos que ainda estejam em base de dados.
+ */
+const NOMES_A_REMOVER: readonly string[] = ["neon lab", "foodmart"];
+
+function normTemplateId(v: unknown): string {
+  return typeof v === "string" ? v.trim().toLowerCase() : "";
+}
+
+/**
+ * A verificação bloqueante do R1.7 aplica-se a esta Loja_Modelo?
+ *
+ * O R1.7 é literalmente restrito: só a eliminação de uma Loja_Modelo «Neon Lab»
+ * ou «FoodMart» exige a verificação em base de dados, e o R1.8 fala da
+ * «verificação do critério 1.7». As restantes Loja_Modelo não estão nesse
+ * âmbito.
+ *
+ * E não podem estar. O `template_id` de uma Loja_Modelo é o **modelo visual**
+ * que ela demonstra (`galeria`, `lumiere`, …), não a identidade do modelo:
+ * «Ekolo Sports» e «Vermelho Moderno» partilham `galeria`, o modelo visual
+ * predefinido da Plataforma, que quase todas as Lojas de cliente também usam.
+ * Correr `adminStoresUsingTemplate(["galeria"])` conta por isso essas Lojas de
+ * cliente, o grupo nunca fica vazio e a eliminação da demo ficaria bloqueada
+ * para sempre — sem fundamento, porque `applyModelToStore` **copia** a
+ * Personalização para a Loja do cliente no momento em que o modelo é aplicado e
+ * `__basedOn` já não é lido por nenhum caminho de loja. Apagar uma Loja_Modelo
+ * não afeta nenhuma Loja de cliente.
+ *
+ * O risco real que o R1.8 protege é **retirar o modelo de `TEMPLATE_REGISTRY`**
+ * (tarefa 7.6): aí sim, uma Loja de cliente com esse `template_id` passaria a
+ * ser servida com o modelo errado. É por isso que a verificação só corre para os
+ * modelos que a decisão D7 desregista.
+ *
+ * O emparelhamento aceita as duas identidades: o `template_id` de fábrica
+ * (`neonlab`/`foodmart`, escrito por `createTemplateModel` e nunca editado pelo
+ * painel) e o nome apresentado, que é a forma que o R1.6/R1.7 usam e que cobre
+ * uma demo cujo `template_id` tenha sido mexido à mão.
+ */
+function requiresUsageCheck(m: TemplateModel): boolean {
+  return TEMPLATES_A_REMOVER.includes(normTemplateId(m.templateId))
+    || NOMES_A_REMOVER.includes(normTemplateId(m.name));
+}
+
+/** Confirmação simples: nome, irreversibilidade e cascata (R1.9). */
+function deleteConfirmText(name: string): string {
+  return `Eliminar definitivamente a loja-modelo "${name}"? Apaga também os produtos, banners e assets de demonstração. Esta ação é irreversível.`;
+}
+
+function matchLabel(m: TemplateMatch): string {
+  return m === "templateId" ? "modelo aplicado" : "cópia do modelo";
+}
+
+/** Contagens da verificação, sempre visíveis antes de qualquer eliminação. */
+function usageCountsHtml(usage: AdminTemplateUsage): string {
+  const affected = usage.customerStores.length;
+  return `<div class="flex flex-wrap gap-2 mb-3">
+    ${badge(`${affected} loja(s) de cliente`, affected ? "#fef2f2" : "#ecfdf5", affected ? "#b91c1c" : "#047857")}
+    ${badge(`${usage.models.length} loja(s)-modelo`, ACCENT_TINT, ACCENT)}
+    ${badge(`verificado: ${usage.ids.join(", ") || "—"}`, "#f3f4f6", "#6b7280")}
+  </div>`;
+}
+
+/** Uma Loja no resultado da verificação: nome, endereço, dono e estado. */
+function usageStoreItem(s: AdminTemplateUser): string {
+  const how = s.matchedBy.map(matchLabel).join(" e ") || "—";
+  return `<li class="px-4 py-3 flex flex-col gap-1 min-w-0">
+    <div class="flex items-start justify-between gap-2 flex-wrap">
+      <p class="font-bold text-gray-900 break-words min-w-0">${esc(s.name || "—")}</p>
+      ${stateBadge(s.state)}
+    </div>
+    <p class="text-xs text-gray-500 break-all">${esc(s.identifier)}.${esc(STORE_APEX)}</p>
+    <p class="text-xs text-gray-500 break-all">${esc(s.ownerEmail || "dono sem email registado")}</p>
+    <p class="text-xs text-gray-400 break-words">Modelo: ${esc(s.templateId || "—")}${s.basedOn ? ` · baseada em: ${esc(s.basedOn)}` : ""} · encontrada por: ${esc(how)}</p>
+  </li>`;
+}
+
+function usageStoreList(items: AdminTemplateUser[], empty: string): string {
+  if (!items.length) return `<p class="text-sm text-gray-500">${esc(empty)}</p>`;
+  return `<ul class="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden min-w-0">${items.map(usageStoreItem).join("")}</ul>`;
+}
+
+const CHK_GHOST = "inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors";
+const CHK_DANGER = "inline-flex items-center gap-1.5 text-sm font-bold text-white px-4 py-2 rounded-lg hover:opacity-95 transition-opacity";
+
+/**
+ * Bloco de verificação apresentado na própria vista (e não num `confirm`): a
+ * lista de Lojas afetadas com nome, endereço, email do dono e estado não cabe
+ * de forma legível numa caixa do navegador, e é precisamente essa lista que o
+ * Administrador tem de ler antes de decidir.
+ */
+function checkPanel(
+  tone: { bg: string; border: string; color: string; icon: string },
+  title: string,
+  body: string,
+  actions: string,
+): string {
+  return `<div class="rounded-2xl border p-4 md:p-5 min-w-0" style="background:${tone.bg};border-color:${tone.border}">
+    <div class="flex items-start gap-3 min-w-0">
+      <span class="material-symbols-outlined shrink-0" style="color:${tone.color}">${tone.icon}</span>
+      <div class="flex-1 min-w-0">
+        <h4 class="font-black text-gray-900 break-words">${esc(title)}</h4>
+        <div class="mt-2 text-sm text-gray-700 min-w-0">${body}</div>
+        ${actions ? `<div class="mt-4 flex flex-wrap gap-2">${actions}</div>` : ""}
+      </div>
+    </div>
+  </div>`;
+}
+
+/** Os quatro estados possíveis do diálogo de eliminação de uma Loja_Modelo. */
+type ModelCheckView =
+  | { kind: "loading"; model: TemplateModel; ids: string[] }
+  | { kind: "error"; model: TemplateModel; message: string }
+  | { kind: "blocked"; model: TemplateModel; usage: AdminTemplateUsage }
+  | { kind: "clear"; model: TemplateModel; usage: AdminTemplateUsage };
+
+function modelCheckHtml(v: ModelCheckView): string {
+  const name = v.model.name || "sem nome";
+
+  if (v.kind === "loading") {
+    return checkPanel(
+      { bg: "#ffffff", border: "#e5e7eb", color: ACCENT, icon: "database" },
+      `A verificar quem usa «${name}»`,
+      `<p>A contar em base de dados as Lojas com o modelo <b>${esc(v.ids.join(", "))}</b> e as Lojas baseadas nele. Nada é apagado antes de esta verificação terminar.</p>`,
+      "",
+    );
+  }
+
+  if (v.kind === "error") {
+    return checkPanel(
+      { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c", icon: "error" },
+      "A verificação falhou — a eliminação não avança",
+      `<p class="mb-2">Não foi possível contar as Lojas que usam «${esc(name)}», por isso a eliminação foi recusada e o modelo mantém-se registado.</p>
+       <p class="mb-2 text-xs text-gray-600 break-words bg-white border border-gray-200 rounded-lg px-3 py-2">${esc(v.message)}</p>
+       <p class="text-xs text-gray-600">Uma falha de leitura não é prova de que não existem Lojas afetadas. Corrija a falha e verifique de novo antes de apagar.</p>`,
+      `<button id="chk-retry" class="${CHK_GHOST}"><span class="material-symbols-outlined text-[18px]">refresh</span> Verificar de novo</button>
+       <button id="chk-close" class="${CHK_GHOST}"><span class="material-symbols-outlined text-[18px]">close</span> Fechar</button>`,
+    );
+  }
+
+  if (v.kind === "blocked") {
+    return checkPanel(
+      { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c", icon: "block" },
+      "Eliminação bloqueada — há lojas de cliente a usar este modelo",
+      `${usageCountsHtml(v.usage)}
+       <p class="mb-3">O modelo <b>${esc(name)}</b> <b>mantém-se registado</b> e nada foi apagado. Apagá-lo deixaria estas lojas de cliente a renderizar com o modelo errado.</p>
+       <p class="font-bold text-gray-900 mb-2">Lojas de cliente afetadas</p>
+       ${usageStoreList(v.usage.customerStores, "Nenhuma.")}
+       <p class="font-bold text-gray-900 mt-4 mb-2">Lojas-modelo encontradas na mesma verificação</p>
+       ${usageStoreList(v.usage.models, "Nenhuma.")}`,
+      `<button id="chk-retry" class="${CHK_GHOST}"><span class="material-symbols-outlined text-[18px]">refresh</span> Verificar de novo</button>
+       <button id="chk-close" class="${CHK_GHOST}"><span class="material-symbols-outlined text-[18px]">close</span> Fechar</button>`,
+    );
+  }
+
+  const others = v.usage.models.filter((m) => m.id !== v.model.storeId);
+  return checkPanel(
+    { bg: "#fff7ed", border: "#fed7aa", color: ACCENT, icon: "warning" },
+    `Confirmar a eliminação de «${name}»`,
+    `${usageCountsHtml(v.usage)}
+     <p class="mb-2">A verificação não encontrou <b>nenhuma loja de cliente</b> a usar este modelo, por isso a eliminação pode avançar.</p>
+     <p class="mb-3"><b>A eliminação é irreversível.</b> Apaga a loja-modelo «${esc(name)}» e, em cascata, os respetivos produtos, banners e assets de demonstração. Nem a loja nem os dados voltam.</p>
+     ${others.length
+       ? `<p class="font-bold text-gray-900 mb-2">Esta ação apaga apenas «${esc(name)}». Mantêm-se registadas:</p>${usageStoreList(others, "Nenhuma.")}`
+       : ""}`,
+    `<button id="chk-confirm" class="${CHK_DANGER}" style="background:#b91c1c"><span class="material-symbols-outlined text-[18px]">delete_forever</span> Eliminar definitivamente</button>
+     <button id="chk-cancel" class="${CHK_GHOST}"><span class="material-symbols-outlined text-[18px]">close</span> Cancelar</button>`,
+  );
 }
 
 /* -------------------------- View-model agregado -------------------------- */
@@ -329,8 +512,15 @@ export async function renderAdminPanel(): Promise<void> {
 
     // Importa automaticamente os modelos de fábrica em falta (ex.: Lumière Chic),
     // já com os produtos fictícios, para o admin só precisar de editar.
+    //
+    // Um modelo de fábrica só está «em falta» quando não existe loja-modelo com
+    // o nome atual nem com nenhum dos nomes anteriores. Sem a segunda condição,
+    // renomear um modelo de fábrica fazia esta deteção chamar o Semeador sem
+    // necessidade só por o administrador abrir o separador «Modelos».
     const haveNames = new Set(models.map((m) => m.name.trim().toLowerCase()));
-    const missing = defaultFactoryModels().filter((fm) => !haveNames.has(fm.name.trim().toLowerCase()));
+    const missing = defaultFactoryModels().filter(
+      (fm) => !factoryModelNameKeys(fm).some((key) => haveNames.has(key)),
+    );
     if (missing.length) {
       const adminId = await currentOwnerId();
       if (adminId) {
@@ -370,6 +560,7 @@ export async function renderAdminPanel(): Promise<void> {
         <span class="material-symbols-outlined text-[20px] shrink-0" style="color:${ACCENT}">info</span>
         <span>Cada modelo é uma loja de demonstração. Edita-a com o editor do site (fotos, imagens de produto, textos e cores) para aperfeiçoar o preview que os clientes veem na galeria de modelos prontos. Usa <b>Importar predefinidos</b> para trazer os modelos de fábrica (ex.: Vermelho Moderno) como lojas-modelo editáveis.</span>
       </div>
+      <section id="model-check" class="mb-6 min-w-0"></section>
       ${models.length
         ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${models.map(modelCard).join("")}</div>`
         : `<div class="bg-white border border-gray-200 rounded-2xl p-10 text-center text-gray-500">
@@ -405,14 +596,97 @@ export async function renderAdminPanel(): Promise<void> {
     document.querySelectorAll<HTMLElement>("[data-edit-model]").forEach((b) =>
       b.addEventListener("click", () => openStoreEditor(b.dataset.editModel!, b.dataset.owner!)));
 
+    /* ---- Eliminação de uma Loja_Modelo: verificar primeiro, apagar depois ---- */
+
+    function closeCheck(): void {
+      const host = $("#model-check");
+      if (host) host.innerHTML = "";
+    }
+
+    function paintCheck(v: ModelCheckView): void {
+      const host = $("#model-check");
+      if (!host) return;
+      host.innerHTML = modelCheckHtml(v);
+      host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      $("#chk-close")?.addEventListener("click", closeCheck);
+      $("#chk-cancel")?.addEventListener("click", closeCheck);
+      $("#chk-retry")?.addEventListener("click", () => { void startCheck(v.model); });
+      if (v.kind === "clear") {
+        $("#chk-confirm")?.addEventListener("click", () => { void doDelete(v.model, v.usage); });
+      }
+    }
+
+    /**
+     * Corre a verificação em base de dados (R1.7). Não apaga nada. Só é chamada
+     * para as Loja_Modelo no âmbito do R1.7 — ver `requiresUsageCheck`.
+     */
+    async function startCheck(m: TemplateModel): Promise<void> {
+      const ids = [...TEMPLATES_A_REMOVER];
+      paintCheck({ kind: "loading", model: m, ids });
+      try {
+        const usage = await withBusy(() => adminStoresUsingTemplate(ids), "A verificar lojas afetadas…");
+        // Grupo de lojas de cliente não vazio ⇒ a eliminação não avança (R1.8).
+        paintCheck(usage.customerStores.length
+          ? { kind: "blocked", model: m, usage }
+          : { kind: "clear", model: m, usage });
+      } catch (err) {
+        // `adminStoresUsingTemplate` lança em erro de leitura de propósito: um
+        // resultado vazio por falha seria indistinguível de «nenhuma Loja
+        // afetada». Sem verificação lida, não se apaga.
+        paintCheck({ kind: "error", model: m, message: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    /** Apaga a Loja_Modelo em cascata: produtos, banners e assets (R1.9). */
+    async function removeModel(m: TemplateModel): Promise<void> {
+      const ok = await withBusy(() => deleteTemplateModel(m.storeId), "A eliminar…");
+      if (ok) { toast("Modelo eliminado."); void renderModelos(); }
+      else toast("Não foi possível eliminar.", "error");
+    }
+
+    /**
+     * Caminho de confirmação simples, para as Loja_Modelo fora do âmbito do
+     * R1.7: um `confirm` com o nome, a irreversibilidade e a cascata, e a
+     * eliminação. Sem verificação bloqueante, porque o `template_id` destas
+     * demos é um modelo visual partilhado com Lojas de cliente e contá-lo
+     * bloquearia a eliminação sem razão (ver `requiresUsageCheck`).
+     */
+    async function deleteWithoutCheck(m: TemplateModel): Promise<void> {
+      if (!confirm(deleteConfirmText(m.name))) return;
+      await removeModel(m);
+    }
+
+    /** Eliminação em cascata (R1.9), só depois de uma verificação limpa. */
+    async function doDelete(m: TemplateModel, usage: AdminTemplateUsage): Promise<void> {
+      if (!confirm(deleteConfirmText(m.name))) return;
+
+      // Reverificação imediatamente antes de apagar: o painel pode ter ficado
+      // aberto tempo suficiente para uma Loja de cliente entrar no grupo.
+      let fresh: AdminTemplateUsage;
+      try {
+        fresh = await withBusy(() => adminStoresUsingTemplate(usage.ids), "A confirmar a verificação…");
+      } catch (err) {
+        paintCheck({ kind: "error", model: m, message: err instanceof Error ? err.message : String(err) });
+        toast("Eliminação cancelada: a verificação falhou.", "error");
+        return;
+      }
+      if (fresh.customerStores.length) {
+        paintCheck({ kind: "blocked", model: m, usage: fresh });
+        toast("Eliminação cancelada: há lojas de cliente a usar este modelo.", "error");
+        return;
+      }
+
+      await removeModel(m);
+    }
+
     document.querySelectorAll<HTMLElement>("[data-del-model]").forEach((b) =>
-      b.addEventListener("click", async () => {
-        const id = b.dataset.delModel!;
-        const name = b.dataset.name ?? "";
-        if (!confirm(`Eliminar o modelo "${name}"? A loja de demonstração será removida.`)) return;
-        const ok = await withBusy(() => deleteTemplateModel(id), "A eliminar…");
-        if (ok) { toast("Modelo eliminado."); void renderModelos(); }
-        else toast("Não foi possível eliminar.", "error");
+      b.addEventListener("click", () => {
+        const m = models.find((x) => x.storeId === b.dataset.delModel);
+        if (!m) { toast("Modelo não encontrado. Atualize a página.", "error"); return; }
+        // Âmbito do R1.7: só «Neon Lab» e «FoodMart» passam pela verificação.
+        if (requiresUsageCheck(m)) { void startCheck(m); return; }
+        closeCheck();
+        void deleteWithoutCheck(m);
       }));
   }
 

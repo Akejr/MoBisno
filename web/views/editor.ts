@@ -42,6 +42,7 @@ import { mountTestimonials } from "../lib/testimonialsCarousel.js";
 import { mountFoodmartCarousels } from "../lib/foodmartCarousel.js";
 import { foodmartDefaultFeatures } from "../templates/foodmart.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
+import { resolveLocations, type StorePlace } from "../../src/services/locations.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { openProductForm } from "../lib/productForm.js";
@@ -67,6 +68,52 @@ const PERK_ICON_CHOICES = [
   "support_agent", "schedule", "discount", "recycling", "favorite", "shield",
   "package_2", "paid", "bolt", "eco", "spa", "diamond",
 ];
+
+/** Uma localização de um bloco `location`, na forma em que fica gravada. */
+type BlockPlace = { name?: string; address?: string; lat?: number; lng?: number };
+
+/** Morada de partida quando não há morada nenhuma (a mesma dos blocos e do Lumière). */
+const DEFAULT_PLACE_ADDRESS = "Luanda, Angola";
+
+/**
+ * Copia uma localização só com os campos definidos e sempre pela mesma ordem
+ * (`name`, `address`, `lat`, `lng`), para o JSON gravado ser estável.
+ */
+function compactPlace(p: StorePlace): BlockPlace {
+  const out: BlockPlace = {};
+  if (p.name !== undefined) out.name = p.name;
+  if (p.address !== undefined) out.address = p.address;
+  if (p.lat !== undefined) out.lat = p.lat;
+  if (p.lng !== undefined) out.lng = p.lng;
+  return out;
+}
+
+/**
+ * Materializa `blocks[i].places` em cada bloco `location` que ainda não o tem
+ * (`MODELO-GUIA.md` §6.1 — arrays com fallback).
+ *
+ * **Tem de correr ANTES da baseline `savedJson`.** O SSR (`web/templates/blocks.ts`)
+ * lê as localizações por `resolveLocations` e marca a morada com
+ * `data-edit="blocks.<i>.places.<j>.address"`; sem a lista materializada, o
+ * `setPath` desse caminho criaria um objeto `{0:…}` sem `.length` e o mapa
+ * voltava ao valor de origem, perdendo a edição.
+ *
+ * O conteúdo escrito é o da cascata de `resolveLocations` (lista gravada →
+ * localização única legada → morada do rodapé), ou seja **exatamente o que a
+ * Loja já mostrava**. Blocos que já têm `places` com pelo menos uma entrada não
+ * são tocados, para o JSON não mudar de forma nem de ordem de chaves.
+ */
+function materializeBlockPlaces(custom: StoreCustomization): void {
+  const blocks = custom.blocks;
+  if (!Array.isArray(blocks)) return;
+  const footer = typeof custom.footer?.location === "string" ? custom.footer.location : undefined;
+  for (const block of blocks) {
+    if (!block || block.type !== "location") continue;
+    const b = block as { places?: BlockPlace[] };
+    if (Array.isArray(b.places) && b.places.length > 0) continue;
+    b.places = resolveLocations(block, footer).map(compactPlace);
+  }
+}
 
 function setPath(obj: Record<string, any>, path: string, value: unknown): void {
   const keys = path.split(".");
@@ -129,6 +176,11 @@ export async function renderEditor(): Promise<void> {
       custom.foodmart.features = foodmartDefaultFeatures();
     }
   }
+  // Blocos de localização: materializa a lista `places` (R5.1, `MODELO-GUIA.md`
+  // §6.1). Também ANTES da baseline — escreve o que a Loja já mostrava, pelo que
+  // abrir o editor numa Loja gravada no formato de localização única não marca
+  // alterações.
+  materializeBlockPlaces(custom);
   /** Loja baseada num modelo pronto: edição estrutural bloqueada (só textos/fotos/cores). */
   const locked = custom.__locked === true;
   /**
@@ -632,29 +684,12 @@ export async function renderEditor(): Promise<void> {
         testis.parentElement?.appendChild(add2);
       }
 
-      // Bloco "localização" — atualizar mapa ao sair do campo da morada.
-      const addr = blk.querySelector<HTMLElement>("[data-edit-loc-address]");
-      if (addr) addr.addEventListener("blur", () => { void rebuild(); });
+      // Bloco "localização" — atualizar o mapa de cada morada ao sair do campo.
+      blk.querySelectorAll<HTMLElement>("[data-edit-loc-address]")
+        .forEach((addr) => addr.addEventListener("blur", () => { void rebuild(); }));
 
-      // Bloco "localização" — botão para definir o pin no mapa.
-      if (blk.dataset.blockType === "location") {
-        const mapBtn = document.createElement("button");
-        mapBtn.className = "mb-ov-btn mt-4 mx-auto flex items-center gap-1.5 text-sm font-semibold text-white px-4 py-2 rounded-full shadow";
-        mapBtn.style.background = ACCENT;
-        mapBtn.innerHTML = `<span class="material-symbols-outlined text-[18px]">location_searching</span> Definir no mapa`;
-        mapBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          const b = custom.blocks?.[i] as { lat?: number; lng?: number; address?: string } | undefined;
-          if (!b) return;
-          void openMapPicker({
-            lat: b.lat,
-            lng: b.lng,
-            address: b.address,
-            onSave: (lat, lng) => { snapshot(); b.lat = lat; b.lng = lng; void rebuild(); },
-          });
-        });
-        blk.appendChild(mapBtn);
-      }
+      // Bloco "localização" — gestão das localizações (adicionar/remover/mapa).
+      if (blk.dataset.blockType === "location") mountLocationEditor(blk, i);
     });
 
     // Cor de fundo da secção de produtos (modelos que a suportam, ex.: Neon Lab).
@@ -1219,6 +1254,162 @@ export async function renderEditor(): Promise<void> {
     fadeInImages(preview);
     $("#tour-checkout")?.addEventListener("click", () => openCheckoutPicker($("#tour-checkout") as HTMLElement));
     if (previewOpen) renderPreviewDrawer(view);
+  }
+
+  /**
+   * Gestão das localizações de um bloco `location` (R5.1–R5.4, R5.11).
+   *
+   * Cada localização (`data-edit-place="<j>"`, âncora emitida por
+   * `web/templates/blocks.ts`) ganha um popover com **nome**, **morada** e
+   * **coordenadas** editáveis, «Escolher no mapa» — `openMapPicker`, Leaflet com
+   * pin arrastável e sem chave de API — e «Remover». A grelha
+   * (`data-edit-places="<i>"`) ganha «Adicionar localização».
+   *
+   * **A última localização não é removível.** `resolveLocations` devolve sempre
+   * pelo menos uma entrada: com a lista vazia, o bloco cairia na morada legada do
+   * próprio bloco ou na do rodapé, e o Dono via o mapa continuar lá depois de
+   * mandar removê-lo. Para esconder o mapa remove-se a secção inteira, no botão
+   * de lixo da barra do bloco.
+   *
+   * Isto é edição de **conteúdo**, não estrutural: fica disponível também nas
+   * Lojas com `customization.__locked`, tal como já acontece com os testemunhos,
+   * com as fotografias e com as cores. O que `__locked` trava é acrescentar
+   * secções de localização novas (ver o menu «Adicionar secção»).
+   */
+  function mountLocationEditor(blk: HTMLElement, i: number): void {
+    /** Lista de localizações do bloco, já materializada no arranque do editor. */
+    const placesOf = (): BlockPlace[] => {
+      const b = custom.blocks?.[i] as { places?: BlockPlace[] } | undefined;
+      if (!b) return [];
+      if (!Array.isArray(b.places)) b.places = [];
+      return b.places;
+    };
+    const footerAddress = (): string => (custom.footer?.location ?? "").trim() || DEFAULT_PLACE_ADDRESS;
+    /** Escreve um campo da localização `j` (valor vazio remove o campo). */
+    const write = (j: number, key: keyof BlockPlace, value: string | number | undefined): void => {
+      const place = placesOf()[j];
+      if (!place) return;
+      snapshot();
+      if (value === undefined || value === "") delete place[key];
+      else (place as Record<string, unknown>)[key] = value;
+      void rebuild();
+    };
+    /** Lê uma coordenada escrita à mão (aceita vírgula decimal). */
+    const parseCoord = (raw: string): number | undefined => {
+      const t = raw.trim().replace(",", ".");
+      if (t === "") return undefined;
+      const n = Number.parseFloat(t);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    const total = placesOf().length;
+
+    blk.querySelectorAll<HTMLElement>("[data-edit-place]").forEach((card) => {
+      const j = Number(card.dataset.editPlace);
+      const place = placesOf()[j] ?? {};
+      card.style.position = card.style.position || "relative";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.title = "Editar localização";
+      // À direita: o canto superior esquerdo já leva o selo "Estamos aqui" na
+      // variante "estilizado".
+      btn.className = "mb-ov-btn absolute top-2 right-2 z-30 inline-flex items-center gap-1 bg-white/95 hover:bg-white text-neutral-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow border border-neutral-200";
+      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit_location_alt</span> Localização`;
+
+      // O popover é filho da secção, não do cartão: a variante "cartão" tem
+      // `overflow-hidden` e cortaria o painel. A posição é calculada ao abrir, a
+      // partir do botão, e limitada à largura da secção (sem scroll horizontal a
+      // 360 px).
+      const pop = document.createElement("div");
+      pop.className = "mb-ov-btn absolute z-40 hidden bg-white border border-neutral-200 rounded-xl shadow-xl p-3 w-64 max-w-[calc(100%-1rem)] text-left space-y-2.5 normal-case tracking-normal";
+      const inputCls = "w-full text-sm border border-neutral-300 rounded-lg px-2 py-1.5 bg-white text-neutral-800";
+      pop.innerHTML = `
+        <div>
+          <p class="text-[11px] font-semibold text-neutral-500 mb-1">Nome</p>
+          <input data-lp="name" type="text" class="${inputCls}" placeholder="Ex.: Loja do Kilamba" value="${esc(place.name ?? "")}">
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-neutral-500 mb-1">Morada</p>
+          <input data-lp="address" type="text" class="${inputCls}" placeholder="${esc(DEFAULT_PLACE_ADDRESS)}" value="${esc(place.address ?? "")}">
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-neutral-500 mb-1">Coordenadas</p>
+          <div class="grid grid-cols-2 gap-1.5">
+            <input data-lp="lat" type="text" inputmode="decimal" class="${inputCls}" placeholder="Latitude" value="${place.lat ?? ""}">
+            <input data-lp="lng" type="text" inputmode="decimal" class="${inputCls}" placeholder="Longitude" value="${place.lng ?? ""}">
+          </div>
+          <p class="text-[11px] text-neutral-400 mt-1">Sem coordenadas, o mapa é procurado pela morada.</p>
+        </div>
+        <button data-lp-map type="button" class="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white px-3 py-2 rounded-lg shadow" style="background:${ACCENT}"><span class="material-symbols-outlined text-[16px]">location_on</span> Escolher no mapa</button>
+        <button data-lp-rm type="button" class="w-full inline-flex items-center justify-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg border ${total > 1 ? "border-red-200 text-red-600 hover:bg-red-50" : "border-neutral-200 text-neutral-300 cursor-not-allowed"}"><span class="material-symbols-outlined text-[16px]">delete</span> Remover</button>
+        ${total > 1 ? "" : `<p class="text-[11px] text-neutral-400">A secção tem de ficar com uma localização. Para esconder o mapa, remova a secção.</p>`}`;
+
+      // Nome e morada: gravam ao sair do campo (não a cada tecla, para o preview
+      // não ser reconstruído no meio da escrita).
+      pop.querySelectorAll<HTMLInputElement>('[data-lp="name"], [data-lp="address"]').forEach((inp) => {
+        inp.addEventListener("change", () => write(j, inp.dataset.lp as "name" | "address", inp.value.trim()));
+      });
+      pop.querySelectorAll<HTMLInputElement>('[data-lp="lat"], [data-lp="lng"]').forEach((inp) => {
+        inp.addEventListener("change", () => write(j, inp.dataset.lp as "lat" | "lng", parseCoord(inp.value)));
+      });
+      pop.querySelector("[data-lp-map]")!.addEventListener("click", (e) => {
+        e.preventDefault();
+        const cur = placesOf()[j] ?? {};
+        void openMapPicker({
+          lat: cur.lat,
+          lng: cur.lng,
+          address: cur.address ?? footerAddress(),
+          onSave: (lat, lng) => {
+            const p = placesOf()[j];
+            if (!p) return;
+            snapshot();
+            p.lat = lat; p.lng = lng;
+            void rebuild();
+          },
+        });
+      });
+      const rm = pop.querySelector<HTMLButtonElement>("[data-lp-rm]")!;
+      rm.disabled = total <= 1;
+      rm.title = total > 1 ? "Remover esta localização" : "A última localização não pode ser removida.";
+      rm.addEventListener("click", (e) => {
+        e.preventDefault();
+        const arr = placesOf();
+        if (arr.length <= 1) return;
+        snapshot();
+        arr.splice(j, 1);
+        void rebuild();
+      });
+
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const opening = pop.classList.contains("hidden");
+        pop.classList.toggle("hidden");
+        if (!opening) return;
+        // Medido já visível, para o `offsetWidth` valer (a 360 px encosta à margem).
+        const base = blk.getBoundingClientRect();
+        const anchor = btn.getBoundingClientRect();
+        pop.style.top = `${anchor.bottom - base.top + 8}px`;
+        const maxLeft = Math.max(8, base.width - pop.offsetWidth - 8);
+        pop.style.left = `${Math.min(Math.max(8, anchor.left - base.left), maxLeft)}px`;
+      });
+      card.appendChild(btn);
+      blk.appendChild(pop);
+    });
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "mb-ov-btn mt-6 mx-auto flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900 border border-dashed border-neutral-300 rounded-full px-4 py-2";
+    add.innerHTML = `<span class="material-symbols-outlined text-[16px]">add_location_alt</span> Adicionar localização`;
+    add.addEventListener("click", (e) => {
+      e.preventDefault();
+      snapshot();
+      placesOf().push({ name: "Nova localização", address: footerAddress() });
+      void rebuild();
+    });
+    const grid = blk.querySelector<HTMLElement>("[data-edit-places]");
+    (grid?.parentElement ?? (blk.firstElementChild as HTMLElement | null) ?? blk).appendChild(add);
   }
 
   /** Controlos de edição dos testemunhos (adicionar/remover) — no editor. */

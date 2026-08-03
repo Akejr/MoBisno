@@ -301,6 +301,110 @@ export function faqJsonLd(items) {
   };
 }
 
+/* ------------------------------ Localizações ------------------------------ */
+
+/**
+ * Espelho de `src/services/locations.ts` — que é a FONTE DE VERDADE.
+ *
+ * Existe porque o HTML pré-renderizado tem de apresentar **as mesmas
+ * localizações** que a SPA mostra (R5.10): se o rastreador vê um mapa e uma
+ * morada e o visitante vê outros, o Google vê duas páginas onde só existe uma
+ * (`SEO.md` §5.2). É a única regra de localizações duplicada aqui; ao alterar a
+ * cascata, a caixa de enquadramento ou a morada predefinida, **alterar nos dois
+ * sítios**. `tests/seoInfra.test.ts` compara os dois módulos e falha se
+ * divergirem.
+ */
+
+/** Morada usada quando não há nenhuma outra. Igual ao módulo de origem. */
+const DEFAULT_LOCATION_ADDRESS = "Luanda, Angola";
+
+/** Meio-lado da caixa de enquadramento do mapa de OpenStreetMap, em graus. */
+const BBOX_HALF_SIDE = 0.008;
+
+/** Objeto onde faça sentido ler campos, ou `null`. Arrays contam como não-objeto. */
+function asLocationRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return value;
+}
+
+/** Cadeia usável, ou `undefined`. Uma morada só de espaços não é usável. */
+function asLocationText(value) {
+  if (typeof value !== "string") return undefined;
+  return value.trim() === "" ? undefined : value;
+}
+
+/** Coordenada finita, ou `undefined` (`NaN` e `Infinity` dariam um mapa em branco). */
+function asLocationCoord(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** Converte um valor desconhecido numa localização, ou `null` se não for objeto. */
+function asStorePlace(value) {
+  const record = asLocationRecord(value);
+  if (!record) return null;
+  return {
+    name: asLocationText(record.name),
+    address: asLocationText(record.address),
+    lat: asLocationCoord(record.lat),
+    lng: asLocationCoord(record.lng),
+  };
+}
+
+/** Verdadeiro quando a localização tem com que desenhar um mapa. */
+function hasMapData(place) {
+  return place.address !== undefined || (place.lat !== undefined && place.lng !== undefined);
+}
+
+/**
+ * Espelha `src/services/locations.ts:resolveLocations`.
+ *
+ * Cascata: `block.places` com pelo menos uma entrada aproveitável → campos
+ * `address`/`lat`/`lng` do próprio bloco (formato de localização única) →
+ * morada do rodapé → entrada vazia. Devolve sempre pelo menos uma entrada e
+ * nunca lança, para qualquer `block`.
+ */
+export function resolveLocations(block, footerLocation) {
+  const record = asLocationRecord(block);
+
+  const rawPlaces = record ? record.places : undefined;
+  if (Array.isArray(rawPlaces)) {
+    const places = [];
+    for (const entry of rawPlaces) {
+      const place = asStorePlace(entry);
+      if (place) places.push(place);
+    }
+    if (places.length > 0) return places;
+  }
+
+  const legacy = asStorePlace(record);
+  if (legacy && hasMapData(legacy)) {
+    // O `title` do bloco é o título da secção, não o nome de um ponto de venda.
+    return [{ address: legacy.address, lat: legacy.lat, lng: legacy.lng }];
+  }
+
+  const footer = asLocationText(footerLocation);
+  if (footer !== undefined) return [{ address: footer }];
+
+  return [{}];
+}
+
+/**
+ * Espelha `src/services/locations.ts:mapEmbedSrc`. Sem chave de API: com
+ * coordenadas usa OpenStreetMap com marcador, só com morada usa o embed da
+ * Google.
+ */
+export function mapEmbedSrc(place, fallbackAddress) {
+  const lat = asLocationCoord(place && place.lat);
+  const lng = asLocationCoord(place && place.lng);
+  if (lat !== undefined && lng !== undefined) {
+    const d = BBOX_HALF_SIDE;
+    const bbox = `${lng - d},${lat - d},${lng + d},${lat + d}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+  }
+  const addr = asLocationText(place && place.address) ?? asLocationText(fallbackAddress) ?? DEFAULT_LOCATION_ADDRESS;
+  return `https://maps.google.com/maps?q=${encodeURIComponent(addr.trim())}&z=15&output=embed`;
+}
+
 /* ----------------------------- Conteúdo (SSR) ----------------------------- */
 
 /**
@@ -366,8 +470,66 @@ function productCards(products, base) {
   }).join("");
 }
 
-/** Conteúdo da página inicial de uma loja. */
-export function storeHomeHtml({ storeName, description, logoUrl, products, categories, base, brand }) {
+/** Morada a apresentar numa localização. Espelha `placeAddress` de `web/templates/blocks.ts`. */
+function placeAddressText(place) {
+  return String((place && place.address) ?? "").trim() || DEFAULT_LOCATION_ADDRESS;
+}
+
+/** Nome da localização, sem espaços em volta. Espelha `placeName` de `web/templates/blocks.ts`. */
+function placeNameText(place) {
+  return String((place && place.name) ?? "").trim();
+}
+
+/**
+ * Localizações da loja no HTML pré-renderizado (R5.10).
+ *
+ * Espelha o que `locationByVariant` de `web/templates/blocks.ts` apresenta em
+ * cada bloco `location`: o título da secção, o nome de cada localização (só
+ * quando existe), a respetiva morada e um `iframe` por mapa, com o mesmo `src`
+ * de `mapEmbedSrc` e o mesmo `title="Mapa …"`.
+ *
+ * **O que não é espelhado, de propósito: os atributos `data-edit`.** São hooks
+ * do Editor, que só os lê dentro de `#preview` (`web/views/editor.ts`) — nunca
+ * neste HTML, que a SPA substitui no arranque. Não são conteúdo: nem o visitante
+ * sem JavaScript nem o rastreador lhes dão uso. O que o R5.10 exige é o
+ * conteúdo visível — moradas, nomes e mapas — e é isso que sai daqui.
+ *
+ * As classes de apresentação (Tailwind) também ficam de fora: o bloco `.mb-ssr`
+ * é invisível por recorte, a disposição em grelha é da SPA.
+ *
+ * Total: aceita qualquer `customization`, incluindo `null` e blocos malformados.
+ */
+export function locationsHtml(custom) {
+  const record = asLocationRecord(custom);
+  const blocks = Array.isArray(record && record.blocks) ? record.blocks : [];
+  const footerLocation = asLocationText(asLocationRecord(record && record.footer)?.location);
+
+  const sections = [];
+  for (const block of blocks) {
+    const b = asLocationRecord(block);
+    if (!b || b.type !== "location") continue;
+
+    const title = String(b.title ?? "").trim();
+    const items = resolveLocations(b, footerLocation).map((p) => {
+      const name = placeNameText(p);
+      const address = placeAddressText(p);
+      const label = name || address;
+      return `<li>${name ? `<strong>${esc(name)}</strong> ` : ""}<span>${esc(address)}</span>`
+        + `<iframe title="Mapa ${esc(label)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="${esc(mapEmbedSrc(p, footerLocation))}"></iframe></li>`;
+    }).join("");
+
+    sections.push(`${title ? `<h2>${esc(title)}</h2>` : ""}<ul class="mb-ssr-places">${items}</ul>`);
+  }
+  return sections.join("");
+}
+
+/**
+ * Conteúdo da página inicial de uma loja.
+ *
+ * `custom` é a `customization` da Loja e é opcional: sem ela a página sai como
+ * antes, apenas sem as localizações.
+ */
+export function storeHomeHtml({ storeName, description, logoUrl, products, categories, base, brand, custom }) {
   const nav = categories.length
     ? `<nav class="mb-ssr-nav">${categories.map((c) => `<a href="${esc(base)}/categoria/${esc(categorySlug(c))}">${esc(c)}</a>`).join("")}</nav>`
     : "";
@@ -380,6 +542,7 @@ export function storeHomeHtml({ storeName, description, logoUrl, products, categ
     <p>${esc(description)}</p>
     ${nav}
     ${grid}
+    ${locationsHtml(custom)}
     ${footer(storeName)}
   </div>`;
 }
