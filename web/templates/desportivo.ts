@@ -14,6 +14,7 @@ import { renderHero } from "./heroes.js";
 import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
+import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -321,11 +322,18 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
         <!-- Detalhe -->
         <div class="flex flex-col">
           <h1 style="${BEBAS}" class="text-4xl md:text-5xl tracking-tight leading-tight">${esc(product.name)}</h1>
-          <p class="mt-3 text-3xl font-bold" style="color:var(--brand,#DC2626)">${esc(formatKz(product.price))}</p>
+          <p data-product-price class="mt-3 text-3xl font-bold" style="color:var(--brand,#DC2626)">${esc(formatKz(product.price))}</p>
 
           ${product.description
             ? `<p class="mt-6 text-neutral-600 leading-relaxed whitespace-pre-line">${esc(product.description)}</p>`
             : `<p class="mt-6 text-neutral-400 italic">Sem descrição.</p>`}
+
+          <!-- Variações (cantos e molduras do modelo — MODELO-GUIA §0.2) -->
+          ${variationPickerHtml(product, custom, {
+            labelClass: "text-sm font-medium text-neutral-700",
+            valueClass: "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-neutral-300 text-sm font-bold text-neutral-900 hover:bg-neutral-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            noteClass: "text-sm font-medium",
+          })}
 
           <!-- Quantidade -->
           <div class="mt-8 flex items-center gap-4">

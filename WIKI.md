@@ -41,7 +41,7 @@
 
 ## 1. Visão Geral
 
-**MôBisno** é uma plataforma SaaS multi-inquilino angolana que permite a qualquer empreendedor criar a sua loja online em minutos, sem conhecimentos técnicos. Cada loja fica num subdomínio próprio (`nomedaloja.sualoja.digital`), com pagamentos locais integrados (Multicaixa Express + referência bancária), SEO otimizado, código de desconto, SMS de confirmação de compra, avaliações de produtos e analytics.
+**MôBisno** é uma plataforma SaaS multi-inquilino angolana que permite a qualquer empreendedor criar a sua loja online em minutos, sem conhecimentos técnicos. Cada loja fica num subdomínio próprio (`nomedaloja.sualoja.digital`), com pagamentos locais integrados (Multicaixa Express + referência bancária), SEO otimizado, código de desconto, variações de produto (cor, tamanho…) com preço e stock próprios, avaliações de produtos e analytics. O SMS de confirmação de compra e o domínio próprio estão anunciados como **«Em breve»** e bloqueados na interface (§29).
 
 - **Público-alvo:** empreendedores angolanos.
 - **Moeda:** Kwanzas (Kz).
@@ -76,8 +76,10 @@
 /
 ├── api/                    # Funções serverless (Vercel) — ESM, export default
 │   ├── _shared.js          # Utilitários: cliente Supabase, activatePlan, checkStock, etc.
+│   ├── _seo.js             # SEO partilhado (espelho de src/services/seo, slug, locations, variations)
 │   ├── assistant.js        # Chat IA (OpenAI) — chave só no servidor
 │   ├── health.js           # Health check
+│   ├── logo.js             # Criação de logótipo por IA (propostas)
 │   ├── payment.js          # Inicia pagamento MoMenu
 │   ├── payment-status.js   # Verifica estado de pagamento (polling)
 │   ├── prerender.js        # Pré-renderização SSR-like para crawlers
@@ -96,6 +98,13 @@
 │   │   ├── identifierService.ts # Normalização e validação de identificadores
 │   │   ├── fileService.ts  # Políticas de upload (tamanho, formato)
 │   │   ├── payments.ts     # Lógica de pagamento (puro)
+│   │   ├── paymentVisibility.ts # Que métodos de pagamento mostrar
+│   │   ├── variations.ts   # Variação/Combinação: eixos, preço efetivo, stock
+│   │   ├── cartLine.ts     # cartLineKey: identidade de uma linha de carrinho
+│   │   ├── cartMessage.ts  # Mensagem de encomenda por WhatsApp
+│   │   ├── locations.ts    # Localizações do bloco de mapa
+│   │   ├── storeCustom.ts  # Leitura defensiva de campos legados
+│   │   ├── adminMetrics.ts # Métricas e listas da Visão geral do admin
 │   │   └── ...
 │   ├── storefront/         # Renderer da loja (storeRenderer.ts)
 │   └── ui/                 # Componentes UI legacy (substituídos pelo web/)
@@ -110,7 +119,9 @@
 │   │   ├── dom.ts          # render(), $(), toast(), formatKz(), fadeInImages()
 │   │   ├── seo.ts          # applySeo() — aplica meta tags no browser
 │   │   ├── pixels.ts       # Meta Pixel + GA4 por loja
-│   │   ├── cart.ts         # Carrinho (localStorage por loja)
+│   │   ├── cart.ts         # Carrinho (localStorage por loja), chaveado por LINHA
+│   │   │                   #   (Produto + Combinação): setQuantity/removeFromCart
+│   │   │                   #   recebem uma lineKey de cartLineKey(), não um productId
 │   │   ├── cartDrawer.ts   # Drawer do carrinho
 │   │   ├── imageCompress.ts # Compressão WebP (max 1600px)
 │   │   ├── slug.ts         # productSlugPath()
@@ -135,8 +146,8 @@
 │   │   ├── repositories.ts # CRUD de lojas, produtos, banners, assets
 │   │   ├── customization.ts # getCustomization, saveCustomization
 │   │   ├── payments.ts     # getPaymentConfig, savePaymentConfig
-│   │   ├── withdrawals.ts  # listWithdrawals, createWithdrawalRequest
-│   │   ├── admin.ts        # adminListAccounts, adminSetAccountPlan, etc.
+│   │   ├── withdrawals.ts  # listWithdrawals, committedWithdrawals, requestWithdrawal
+│   │   ├── admin.ts        # listAccounts, listStores, adminOverview, etc.
 │   │   ├── analytics.ts    # trackStoreEvent, getStoreAnalytics
 │   │   ├── discounts.ts    # listDiscountCodes, createDiscount, bumpDiscountUse
 │   │   ├── reviews.ts      # listProductReviews, submitReview, summarize
@@ -155,9 +166,14 @@
 │   │   ├── shared.ts       # HTML partilhado entre templates
 │   │   ├── perks.ts        # Garantias do produto
 │   │   ├── sectionsModel.ts
-│   │   ├── galeria.ts      # Template "Galeria"
-│   │   ├── beauty.ts       # Template "Beauty"
-│   │   └── desportivo.ts   # Template "Desportivo"
+│   │   ├── presets.ts      # Personalizações de fábrica (preset "Ekolo Sports")
+│   │   ├── variationPicker.ts # Seletores de Variação na página de produto
+│   │   ├── notFound.ts     # "Loja não encontrada"
+│   │   ├── galeria.ts      # Modelo "Galeria"
+│   │   ├── beauty.ts       # Modelo "Beauty"
+│   │   ├── desportivo.ts   # Modelo "Desportivo"
+│   │   ├── lumiere.ts      # Modelo "Lumière Chic"
+│   │   └── foodmart.ts     # FORA do registo; só exporta foodmartDefaultFeatures
 │   └── views/              # Vistas (páginas) da SPA
 │       ├── landing.ts      # Landing page (mobisno.store)
 │       ├── login.ts        # Login / registo
@@ -169,10 +185,11 @@
 │       ├── category.ts     # Página de categoria
 │       ├── cart.ts         # Carrinho
 │       ├── checkout.ts     # Checkout (3 métodos: WhatsApp, MCX, Ref. Bancária)
-│       ├── preview.ts      # Preview de template
+│       ├── preview.ts      # Preview de modelo
+│       ├── directory.ts    # Diretório público de lojas (/lojas)
+│       ├── presetGallery.ts # Galeria de presets / lojas-modelo
 │       ├── adminPanel.ts   # Painel de administração
-│       ├── legal.ts        # Termos / Privacidade / Política
-│       └── login.ts
+│       └── legal.ts        # Termos / Privacidade / Política
 │
 ├── supabase/
 │   ├── migrations/         # SQL: 0001_init.sql … 0018_trial.sql
@@ -224,6 +241,7 @@ A app usa **History API** (sem hash). `main.ts` ouve `popstate` + evento `mb:rou
 /painel              → dashboard do dono
 /editor              → editor visual
 /adminpainel         → painel de administração (insensível a maiúsculas)
+/lojas               → diretório público de lojas (descoberta pelo Google — §13)
 /loja/<id>           → storefront (em mobisno.store ou localhost)
 /loja/<id>/produto/* → página de produto
 /loja/<id>/checkout  → checkout
@@ -264,7 +282,7 @@ Em `main.ts` / `boot()`:
 
 ```typescript
 if (isStoreApexRoot()) {
-  location.replace(`https://${PLATFORM_APEX}`);
+  location.replace(`https://${PLATFORM_APEX}${location.pathname}${location.search}`);
   return;
 }
 ```
@@ -283,10 +301,11 @@ if (isStoreApexRoot()) {
 | `assets` | Imagens (logo, produto, banner) associadas a lojas |
 | `banners` | Banners de uma loja (máx. 10, posição ordenada) |
 | `store_customizations` | JSON da personalização visual (`StoreCustomization`) |
-| `store_payments` | Configuração de pagamentos por loja (chave MoMenu, IBAN, WhatsApp, etc.) |
-| `orders` | Encomendas criadas pelo checkout |
-| `withdrawal_requests` | Pedidos de levantamento de saldo |
-| `sms_credits` | Saldo de SMS por loja |
+| `store_payments` | Configuração de pagamentos por loja: `online_enabled` (a regra de ativação) e dados bancários. A coluna `momenu_api_key` existe mas **já não é lida** — há uma única chave, a da plataforma |
+| `orders` | Encomendas criadas pelo checkout. `products` guarda as linhas vendidas, incluindo `variantKey` |
+| `plan_payments` | Pagamentos de plano |
+| `sms_purchases` / `logo_purchases` | Compras de pacotes de SMS e de logótipo |
+| `withdrawals` | Pedidos de levantamento de saldo |
 | `discount_codes` | Códigos de desconto por loja |
 | `product_reviews` | Avaliações de produtos (autor, rating, comentário, aprovado) |
 | `store_events` | Eventos de analytics (page_view, product_view, add_to_cart, etc.) |
@@ -351,7 +370,7 @@ Definidos em `src/models/domain.ts`. São interfaces TypeScript puras (sem lógi
 ```typescript
 { id, storeId, name, description, category?, featured?, physical?, price, imageUrl?, available, stock?, createdAt }
 ```
-- `stock`: `null`/`undefined` = ilimitado; `0` = esgotado. Decrementado atomicamente no servidor.
+- `stock`: `null`/`undefined` = não controlado; `0` = esgotado. Validado e abatido no servidor, **sem atomicidade** — ver §16, que descreve também o stock por Combinação.
 - `physical`: `true` por omissão (precisa morada de entrega). Produtos digitais: `false`.
 - `featured`: aparece na secção "Destaques" do storefront.
 
@@ -368,6 +387,8 @@ JSON guardado em `store_customizations`. Campos principais:
 - `heroImages`: URLs do hero em arco.
 - `payments.*`: configuração de pagamentos/WhatsApp/entregas/SMS/pixels.
 - `featureEnabled`, `productPerks`: galeria e garantias.
+- `productImages`: fotos extra por ID de Produto.
+- `productVariations`: Variação por ID de Produto (eixos, modo de preço, e as Combinação com preço e **stock** próprios — §16). Guardadas aqui, como as fotos extra, para não exigir migração à BD.
 
 ---
 
@@ -381,7 +402,8 @@ JSON guardado em `store_customizations`. Campos principais:
 | Profissional | 11.000 Kz | 3 | Ilimitado | ✓ | ✓ |
 | Empresarial | 25.000 Kz | Ilimitado | Ilimitado | ✓ | ✓ + gestor dedicado |
 
-Todos os planos incluem checkout via WhatsApp.
+Todos os planos incluem checkout via WhatsApp. O domínio próprio continua listado
+nos planos mas está «Em breve» e bloqueado na interface (§29).
 
 ### Lógica de Faturação (`src/services/billing.ts`)
 
@@ -405,8 +427,8 @@ Se o utilizador pagar um plano diferente enquanto o atual ainda tem tempo:
 
 ### Ativação de Plano pelo Servidor
 
-`api/_shared.js` → `activatePlan(userId, planId)` + `planActivationPatch` (importado do módulo billing).  
-`api/payment.js` chama `activatePlan` após confirmação de pagamento de plano.
+`api/_shared.js` → `activatePlan(db, ownerId, newPlan)`. **Não importa de `src/`**: `api/` é JavaScript sem passo de compilação, por isso a regra de `planActivationPatch` está espelhada à mão (renova o mesmo plano, agenda um plano diferente quando há tempo restante, ativa já quando não há período em curso). Ao alterar a regra em `src/services/billing.ts`, alterar aqui também.  
+`api/payment.js` chama `activatePlan` no MCX (pago de imediato) e `api/webhook.js` chama-o quando a Referência Bancária é confirmada.
 
 ### Admin tem acesso eterno
 
@@ -428,21 +450,27 @@ Se o utilizador pagar um plano diferente enquanto o atual ainda tem tempo:
 ### Fluxo de Pagamento de Produto (nas lojas)
 
 1. **Checkout** (`web/views/checkout.ts`) → utilizador escolhe método (MCX / Ref. Bancária / WhatsApp).
-2. Se online: `web/lib/paymentsApi.ts` chama `POST /api/payment` com `storeId`, `items`, `delivery`, `customerInfo`.
-3. `api/payment.js` lê a chave MoMenu da loja em `store_payments` (service role), cria a transação MoMenu e devolve `{ reference?, qrCode?, amount, transactionId }`.
-4. Browser mostra instruções. Webhook (`/api/webhook`) confirma o pagamento, abate stock, e atualiza a encomenda.
+2. Se online: `web/lib/paymentsApi.ts` chama `POST /api/payment` com `kind: "store"`, `storeId`, `method`, `products` e `customer` (ver §12 para o contrato completo).
+3. `api/payment.js` confirma que a loja tem pagamentos online ativados e plano que os cubra, valida o stock (`checkStock`), cria a transação MoMenu com a chave da plataforma (service role) e grava a encomenda em `orders`.
+4. MCX é imediato (`status: "paid"`) e o stock é abatido logo. Na Referência Bancária a encomenda fica `open` e o abate acontece no webhook (`/api/webhook`), na transição para pago.
 5. Fallback: botão "Já paguei — verificar" chama `GET /api/payment-status?id=<transactionId>`.
 
 ### Fluxo de Pagamento de Plano
 
-1. `web/lib/planCheckout.ts` chama `POST /api/payment` com `type: "plan"`, `planId`, sem `storeId`.
-2. Servidor usa `MOMENU_PLATFORM_API_KEY` (receita da plataforma).
-3. Confirmação via webhook ou polling → `activatePlan(userId, planId)`.
+1. `web/lib/planCheckout.ts` chama `POST /api/payment` com `kind: "plan"`, `ownerId`, `plan`, sem `storeId`.
+2. A transação fica em `plan_payments`.
+3. Confirmação (MCX imediato, ou webhook/polling na referência) → `activatePlan(db, ownerId, plan)`.
 
 ### Fluxo de Pagamento de SMS
 
-1. `web/lib/smsCheckout.ts` chama `POST /api/payment` com `type: "sms"`, `packageSize`.
-2. Confirmação → incrementa `sms_credits.credits` do dono.
+1. `web/lib/smsCheckout.ts` chama `POST /api/payment` com `kind: "sms"`, `storeId`, `ownerId`, `smsQuantity`.
+2. A compra fica em `sms_purchases`; a confirmação credita `stores.sms_credits` (`creditSms`) e marca `credited: true`, o que impede duplo crédito.
+3. A compra de créditos está **bloqueada na interface** enquanto o SMS estiver «Em breve» (ver §14).
+
+### Fluxo de Compra de Logótipo
+
+1. `kind: "logo"` com `storeId`, `ownerId` e `logoUrl`; a compra fica em `logo_purchases`.
+2. Confirmação → `fulfillLogo` acrescenta o URL a `stores.customization.logos` e marca `fulfilled: true`.
 
 ### Modo QA (Testes sem cobranças reais)
 
@@ -529,18 +557,40 @@ Em `web/views/editor.ts`, o handler `paste` dentro de `bind(preview)` intercepta
 
 Cada template implementa a interface:
 ```typescript
-interface TemplateDefinition {
-  id: string;
+interface StoreTemplate {
+  id: string;                   // igual ao templateId guardado na loja
   name: string;
-  defaultBrand: string;         // cor padrão da loja
-  render(view, custom): string; // HTML da home
-  renderProduct?(view, product, custom): string; // HTML do produto
-  renderCategory?(view, category, custom): string;
-  renderCheckout?(view, items, custom): string;
+  previewUrl: string;
+  ready?: boolean;              // só os `ready` aparecem na criação da loja
+  defaultBrand?: string;        // cor padrão do modelo
+  render(view, custom?): string; // HTML da home
+  renderProduct?(view, product, custom?): string;
+  renderCategory?(view, category, custom?): string;
+  renderCheckout?(view, innerHtml, custom?): string; // cromo em volta do checkout
 }
 ```
 
-Templates disponíveis: `galeria`, `beauty`, `desportivo` (e possivelmente outros). O `templateId` é guardado na loja.
+Modelos no `TEMPLATE_REGISTRY`: `desportivo`, `beauty`, `galeria`, `lumiere`
+(desenhados) e `boutique-elegante`, `tech-dinamico`, `sabor-artesanal` (render
+genérico). `templateOptions()` filtra por `ready`, por isso a criação de loja só
+oferece os que estão prontos.
+
+Os modelos **«Neon Lab»** (`neonlab`) e **«FoodMart»** (`foodmart`) **saíram do
+registo**: nenhuma loja nova os pode escolher. `web/templates/neonlab.ts` foi
+apagado; `foodmart.ts` fica no repositório porque exporta
+`foodmartDefaultFeatures`, ainda usado pelo editor para materializar as garantias
+de personalizações antigas — mas não é importado pelo registo, logo não entra no
+pacote. Uma loja gravada com `template_id` `neonlab` ou `foodmart` é servida com o
+primeiro modelo do registo (`desportivo`), pelo fallback de `getTemplate`.
+
+### Presets de Personalização (`web/templates/presets.ts`)
+
+`TEMPLATE_PRESETS` são personalizações de fábrica (cores, cabeçalho, blocos) que
+o dono pode aplicar. O primeiro chama-se **«Ekolo Sports»** e mantém o `id`
+`vermelho-moderno` de propósito: `getPreset(id)` e a marca `customization.__basedOn`
+das lojas já criadas em produção dependem dele. Nomes anteriores («Vermelho
+Moderno», «Ekolo sports») ficam declarados em `web/supabase/models.ts` para o
+semeador **renomear** a loja-modelo existente em vez de criar uma segunda.
 
 ### Personalização Visual
 
@@ -575,29 +625,48 @@ Todas as funções em `api/` são **ESM** com `export default handler(req, res)`
 ### `api/_shared.js`
 
 Utilitários partilhados por todas as funções:
-- `createSupabase()`: cliente com `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS).
-- `effectivePlanId(userId)`: lê o plano efetivo considerando trial.
-- `activatePlan(userId, planId)`: ativa plano (chama `planActivationPatch`).
-- `planActivationPatch(current, newPlan)`: calcula patch (importado de `billing.ts`).
-- `checkStock(supabase, items)`: verifica se há stock suficiente antes de criar encomenda.
-- `decrementStock(supabase, items, orderId)`: abate stock atomicamente (idempotente por `orderId`).
-- `bumpDiscountUse(supabase, code, storeId)`: incrementa o contador de usos de um código.
+- `admin()`: cliente com `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS), ou `null` se faltarem variáveis de ambiente.
+- `effectivePlanId(profile, now?)`: plano efetivo a partir da **linha de `profiles` já lida** (considera expiração, carry-over e trial).
+- `activatePlan(db, ownerId, newPlan)`: renova/agenda/ativa o plano após pagamento confirmado.
+- `checkStock(db, products, storeId)`: recusa a encomenda quando falta stock. Devolve o nome do primeiro Produto sem stock, ou `null`.
+- `decrementStock(db, products, storeId)`: abate o stock vendido.
+- `creditSms(db, storeId, quantity)`, `fulfillLogo(db, purchaseId)`, `bumpDiscountUse(db, discountCodeId)`.
+- `cleanProducts`, `isValidProduct`, `momenuProducts`, `productsTotal`, `computeFee`, `computeNet`: sanitização e cálculo das linhas da encomenda.
+- `combinationStockOf`, `asVariantKey`, `variantKeyOfValues`: espelho mínimo de `src/services/variations.ts` para o stock por Combinação (§16).
 
 ### `api/payment.js`
 
-`POST /api/payment` — inicia um pagamento (produto, plano ou SMS).
+`POST /api/payment` — inicia um pagamento (encomenda de loja, plano, SMS ou logótipo).
 
 Parâmetros (body JSON):
-- `type`: `"order"` | `"plan"` | `"sms"` (default `"order"`).
-- `storeId`: obrigatório para `"order"`.
-- `items`: `[{ productId, quantity, price }]`.
-- `delivery`: objeto com morada/custo.
-- `customerInfo`: `{ name, phone, email? }`.
-- `planId`: para `"plan"`.
-- `packageSize`: para `"sms"` (15|50|100|200).
-- `discountCode`: opcional.
+- `kind`: `"store"` | `"plan"` | `"sms"` | `"logo"` (por omissão `"store"`).
+- `method`: `"mcx"` | `"reference"` — **obrigatório**.
+- `products`: `[{ productName, productPrice, productQuantity, id?, iva?, variantKey? }]` — **obrigatório em todos os `kind`**; é daqui que sai o montante.
+- `storeId`: obrigatório em `"store"`, `"sms"` e `"logo"`.
+- `ownerId` + `plan`: para `"plan"`. `smsQuantity`: para `"sms"`. `logoUrl`: para `"logo"`.
+- `amount`: opcional; se vier, tem de coincidir com a soma dos produtos (`AMOUNT_MISMATCH`).
+- `phoneNumber`: obrigatório com `method: "mcx"`.
+- `customer`: `{ name?, nif?, phone? }`.
+- `discountCodeId`: opcional, só em `"store"` (é o **id** do código, não o texto).
+- `qa`, `simulateResult`: só ambiente de testes.
 
-Resposta: `{ transactionId, reference?, qrCode?, amount, expiresAt? }`.
+**`variantKey`** identifica a Combinação vendida (a versão do Produto: cor,
+tamanho…). É o campo que permite a `checkStock` e a `decrementStock` validar e
+abater o stock por Combinação. É **opcional e nunca invalida uma linha**: ausente,
+vazia, ou de tipo errado, a linha vale exatamente o que valia antes das Variação
+de Produto e só o `products.stock` do Produto é validado e abatido. Tem de ser
+assim: há carrinhos gravados em `localStorage` nos telemóveis dos clientes e
+encomendas já gravadas em `orders` sem este campo, e nenhuma delas pode passar a
+ser recusada. A chave é gravada em `orders.products` (é de lá que o webhook a lê),
+mas **sai** do corpo enviado à MoMenu — é interna à plataforma e não pertence ao
+contrato dela.
+
+Resposta: `{ success, orderId, kind, method, status, transactionId, operationId, invoiceUrl, entity, referenceNumber, dueDate, amount, fee, net }`.
+`status` é `"paid"` no MCX (imediato) e `"open"` na Referência Bancária.
+Erros: `{ success: false, error, code }` com `code` em `INVALID_METHOD`,
+`MISSING_PRODUCTS`, `INVALID_PRODUCT`, `AMOUNT_MISMATCH`, `BELOW_MINIMUM`,
+`MISSING_PHONE`, `MISSING_STORE`, `PAYMENTS_NOT_ENABLED`, `PLAN_NOT_COVERED`,
+`OUT_OF_STOCK`, `GATEWAY_ERROR`, `PAYMENT_FAILED`, `SERVER_NOT_CONFIGURED`.
 
 ### `api/payment-status.js`
 
@@ -605,10 +674,11 @@ Resposta: `{ transactionId, reference?, qrCode?, amount, expiresAt? }`.
 
 ### `api/webhook.js`
 
-`POST /api/webhook` — recebe notificação MoMenu de pagamento confirmado. Processa por `merchantTransactionId`:
-- Encomenda: abate stock, marca como paga.
-- Plano: chama `activatePlan`.
-- SMS: incrementa `sms_credits`.
+`POST /api/webhook` — recebe notificação MoMenu. Responde sempre 200 (entrega fire-and-forget). Processa por `merchantTransactionId`:
+- Encomenda (`orders`): atualiza o estado e, **só na transição para pago** (`status === "paid" && order.status !== "paid"`), chama `decrementStock` com `order.products` e `order.store_id`.
+- Plano (`plan_payments`): chama `activatePlan`.
+- SMS (`sms_purchases`): credita `stores.sms_credits` uma única vez (bandeira `credited`).
+- Logótipo (`logo_purchases`): entrega uma única vez (bandeira `fulfilled`).
 
 ### `api/prerender.js`
 
@@ -656,9 +726,17 @@ só executa JavaScript numa segunda passagem, e o Bing e os crawlers sociais nã
 o executam de todo.
 
 Cobre lojas em subdomínio, `mobisno.store` (landing, `/lojas`, legais) e
-`mobisno.store/loja/<id>`. Devolve **404** para loja inexistente e **410** para
-conta suspensa — antes devolvia 200 com o canónico da plataforma, o que criava
-centenas de duplicados.
+`mobisno.store/loja/<id>`. Devolve **404** para loja inexistente, produto ou
+categoria inexistentes e caminho desconhecido da plataforma; **410** para conta
+suspensa (antes devolvia 200 com o canónico da plataforma, o que criava centenas
+de duplicados); e **503 `no-store`** quando o shell não está disponível, para a
+CDN não guardar o erro em cache. Tabela completa em [SEO.md §3.5](SEO.md).
+
+`api/_seo.js` tem de **concordar** com `src/services/` — a lógica está duplicada
+porque as funções serverless correm JavaScript sem compilação. Ao mexer em slugs,
+títulos, descrições, formatação de preços, localizações (`src/services/locations.ts`)
+ou no texto das Variação (`src/services/variations.ts`), alterar nos dois sítios;
+há testes de paridade em `tests/seoInfra.test.ts`. Ver [SEO.md §5.2](SEO.md).
 
 O conteúdo fica no HTML mas recortado do ecrã; o visitante vê um ecrã de
 carregamento com a marca da loja. Ver [SEO.md §3.3](SEO.md).
@@ -666,8 +744,11 @@ carregamento com a marca da loja. Ver [SEO.md §3.3](SEO.md).
 ### Camada 2 — Cliente (`web/lib/seo.ts` + `src/services/seo.ts`)
 
 `applySeo(opts)` define no browser título, descrição, canónico, robots, Open
-Graph, Twitter Card e JSON-LD (`Product`, `OnlineStore`, `CollectionPage`,
-`BreadcrumbList`, `ItemList`, `Organization`, `FAQPage`).
+Graph, Twitter Card e JSON-LD (`Product` + `Offer`, `OnlineStore`, `WebSite`,
+`CollectionPage` + `ItemList`, `BreadcrumbList`, `Organization`, `FAQPage`). Que
+tipos entram em cada página está em [SEO.md §3.6](SEO.md), com a regra que não se
+negoceia: portes, devoluções e avaliações só são emitidos quando existem dados
+reais.
 
 Formatos dos títulos:
 - Loja: `custom.seo.title` do dono, ou `Nome da Loja | Compras em Angola`
@@ -718,31 +799,30 @@ WhatsApp e Facebook fazem cache das meta tags. Usar:
 
 ## 14. Sistema de SMS
 
-**Estado:** infra completa; envio real **NÃO implementado** (falta integrar provedor de SMS angolano).
+**Estado: «Em breve».** A infra de créditos existe, mas o envio real **não está
+implementado** (falta integrar um provedor angolano) e, por isso, a bandeira
+`COMING_SOON.sms` em `web/views/dashboard.ts` mantém a funcionalidade **bloqueada
+na interface**: a secção mostra a etiqueta «Em breve», os botões de pacote e o
+"Guardar" ficam desativados, e os manipuladores devolvem antes de escrever
+qualquer coisa. O saldo já comprado fica intacto. Reverter é pôr a bandeira a
+`false`.
 
-### BD: `sms_credits` (migração `0013_sms.sql`)
+### BD (migração `0013_sms.sql`)
 
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `owner_id` | uuid | FK para `profiles` |
-| `credits` | integer | Saldo de mensagens |
+- `stores.sms_credits integer not null default 0` — o **saldo**, por loja (não por dono).
+- `sms_purchases` — uma linha por compra: `store_id`, `owner_id`, `quantity`, `amount`, `method`, `status`, `credited`, `merchant_transaction_id`, `operation_id`, `paid_at`. A bandeira `credited` é o que impede creditar duas vezes o mesmo pagamento.
 
 ### Pacotes disponíveis
 
-| Pacote | Mensagens | Preço |
-|---|---|---|
-| Small | 15 | 4.500 Kz |
-| Medium | 50 | 14.000 Kz |
-| Large | 100 | 25.000 Kz |
-| XLarge | 200 | 45.000 Kz |
-
-Custo unitário: **300 Kz/mensagem**.
+`SMS_PACKAGES = [15, 50, 100, 200]` e `SMS_UNIT_PRICE = 300` Kz/mensagem, em
+`web/supabase/sms.ts`. O preço de um pacote é sempre `quantidade × 300` — não há
+desconto por volume, nem preços fixos por pacote: 4.500, 15.000, 30.000 e 60.000 Kz.
 
 ### Frontend
 
-- `web/supabase/sms.ts`: `getSmsBalance(ownerId)`, `buySmsPackage(ownerId, size)`.
-- `web/lib/smsCheckout.ts`: inicia pagamento de pacote via `/api/payment` com `type: "sms"`.
-- No dashboard (secção Configurações → SMS): saldo visível, botões de compra de pacote.
+- `web/supabase/sms.ts`: `getSmsCredits(storeId)` — o saldo é por **loja**.
+- `web/lib/smsCheckout.ts`: inicia pagamento de pacote via `/api/payment` com `kind: "sms"`.
+- No dashboard (Configurações → SMS): saldo visível; compra de pacote e ativação **bloqueadas** enquanto a funcionalidade está «Em breve».
 
 ### Para implementar envio
 
@@ -776,20 +856,52 @@ Integrar um provedor (ex.: Infobip, Africa's Talking, provedor local angolano) e
 
 ## 16. Stock de Produtos
 
+Há **dois** stocks, com a mesma leitura de valores: o do Produto, na coluna
+`products.stock`, e o de cada Combinação (versão do Produto — cor, tamanho…), em
+`stores.customization.productVariations[<productId>].combinations[].stock`.
+
+As três leituras, iguais nos dois casos:
+- **ausente / `null`** → stock não controlado; passa sempre.
+- **`0`** → esgotado; recusa.
+- **positivo** → disponível até essa quantidade.
+
+Uma Combinação que o dono **não gravou** conta como disponível: um campo em falta
+nunca bloqueia uma venda.
+
 ### BD (migração `0015_product_stock.sql`)
 
-Coluna `stock integer` adicionada a `products`. `null` = ilimitado.
+Coluna `stock integer` adicionada a `products`. O stock por Combinação não tem
+coluna própria — vive no JSON da personalização, ao lado das fotos extra.
 
-### Lógica
+### Lógica no servidor (`api/_shared.js`)
 
-- `stock = 0` → produto "Esgotado". Botão de compra desativado no frontend.
-- Antes de criar encomenda: `checkStock(supabase, items)` em `api/_shared.js` verifica se `stock >= quantity` para cada produto.
-- Após confirmação de pagamento: `decrementStock(supabase, items, orderId)` abate atomicamente. **Idempotente**: usa `orderId` para evitar duplo abate.
-- Se o stock chegar a zero durante o pagamento, a encomenda falha com `OUT_OF_STOCK`.
+- `checkStock(db, products, storeId)`, antes de criar a encomenda. Compara a
+  quantidade **agregada** — por `id` de Produto contra `products.stock`, e por
+  `(id, variantKey)` contra o `stock` da Combinação. Agregar é obrigatório: duas
+  Combinação do mesmo Produto são duas linhas do carrinho, e comparar linha a
+  linha deixava passar duas linhas de 3 unidades contra um stock de 3. Sem stock
+  suficiente, a encomenda é recusada com `OUT_OF_STOCK`.
+- `decrementStock(db, products, storeId)`, após confirmação. O `products.stock`
+  é abatido com leitura fresca por linha; o stock por Combinação é uma
+  leitura-modificação-escrita da coluna JSON `customization`, com os abates de
+  todas as linhas juntados numa **única escrita por encomenda** (uma escrita por
+  linha releria a coluna e perderia os abates anteriores).
+- Quando corre: no MCX, dentro de `api/payment.js` (pagamento imediato); na
+  Referência Bancária, em `api/webhook.js`, só na transição para pago — é isso, e
+  não um parâmetro de idempotência, que evita o duplo abate.
+- Uma linha sem `variantKey`, um Produto sem Variação ativas, ou uma falha a ler
+  a personalização → só o `products.stock` é validado e abatido.
+
+**Limitação conhecida:** o abate **não é atómico**. Entre `checkStock` e
+`decrementStock` há uma janela em que duas compras simultâneas do mesmo Produto
+(ou da mesma Combinação) validam ambas contra o mesmo stock antes de qualquer uma
+abater, e vende-se uma unidade a mais. Fechá-la exige abate na base de dados
+(função SQL, ou `update … where stock >= qty`).
 
 ### Frontend
 
-- Formulário de produto: toggle "Controlar stock" + campo de quantidade.
+- Formulário de produto: toggle "Controlar stock" + campo de quantidade. O stock
+  por Combinação é definido na grelha de Combinação do mesmo formulário.
 - Página de produto: exibe "Esgotado" se `stock === 0`, desativa botões.
 
 ---
@@ -882,11 +994,24 @@ Requer `is_admin = true` no perfil. Botão "Painel de Administração" visível 
 ### `web/supabase/admin.ts`
 
 Funções admin (requerem `is_admin` validado por RLS):
-- `adminListAccounts()`, `adminGetAccount(userId)`
-- `adminSetAccountPlan(userId, planId)`, `adminSuspendAccount(userId)`
-- `adminListStores()`, `adminGetStoreDetails(storeId)`
-- `adminListTransactions()`, `adminListWithdrawals()`
-- `adminGetOverview()` — métricas agregadas
+- `listAccounts()`, `listStores()`, `listAllWithdrawals()`, `listServiceTransactions()`, `adminStoreProductCounts()` — **só leitura**, sem agregação.
+- `adminOverview()` — os cinco totais globais. Lê as tabelas e delega a contagem em `overviewCounts()` de `src/services/adminMetrics.ts`, para a exclusão de Loja_Modelo e de contas de Administrador ser a mesma das restantes agregações (e ser testável).
+- `adminSetAccountPlan(ownerId, plan)`, `adminDeleteAccount(ownerId)`, `adminSetStoreState(storeId, state)`, `adminDeleteStore(storeId)`, `adminProcessWithdrawal(id, status)`, `adminDeleteServiceTransaction(id, service)`.
+- `adminStoresUsingTemplate(ids)` — verificação antes de eliminar lojas-modelo.
+
+### Métricas da Visão geral (`src/services/adminMetrics.ts`)
+
+Domínio puro, sem DOM e sem consultas: recebe o que o painel já leu. Quatro
+funções — `businessHealth` (6 métricas), `monthlyEvolution` (2 séries),
+`attentionLists` (5 listas) e `overviewCounts` (5 totais globais) — e **dezoito**
+agregações no total. A exclusão de Loja_Modelo (`customization.__template`) e de
+contas de Administrador é aplicada **num único sítio** (`buildScope`); nenhuma
+agregação toca nos arrays crus.
+
+**Armadilha de nomes:** `adminOverview().salesTotal` é o **volume de vendas das
+lojas** (dinheiro dos clientes dos donos, tabela `orders`); a **receita da
+plataforma** é `businessHealth().monthRevenue` e vem das transações de serviço
+(planos, SMS, logótipos). Grandezas diferentes, rótulos diferentes.
 
 ### Persistência de Sessão do Admin
 
@@ -946,7 +1071,7 @@ npm run test:watch   # modo watch (desenvolvimento)
 npm run build        # tsc --noEmit (verifica tipos em src/ + tests/)
 ```
 
-**167 testes devem passar.** Qualquer alteração que quebre testes deve ser corrigida antes de fazer commit.
+**A suite tem de passar inteira** antes de qualquer commit (55 ficheiros `*.test.ts` em `tests/`, unitários e de propriedade). Não fixamos aqui o número de casos: cresce a cada funcionalidade e um número desatualizado só serve para confundir. O portão é `npm run build` + `npm run web:build` + `npx vitest run`.
 
 ### Tipologia de Testes
 
@@ -1052,15 +1177,16 @@ Aplicar **por ordem** no SQL Editor do Supabase. Nunca pular uma migração.
 | 0007 | `0007_domain_store.sql` | Muda subdomínio de `.mobisno.com` para `.mobisno.store` |
 | 0008 | `0008_payments.sql` | Tabela `store_payments`, tabela `orders` |
 | 0009 | `0009_product_physical.sql` | Coluna `physical` em `products` |
-| 0010 | `0010_withdrawals.sql` | Tabela `withdrawal_requests` |
+| 0010 | `0010_withdrawals.sql` | Tabela `withdrawals` |
 | 0011 | `0011_admin.sql` | Coluna `is_admin` em `profiles`; políticas RLS admin |
 | 0012 | `0012_billing.sql` | Faturação: expiração 30d, `next_plan` carry-over; políticas |
-| 0013 | `0013_sms.sql` | Tabela `sms_credits` |
+| 0013 | `0013_sms.sql` | Coluna `sms_credits` em `stores`; tabela `sms_purchases` |
 | 0014 | `0014_discount_codes.sql` | Tabela `discount_codes` |
 | 0015 | `0015_product_stock.sql` | Coluna `stock` em `products` |
 | 0016 | `0016_reviews.sql` | Tabela `product_reviews` |
 | 0017 | `0017_store_events.sql` | Tabela `store_events` (analytics) |
 | 0018 | `0018_trial.sql` | Coluna `trial_ends_at` em `profiles`; função `account_active`; política `stores_public_read` atualizada |
+| 0018 | `0018_logo_purchases.sql` | Tabela `logo_purchases` (criação de logótipo por IA, compra avulsa). Partilha o número `0018` com `0018_trial.sql`; são independentes e a ordem entre as duas não importa |
 
 ### Scripts Utilitários
 
@@ -1178,7 +1304,7 @@ Português de Angola / Portugal (pt-AO). **Nunca usar:**
 ### Supabase Client
 
 - Browser: `web/supabase/client.ts` (`createClient` com `localStorage`, `pkce`, `storageKey = "mobisno-auth"`).
-- Servidor: `api/_shared.js` `createSupabase()` (com `SERVICE_ROLE_KEY`).
+- Servidor: `api/_shared.js` `admin()` (com `SERVICE_ROLE_KEY`).
 - **Nunca usar service role no browser.**
 
 ### Git
@@ -1200,7 +1326,7 @@ A plataforma é uma **SPA** (Single Page Application). O Google indexa bem (exec
 
 ### Hash Routing → History API
 
-O routing migrou de hash (`#/...`) para History API. O `vercel.json` encaminha todas as rotas para `api/prerender` que devolve o `index.html` correto. Retrocompatibilidade com links antigos via `cleanPath()` que aceita o formato `#/x`.
+O routing das **páginas públicas de loja** migrou de hash (`#/...`) para History API: o `vercel.json` encaminha essas rotas para `api/prerender`, que lê o shell de `/app.html` (nunca `index.html` — ver §13) e devolve HTML com conteúdo real. Retrocompatibilidade com links antigos via `cleanPath()`, que aceita o formato `#/x`. Dentro da aplicação **privada** (painel, editor, admin, login) o `#` continua a ser o esquema de rotas legítimo, porque essas páginas não são indexadas.
 
 ### `innerHTML` + Templates
 
@@ -1217,13 +1343,23 @@ As funções em `api/` usam o runtime Node.js (não Edge Runtime) porque importa
 
 As URLs de imagens em Storage são públicas por design (sem autenticação). O isolamento é garantido por nomes de path únicos (ex.: `logos/<store_id>/<timestamp>.webp`). Não armazenar dados sensíveis em Storage.
 
-### SMS — Envio Não Implementado
+### SMS de Confirmação — «Em breve», bloqueado na interface
 
-A infraestrutura de créditos SMS está completa (compra, saldo, BD). O envio real de SMS (para confirmar compras) **não está implementado** — falta escolher e integrar um provedor de SMS angolano.
+A infraestrutura de créditos existe (saldo em `stores.sms_credits`, compras em
+`sms_purchases`), mas o envio real **não está implementado** — falta escolher e
+integrar um provedor angolano. Anunciar uma funcionalidade que não envia nada é
+pior do que não a anunciar, por isso a bandeira `COMING_SOON.sms` em
+`web/views/dashboard.ts` mostra a etiqueta «Em breve» e **bloqueia** a compra de
+créditos e a ativação do envio: os botões ficam desativados e os manipuladores
+devolvem antes de escrever. Reverter é pôr a bandeira a `false`.
 
-### Domínio Próprio (Plano Profissional+)
+### Domínio Próprio — «Em breve», bloqueado na interface
 
-A funcionalidade de "domínio próprio" está listada como feature do plano, mas a configuração técnica (DNS CNAME apontando para a Vercel) é manual e requer suporte ao cliente. Não há automação de DNS na plataforma.
+Continua a ser feature dos planos Profissional e Empresarial, mas a configuração
+técnica (CNAME para a Vercel) é manual e não há automação de DNS na plataforma.
+Enquanto isso, `COMING_SOON.customDomain` mostra «Em breve» e **bloqueia guardar**
+um domínio: o campo aparece, o "Guardar" está desativado e o manipulador recusa
+com um aviso. Nada é escrito em `customization.customDomain`.
 
 ---
 
@@ -1231,8 +1367,8 @@ A funcionalidade de "domínio próprio" está listada como feature do plano, mas
 
 | Funcionalidade | Estado | Notas |
 |---|---|---|
-| Envio de SMS de confirmação | ❌ Não implementado | Infra pronta; falta provedor |
-| Domínio próprio automático | ❌ Não implementado | Feature paga; configuração manual |
+| Envio de SMS de confirmação | ⏳ «Em breve» | Infra de créditos pronta; falta provedor. Compra e ativação **bloqueadas** na interface (§29) |
+| Domínio próprio automático | ⏳ «Em breve» | Feature paga; configuração manual. Guardar domínio **bloqueado** na interface (§29) |
 | Email transacional (confirmação, welcome) | ❌ Não implementado | Supabase Auth envia email de confirmação; resto manual |
 | Verificação de email com template da marca | ❌ Não implementado | Requer SMTP próprio + template HTML com logo |
 | App móvel | ❌ Não planeado | SPA responsiva; PWA possível |

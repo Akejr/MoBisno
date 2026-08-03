@@ -1,7 +1,8 @@
 # SEO — Como funciona na MôBisno
 
 > **Leia antes de mexer em `api/prerender.js`, `api/_seo.js`, `src/services/seo.ts`,
-> `web/lib/seo.ts`, nos modelos de loja (`web/templates/`) ou no `vercel.json`.**
+> `src/services/locations.ts`, `src/services/variations.ts`, `web/lib/seo.ts`, nos
+> modelos de loja (`web/templates/`) ou no `vercel.json`.**
 > Há aqui invariantes que, quando se quebram, tornam o site invisível no Google
 > **sem que nenhum teste, build ou página falhe**. São descritas na secção 5.
 
@@ -256,7 +257,9 @@ oferece é motivo de penalização. Os portes vêm de `customization.delivery`
   reais em vez de fragmentos.
 - **11 modelos e componentes** (`beauty`, `desportivo`, `foodmart`, `galeria`,
   `lumiere`, `neonlab`, `headers`, `footers`, `productPage`, `registry`,
-  `sectionsModel`) — todas as ligações passaram a caminhos reais.
+  `sectionsModel`) — todas as ligações passaram a caminhos reais. (`foodmart` e
+  `neonlab` saíram depois do `TEMPLATE_REGISTRY`: os ficheiros continuam no
+  repositório, mas nenhuma loja nova os pode escolher.)
 - **`web/lib/`** — `cartDrawer.ts`, `search.ts`, `foodmartCarousel.ts` (os
   parsers de href dependiam do formato `#/loja/...`); `seo.ts`
   (`shippingFromCustom`, `addressFromCustom`, `og:image:alt`); `slug.ts`,
@@ -273,15 +276,27 @@ oferece é motivo de penalização. Os portes vêm de `customization.delivery`
 
 Estas cinco regras não produzem erro nenhum quando são violadas: o build passa,
 os tipos passam, a página abre. Só o tráfego desaparece. Por isso há testes a
-guardá-las em `tests/seoInfra.test.ts`.
+guardá-las em `tests/seoInfra.test.ts` (5.1 a 5.4) e em `tests/seo.test.ts`
+(5.5).
 
-### 5.1 Nenhuma ligação interna pode usar `#`
+### 5.1 Nenhuma ligação interna de página pública pode usar `#`
 
 O Google descarta o fragmento. Uma ligação `#/loja/x/produto/y` não é seguida
 nem indexada — o produto fica sem uma única ligação a apontar-lhe.
 
 Use sempre `storeBasePath(identifier)` (vazio em subdomínio, `/loja/<id>` no
 domínio principal) e `storeHomePath(identifier)`.
+
+O alcance da regra são as **páginas públicas**: `web/templates/` (todos os
+modelos e componentes) e as cinco vistas públicas de loja — `storefront.ts`,
+`product.ts`, `category.ts`, `cart.ts`, `checkout.ts`. Fora delas o `#` continua
+a ser o esquema de rotas legítimo da aplicação **privada** (`dashboard.ts`,
+`adminPanel.ts`, `login.ts`, `landing.ts`, `wizard.ts`, `presetGallery.ts`,
+`editor.ts`), que não é indexada: `href="#/painel"` e
+`#/adminPainel/levantamentos` (ver `ADMIN_HREFS` em
+`src/services/adminMetrics.ts`) estão corretos. A lista das vistas públicas está
+em `PUBLIC_STORE_VIEWS`, no teste — uma vista pública nova de loja tem de ser
+acrescentada lá, senão fica sem guarda.
 
 > Guardado por: *"nenhum modelo de loja gera ligações com fragmento"* e *"as
 > vistas públicas também não geram ligações com fragmento"*.
@@ -296,8 +311,23 @@ Google vê duas páginas onde só existe uma.
 Ao alterar slugs, títulos, descrições ou formatação de preços, **alterar nos
 dois sítios**.
 
+Além dessas, há **duas paridades obrigatórias** acrescentadas depois, ambas com
+conteúdo visível no HTML servido:
+
+| Paridade | Domínio | Espelho em `api/_seo.js` |
+|---|---|---|
+| **Localizações** — cascata de `resolveLocations` (lista `places[]` → localização única legada → morada do rodapé) e URL de `mapEmbedSrc` | `src/services/locations.ts` | `resolveLocations`, `mapEmbedSrc`, `locationsHtml` |
+| **Texto das Variação** — uma linha por eixo, `nome: valor, valor`, unidas por `\n` | `src/services/variations.ts` (`variationsPlainText`, `normalizeVariations`) | `variationsPlainText`, `productVariationsOf` |
+
+Se a cascata das localizações divergir, o mapa do HTML pré-renderizado aponta
+para um sítio diferente do que a SPA mostra; se o texto das Variação divergir, o
+rastreador deixa de ver que o Produto existe em várias versões (é a única forma
+de o ver — os seletores são montados pela SPA).
+
 > Guardado por: testes de paridade de `slugify`, `productSlugPath`, `formatKz`,
-> títulos e descrições.
+> títulos e descrições, mais *"paridade das localizações entre api/_seo.js e
+> src/services/locations.ts"* e *"paridade das Variação entre api/_seo.js e
+> src/services/variations.ts"*, todos em `tests/seoInfra.test.ts`.
 
 ### 5.3 Não pode existir `index.html` na raiz do output
 
@@ -319,7 +349,7 @@ Portes, devoluções e avaliações inventados são motivo de penalização. Os 
 opcionais só são emitidos quando há dados reais.
 
 > Guardado por: *"portes só entram no schema quando a loja os configurou"* e
-> *"avaliações só entram quando há avaliações reais"*.
+> *"avaliações só entram quando há avaliações reais"*, em `tests/seo.test.ts`.
 
 ---
 
@@ -371,9 +401,11 @@ Enquanto não estiver feito, o sitemap a submeter no Search Console é
 
 ### 7.2 As lojas-modelo estão a ser indexadas
 
-Das lojas publicadas, várias são demos de modelos (`modelo-foodmart`,
-`modelo-neon-lab`, `modelo-lumi-re-chic`, `modelo-vermelho-moderno`). Aparecem
-no diretório e no índice de sitemaps como se fossem lojas reais.
+Das lojas publicadas, várias são demos de modelos (`modelo-lumi-re-chic`, do
+modelo `lumiere`, e `modelo-ekolo-sports` — ou `modelo-vermelho-moderno` nas
+lojas-modelo semeadas antes da renomeação para «Ekolo Sports»; o identificador
+não muda quando o nome muda). Aparecem no diretório e no índice de sitemaps como
+se fossem lojas reais.
 
 É mau por dois motivos: são conteúdo fino e quase duplicado entre si, e diluem o
 diretório que existe precisamente para dar autoridade às lojas dos clientes.

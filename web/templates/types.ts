@@ -1,6 +1,7 @@
 /** Contrato de um Modelo de loja publicável + customização por loja. */
 import type { StoreRenderView } from "../../src/storefront/storeRenderer.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
+import type { ProductVariations } from "../../src/models/domain.js";
 
 /**
  * Personalização editável pelo dono da loja (guardada em JSON no Supabase).
@@ -164,6 +165,21 @@ export interface StoreCustomization {
    * pelo ID do produto. Guardadas aqui para não exigir migração à base de dados.
    */
   productImages?: Record<string, string[]>;
+
+  /**
+   * Variação por produto (eixos, modo de preço e Combinação), indexadas pelo
+   * **ID do produto** — a mesma chave e o mesmo motivo de `productImages`
+   * acima: guardadas aqui para não exigir migração à base de dados
+   * (`MODELO-GUIA.md` §9, decisão **D1**). Um produto sem entrada, ou com
+   * `enabled` diferente de `true`, corre o comportamento atual.
+   *
+   * Este JSON não é de confiança: foi gravado por versões diferentes da
+   * Plataforma e é editável à mão no Painel_Admin. **Nunca ler diretamente** —
+   * a leitura passa sempre por `normalizeVariations(custom, productId)` de
+   * `src/services/variations.ts`, que é total e devolve `null` para tudo o que
+   * não sirva.
+   */
+  productVariations?: Record<string, ProductVariations>;
 
   /** Cor de fundo da secção de produtos (padrão branco em modelos que a suportam). */
   productsBg?: string;

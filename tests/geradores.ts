@@ -25,19 +25,17 @@
  * | `customizationArb` | Propriedade 1 (`paymentVisibility.property`), Propriedade 3 (`storeCustom.property`) |
  * | `orderLineArb`, `orderLinesArb`, `orderExtrasArb` | Propriedade 4 (`cartMessage.property`) |
  * | `adminSnapshotArb`, `lojaModeloArb` | Propriedade 5 (`adminMetrics.property`) |
- *
- * ## Crescimento previsto
- *
- * Falta uma tarefa posterior estender este ficheiro, e é para isso que as
- * secções estão separadas por título:
- *
- *  - `variationsArb` e `combinationArb` (Fase D) — Variação e Combinação de
- *    Produto, para a Propriedade 2.
- *
- * Não é implementado aqui: fica para a tarefa 14.4.
+ * | `combinationArb`, `precoBaseArb`, `modoDePrecoArb` | Propriedade 2 (`variations.property`) |
+ * | `variationsArb`, `variationsIncoerentesArb` | exemplos das Variação (`variations`) |
  */
 
 import fc from "fast-check";
+import type {
+  ProductCombination,
+  ProductVariationAxis,
+  ProductVariations,
+  VariationPriceMode,
+} from "../src/models/domain.js";
 import type { OrderExtras, OrderLine } from "../src/services/cartMessage.js";
 import {
   ATTENTION_WINDOW_DAYS,
@@ -943,3 +941,290 @@ export const lojaModeloArb: fc.Arbitrary<StoreLike> = fc
     customization: customizationDeLojaModeloArb,
   })
   .map(({ sufixo, ...loja }) => ({ id: `modelo-${sufixo}`, identifier: `modelo-${sufixo}`, ...loja }));
+
+// ---------------------------------------------------------------------------
+// Variação de Produto (`src/services/variations.ts`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Limite superior dos preços plausíveis, em Kz — o mesmo de `orderLineArb`,
+ * para as duas famílias de geradores falarem da mesma escala de dinheiro.
+ *
+ * Serve de referência aos preços de Combinação **negativos**: um desconto por
+ * versão maior do que qualquer preço base plausível é o único que faz o limite
+ * inferior a 0 de `effectivePrice` ser realmente atingido no modo «acresce».
+ */
+export const PRECO_BASE_MAX = 5_000_000;
+
+/**
+ * Preço base de um Produto (`product.price`), para acompanhar
+ * {@link combinationArb} na Propriedade 2.
+ *
+ * Inteiro não negativo: os preços em Kz são inteiros, e manter a aritmética em
+ * inteiros deixa `base + price` exatamente representável — sem isso a
+ * comparação do modo «acresce» teria de tolerar erro de vírgula flutuante e
+ * deixaria de dizer alguma coisa. Inclui `0`, o preço base de um Produto que só
+ * tem preço por Combinação.
+ */
+export const precoBaseArb: fc.Arbitrary<number> = fc.oneof(
+  { arbitrary: fc.integer({ min: 1, max: PRECO_BASE_MAX }), weight: 6 },
+  { arbitrary: fc.constant(0), weight: 2 },
+);
+
+/**
+ * Preço de uma Combinação, com os quatro casos do R4.6/R4.7/R4.8 **em pesos
+ * explícitos** em vez de um `fc.option` sem peso:
+ *
+ *  - **ausente** (~25 %) — a Combinação não define preço e vale o preço base
+ *    (R4.8). É o caso que distingue «sem preço» de «preço 0»;
+ *  - **`0`** (~17 %) — preço definido e nulo. No modo «substitui» dá preço 0, o
+ *    que é diferente de cair no preço base;
+ *  - **positivo** (~25 %) — o caso corrente de R4.6 e R4.7;
+ *  - **negativo até `-PRECO_BASE_MAX`** (~17 %) e **negativo de magnitude
+ *    superior a qualquer preço base** (~17 %) — desconto por versão. A segunda
+ *    fatia existe porque só ela garante `base + price < 0` para **todo** o preço
+ *    base gerado, e é aí que o limite inferior a 0 de `effectivePrice` deixa de
+ *    ser teórico.
+ *
+ * Só números **finitos**: `NaN` e `Infinity` passam a barreira de tipos, mas
+ * `asFinite` trata-os como preço ausente. Gerá-los aqui faria a Propriedade 2
+ * testar o descarte em vez da aritmética; são caso de exemplo (tarefa 14.6).
+ */
+const precoDeCombinacaoArb: fc.Arbitrary<number | undefined> = fc.oneof(
+  { arbitrary: fc.constant<number | undefined>(undefined), weight: 3 },
+  { arbitrary: fc.constant(0), weight: 2 },
+  { arbitrary: fc.integer({ min: 1, max: PRECO_BASE_MAX }), weight: 3 },
+  { arbitrary: fc.integer({ min: -PRECO_BASE_MAX, max: -1 }), weight: 2 },
+  {
+    arbitrary: fc.integer({ min: -3 * PRECO_BASE_MAX, max: -PRECO_BASE_MAX - 1 }),
+    weight: 2,
+  },
+);
+
+/**
+ * Stock de uma Combinação, com os **três estados** do R4.11/R4.12 em pesos
+ * explícitos: **ausente** (~30 %, não controlado, sempre disponível), **`0`**
+ * (~30 %, esgotado) e **positivo** (~40 %, disponível).
+ *
+ * `0` e ausente não são equivalentes, e é por isso que a ausência tem peso
+ * próprio em vez de vir de um `fc.option`: com pesos ao acaso, um dos dois
+ * estados ficaria sub-representado e a diferença entre eles passaria por testar.
+ */
+const stockDeCombinacaoArb: fc.Arbitrary<number | undefined> = fc.oneof(
+  { arbitrary: fc.constant<number | undefined>(undefined), weight: 3 },
+  { arbitrary: fc.constant(0), weight: 3 },
+  { arbitrary: fc.integer({ min: 1, max: 500 }), weight: 4 },
+);
+
+/**
+ * Monta uma Combinação escrevendo `price` e `stock` **só quando existem**.
+ *
+ * `{ values, price: undefined }` e `{ values }` são objetos diferentes: o
+ * primeiro tem a chave `price` presente com valor `undefined`, e um teste que
+ * compare Combinação por igualdade estrutural (ou que conte chaves) distingue-os.
+ * A forma gravada na Personalização é a segunda, e é essa que o gerador produz.
+ */
+function criarCombinacao(
+  values: readonly string[],
+  price: number | undefined,
+  stock: number | undefined,
+): ProductCombination {
+  const combination: ProductCombination = { values: [...values] };
+  if (price !== undefined) combination.price = price;
+  if (stock !== undefined) combination.stock = stock;
+  return combination;
+}
+
+/**
+ * Valores de eixo plausíveis, tal como um Dono os escreve no
+ * Formulario_De_Produto.
+ *
+ * Deliberadamente curtos e legíveis: os valores entram na chave da Combinação e
+ * na etiqueta da linha de Carrinho, e um contra-exemplo com texto arbitrário
+ * cheio de acentos e caracteres de controlo seria ilegível sem cobrir nada de
+ * novo — a robustez a texto hostil é de `normalizeVariations`, e essa vive nos
+ * exemplos (tarefa 14.6) e em {@link variationsIncoerentesArb}.
+ */
+const valorDeEixoArb: fc.Arbitrary<string> = fc.constantFrom(
+  "Preto",
+  "Branco",
+  "Azul",
+  "S",
+  "M",
+  "L",
+  "Manga",
+  "Tamanho único",
+);
+
+/**
+ * Combinação arbitrária de um Produto, para a **Propriedade 2**.
+ *
+ * `values` tem entre 1 e 3 valores, o que corresponde a um Produto de 1 a 3
+ * eixos. Não é validada contra eixo nenhum, e isso é intencional:
+ * `effectivePrice` e `combinationAvailable` só leem `price` e `stock`, pelo que
+ * a Propriedade 2 não precisa de eixos. Quem precisar de Variação **coerentes**,
+ * com a invariante posicional garantida, usa {@link variationsArb}.
+ *
+ * A cobertura que importa está em {@link precoDeCombinacaoArb} (preço ausente,
+ * `0`, positivo e negativo, incluindo negativos que ultrapassam qualquer preço
+ * base plausível) e em {@link stockDeCombinacaoArb} (stock ausente, `0` e
+ * positivo).
+ */
+export const combinationArb: fc.Arbitrary<ProductCombination> = fc
+  .tuple(
+    fc.array(valorDeEixoArb, { minLength: 1, maxLength: 3 }),
+    precoDeCombinacaoArb,
+    stockDeCombinacaoArb,
+  )
+  .map(([values, price, stock]) => criarCombinacao(values, price, stock));
+
+/**
+ * Modo de preço de um Produto: os **dois** valores do R4.4, sem pesos.
+ *
+ * São os dois ramos da aritmética de `effectivePrice` — «substitui» devolve o
+ * preço da Combinação (R4.6), «acresce» devolve a soma (R4.7) — e nenhum deles é
+ * mais provável do que o outro numa Loja real. Valores fora deste par
+ * (`undefined`, texto desconhecido, tipos errados) caem todos em «substitui» por
+ * `asPriceMode`, o que é descarte e não aritmética: é caso de exemplo (tarefa
+ * 14.6), não de propriedade.
+ */
+export const modoDePrecoArb: fc.Arbitrary<VariationPriceMode> = fc.constantFrom<
+  VariationPriceMode[]
+>("substitui", "acresce");
+
+/** Um eixo do catálogo de eixos possíveis, com o seu conjunto de valores. */
+interface EixoPossivel {
+  readonly name: string;
+  readonly values: readonly string[];
+}
+
+/**
+ * Catálogo de eixos a partir do qual {@link variationsArb} escolhe. Os nomes
+ * são **distintos entre si**, o que dispensa filtros de rejeição para garantir
+ * eixos sem nomes repetidos.
+ */
+const EIXOS_POSSIVEIS: readonly EixoPossivel[] = [
+  { name: "Cor", values: ["Preto", "Branco", "Azul", "Vermelho"] },
+  { name: "Tamanho", values: ["S", "M", "L", "XL"] },
+  { name: "Sabor", values: ["Manga", "Baunilha", "Café"] },
+];
+
+/**
+ * Produto cartesiano dos valores dos eixos, na ordem dos eixos.
+ *
+ * É uma reimplementação de três linhas do que `combinationsOf` faz, e é de
+ * propósito: um gerador que chamasse a função em teste herdaria os seus defeitos
+ * e a propriedade passaria a comparar o módulo consigo mesmo.
+ */
+function produtoCartesiano(axes: readonly ProductVariationAxis[]): string[][] {
+  let resultado: string[][] = [[]];
+  for (const axis of axes) {
+    const proximo: string[][] = [];
+    for (const prefixo of resultado) {
+      for (const value of axis.values) proximo.push([...prefixo, value]);
+    }
+    resultado = proximo;
+  }
+  return resultado;
+}
+
+/** Um subconjunto não vazio dos valores de cada eixo escolhido, sem duplicados. */
+function valoresDosEixosArb(eixos: readonly EixoPossivel[]): fc.Arbitrary<string[][]> {
+  return fc.tuple(...eixos.map((eixo) => fc.subarray([...eixo.values], { minLength: 1 })));
+}
+
+/**
+ * Variação **coerentes** de um Produto: 1 a 3 eixos com nomes distintos, cada um
+ * com 1 a 4 valores sem duplicados, `priceMode` nos dois valores possíveis, e
+ * `combinations` que respeitam a **invariante posicional** — um valor por eixo,
+ * na ordem de `axes`, e `values[i]` sempre um dos valores de `axes[i]`.
+ *
+ * A coerência é construída, não filtrada: as Combinação são um subconjunto do
+ * produto cartesiano dos valores já escolhidos. É o ponto central deste gerador.
+ * Uma Variação com `values` de comprimento errado é lixo que
+ * `normalizeVariations` descarta, e um teste alimentado com lixo verifica o
+ * descarte em vez da aritmética das Variação. Os casos incoerentes existem, mas
+ * em separado: {@link variationsIncoerentesArb}.
+ *
+ * Duas escolhas deliberadas:
+ *
+ *  - **`enabled` é sempre `true`.** Só `true` ativa as Variação (R4.1); com
+ *    `false`, `normalizeVariations` devolve `null` e o Produto corre o
+ *    comportamento de hoje (R4.16). Esse é um caso único e enumerável — um
+ *    exemplo (tarefa 14.6), não uma propriedade;
+ *  - **`combinations` pode ser vazia.** É um estado legítimo: uma seleção sem
+ *    Combinação gravada vale o preço base e está disponível. Sub-representá-la
+ *    esconderia o caso mais provável numa Loja recém-configurada.
+ */
+export const variationsArb: fc.Arbitrary<ProductVariations> = fc
+  .subarray([...EIXOS_POSSIVEIS], { minLength: 1 })
+  .chain((eixos) =>
+    valoresDosEixosArb(eixos).chain((valores) => {
+      const axes: ProductVariationAxis[] = eixos.map((eixo, i) => ({
+        name: eixo.name,
+        values: [...(valores[i] ?? [])],
+      }));
+      return fc.subarray(produtoCartesiano(axes)).chain((escolhidas) =>
+        fc
+          .tuple(
+            modoDePrecoArb,
+            fc.array(fc.tuple(precoDeCombinacaoArb, stockDeCombinacaoArb), {
+              minLength: escolhidas.length,
+              maxLength: escolhidas.length,
+            }),
+          )
+          .map(([priceMode, precosEStocks]) => ({
+            enabled: true,
+            priceMode,
+            axes,
+            combinations: escolhidas.map((values, i) =>
+              criarCombinacao(values, precosEStocks[i]?.[0], precosEStocks[i]?.[1]),
+            ),
+          })),
+      );
+    }),
+  );
+
+/**
+ * Variação **incoerentes**: as mesmas de {@link variationsArb}, com a invariante
+ * posicional quebrada de uma das quatro maneiras que a Personalização editada à
+ * mão produz.
+ *
+ *  - `"valor-a-mais"` e `"valor-a-menos"` — `values.length !== axes.length`, o
+ *    que acontece a todas as Combinação gravadas quando o Dono acrescenta ou
+ *    remove um eixo inteiro;
+ *  - `"valor-fora-do-eixo"` — `values[0]` deixou de ser um valor de `axes[0]`,
+ *    que é o que sobra de uma Combinação depois de o Dono remover esse valor do
+ *    eixo (R4.19);
+ *  - `"combinacao-duplicada"` — a mesma Combinação duas vezes na lista, de que
+ *    só a primeira sobrevive.
+ *
+ * **Não é para a Propriedade 2.** Serve a quem quiser exercitar o descarte de
+ * `normalizeVariations` e a preservação de `syncCombinations` — e está separado
+ * precisamente para que nenhum teste de aritmética de preços seja alimentado
+ * com dados que o módulo descarta antes de chegar à aritmética.
+ */
+export const variationsIncoerentesArb: fc.Arbitrary<ProductVariations> = fc
+  .tuple(
+    variationsArb.filter((v) => v.combinations.length > 0),
+    fc.constantFrom(
+      "valor-a-mais",
+      "valor-a-menos",
+      "valor-fora-do-eixo",
+      "combinacao-duplicada",
+    ),
+  )
+  .map(([v, corrupcao]) => {
+    const combinations = v.combinations.map((comb) => ({ ...comb, values: [...comb.values] }));
+    if (corrupcao === "valor-a-mais") {
+      for (const comb of combinations) comb.values.push("Valor a mais");
+    } else if (corrupcao === "valor-a-menos") {
+      for (const comb of combinations) comb.values.pop();
+    } else if (corrupcao === "valor-fora-do-eixo") {
+      for (const comb of combinations) comb.values[0] = "Valor inexistente";
+    } else {
+      const primeira = combinations[0];
+      if (primeira !== undefined) combinations.push({ ...primeira, values: [...primeira.values] });
+    }
+    return { ...v, combinations };
+  });

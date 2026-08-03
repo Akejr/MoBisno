@@ -9,7 +9,9 @@
  *    storeId?: string,               // obrigatório quando kind="store"
  *    ownerId?: string, plan?: string,// obrigatório quando kind="plan"
  *    method: "mcx" | "reference",
- *    products: [{ productName, productPrice, productQuantity, id?, iva? }],
+ *    products: [{ productName, productPrice, productQuantity, id?, iva?, variantKey? }],
+ *                                    // `variantKey`: Combinação vendida (R4);
+ *                                    // opcional, ausente em carrinhos legados
  *    amount?: number,                // opcional; tem de coincidir com os produtos
  *    phoneNumber?: string,           // obrigatório para MCX
  *    customer?: { name?, nif?, phone? },
@@ -19,7 +21,7 @@
 
 import {
   admin, momenu, readBody, send,
-  productsTotal, computeFee, computeNet, isValidProduct, cleanProducts,
+  productsTotal, computeFee, computeNet, isValidProduct, cleanProducts, momenuProducts,
   mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, fulfillLogo, bumpDiscountUse,
   effectivePlanId, planAllowsOnline, checkStock, decrementStock,
 } from "./_shared.js";
@@ -71,8 +73,10 @@ export default async function handler(req, res) {
         return send(res, 400, { success: false, error: "Os pagamentos online não estão disponíveis no plano atual da loja.", code: "PLAN_NOT_COVERED" });
       }
     }
-    // Stock: recusa se algum item não tiver stock suficiente.
-    const outName = await checkStock(db, products);
+    // Stock: recusa se algum item não tiver stock suficiente. As quantidades são
+    // somadas por Produto e por Combinação antes de comparar, e o `storeId` dá
+    // acesso ao stock por Combinação na Personalização da Loja.
+    const outName = await checkStock(db, products, storeId);
     if (outName) {
       return send(res, 400, { success: false, error: `Sem stock suficiente para "${outName}".`, code: "OUT_OF_STOCK" });
     }
@@ -121,7 +125,10 @@ export default async function handler(req, res) {
 
   // Construir o payload da API.
   const qa = body.qa === true;
-  const payload = { products: chargeProducts, instantWithdraw: true };
+  // A `variantKey` é interna (identifica a Combinação vendida) e não pertence ao
+  // contrato da MoMenu: sai do payload, mas fica em `orders.products`, porque é
+  // dela que o webhook precisa para abater o stock da Combinação mais tarde.
+  const payload = { products: momenuProducts(chargeProducts), instantWithdraw: true };
   payload.paymentInfo = method === "mcx"
     ? { amount: chargeAmount, phoneNumber: String(body.phoneNumber).replace(/\D/g, "") }
     : { amount: chargeAmount };
@@ -222,7 +229,7 @@ export default async function handler(req, res) {
       if (discountId) await bumpDiscountUse(db, discountId);
       // Abate o stock quando o pagamento é imediato (MCX). Na referência, o
       // abate ocorre no webhook quando o pagamento é confirmado.
-      if (status === "paid") await decrementStock(db, products);
+      if (status === "paid") await decrementStock(db, products, storeId);
     }
   } catch (e) {
     // O pagamento foi iniciado; não falhar a resposta por causa do registo.

@@ -26,6 +26,7 @@ const ler = (p: string): string => readFileSync(join(ROOT, p), "utf8");
 
 const MODELS = ler("web/supabase/models.ts");
 const ADMIN_PANEL = ler("web/views/adminPanel.ts");
+const PRESET_GALLERY = ler("web/views/presetGallery.ts");
 
 /** Recorta o corpo de uma função, do nome dela até ao marcador de fim. */
 function corpo(texto: string, inicio: string, fim: string): string {
@@ -113,5 +114,28 @@ describe("Painel_Admin — deteção de modelo «em falta»", () => {
     expect(ADMIN_PANEL).toMatch(
       /const missing = defaultFactoryModels\(\)\.filter\(\s*\(fm\) => !factoryModelNameKeys\(fm\)\.some\(\(key\) => haveNames\.has\(key\)\),/,
     );
+  });
+});
+
+describe("Galeria de modelos — o Dono nunca vê o mesmo modelo duas vezes (R1.1)", () => {
+  it("reconhece um modelo de fábrica por qualquer das suas grafias", () => {
+    // A galeria ficou fora da correção da renomeação: deduplicava pelo nome
+    // atual cru, por isso uma loja-modelo gravada na grafia antiga aparecia
+    // como um modelo separado do de fábrica com o nome novo.
+    expect(PRESET_GALLERY).toContain("factoryModelNameKeys");
+    expect(PRESET_GALLERY).toMatch(
+      /if \(factoryModelNameKeys\(fm\)\.some\(\(key\) => haveNames\.has\(key\)\)\) continue;/,
+    );
+    // Nada de comparação pelo nome atual cru: era esse o defeito.
+    expect(PRESET_GALLERY).not.toContain("seenNames");
+  });
+
+  it("agrupa as lojas-modelo do mesmo modelo de fábrica antes de as mostrar", () => {
+    // Com as duas lojas-modelo já em produção (grafia antiga e nova), o
+    // agrupamento é o que impede duas entradas na galeria; fica a da grafia atual.
+    expect(PRESET_GALLERY).toContain("dedupeByFactoryModel(await listTemplateModels())");
+    const fn = corpo(PRESET_GALLERY, "function dedupeByFactoryModel(", "\nasync function loadItems(");
+    expect(fn).toContain("factoryModelNameKeys(f).includes(key)");
+    expect(fn).toMatch(/if \(nameKey\(group\.chosen\.name\) !== group\.current && key === group\.current\)/);
   });
 });

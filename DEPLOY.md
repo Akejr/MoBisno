@@ -1,7 +1,14 @@
 # Deploy — MôBisno (Vercel + domínio mobisno.store)
 
-A app é uma SPA estática (Vite, routing por hash) com backend no Supabase.
-As lojas dos clientes ficam em **subdomínios reais**: `nomedaloja.mobisno.store`.
+A app é uma SPA estática (Vite) com backend no Supabase e funções serverless em
+`api/`. O routing é por **caminhos reais** (History API); o formato antigo `#/x`
+continua a ser aceite à entrada e normalizado por `cleanPath`, e é o esquema
+usado nas ligações da app **privada** (`#/painel`, `#/adminPainel/...`). Ver
+`SEO.md` §5.1.
+
+As lojas dos clientes ficam em **subdomínios reais** de `sualoja.digital`:
+`nomedaloja.sualoja.digital` (`STORE_APEX` em `web/lib/routing.ts`).
+`nomedaloja.mobisno.store` continua a resolver, por retrocompatibilidade.
 
 ## 1. Repositório
 
@@ -19,11 +26,22 @@ git push -u origin main
 ## 2. Projeto na Vercel
 
 1. **Add New → Project** → importar `Akejr/MoBisno`.
-2. A Vercel lê o `vercel.json` (build `npm run web:build`, output `web/dist`).
+2. A Vercel lê o `vercel.json` (build `npm run web:build`, output `web/dist`,
+   `framework: null`).
 3. **Environment Variables** (Production + Preview):
    - `VITE_SUPABASE_URL` = URL do projeto Supabase
    - `VITE_SUPABASE_ANON_KEY` = chave anon (pública)
+
+   As variáveis usadas pelas funções serverless (`SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, MoMenu, OpenAI) estão nas secções próprias, mais
+   abaixo. O resumo de todas está no fim deste documento.
 4. Deploy.
+
+> **Não alterar o `buildCommand`.** O `web:build` corre
+> `scripts/rename-shell.mjs`, que renomeia `web/dist/index.html` para
+> `app.html`. Sem isso a Vercel serve um ficheiro estático em `/` e o
+> `api/prerender.js` deixa de correr na página inicial de **todas** as lojas —
+> sem nada falhar. É a invariante §5.3 do `SEO.md`.
 
 ## 3. Domínios na Vercel + wildcards
 
@@ -54,14 +72,19 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 
 ## 4. Supabase
 
-1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0018_trial.sql`
-   (a `0007` muda o subdomínio para `.mobisno.store`; a `0008` cria pagamentos;
-   a `0009` o produto físico; a `0010` os pedidos de levantamento; a `0011`
-   adiciona `profiles.is_admin` e as políticas RLS de administração; a `0012`
-   a faturação de planos (expiração/carry-over); a `0013` os créditos de SMS;
-   a `0014` os códigos de desconto; a `0015` o stock de produtos; a `0016` as
-   avaliações de produtos; a `0017` os eventos de loja (analytics); a `0018` o
-   teste grátis de 1 semana e a suspensão da loja sem pagamento).
+1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0018`
+   (a `0001` cria também o bucket público `store-assets` e as políticas de
+   Storage; a `0007` muda o subdomínio para `.mobisno.store`; a `0008` cria
+   pagamentos; a `0009` o produto físico; a `0010` os pedidos de levantamento; a
+   `0011` adiciona `profiles.is_admin` e as políticas RLS de administração; a
+   `0012` a faturação de planos (expiração/carry-over); a `0013` os créditos de
+   SMS; a `0014` os códigos de desconto; a `0015` o stock de produtos; a `0016`
+   as avaliações de produtos; a `0017` os eventos de loja (analytics)).
+
+   **Há duas migrações com o número 0018** — aplicar **as duas**:
+   `0018_trial.sql` (teste grátis de 1 semana e suspensão da loja sem pagamento)
+   e `0018_logo_purchases.sql` (tabela `logo_purchases`, sem a qual a compra de
+   logótipo por IA falha no servidor).
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
    no SQL Editor, correr
    `update public.profiles set is_admin = true where email = 'o-seu-email@exemplo.com';`
@@ -75,13 +98,17 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 
 - `mobisno.store` / `www.mobisno.store` → app principal (landing, login, painel, criar).
 - `nomedaloja.sualoja.digital` → `main.ts` deteta o subdomínio e renderiza a loja
-  publicada desse identificador. As sub-páginas (produto/categoria/carrinho)
-  continuam a funcionar por hash (`#/loja/...`).
+  publicada desse identificador. As sub-páginas usam **caminhos reais**:
+  `/produto/<categoria>/<slug>`, `/categoria/<slug>`, `/carrinho`, `/checkout`.
 - `nomedaloja.mobisno.store` continua a resolver (lojas antigas), mas as URLs
   públicas novas usam `sualoja.digital` (`STORE_APEX`).
 - `sualoja.digital` (apex/www) → redireciona para `mobisno.store`.
-- Em `localhost` ou `*.vercel.app` (sem subdomínio) cai-se no modo hash
-  (`/#/loja/<identificador>`), por isso o preview da Vercel funciona à mesma.
+- Em `localhost` ou `*.vercel.app` (sem subdomínio) a loja abre em
+  `/loja/<identificador>` (e as sub-páginas em `/loja/<id>/produto/...`), por
+  isso o preview da Vercel funciona à mesma.
+- Os rewrites do `vercel.json`, por ordem: `/robots.txt` → `api/robots`,
+  `/sitemap.xml` → `api/sitemap`, `/` → `api/prerender` e qualquer caminho sem
+  extensão e fora de `/api/` → `api/prerender`.
 
 ## 6. Notas
 
@@ -100,32 +127,58 @@ O SEO tem duas camadas:
    Angola`; produtos como `Produto — Nome da Loja`.
 
 2. **Servidor** (`api/prerender.js`): os crawlers sociais (WhatsApp, Facebook)
-   **não executam JS**, por isso esta função injeta as meta tags (incluindo a
-   **imagem do produto** e o **og:site_name da loja**) no HTML servido para os
-   hosts de loja. Ao partilhar um link de produto/loja, o preview mostra a
-   imagem e foca a loja, não o MôBisno. É defensiva: perante erro devolve o
-   shell estático inalterado.
+   e a primeira passagem do Google **não executam JS**, por isso esta função faz
+   **SSR a sério** — injeta as meta tags (incluindo a **imagem do produto** e o
+   **og:site_name da loja**) *e* o conteúdo real dentro de `#app`, escondido do
+   visitante por recorte. Responde também com os códigos certos: **404** para
+   loja inexistente ou não publicada, **410** para conta suspensa, `noindex` no
+   carrinho/checkout e nos caminhos privados. É defensiva: perante erro devolve o
+   shell estático inalterado. O detalhe está no `SEO.md` §3.
 
 `api/robots.js` e `api/sitemap.js` geram `robots.txt` e `sitemap.xml` por host
-(o sitemap da loja lista os produtos; o da plataforma lista todas as lojas
-publicadas). Os rewrites estão em `vercel.json` (ordem: robots → sitemap →
-prerender por host de loja → fallback SPA).
+(o sitemap da loja lista produtos e categorias; o da plataforma é um índice das
+lojas publicadas). O diretório público de lojas é `/lojas`.
 
 > Requer as env vars do Supabase no servidor (`SUPABASE_URL` +
-> `SUPABASE_SERVICE_ROLE_KEY`), já usadas pelos pagamentos.
+> `SUPABASE_SERVICE_ROLE_KEY`), já usadas pelos pagamentos. `SUPABASE_URL` cai
+> para `VITE_SUPABASE_URL` quando não está definida.
 
-## Assistente de IA (olhinho do editor)
+**Passo manual, no Search Console:** submeter
+`https://www.sualoja.digital/sitemap.xml` (o apex devolve **308** para `www`) e
+criar uma propriedade de **Domínio** para `sualoja.digital`, verificada por DNS —
+sem ela não se pode pedir indexação dos subdomínios das lojas. Enquanto os apex
+redirecionarem para `www`, todos os `canonical` apontam para URLs que
+redirecionam; ver `SEO.md` §7.1 para o alinhamento pendente em Domains.
 
-O chat do assistente usa uma função serverless em `api/assistant.js` que guarda a
-chave da OpenAI **apenas no servidor**. Configura no Vercel (Project → Settings →
-Environment Variables):
+## Assistente de IA (olhinho do editor) e gerador de logótipos
 
-- `OPENAI_API_KEY` — a chave secreta da OpenAI (obrigatória).
-- `OPENAI_MODEL` — opcional; por omissão `gpt-5.4-mini`.
+O chat do assistente (`api/assistant.js`) e o gerador de logótipos
+(`api/logo.js`) guardam a chave da OpenAI **apenas no servidor**. Configura no
+Vercel (Project → Settings → Environment Variables):
+
+- `OPENAI_API_KEY` — a chave secreta da OpenAI (**obrigatória para os dois**).
+- `OPENAI_MODEL` — opcional; por omissão `gpt-5.4-mini` (texto/assistente).
+- `OPENAI_IMAGE_MODEL` — opcional; por omissão `gpt-image-1` (logótipos).
+- `OPENAI_IMAGE_QUALITY` — opcional; por omissão `medium` (logótipos).
+
+Sem `OPENAI_API_KEY` as duas funções respondem **500** com mensagem explícita —
+o assistente e a criação de logótipos ficam indisponíveis, o resto da app
+funciona.
+
+`api/assistant.js` aceita cinco *scopes* no corpo do pedido (`editor`, `site`,
+`seo`, `seotitle`, `logo`); `api/logo.js` pede cinco propostas em paralelo e
+devolve PNG com fundo transparente. Nem o scope nem o caminho do endpoint são
+verificados pelo `tsc` — são chamadas HTTP em execução (ver `SEO.md` §7.3).
 
 Nunca coloques a chave no frontend nem a faças commit. Em desenvolvimento local,
-o chat só funciona com `vercel dev` (a função `/api/assistant` não corre com o
-`vite` puro).
+estas funções só correm com `vercel dev` (não com o `vite` puro).
+
+### Compra de logótipo (5.000 Kz)
+
+Requer a migração `0018_logo_purchases.sql` e a `MOMENU_PLATFORM_API_KEY` (a
+compra é receita da plataforma). O ficheiro é carregado para o Storage **antes**
+do pagamento; ao confirmar, `fulfillLogo` acrescenta o URL a
+`stores.customization.logos`.
 
 ## Pagamentos (MoMenu — Multicaixa Express + Referência Bancária)
 
@@ -180,3 +233,35 @@ conta MoMenu conforme exigido.
 
 Abrir o checkout ou o painel com `?qa=1` no URL ativa o modo de testes
 (`x-env-qa: true`); nenhum valor real é cobrado (MCX simula `success`).
+
+## Resumo das variáveis de ambiente
+
+Todas na Vercel → Settings → Environment Variables (Production + Preview). Esta
+é a lista completa do que o código lê hoje — nada mais é consultado.
+
+| Variável | Onde é lida | Obrigatória | Por omissão |
+|---|---|---|---|
+| `VITE_SUPABASE_URL` | `web/supabase/client.ts` (build) | sim | — |
+| `VITE_SUPABASE_ANON_KEY` | `web/supabase/client.ts` (build) | sim | — |
+| `SUPABASE_URL` | `api/_shared.js` | sim | cai para `VITE_SUPABASE_URL` |
+| `SUPABASE_SERVICE_ROLE_KEY` | `api/_shared.js` | sim (secreta) | — |
+| `MOMENU_PLATFORM_API_KEY` | `api/_shared.js` | para planos, SMS e logótipos | `""` |
+| `MOMENU_BASE_URL` | `api/_shared.js` | não | `https://api.momenu.online` |
+| `OPENAI_API_KEY` | `api/assistant.js`, `api/logo.js` | para assistente e logótipos | — |
+| `OPENAI_MODEL` | `api/assistant.js` | não | `gpt-5.4-mini` |
+| `OPENAI_IMAGE_MODEL` | `api/logo.js` | não | `gpt-image-1` |
+| `OPENAI_IMAGE_QUALITY` | `api/logo.js` | não | `medium` |
+
+## Checklist de lançamento
+
+- [ ] Migrações `0001` … `0017` + **`0018_trial.sql` e `0018_logo_purchases.sql`**.
+- [ ] Bucket `store-assets` público (criado pela `0001`).
+- [ ] Variáveis de ambiente da tabela acima.
+- [ ] Domínios e wildcards (`*.sualoja.digital` é essencial) com SSL emitido.
+- [ ] Uma conta com `is_admin = true`.
+- [ ] Authentication → Site URL e Redirect URLs.
+- [ ] Webhook MoMenu para `https://mobisno.store/api/webhook`.
+- [ ] `curl` à raiz de uma loja: o `<title>` traz o nome da loja (prerender a
+      correr) e há `href="/produto/..."` no HTML — ver `SEO.md` §6.
+- [ ] Sitemap `https://www.sualoja.digital/sitemap.xml` submetido no Search
+      Console, com propriedade de Domínio verificada por DNS.

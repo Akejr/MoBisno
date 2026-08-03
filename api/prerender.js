@@ -260,7 +260,9 @@ export default async function handler(req, res) {
       });
       return send(inject(shell, {
         title, tags, lang: LANGUAGE,
-        bodyHtml: productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock }),
+        // `custom` traz `productVariations`: é daqui que sai o texto das
+        // Variação no HTML servido sem JavaScript (R4.18).
+        bodyHtml: productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom }),
       }));
     }
 

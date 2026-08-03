@@ -604,10 +604,10 @@ export async function renderAdminPanel(): Promise<void> {
     const salesNote = `<div class="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 min-w-0">
       <h4 class="font-black text-gray-900 break-words">Volume de vendas das Lojas</h4>
       <p class="text-2xl font-black text-gray-900 mt-1 break-words">${esc(formatKz(o.salesTotal))}</p>
-      <p class="text-xs text-gray-500 mt-2 break-words">Total das encomendas pagas nas Lojas dos clientes, desde sempre. <b>Não é receita da Plataforma</b>: este dinheiro é dos Donos das Lojas. A receita da Plataforma é a do primeiro cartão desta secção, «Receita da Plataforma (este mês)».</p>
+      <p class="text-xs text-gray-500 mt-2 break-words">Total das encomendas pagas nas Lojas dos clientes, desde sempre, sem as lojas-modelo. <b>Não é receita da Plataforma</b>: este dinheiro é dos Donos das Lojas. A receita da Plataforma é a do primeiro cartão desta secção, «Receita da Plataforma (este mês)».</p>
       <div class="flex flex-wrap gap-2 mt-3">
-        ${badge(`${o.accounts} conta(s) registada(s)`, "#f3f4f6", "#6b7280")}
-        ${badge(`${o.stores} loja(s) registada(s)`, "#f3f4f6", "#6b7280")}
+        ${badge(`${o.accounts} conta(s) de cliente`, "#f3f4f6", "#6b7280")}
+        ${badge(`${o.stores} loja(s) de cliente`, "#f3f4f6", "#6b7280")}
       </div>
     </div>`;
 

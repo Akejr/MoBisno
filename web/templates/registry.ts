@@ -44,9 +44,9 @@ function renderDefault(view: StoreRenderView, _custom?: StoreCustomization): str
  * Lista de Modelos registados. (render = renderDefault até chegarem os desenhos.)
  *
  * Os modelos «Neon Lab» (`neonlab`) e «FoodMart» (`foodmart`) saíram do registo
- * (R1.4). Os ficheiros de desenho `neonlab.ts` e `foodmart.ts` ficam no
- * repositório — não são importados por aqui, logo não entram no pacote — porque
- * `foodmart.ts` exporta `foodmartDefaultFeatures`, ainda usado pelo editor para
+ * (R1.4). `neonlab.ts` foi apagado — ficou sem um único consumidor. `foodmart.ts`
+ * fica no repositório, e continua a não ser importado por aqui (logo não entra no
+ * pacote), porque exporta `foodmartDefaultFeatures`, ainda usado pelo editor para
  * materializar as garantias de Personalizações legadas.
  *
  * Uma Loja gravada com `template_id` igual a `neonlab` ou `foodmart` passa a ser

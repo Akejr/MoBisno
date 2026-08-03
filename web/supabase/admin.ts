@@ -6,6 +6,7 @@
  */
 import { supabase } from "./client.js";
 import type { PlanId } from "../../src/services/plans.js";
+import { overviewCounts } from "../../src/services/adminMetrics.js";
 
 export interface AdminAccount {
   id: string;
@@ -68,11 +69,24 @@ export interface AdminWithdrawal {
   processedAt: string | null;
 }
 
+/**
+ * Totais globais da Plataforma. Todos os cinco campos excluem Loja_Modelo e
+ * contas de Administrador (R7.8) — ver {@link adminOverview}.
+ */
 export interface AdminOverview {
+  /** Contas de cliente (contas de Administrador fora). */
   accounts: number;
+  /** Lojas de cliente (Loja_Modelo fora). */
   stores: number;
+  /** Lojas de cliente publicadas. */
   published: number;
+  /**
+   * **Volume de vendas das Lojas**: encomendas pagas das Lojas de cliente. É
+   * dinheiro dos Donos das Lojas e **não** é receita da Plataforma — essa é
+   * `businessHealth().monthRevenue` de `src/services/adminMetrics.ts`.
+   */
   salesTotal: number;
+  /** Levantamentos por aprovar de Lojas de cliente. */
   pendingWithdrawals: number;
 }
 
@@ -131,24 +145,51 @@ async function profilesMap(): Promise<Map<string, { email: string; name: string;
   return m;
 }
 
-/** Métricas globais da plataforma. */
+/**
+ * Métricas globais da plataforma, **todas** sem Loja_Modelo e sem contas de
+ * Administrador (R7.8).
+ *
+ * **Só leitura.** Esta função lê as quatro tabelas e não agrega nada: a contagem
+ * é `overviewCounts()` de `src/services/adminMetrics.ts`, a mesma função pura que
+ * produz as outras treze agregações da Visão geral a partir do mesmo âmbito
+ * (decisão D8). Estava aqui antes, em contagem de base de dados, e era por isso
+ * que metade dos campos escapava à regra: `salesTotal` somava as encomendas de
+ * demonstração das Loja_Modelo e `accounts` era um `count` cru de `profiles`, com
+ * as contas de Administrador dentro. `pendingWithdrawals` tinha o mesmo defeito
+ * pela mesma razão — era um `count` com `eq("status", "requested")` e nada mais.
+ *
+ * O que as consultas trazem, e porquê:
+ *  - `profiles(id, is_admin)` em vez de um `count` cru — sem `is_admin` não há
+ *    como deixar as contas de Administrador fora;
+ *  - `stores(id, owner_id, state, customization)` — `customization.__template`
+ *    marca a Loja_Modelo e `owner_id` liga a Loja à conta que a detém;
+ *  - `orders(store_id, amount, status)` — `store_id` é o que permite ficar só
+ *    com as encomendas das Lojas elegíveis (o mesmo nº de linhas de antes);
+ *  - `withdrawals(id, store_id, status)` — linhas em vez de contagem, pela mesma
+ *    razão que as encomendas.
+ *
+ * O custo mantém-se na mesma ordem: o Painel_Admin já carrega `profiles` inteira
+ * em `listAccounts`, `stores` em `listStores` e `withdrawals` em
+ * `listAllWithdrawals` no mesmo ecrã.
+ */
 export async function adminOverview(): Promise<AdminOverview> {
-  const [{ count: accounts }, { data: stores }, { data: orders }, { count: pending }] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase.from("stores").select("state, customization"),
-    supabase.from("orders").select("amount, status"),
-    supabase.from("withdrawals").select("id", { count: "exact", head: true }).eq("status", "requested"),
+  const [{ data: profiles }, { data: stores }, { data: orders }, { data: withdrawals }] = await Promise.all([
+    supabase.from("profiles").select("id, is_admin"),
+    supabase.from("stores").select("id, owner_id, state, customization"),
+    supabase.from("orders").select("store_id, amount, status"),
+    supabase.from("withdrawals").select("id, store_id, status"),
   ]);
-  const realStores = (stores ?? []).filter((s) => !((s.customization ?? {}) as { __template?: unknown }).__template);
-  const salesTotal = (orders ?? []).filter((o) => o.status === "paid").reduce((s, o) => s + Number(o.amount), 0);
-  const published = realStores.filter((s) => s.state === "Publicada").length;
-  return {
-    accounts: accounts ?? 0,
-    stores: realStores.length,
-    published,
-    salesTotal,
-    pendingWithdrawals: pending ?? 0,
-  };
+  return overviewCounts({
+    accounts: (profiles ?? []).map((p) => ({ id: String(p.id), isAdmin: p.is_admin === true })),
+    stores: (stores ?? []).map((s) => ({
+      id: String(s.id),
+      ownerId: s.owner_id ?? null,
+      state: s.state ?? null,
+      customization: s.customization,
+    })),
+    orders: (orders ?? []).map((o) => ({ storeId: o.store_id ?? null, amount: o.amount ?? null, status: o.status ?? null })),
+    withdrawals: (withdrawals ?? []).map((w) => ({ id: String(w.id), storeId: w.store_id ?? null, status: w.status ?? null })),
+  });
 }
 
 /** Lista de contas com o nº de lojas. */

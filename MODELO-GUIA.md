@@ -62,11 +62,18 @@ Fluxo recomendado: editar → `get_diagnostics` nos ficheiros tocados →
     `beauty.ts`, `desportivo.ts`). Exporta um `StoreTemplate`.
   - Partilhados: `headers.ts`, `heroes.ts`, `footers.ts`, `blocks.ts`,
     `productPage.ts`, `productGrid.ts`, `checkoutLayouts.ts`, `sectionsModel.ts`,
-    `gallery.ts`, `perks.ts`, `shared.ts`.
+    `gallery.ts`, `variationPicker.ts`, `perks.ts`, `shared.ts`.
+  - `foodmart.ts` e `neonlab.ts` **já não estão no `TEMPLATE_REGISTRY`**: os
+    ficheiros ficam no repositório (o editor ainda importa
+    `foodmartDefaultFeatures` para personalizações legadas), mas nenhuma loja
+    nova pode escolher esses modelos. Uma loja gravada com `template_id`
+    `foodmart` ou `neonlab` é servida pelo primeiro modelo registado
+    (`desportivo`), pelo fallback de `getTemplate`.
 - **Comportamento (JS na loja publicada):** `web/lib/`
   - `cartDrawer.ts` (carrinho), `search.ts` (pesquisa no header),
     `sections.ts` ("ver mais"), `testimonialsCarousel.ts`, `particlesHero.ts`,
-    `mapPicker.ts` (Leaflet), `productForm.ts` (formulário de produto),
+    `mapPicker.ts` (Leaflet), `cart.ts` (estado do carrinho, chaveado por linha
+    — ver §9.1), `productForm.ts` (formulário de produto),
     `theme.ts` (tema global), `iconColor.ts`, `fieldColors.ts`, `brand.ts`
     (`readableInk`, `brandOf`), `ink.ts`, `imageCompress.ts`, `slug.ts`, `dom.ts`.
 - **Editor visual:** `web/views/editor.ts` (edição no preview, ligações `data-*`).
@@ -170,8 +177,10 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
 **Menu "Produtos" → página de todos os produtos**
 - O link **"Produtos"** do cabeçalho/rodapé usa sempre **`allProductsHref(view)`**
   (`sectionsModel.ts`), que abre a página de listagem com **todos** os produtos
-  (`#/loja/<id>/categoria/Produtos`). Não usar `#produtos` (isso só faz scroll na
-  home). `filterForCategoryPage` trata `"Produtos"`/`"Todos"` como todos.
+  num **caminho real** (`/categoria/produtos` em subdomínio de loja,
+  `/loja/<id>/categoria/produtos` no domínio principal) — nunca `#/`, ver
+  `SEO.md` §5.1. Não usar `#produtos` (isso só faz scroll na home).
+  `filterForCategoryPage` trata `"Produtos"`/`"Todos"` como todos.
 - A página de categoria/listagem ganha automaticamente uma **barra de filtros**
   (chips de categoria + ordenação) injetada por `category.ts` (`mountListingToolbar`).
   Funciona em qualquer modelo desde que os cartões tenham **`data-edit-product`**
@@ -282,15 +291,56 @@ editor). Guardado em `blocks[i].bg` e aplicado em `blocks.ts` (`bgStyle`).
 
 ---
 
-## 8. Mapa com pins das lojas (ex.: Lumière)
+## 8. Mapa com pins das lojas
 
-- Dados: `custom.<modelo>.boutiques: { name?, address?, lat?, lng? }[]`.
-- Cada loja gera o seu próprio mapa **com pin** (`boutiqueMapSrc`): por
-  coordenadas usa OpenStreetMap embed (`marker=lat,lng`); sem coordenadas, usa
-  Google embed pela morada. Se a lista estiver vazia, mostra **um** mapa da
-  morada do rodapé.
-- No editor: botão "Escolher no mapa" por loja abre `openMapPicker` (Leaflet,
-  pin arrastável) e "Adicionar loja". Funciona sem API key.
+**Uma só função de mapa em toda a plataforma: `mapEmbedSrc`**, em
+`src/services/locations.ts` (era `boutiqueMapSrc`, privada do `lumiere.ts`).
+Por coordenadas usa OpenStreetMap embed (caixa de enquadramento de ±0,008° em
+torno do ponto + `marker=lat,lng`); só com morada usa Google embed pela pesquisa
+da morada (`z=15`). Sem morada nem coordenadas cai em `"Luanda, Angola"`.
+Funciona sem API key.
+
+É partilhada por dois consumidores, com a **mesma forma de dados** —
+`{ name?, address?, lat?, lng? }` — precisamente para não haver duas lógicas de
+mapa:
+
+| Consumidor | Onde vivem os dados |
+|---|---|
+| Bloco de conteúdo `location` (genérico, `blocks.ts`) | `custom.blocks[i].places: { name?, address?, lat?, lng? }[]` |
+| Boutiques do Lumière (`lumiere.ts`) | `custom.lumiere.boutiques: { name?, address?, lat?, lng? }[]` |
+
+### Bloco `location` — várias localizações
+
+A variante `location` de `ContentBlock` (`types.ts`) ganhou `places[]`, e mantém
+`address`/`lat`/`lng` no próprio bloco como **formato legado de localização
+única** — é assim que todas as lojas em produção estão gravadas. Quem desenha
+não escolhe entre os dois: chama `resolveLocations(block, footerLocation)` de
+`src/services/locations.ts`, que resolve a cascata
+
+1. `places[]` com pelo menos uma entrada aproveitável;
+2. `address`/`lat`/`lng` do próprio bloco (legado);
+3. morada do rodapé (`footer.location`);
+
+e devolve **sempre pelo menos uma entrada**, para se poder iterar sem casos
+especiais. Cada localização leva o seu `iframe` (`mapEmbedSrc`), o seu nome e a
+sua morada. Os `iframe` estão no HTML pré-renderizado — os mapas não dependem de
+JavaScript.
+
+Nas três variantes (`classico`, `cartao`, `estilizado`), **uma** localização
+mantém a disposição de antes (título centrado + um mapa grande) e **duas ou
+mais** passam a grelha de cartões (uma coluna, duas a partir de `md`).
+
+Ganchos de edição (§6.1): `data-edit="blocks.<i>.places.<j>.name"` e
+`data-edit="blocks.<i>.places.<j>.address"`; a grelha é `data-edit-places="<i>"`
+e cada cartão `data-edit-place="<j>"`. Como `places` é um **array com fallback**,
+o editor materializa-o no arranque (`materializeBlockPlaces`, antes da baseline
+`savedJson`) com o resultado da cascata — sem isso, `setPath` criaria um objeto
+`{0:…}` sem `.length` e a edição perdia-se.
+
+No editor: por localização, botão "Escolher no mapa" (`openMapPicker`, Leaflet,
+pin arrastável) e "Remover"; na grelha, "Adicionar localização". **A última
+localização não é removível** — com a lista vazia a cascata voltava a mostrar o
+mapa legado ou o do rodapé, e o dono via o mapa continuar lá depois de o apagar.
 
 ---
 
@@ -317,6 +367,106 @@ editor). Guardado em `blocks[i].bg` e aplicado em `blocks.ts` (`bgStyle`).
     do editor (evita conflitos/clobber).
   - **Fora do editor** (dashboard/admin): o formulário faz ler-modificar-gravar
     da personalização diretamente na BD.
+
+## 9.1 Variação de produto (`variationPicker.ts`)
+
+Pelo mesmo precedente das fotos extra (§9), as Variação **não vivem no tipo
+`Product`**: guardam-se em **`custom.productVariations[<productId>]`** — sem
+migração à BD, sem coluna nova. A lógica de domínio está em
+`src/services/variations.ts`.
+
+**Forma gravada** (`ProductVariations`, `src/models/domain.ts`):
+
+```ts
+{
+  enabled: true,                      // !== true ⇒ é como não ter Variação
+  priceMode: "substitui" | "acresce", // qualquer outro valor vale "substitui"
+  axes: { name: string; values: string[] }[],
+  combinations: { values: string[]; price?: number; stock?: number }[],
+}
+```
+
+- **A invariante central é posicional:** `combinations[k].values` tem
+  **exactamente um valor por eixo, na ordem de `axes`** — `values[i]` é um dos
+  valores de `axes[i]`. A combinação não guarda o nome do eixo; a ligação é a
+  posição. Uma combinação com outro comprimento é descartada.
+- **Preço:** combinação sem `price` (ou não gravada) → preço base do produto;
+  `"substitui"` → o preço da combinação; `"acresce"` → base + o da combinação. O
+  resultado de `effectivePrice` é sempre finito e ≥ 0.
+- **Os três estados de `stock` não são equivalentes:** **ausente** = stock não
+  controlado, sempre disponível; **`0`** = esgotado (a adição ao carrinho é
+  rejeitada); **positivo** = disponível.
+- **`variantKeyOf(values)`** produz a chave estável de uma combinação: os valores
+  por ordem de eixo unidos por **U+001F** (o *unit separator* do ASCII). O
+  separador é invisível e não escrevível de propósito — com `"|"` ou `"-"`, os
+  valores `["A","B"]` e o valor único `["A|B"]` dariam a mesma chave e duas
+  combinações colidiam numa linha de carrinho.
+- `syncCombinations` realinha a lista com os eixos atuais: remover um valor de um
+  eixo apaga as combinações que o usavam e **as restantes mantêm preço e stock**;
+  acrescentar ou remover um eixo inteiro muda o comprimento de todas as chaves,
+  logo nenhum dado antigo é reaproveitável.
+
+**Num modelo de loja**, os seletores vêm de **`variationPickerHtml(product,
+custom, style)`** de `web/templates/variationPicker.ts` — nunca escritos à mão. A
+estrutura e os ganchos vivem no módulo partilhado; **o desenho chega por
+parâmetro** (`VariationPickerStyle`: `labelClass`, `labelStyle`, `valueClass`,
+`valueStyle`, `selectedStyle`, `noteClass`, `rootClass`), tal como em
+`productGalleryHtml` e `perksItemsHtml`. Passa as mesmas classes que o modelo já
+usa no bloco "Quantidade" ao lado — os cantos vivem em `valueClass` e o valor
+escolhido usa sempre `var(--brand)`/`var(--brand-ink)`, nunca `#F95901` (§0.6).
+
+O marcador raiz é **`[data-variations]`** (`data-variations="<productId>"`); o
+comportamento é montado por `web/views/product.ts`. Restantes ganchos:
+`data-variation-axis="<i>"`, `data-variation-pick="<i>"`,
+`data-variation-value="<valor>"`, `data-pick-base`, `data-pick-style`,
+`data-sold-out-badge`, `data-variation-note`.
+
+**Produto sem Variação corre exactamente o código de antes.**
+`normalizeVariations` devolve `null` (produto fora do mapa, `enabled !== true`,
+sem eixos utilizáveis, JSON malformado) e `variationPickerHtml` devolve **cadeia
+vazia**: nem um nó a mais no HTML do modelo, preço igual a `product.price`, e a
+linha de carrinho sai como sempre saiu.
+
+**Sem JavaScript** os botões não reagem, mas os nomes das Variação e os
+respectivos valores ficam legíveis no HTML. O texto corrido do HTML
+pré-renderizado é `variationsPlainText`, espelhado em `api/_seo.js` — é uma das
+paridades obrigatórias do `SEO.md` §5.2.
+
+**Gestão** no formulário de produto (`web/lib/productForm.ts`): interruptor,
+eixos, valores e a tabela de combinações (preço e stock por combinação). A
+gravação acontece **depois** do `register`/`edit` (o produto novo só tem `id`
+nessa altura), como já acontecia com as fotos extra; com o interruptor desligado
+a entrada é apagada, e sem nenhum produto com Variação nem o mapa vazio fica na
+personalização.
+
+### Identidade de linha de carrinho
+
+Com Variação, o carrinho passa a ser chaveado **por linha**, não por produto:
+
+```ts
+cartLineKey({ productId, variantKey }) === `${productId}|${variantKey ?? ""}`
+```
+
+`src/services/cartLine.ts` é o único autor desta chave. São **dois separadores em
+dois níveis**: U+001F junta os *valores* dentro de uma `variantKey`; `"|"` separa
+o produto da combinação.
+
+Consequência para quem chama `web/lib/cart.ts`: **`setQuantity(storeId, lineKey,
+qty)` e `removeFromCart(storeId, lineKey)` recebem uma chave de linha, não um
+`productId`.** Use `lineKeyOf(item)` (ou `cartLineKey`) para a produzir; um
+`productId` cru deixa de encontrar a linha, porque a chave de um item sem
+combinação é `"<productId>|"` — com o separador. Remover "o produto todo" é
+remover cada uma das suas linhas. `findCartLine(storeId, lineKey)` devolve a
+linha; nada compara por `productId`.
+
+A forma `"<productId>|"` é deliberada e não pode mudar: é ela que faz os
+carrinhos já gravados em `localStorage` (itens sem `variantKey`) continuarem a
+ser encontrados, somados e removíveis depois do deploy, sem migração.
+
+Na apresentação, `CartItem.price` é o preço **efetivo** da linha (já resolvido
+por `effectivePrice`) e `variantLabel` é a etiqueta legível («Cor: Azul ·
+Tamanho: M», de `variantLabelOf`) mostrada na linha do carrinho e na mensagem de
+WhatsApp. A etiqueta **nunca** identifica a linha.
 
 ---
 
@@ -368,7 +518,9 @@ editor). Guardado em `blocks[i].bg` e aplicado em `blocks.ts` (`bgStyle`).
 - [ ] Fontes, cantos, cores e estrutura **iguais** ao design, em todos os ecrãs.
 - [ ] Header fixo (Início/Produtos/Categorias) e pesquisa a abrir **no header**.
 - [ ] Hero com CTA e destino configurável; imagem editável.
-- [ ] Produtos, página de produto (com **galeria multi-foto**), categoria.
+- [ ] Produtos, página de produto (com **galeria multi-foto** e seletores de
+      Variação via `variationPickerHtml`, com o desenho do modelo — §9.1),
+      categoria.
 - [ ] Testemunhos/mapa/avaliações do modelo **reproduzidos e funcionais**.
 - [ ] Carrinho e checkout com a **mesma UI** (bordas, fontes, cores).
 - [ ] Secções removíveis (exceto produtos) + cor de fundo entre as do modelo.

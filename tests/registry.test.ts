@@ -30,10 +30,11 @@
  *
  * Uma única asserção fica pelo **texto-fonte** (`readFileSync`, padrão de
  * `tests/seoInfra.test.ts` e `tests/seedRename.test.ts`): a ausência dos imports
- * de `neonlab.js` e `foodmart.js`. Não é observável em execução — os ficheiros de
- * desenho continuam no repositório, e importá-los sem os registar deixaria o
- * `TEMPLATE_REGISTRY` correto mas o pacote maior, com os modelos removidos ainda
- * lá dentro à espera de voltarem.
+ * de `neonlab.js` e `foodmart.js`. Não é observável em execução: `foodmart.ts`
+ * continua no repositório (exporta `foodmartDefaultFeatures`, usado pelo editor) e
+ * importá-lo sem o registar deixaria o `TEMPLATE_REGISTRY` correto mas o pacote
+ * maior, com o modelo removido ainda lá dentro à espera de voltar. `neonlab.ts` já
+ * foi apagado — a guarda mantém-se para o caso de voltar.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";

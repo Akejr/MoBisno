@@ -568,11 +568,40 @@ JSON de `customization` cresce com o número de Combinação (um Produto com
 4 cores × 5 tamanhos = 20 entradas de duas propriedades; irrelevante à escala
 de uma loja, mas não é para milhares de Combinação). Ver **D1** para a reversão.
 
-**Stock de Combinação é manual.** O decremento automático de stock após venda
-paga acontece no servidor, em `decrementStock` de `api/_shared.js`, e continua a
-operar sobre `products.stock`. Os requisitos R4.11/R4.12 pedem apresentação e
-rejeição, não decremento — por isso o stock por Combinação é definido e ajustado
-pelo Dono. Está declarado aqui para não haver surpresa depois.
+**Stock por Combinação é validado e abatido no servidor.** `api/_shared.js` faz
+as duas coisas, além do que já fazia sobre `products.stock`:
+
+- `checkStock` compara a quantidade **agregada** por `(id, variantKey)` com o
+  `stock` da Combinação (e, como antes, a quantidade agregada por `id` com
+  `products.stock`). Agregar é obrigatório desde as Variação: duas Combinação do
+  mesmo Produto **são** duas linhas (R4.13), e comparar linha a linha deixava
+  passar duas linhas de 3 unidades contra um stock de 3;
+- `decrementStock` abate o `stock` da Combinação numa leitura-modificação-escrita
+  da coluna JSON `customization`. Os abates de todas as linhas da encomenda são
+  juntados e gravados numa **única escrita por encomenda** — uma escrita por
+  linha releria a coluna e perderia os abates anteriores.
+
+Foi uma decisão explícita para o lançamento: sem abate por Combinação, um Cliente
+esgotava o tamanho M enquanto o `products.stock` do Produto inteiro ainda tinha
+unidades, o que é sobrevenda real e não hipotética.
+
+As três leituras do `stock` são as do domínio, e não mudaram: **ausente** = não
+controlado (passa sempre), **`0`** = esgotado (recusa), **positivo** =
+disponível. Uma Combinação **não gravada** conta como disponível (R4.12) — um
+campo em falta nunca bloqueia uma venda. O mesmo vale quando a linha não traz
+`variantKey`, quando o Produto não tem Variação ativas e quando a leitura da
+Personalização falha: nesses caminhos só o `products.stock` é validado e abatido,
+exatamente como antes das Variação.
+
+**Lacuna que fica aberta, deliberadamente.** Existe uma janela de corrida entre
+`checkStock` e `decrementStock`: duas compras simultâneas da mesma Combinação
+podem validar ambas contra o mesmo stock antes de qualquer uma abater, e o
+resultado é uma unidade vendida a mais. Isto **já existia** para o
+`products.stock` e não é introduzido aqui — a leitura e a escrita são dois
+pedidos separados nos dois casos. Fechá-la exige abate atómico na base de dados
+(função SQL, ou `update … where stock >= qty` com verificação da linha afetada) e
+é mudança de âmbito maior do que esta; fica registada em vez de ser corrigida às
+escondidas.
 
 **Produtos já gravados (R4.16).** Um Produto sem entrada em
 `productVariations` — ou com `enabled: false` — faz `normalizeVariations`
@@ -896,9 +925,24 @@ que não são Loja_Modelo.
 - `numRuns: 100` (mínimo)
 - **Validates: Requirements 7.2, 7.4, 7.8**
 
-> A exclusão de Loja_Modelo é aplicada em onze agregações distintas. É o tipo de
-> filtro que se esquece exatamente numa delas — e um gerador que mete sempre uma
-> Loja_Modelo na entrada encontra qual.
+> A exclusão de Loja_Modelo é aplicada em **dezoito** agregações distintas —
+> numeradas em comentário em `src/services/adminMetrics.ts`: seis métricas de
+> saúde (1–6), duas séries mensais (7–8), cinco listas de atenção (9–13) e cinco
+> totais globais (14–18). É o tipo de filtro que se esquece exatamente numa delas
+> — e um gerador que mete sempre uma Loja_Modelo na entrada encontra qual.
+
+Os cinco totais globais são `overviewCounts` e estão em
+`src/services/adminMetrics.ts`, não em `web/supabase/admin.ts`, porque metade
+deles **escapava** à exclusão do R7.8 enquanto era contagem crua em base de
+dados: `salesTotal` somava as encomendas de demonstração das Loja_Modelo,
+`accounts` contava as contas de Administrador, e `pendingWithdrawals` era um
+`count` com `eq("status","requested")` e nada mais — sem saber a que Loja o
+levantamento pertencia. Sendo função pura sobre os mesmos conjuntos elegíveis das
+outras treze agregações, a exclusão passou a ser testável pela Propriedade 5, e
+`published` e `pendingWithdrawals` passam a coincidir por construção com
+`businessHealth().publishedStores` e com o comprimento de
+`attentionLists().withdrawalsToApprove`. É a decisão **D8** aplicada a estes
+totais.
 
 **Satisfaz:** R3.1–3.3, R3.9–3.11, R3.13, R3.16, R4.6–4.8, R4.16, R7.2, R7.4, R7.8, R11 (todos).
 

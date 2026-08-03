@@ -33,7 +33,12 @@ interface MethodInfo { id: CheckoutMethodId; logo: string; title: string; subtit
 
 export interface CheckoutLayoutCtx {
   storeName: string;
-  items: { name: string; price: number; quantity: number; imageUrl?: string }[];
+  /**
+   * Linhas do carrinho. `price` é o preço efetivo da linha (já resolvido pela
+   * Combinação) e `variantLabel` a etiqueta da Combinação escolhida, quando
+   * existe (R4.14, R4.15).
+   */
+  items: { name: string; price: number; quantity: number; imageUrl?: string; variantLabel?: string }[];
   /** Subtotal dos artigos (sem entrega). */
   total: number;
   /** Mostrar Multicaixa Express + Referência (loja com pagamentos online). */
@@ -174,6 +179,29 @@ function customerFields(opts: { email?: boolean; compact?: boolean; address?: Ad
   </div>`;
 }
 
+/** Etiqueta da Combinação de uma linha, quando existe (R4.14). */
+function variantLine(label?: string): string {
+  return label && label.trim()
+    ? `<p class="text-xs text-neutral-500 truncate">${esc(label.trim())}</p>`
+    : "";
+}
+
+/** A mesma etiqueta, inline, para os resumos de uma só linha por item. */
+function variantInline(label?: string): string {
+  return label && label.trim()
+    ? `<span class="font-normal text-neutral-500"> · ${esc(label.trim())}</span>`
+    : "";
+}
+
+/** Itens com visto (usado pelo resumo do pedido e pelo layout "Etapas"). */
+function checkItemsHtml(ctx: CheckoutLayoutCtx): string {
+  return ctx.items.map((i) => `<div class="flex items-center gap-2.5 py-3">
+    <span class="material-symbols-outlined text-[20px] shrink-0" style="color:#16a34a">check_circle</span>
+    <span class="flex-1 min-w-0 text-sm font-medium text-neutral-800 truncate">${i.quantity}× ${esc(i.name)}${variantInline(i.variantLabel)}</span>
+    <span class="text-sm font-semibold text-neutral-900 whitespace-nowrap">${esc(formatKz(i.price * i.quantity))}</span>
+  </div>`).join("");
+}
+
 function summaryLines(ctx: CheckoutLayoutCtx): string {
   return ctx.items.map((i) => {
     const thumb = i.imageUrl
@@ -181,7 +209,7 @@ function summaryLines(ctx: CheckoutLayoutCtx): string {
       : `<div class="w-12 h-12 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-neutral-400 text-[20px]">image</span></div>`;
     return `<div class="flex items-center gap-3 py-2">
       ${thumb}
-      <div class="flex-1 min-w-0"><p class="text-sm font-medium text-neutral-900 truncate">${esc(i.name)}</p><p class="text-xs text-neutral-400">Qtd: ${i.quantity}</p></div>
+      <div class="flex-1 min-w-0"><p class="text-sm font-medium text-neutral-900 truncate">${esc(i.name)}</p>${variantLine(i.variantLabel)}<p class="text-xs text-neutral-400">Qtd: ${i.quantity}</p></div>
       <p class="text-sm font-semibold text-neutral-900 whitespace-nowrap">${esc(formatKz(i.price * i.quantity))}</p>
     </div>`;
   }).join("");
@@ -230,11 +258,7 @@ export function renderCheckout(variant: CheckoutVariant, ctx: CheckoutLayoutCtx)
   const cols = Math.min(methods.length, 3);
 
   if (variant === "moderno") {
-    const checkItems = ctx.items.map((i) => `<div class="flex items-center gap-2.5 py-3">
-      <span class="material-symbols-outlined text-[20px] shrink-0" style="color:#16a34a">check_circle</span>
-      <span class="flex-1 min-w-0 text-sm font-medium text-neutral-800 truncate">${i.quantity}× ${esc(i.name)}</span>
-      <span class="text-sm font-semibold text-neutral-900 whitespace-nowrap">${esc(formatKz(i.price * i.quantity))}</span>
-    </div>`).join("");
+    const checkItems = checkItemsHtml(ctx);
 
     return `<div>
       <div class="flex items-center justify-center gap-2 sm:gap-4 mb-8">
@@ -372,11 +396,7 @@ export function renderStepper(active: number): string {
 
 /** Cartão "Resumo do Pedido" (itens com visto + cupão + subtotal/total). */
 export function renderOrderSummaryCard(ctx: CheckoutLayoutCtx): string {
-  const checkItems = ctx.items.map((i) => `<div class="flex items-center gap-2.5 py-3">
-    <span class="material-symbols-outlined text-[20px] shrink-0" style="color:#16a34a">check_circle</span>
-    <span class="flex-1 min-w-0 text-sm font-medium text-neutral-800 truncate">${i.quantity}× ${esc(i.name)}</span>
-    <span class="text-sm font-semibold text-neutral-900 whitespace-nowrap">${esc(formatKz(i.price * i.quantity))}</span>
-  </div>`).join("");
+  const checkItems = checkItemsHtml(ctx);
   return `<div class="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm lg:sticky lg:top-6">
     <h2 class="text-lg sm:text-xl font-black text-neutral-900 mb-4">Resumo do Pedido</h2>
     <div class="rounded-xl bg-neutral-50 px-4 divide-y divide-neutral-200/60">${checkItems}</div>

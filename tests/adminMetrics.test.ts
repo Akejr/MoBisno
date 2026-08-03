@@ -21,6 +21,8 @@
  * Sem teste de propriedade aqui, por desenho.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   ADMIN_HREFS,
   ATTENTION_WINDOW_DAYS,
@@ -28,8 +30,10 @@ import {
   attentionLists,
   businessHealth,
   monthlyEvolution,
+  overviewCounts,
   type AdminMetricsInput,
   type AttentionItem,
+  type StoreLike,
 } from "../src/services/adminMetrics.js";
 
 /**
@@ -429,5 +433,191 @@ describe("totalidade: entradas degeneradas não lançam", () => {
     expect(listas.accountsExpiring7d).toEqual([]);
     expect(listas.storesWithoutProducts).toEqual([]);
     expect(listas.storesUnpublished).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exemplo 4 — os cinco totais globais também excluem Loja_Modelo e Admin (R7.8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Estes totais eram contados em base de dados, dentro de `adminOverview()` de
+ * `web/supabase/admin.ts`, e metade deles escapava à regra do R7.8: o volume de
+ * vendas somava as encomendas de demonstração das Loja_Modelo e as contas eram um
+ * `count` cru de `profiles`, com as contas de Administrador dentro. Agora saem de
+ * `overviewCounts`, do mesmo âmbito das outras treze agregações — e por isso são
+ * testáveis aqui, com valores exatos.
+ */
+describe("overviewCounts — totais globais sem Loja_Modelo e sem contas de Administrador (R7.8)", () => {
+  /** Loja_Modelo do Administrador: publicada, com vendas e levantamento de demonstração. */
+  const lojaModelo: StoreLike = {
+    id: "loja-modelo",
+    name: "Ekolo Sports (modelo)",
+    ownerId: "admin-1",
+    state: "Publicada",
+    customization: { __template: { name: "Ekolo Sports" } },
+  };
+
+  const instantaneo: AdminMetricsInput = {
+    now: AGORA,
+    accounts: [
+      { id: "conta-cliente", email: "ivo@exemplo.ao", plan: "basico", createdAt: "2024-12-01T00:00:00.000Z" },
+      // Conta de Administrador: não é cliente e não entra em `accounts`.
+      { id: "admin-1", email: "admin@mobisno.ao", isAdmin: true, createdAt: "2024-01-01T00:00:00.000Z" },
+    ],
+    stores: [
+      lojaModelo,
+      { id: "loja-real", name: "Kianda Moda", ownerId: "conta-cliente", state: "Publicada", createdAt: "2024-12-02T00:00:00.000Z" },
+      { id: "loja-rascunho", name: "Kianda Casa", ownerId: "conta-cliente", state: "Rascunho", createdAt: "2024-12-03T00:00:00.000Z" },
+    ],
+    orders: [
+      { storeId: "loja-real", status: "paid", amount: 30_000 },
+      // Montante em texto: é assim que uma coluna `numeric` chega do Supabase.
+      { storeId: "loja-real", status: "paid", amount: "12500" },
+      // Encomenda aberta: ainda não é venda.
+      { storeId: "loja-real", status: "open", amount: 99_999 },
+      // Venda de demonstração da Loja_Modelo: era isto que inflacionava o total.
+      { storeId: "loja-modelo", status: "paid", amount: 500_000 },
+      // Encomenda de uma Loja que não está no instantâneo: sem pertença, fora.
+      { storeId: "loja-desconhecida", status: "paid", amount: 777 },
+    ],
+    withdrawals: [
+      { id: "lev-real", storeId: "loja-real", status: "requested" },
+      { id: "lev-modelo", storeId: "loja-modelo", status: "requested" },
+      { id: "lev-pago", storeId: "loja-real", status: "paid" },
+    ],
+  };
+
+  it("devolve os cinco totais com os valores exatos", () => {
+    expect(overviewCounts(instantaneo)).toEqual({
+      accounts: 1,
+      stores: 2,
+      published: 1,
+      // 30 000 + 12 500. Sem os 500 000 da Loja_Modelo, sem os 99 999 da
+      // encomenda aberta e sem os 777 da Loja que não existe.
+      salesTotal: 42_500,
+      pendingWithdrawals: 1,
+    });
+  });
+
+  it("acrescentar uma Loja_Modelo com vendas pagas não move nenhum dos cinco totais", () => {
+    const antes = overviewCounts(instantaneo);
+
+    // O mesmo instantâneo com uma segunda Loja_Modelo, no início do array, com
+    // uma encomenda paga e um levantamento por aprovar próprios.
+    const comOutroModelo: AdminMetricsInput = {
+      ...instantaneo,
+      stores: [
+        { id: "modelo-2", name: "Nzila Tech (modelo)", ownerId: "admin-1", state: "Publicada", customization: { __template: true } },
+        ...(instantaneo.stores ?? []),
+      ],
+      orders: [{ storeId: "modelo-2", status: "paid", amount: 1_000_000 }, ...(instantaneo.orders ?? [])],
+      withdrawals: [{ id: "lev-modelo-2", storeId: "modelo-2", status: "requested" }, ...(instantaneo.withdrawals ?? [])],
+    };
+
+    expect(overviewCounts(comOutroModelo)).toEqual(antes);
+  });
+
+  it("os totais coincidem com as métricas equivalentes das outras secções", () => {
+    const totais = overviewCounts(instantaneo);
+    const saude = businessHealth(instantaneo);
+    const listas = attentionLists(instantaneo);
+
+    // Ficam no mesmo ecrã: divergirem seria um defeito visível e inexplicável.
+    expect(totais.published).toBe(saude.publishedStores);
+    expect(totais.pendingWithdrawals).toBe(listas.withdrawalsToApprove.length);
+  });
+
+  it("com o instantâneo vazio ou degenerado devolve cinco zeros, sem lançar", () => {
+    const zeros = { accounts: 0, stores: 0, published: 0, salesTotal: 0, pendingWithdrawals: 0 };
+
+    expect(overviewCounts({})).toEqual(zeros);
+    expect(overviewCounts(null as never)).toEqual(zeros);
+    // A forma que os dados tomam quando uma consulta falha e o chamador em
+    // JavaScript passa o que tem em mão: nada disto é um array.
+    expect(overviewCounts({ accounts: null, stores: 3, orders: "x" } as never)).toEqual(zeros);
+  });
+
+  it("montantes impossíveis não produzem um volume de vendas negativo nem `NaN`", () => {
+    const totais = overviewCounts({
+      now: AGORA,
+      stores: [{ id: "loja-real", state: "Publicada" }],
+      orders: [
+        { storeId: "loja-real", status: "paid", amount: -5_000 },
+        { storeId: "loja-real", status: "paid", amount: "sem número" },
+        { storeId: "loja-real", status: "paid", amount: null },
+        { storeId: "loja-real", status: "paid", amount: 8_000 },
+      ],
+    });
+
+    expect(totais.salesTotal).toBe(8_000);
+    expect(Number.isFinite(totais.salesTotal)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exemplo 5 — `adminOverview()` delega a contagem e já não conta em cru
+// ---------------------------------------------------------------------------
+
+/**
+ * `web/supabase/admin.ts` importa o cliente do Supabase e `tests/` compila com
+ * `lib: ["ES2022"]`, sem DOM: o módulo não pode ser importado daqui, nem
+ * estaticamente nem com `await import()` (a importação do cliente corre no
+ * carregamento e toca em `window`/`localStorage`). As asserções são por isso
+ * sobre o **texto-fonte**, o mesmo padrão `readFileSync` de
+ * `tests/paymentsMirror.test.ts` e de `tests/seedRename.test.ts`.
+ *
+ * O que guardam: que a contagem continua a sair de `overviewCounts` — a função
+ * pura testada acima — e que as consultas trazem as colunas de que a exclusão
+ * depende. Um `count` cru de `profiles` ou um `select` de `orders` sem `store_id`
+ * é a assinatura exata do defeito que existia aqui.
+ */
+describe("adminOverview — a contagem sai do domínio puro, não da base de dados (R7.8)", () => {
+  const FONTE = readFileSync(join(__dirname, "..", "web", "supabase", "admin.ts"), "utf8");
+
+  /** Corpo de `adminOverview`, do nome dela até ao `}` da coluna 0. */
+  const CORPO = (() => {
+    const i = FONTE.indexOf("export async function adminOverview(");
+    expect(i, "adminOverview não encontrada em web/supabase/admin.ts").toBeGreaterThan(-1);
+    const j = FONTE.indexOf("\n}", i);
+    expect(j, "fim de adminOverview não encontrado").toBeGreaterThan(i);
+    return FONTE.slice(i, j);
+  })();
+
+  it("importa `overviewCounts` de `src/services/adminMetrics.ts` e devolve o resultado", () => {
+    expect(FONTE).toMatch(/import \{ overviewCounts \} from "\.\.\/\.\.\/src\/services\/adminMetrics\.js";/);
+    expect(CORPO).toContain("return overviewCounts({");
+  });
+
+  it("lê `is_admin` de `profiles` em vez de um `count` cru", () => {
+    // Sem `is_admin` não há como deixar as contas de Administrador fora.
+    expect(CORPO).toContain('supabase.from("profiles").select("id, is_admin")');
+    expect(CORPO).not.toContain('count: "exact"');
+    expect(CORPO).not.toContain("head: true");
+  });
+
+  it("lê `store_id` das encomendas: é o que liga a venda à Loja que a fez", () => {
+    expect(CORPO).toContain('supabase.from("orders").select("store_id, amount, status")');
+    expect(CORPO).toMatch(/storeId: o\.store_id/);
+  });
+
+  it("lê as linhas dos levantamentos em vez de contar só as pedidas", () => {
+    expect(CORPO).toContain('supabase.from("withdrawals").select("id, store_id, status")');
+    expect(CORPO).not.toContain('.eq("status", "requested")');
+    expect(CORPO).toMatch(/storeId: w\.store_id/);
+  });
+
+  it("passa a `customization` das Lojas, que é onde a marca de Loja_Modelo vive", () => {
+    expect(CORPO).toContain('supabase.from("stores").select("id, owner_id, state, customization")');
+    expect(CORPO).toContain("customization: s.customization");
+  });
+
+  it("não agrega nada por si: nem soma de encomendas nem filtro de `__template`", () => {
+    // Cada uma destas expressões é uma agregação que voltaria a viver fora do
+    // âmbito único do R7.8 — e a escapar-lhe, como já escapou.
+    expect(CORPO).not.toContain(".reduce(");
+    expect(CORPO).not.toContain("__template");
+    expect(CORPO).not.toContain('=== "paid"');
+    expect(CORPO).not.toContain('=== "Publicada"');
   });
 });

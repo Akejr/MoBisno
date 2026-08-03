@@ -3,7 +3,8 @@
  * clique no ícone do carrinho navega para a página dedicada.
  */
 import { esc, formatKz, toast } from "./dom.js";
-import { getCart, setQuantity, removeFromCart, cartTotal, updateCartBadge, type CartItem } from "./cart.js";
+import { getCart, setQuantity, removeFromCart, findCartLine, cartTotal, updateCartBadge, type CartItem } from "./cart.js";
+import { rowKeyAttr, rowKeyOf } from "./cartRowKey.js";
 import { resolveWaPhone, waLink } from "./whatsapp.js";
 import { onlinePaymentsVisible, isPaymentsDemo } from "../../src/services/paymentVisibility.js";
 import { buildCartWhatsAppMessage } from "../../src/services/cartMessage.js";
@@ -35,18 +36,28 @@ function itemRow(it: CartItem): string {
   const thumb = it.imageUrl
     ? `<img src="${esc(it.imageUrl)}" class="w-14 h-14 rounded-lg object-cover border border-neutral-200" />`
     : `<div class="w-14 h-14 rounded-lg bg-neutral-100 flex items-center justify-center"><span class="material-symbols-outlined text-neutral-400">image</span></div>`;
-  return `<div class="flex items-center gap-3 py-3" data-row="${esc(it.productId)}">
+  // Identidade da linha, não do Produto (R4.13): duas Combinação do mesmo
+  // Produto são duas linhas com quantidade própria, logo os atributos levam a
+  // chave de linha (percent-encoded por `rowKeyAttr`), nunca o `productId`.
+  const rowKey = rowKeyAttr(it);
+  // Etiqueta da Combinação escolhida (R4.14). `truncate` dentro do `min-w-0`
+  // mantém a linha sem deslocamento horizontal a 360 px.
+  const variant = it.variantLabel
+    ? `<p class="text-xs text-neutral-600 truncate">${esc(it.variantLabel)}</p>`
+    : "";
+  return `<div class="flex items-center gap-3 py-3" data-row="${esc(rowKey)}">
     ${thumb}
     <div class="flex-1 min-w-0">
       <p class="font-medium text-neutral-900 text-sm truncate">${esc(it.name)}</p>
+      ${variant}
       <p class="text-xs text-neutral-500">${esc(formatKz(it.price))}</p>
       <div class="flex items-center mt-1 border border-neutral-300 rounded-md w-fit">
-        <button type="button" data-dec="${esc(it.productId)}" class="w-7 h-7 flex items-center justify-center hover:bg-neutral-100"><span class="material-symbols-outlined text-[16px]">remove</span></button>
+        <button type="button" data-dec="${esc(rowKey)}" class="w-7 h-7 flex items-center justify-center hover:bg-neutral-100"><span class="material-symbols-outlined text-[16px]">remove</span></button>
         <span class="w-7 text-center text-sm">${it.quantity}</span>
-        <button type="button" data-inc="${esc(it.productId)}" class="w-7 h-7 flex items-center justify-center hover:bg-neutral-100"><span class="material-symbols-outlined text-[16px]">add</span></button>
+        <button type="button" data-inc="${esc(rowKey)}" class="w-7 h-7 flex items-center justify-center hover:bg-neutral-100"><span class="material-symbols-outlined text-[16px]">add</span></button>
       </div>
     </div>
-    <button type="button" data-remove="${esc(it.productId)}" class="text-neutral-400 hover:text-red-600"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+    <button type="button" data-remove="${esc(rowKey)}" class="text-neutral-400 hover:text-red-600"><span class="material-symbols-outlined text-[20px]">delete</span></button>
   </div>`;
 }
 
@@ -136,11 +147,11 @@ export async function openCartDrawer(identifier: string): Promise<void> {
 
   function bindRows(): void {
     body.querySelectorAll<HTMLElement>("[data-inc]").forEach((b) =>
-      b.addEventListener("click", () => changeQty(b.dataset.inc!, +1)));
+      b.addEventListener("click", () => changeQty(rowKeyOf(b.dataset.inc), +1)));
     body.querySelectorAll<HTMLElement>("[data-dec]").forEach((b) =>
-      b.addEventListener("click", () => changeQty(b.dataset.dec!, -1)));
+      b.addEventListener("click", () => changeQty(rowKeyOf(b.dataset.dec), -1)));
     body.querySelectorAll<HTMLElement>("[data-remove]").forEach((b) =>
-      b.addEventListener("click", () => { removeFromCart(storeId, b.dataset.remove!); draw(); }));
+      b.addEventListener("click", () => { removeFromCart(storeId, rowKeyOf(b.dataset.remove)); draw(); }));
     foot.querySelector("[data-checkout]")?.addEventListener("click", () => {
       const items = getCart(storeId);
       if (!items.length) return;
@@ -153,10 +164,15 @@ export async function openCartDrawer(identifier: string): Promise<void> {
     foot.querySelector("[data-go]")?.addEventListener("click", close);
   }
 
-  function changeQty(productId: string, delta: number): void {
-    const item = getCart(storeId).find((i) => i.productId === productId);
+  /**
+   * Altera a quantidade de **uma linha**. O `find` por `productId` que aqui
+   * estava colapsava duas Combinação do mesmo Produto na primeira linha
+   * encontrada; `findCartLine` procura pela chave de linha (R4.13).
+   */
+  function changeQty(lineKey: string, delta: number): void {
+    const item = findCartLine(storeId, lineKey);
     if (!item) return;
-    setQuantity(storeId, productId, item.quantity + delta);
+    setQuantity(storeId, lineKey, item.quantity + delta);
     draw();
   }
 

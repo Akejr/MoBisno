@@ -17,6 +17,17 @@ import { trackPixel } from "../lib/pixels.js";
 import { trackStoreEvent } from "../supabase/analytics.js";
 import { listProductReviews, summarize, submitReview, type Review } from "../supabase/reviews.js";
 import { storeNotFoundHtml } from "../templates/notFound.js";
+import {
+  combinationAvailable,
+  combinationsOf,
+  effectivePrice,
+  findCombination,
+  missingAxes,
+  normalizeVariations,
+  variantKeyOf,
+  variantLabelOf,
+} from "../../src/services/variations.js";
+import type { ProductVariations } from "../../src/models/domain.js";
 
 /**
  * Produto inexistente numa loja que existe. Distinto da
@@ -30,6 +41,155 @@ function productNotFound(identifier: string): void {
     <h1 class="text-headline-lg text-on-surface">Produto não encontrado</h1>
     <a href="${esc(storeHomePath(identifier))}" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar à loja</a>
   </div>`);
+}
+
+/** Combinação escolhida, pronta a entrar numa linha de Carrinho (R4.13, R4.15). */
+interface VariantChoice {
+  variantKey: string;
+  variantLabel: string;
+  /** Preço efetivo da Combinação, de `effectivePrice` (R4.6 a R4.8). */
+  price: number;
+}
+
+/**
+ * Liga os seletores de Variação desenhados pelo Modelo_De_Loja
+ * (`variationPickerHtml` de `web/templates/variationPicker.ts`).
+ *
+ * **Só é chamada quando `normalizeVariations` devolve um valor.** Um Produto sem
+ * Variação nunca passa por aqui, e é isso que mantém o comportamento atual
+ * inalterado (R4.16): sem seletores, sem `variantKey`, preço igual a
+ * `product.price`.
+ *
+ * O que faz, e nada mais:
+ *
+ *  - um clique escolhe (ou desescolhe) o valor de um eixo;
+ *  - o preço no ecrã é recalculado por `effectivePrice` a cada mudança (R4.9);
+ *  - um valor que não leva a nenhuma Combinação disponível fica marcado
+ *    «Esgotado» e desativado (R4.11), sem nunca desativar o valor já escolhido —
+ *    senão o Cliente ficava preso numa seleção que não podia mudar;
+ *  - `resolve()` é o guarda da adição ao Carrinho: rejeita a seleção incompleta
+ *    dizendo **quais** as Variação em falta (R4.10) e rejeita a Combinação
+ *    esgotada (R4.11).
+ *
+ * **Lacuna declarada:** se o HTML do Modelo_De_Loja não trouxer os seletores
+ * (`[data-variations]` ausente), não há como o Cliente escolher e a página passa
+ * a comportar-se como hoje — preço base e sem Combinação — em vez de bloquear a
+ * venda. Nenhum Modelo_De_Loja registado está nesse caso.
+ */
+function mountVariationPicker(
+  root: HTMLElement,
+  v: ProductVariations,
+  basePrice: number,
+): { resolve(): VariantChoice | null } {
+  const axes = v.axes;
+  const container = root.querySelector<HTMLElement>("[data-variations]");
+  if (!container) {
+    return { resolve: () => ({ variantKey: "", variantLabel: "", price: basePrice }) };
+  }
+
+  const selection: (string | null)[] = axes.map(() => null);
+  const note = container.querySelector<HTMLElement>("[data-variation-note]");
+  const pickStyle = container.getAttribute("data-pick-style") ?? "";
+  const buttons = Array.from(container.querySelectorAll<HTMLElement>("[data-variation-pick]"));
+  const priceEls = Array.from(root.querySelectorAll<HTMLElement>("[data-product-price]"));
+
+  const showNote = (message: string): void => {
+    if (!note) return;
+    note.textContent = message;
+    note.classList.remove("hidden");
+  };
+  const clearNote = (): void => {
+    if (!note) return;
+    note.textContent = "";
+    note.classList.add("hidden");
+  };
+
+  /**
+   * Existe alguma Combinação disponível com este valor neste eixo, respeitando o
+   * que já está escolhido nos outros eixos?
+   *
+   * Os eixos ainda por escolher são percorridos todos (`combinationsOf`), por
+   * isso basta **uma** Combinação disponível para o valor continuar clicável.
+   * Combinação não gravada conta como disponível (R4.12), o que impede que um
+   * campo em falta bloqueie uma venda.
+   */
+  const reachable = (axisIndex: number, value: string): boolean => {
+    const free: number[] = [];
+    axes.forEach((_, i) => { if (i !== axisIndex && selection[i] === null) free.push(i); });
+    const tuples = free.length ? combinationsOf(free.map((i) => axes[i]!)) : [[]];
+    for (const tuple of tuples) {
+      const values = axes.map((_, i) => {
+        if (i === axisIndex) return value;
+        const chosen = selection[i];
+        if (chosen !== null) return chosen;
+        return tuple[free.indexOf(i)] ?? "";
+      });
+      if (combinationAvailable(findCombination(v, values))) return true;
+    }
+    return false;
+  };
+
+  const paint = (): void => {
+    buttons.forEach((el) => {
+      const i = Number(el.getAttribute("data-variation-pick"));
+      const value = el.getAttribute("data-variation-value") ?? "";
+      const base = el.getAttribute("data-pick-base") ?? "";
+      const picked = selection[i] === value;
+      el.setAttribute("aria-pressed", picked ? "true" : "false");
+      el.setAttribute("style", picked && pickStyle ? (base ? `${base};${pickStyle}` : pickStyle) : base);
+      const soldOut = !reachable(i, value);
+      if (soldOut) el.setAttribute("data-sold-out", "1");
+      else el.removeAttribute("data-sold-out");
+      // O valor escolhido nunca é desativado: é a única forma de o Cliente
+      // voltar atrás depois de uma escolha que esgotou o resto.
+      if (soldOut && !picked) el.setAttribute("disabled", "true");
+      else el.removeAttribute("disabled");
+      el.querySelector("[data-sold-out-badge]")?.classList.toggle("hidden", !soldOut);
+    });
+
+    const complete = missingAxes(axes, selection).length === 0;
+    const comb = complete ? findCombination(v, selection as string[]) : null;
+    const price = complete ? effectivePrice(basePrice, comb, v.priceMode) : basePrice;
+    priceEls.forEach((el) => { el.textContent = formatKz(price); });
+    if (complete && !combinationAvailable(comb)) showNote("Esta combinação está esgotada.");
+    else clearNote();
+  };
+
+  buttons.forEach((el) => el.addEventListener("click", () => {
+    if (el.hasAttribute("disabled")) return;
+    const i = Number(el.getAttribute("data-variation-pick"));
+    const value = el.getAttribute("data-variation-value") ?? "";
+    if (!Number.isInteger(i) || !axes[i]) return;
+    selection[i] = selection[i] === value ? null : value;
+    paint();
+  }));
+  paint();
+
+  return {
+    resolve(): VariantChoice | null {
+      const missing = missingAxes(axes, selection);
+      if (missing.length > 0) {
+        const message = `Falta escolher: ${missing.join(", ")}.`;
+        showNote(message);
+        toast(message, "error");
+        return null;
+      }
+      const values = selection as string[];
+      const comb = findCombination(v, values);
+      if (!combinationAvailable(comb)) {
+        const message = "Esta combinação está esgotada.";
+        showNote(message);
+        toast(message, "error");
+        return null;
+      }
+      clearNote();
+      return {
+        variantKey: variantKeyOf(values),
+        variantLabel: variantLabelOf(axes, values),
+        price: effectivePrice(basePrice, comb, v.priceMode),
+      };
+    },
+  };
 }
 
 /**
@@ -60,7 +220,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   // Página de produto do modelo (ou fallback simples se o modelo não a definir).
   const html = template.renderProduct
     ? template.renderProduct(view, product, custom)
-    : `<div class="min-h-screen ${""}"><a href="#/loja/${esc(identifier)}">Voltar</a><h1>${esc(product.name)}</h1></div>`;
+    : `<div class="min-h-screen ${""}"><a href="${esc(storeHomePath(identifier))}">Voltar</a><h1>${esc(product.name)}</h1></div>`;
 
   const app = render(html);
   app.style.setProperty("--brand", brandOf(custom, view.templateId));
@@ -71,6 +231,11 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   applyIconColor(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
+
+  // Variação do Produto (R4.9 a R4.12). `null` = Produto sem Variação: daqui em
+  // diante corre exactamente o código de hoje (R4.16).
+  const variations = normalizeVariations(custom, product.id);
+  const picker = variations ? mountVariationPicker(app, variations, product.price) : null;
 
   // Avaliações (estrelas) — carrega e calcula o resumo para o JSON-LD.
   let reviews: Review[] = [];
@@ -137,6 +302,25 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   const addBtn = $("[data-add-cart]") as HTMLButtonElement | null;
   addBtn?.addEventListener("click", () => {
     const qty = readQty();
+    // Com Variação ativas, a linha leva a Combinação escolhida e o preço efetivo
+    // (R4.13, R4.15). Seleção incompleta (R4.10) ou esgotada (R4.11) é rejeitada
+    // por `resolve`, que já mostrou a razão.
+    if (picker) {
+      const choice = picker.resolve();
+      if (!choice) return;
+      addToCart(result.store.id, {
+        productId: product.id,
+        name: product.name,
+        price: choice.price,
+        imageUrl: product.imageUrl ?? undefined,
+        variantKey: choice.variantKey,
+        variantLabel: choice.variantLabel,
+      }, qty);
+      updateCartBadge(result.store.id);
+      trackPixel(custom, { type: "AddToCart", name: product.name, id: product.id, value: choice.price });
+      toast(`Adicionado ao carrinho (${cartCount(result.store.id)} item(s)).`);
+      return;
+    }
     addToCart(result.store.id, {
       productId: product.id,
       name: product.name,
@@ -157,6 +341,24 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       el.innerHTML = `<span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora`;
       el.addEventListener("click", (e) => {
         e.preventDefault();
+        // Mesma regra do botão de carrinho: com Variação ativas segue a
+        // Combinação escolhida e o seu preço efetivo; sem Variação, o código de
+        // hoje (R4.16).
+        if (picker) {
+          const choice = picker.resolve();
+          if (!choice) return;
+          addToCart(result.store.id, {
+            productId: product.id,
+            name: product.name,
+            price: choice.price,
+            imageUrl: product.imageUrl ?? undefined,
+            variantKey: choice.variantKey,
+            variantLabel: choice.variantLabel,
+          }, readQty());
+          updateCartBadge(result.store.id);
+          navigate(`/loja/${encodeURIComponent(identifier)}/checkout`);
+          return;
+        }
         addToCart(result.store.id, {
           productId: product.id,
           name: product.name,
@@ -222,8 +424,10 @@ function mountReviews(
   rating: { average: number; count: number },
   templateId: string,
 ): void {
-  // O modelo "Neon Lab" não tem secção de avaliações na página de produto.
-  if (templateId === "neonlab") return;
+  // A exceção do «Neon Lab» (sem secção de avaliações) saiu com o modelo: desde
+  // a remoção do registo (R1.4) nenhuma Loja é servida com esse id — um
+  // `template_id` antigo em base de dados passa pelo fallback de `getTemplate` e
+  // é desenhado pelo primeiro Modelo registado, que tem avaliações.
   const lux = templateId === "lumiere";
   const gold = "#D4AF37";
   const section = document.createElement("section");

@@ -36,11 +36,13 @@ export default async function handler(req, res) {
 
   try {
     // Encomenda de loja.
-    const { data: order } = await db.from("orders").select("id, status, products").eq("merchant_transaction_id", mtx).maybeSingle();
+    // `store_id` vem na seleção para o abate do stock por Combinação, que vive na
+    // Personalização da Loja (`customization.productVariations`).
+    const { data: order } = await db.from("orders").select("id, store_id, status, products").eq("merchant_transaction_id", mtx).maybeSingle();
     if (order) {
       await db.from("orders").update(patch).eq("id", order.id);
       // Abate o stock uma única vez, na transição para "pago".
-      if (status === "paid" && order.status !== "paid") await decrementStock(db, order.products);
+      if (status === "paid" && order.status !== "paid") await decrementStock(db, order.products, order.store_id);
     } else {
       // Pagamento de plano.
       await db.from("plan_payments").update(patch).eq("merchant_transaction_id", mtx);

@@ -16,6 +16,7 @@ import { renderHero } from "./heroes.js";
 import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
+import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -257,10 +258,15 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
         ${productGalleryHtml(product, custom, { stageClass: "aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100", imgClass: "w-full h-full object-cover", brand: "var(--brand,#4f46e5)" })}
         <div class="flex flex-col">
           <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
-          <p class="mt-3 text-3xl font-bold" style="color:var(--brand,#4f46e5)">${esc(formatKz(product.price))}</p>
+          <p data-product-price class="mt-3 text-3xl font-bold" style="color:var(--brand,#4f46e5)">${esc(formatKz(product.price))}</p>
           ${product.description
             ? `<p class="mt-6 text-gray-600 leading-relaxed whitespace-pre-line">${esc(product.description)}</p>`
             : `<p class="mt-6 text-gray-400 italic">Sem descrição.</p>`}
+          ${variationPickerHtml(product, custom, {
+            labelClass: "text-sm font-medium text-gray-700",
+            valueClass: "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-900 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            noteClass: "text-sm font-medium",
+          })}
           <div class="mt-8 flex items-center gap-4">
             <span class="text-sm font-medium text-gray-700">Quantidade</span>
             <div class="flex items-center border border-gray-300 rounded-xl overflow-hidden">

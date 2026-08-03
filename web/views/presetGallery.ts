@@ -8,7 +8,7 @@
  */
 import { render, $, go, esc, toast } from "../lib/dom.js";
 import { appState, currentOwnerId } from "../composition.js";
-import { listTemplateModels, applyModelToStore, applyRawToStore, defaultFactoryModels, type TemplateModel } from "../supabase/models.js";
+import { listTemplateModels, applyModelToStore, applyRawToStore, defaultFactoryModels, factoryModelNameKeys, type TemplateModel } from "../supabase/models.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { getTemplate } from "../templates/registry.js";
 import { DEFAULT_LOGO, type StoreRenderView, type StoreProductView } from "../../src/storefront/storeRenderer.js";
@@ -72,10 +72,46 @@ function mockView(): StoreRenderView {
 
 /* ----------------------------- Carregar itens ----------------------------- */
 
+/** Chave de comparação de nomes de modelo — a mesma de `factoryModelNameKeys`. */
+function nameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * Uma entrada por modelo de fábrica, reconhecido por QUALQUER das suas grafias.
+ *
+ * Um modelo de fábrica renomeado (`vermelho-moderno`: «Vermelho Moderno» →
+ * «Ekolo sports» → «Ekolo Sports») pode ter duas lojas-modelo gravadas em
+ * produção, uma por grafia — foi o duplicado que a renomeação provocou. Sem
+ * agrupar pelas grafias anteriores, a galeria apresentava-as ao Dono como dois
+ * modelos diferentes. Fica a que já está na grafia atual; as lojas-modelo que
+ * não correspondem a nenhum modelo de fábrica (criadas à mão pelo admin) passam
+ * todas, sem agrupamento.
+ */
+function dedupeByFactoryModel(models: TemplateModel[]): TemplateModel[] {
+  const groups: { keys: string[]; current: string; chosen: TemplateModel }[] = [];
+  for (const m of models) {
+    const key = nameKey(m.name);
+    const group = groups.find((g) => g.keys.includes(key));
+    if (!group) {
+      const fm = defaultFactoryModels().find((f) => factoryModelNameKeys(f).includes(key));
+      groups.push({
+        keys: fm ? factoryModelNameKeys(fm) : [key],
+        current: fm ? nameKey(fm.name) : key,
+        chosen: m,
+      });
+      continue;
+    }
+    if (nameKey(group.chosen.name) !== group.current && key === group.current) group.chosen = m;
+  }
+  return groups.map((g) => g.chosen);
+}
+
 async function loadItems(): Promise<GalleryItem[]> {
-  const models = await listTemplateModels();
+  const models = dedupeByFactoryModel(await listTemplateModels());
   const out: GalleryItem[] = [];
-  const seenNames = new Set<string>();
+  // Todas as grafias já representadas pelas lojas-modelo reais.
+  const haveNames = new Set(models.map((m) => nameKey(m.name)));
 
   // 1) Lojas-modelo reais (secção "Modelos" do admin), com o preview verdadeiro.
   for (const m of models) {
@@ -88,14 +124,17 @@ async function loadItems(): Promise<GalleryItem[]> {
       key: m.storeId, name: m.name, description: m.description, html,
       customization: m.customization, model: m, identifier: m.identifier,
     });
-    seenNames.add(m.name.trim().toLowerCase());
   }
 
   // 2) Modelos de fábrica ainda NÃO importados: mostra-os já (preview com dados
   //    de exemplo), para que novos modelos apareçam sem esperar pelo seed.
   const view = mockView();
   for (const fm of defaultFactoryModels()) {
-    if (seenNames.has(fm.name.trim().toLowerCase())) continue;
+    // Mesma regra da deteção de modelo «em falta» do Painel_Admin: conta como
+    // já existente quando ALGUMA das grafias do modelo de fábrica (atual ou
+    // anterior) casa com uma loja-modelo. Comparar só o nome atual mostrava o
+    // modelo duas vezes enquanto a loja-modelo em produção guardasse a antiga.
+    if (factoryModelNameKeys(fm).some((key) => haveNames.has(key))) continue;
     out.push({
       key: fm.templateId,
       name: fm.name,

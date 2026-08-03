@@ -10,6 +10,7 @@ import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { productGalleryHtml } from "./gallery.js";
+import { variationPickerHtml } from "./variationPicker.js";
 import { gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -468,10 +469,17 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
             <span class="text-sm text-gray-400">4.8 · 126 avaliações</span>
           </div>
           <div class="flex items-baseline gap-3 mb-6">
-            <span class="fm-head text-4xl" style="color:var(--brand,#6995B1)">${esc(formatKz(product.price))}</span>
+            <span data-product-price class="fm-head text-4xl" style="color:var(--brand,#6995B1)">${esc(formatKz(product.price))}</span>
             <span class="text-xs text-gray-400 uppercase tracking-wide">IVA incluído</span>
           </div>
           ${product.description ? `<p class="text-gray-600 leading-relaxed mb-7 whitespace-pre-line">${esc(product.description)}</p>` : `<p class="text-gray-400 italic mb-7">Sem descrição.</p>`}
+          ${variationPickerHtml(product, custom, {
+            labelClass: "text-sm font-bold text-gray-700",
+            valueClass: "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 fm-head text-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            valueStyle: "color:#222",
+            noteClass: "text-sm font-bold",
+            rootClass: "flex flex-col gap-4 mb-6 min-w-0",
+          })}
           <div class="flex flex-col sm:flex-row items-stretch gap-3 mb-6">
             <div class="fm-qty self-start sm:self-auto">
               <button type="button" data-qty-dec style="color:#dc3545"><span class="material-symbols-outlined text-[20px]">remove</span></button>

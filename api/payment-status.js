@@ -53,10 +53,12 @@ export default async function handler(req, res) {
         }
       } else {
         // Encomenda de loja OU compra de SMS (mesmo operationId).
-        const { data: order } = await db.from("orders").select("id, status, products").eq("operation_id", operationId).maybeSingle();
+        // `store_id` da encomenda (e não o `storeId` da query, que pode não vir):
+        // é ele que dá acesso ao stock por Combinação na Personalização da Loja.
+        const { data: order } = await db.from("orders").select("id, store_id, status, products").eq("operation_id", operationId).maybeSingle();
         if (order) {
           await db.from("orders").update(patch).eq("id", order.id);
-          if (status === "paid" && order.status !== "paid") await decrementStock(db, order.products);
+          if (status === "paid" && order.status !== "paid") await decrementStock(db, order.products, order.store_id);
         }
         const { data: sp } = await db.from("sms_purchases").select("id, store_id, quantity, credited").eq("operation_id", operationId).maybeSingle();
         if (sp) {

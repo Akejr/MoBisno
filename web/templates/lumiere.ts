@@ -14,6 +14,7 @@ import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
 import { renderProductPage } from "./productPage.js";
+import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -409,10 +410,20 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
         <div class="flex flex-col md:sticky md:top-28 md:px-2">
           ${badge}
           <h1 class="lx-serif text-4xl md:text-5xl mb-3" style="color:#1c1b1b">${esc(product.name)}</h1>
-          <p class="lx-serif text-2xl mb-6" style="color:var(--brand,#1c1b1b)">${esc(formatKz(product.price))}</p>
+          <p data-product-price class="lx-serif text-2xl mb-6" style="color:var(--brand,#1c1b1b)">${esc(formatKz(product.price))}</p>
           ${product.description
             ? `<p class="lx-body font-light leading-relaxed mb-8 whitespace-pre-line" style="color:#464742">${esc(product.description)}</p>`
             : `<p class="lx-body italic mb-8" style="color:#777871">Sem descrição.</p>`}
+          <!-- Variações: cantos RETOS e tipografia lx-body, como o resto do modelo (MODELO-GUIA §0.2) -->
+          ${variationPickerHtml(product, custom, {
+            labelClass: "lx-body lx-track uppercase text-[12px] font-semibold",
+            labelStyle: "color:#1c1b1b",
+            valueClass: "inline-flex items-center gap-1.5 px-4 py-2.5 border lx-body lx-track uppercase text-[12px] font-semibold hover:bg-black/[.03] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            valueStyle: "border-color:rgba(28,27,27,.2);color:#1c1b1b",
+            selectedStyle: "background:var(--brand,#1c1b1b);color:var(--brand-ink,#fff);border-color:var(--brand,#1c1b1b)",
+            noteClass: "lx-body text-sm",
+            rootClass: "flex flex-col gap-4 mb-8 min-w-0",
+          })}
           <div class="flex items-center gap-4 mb-8">
             <span class="lx-body lx-track uppercase text-[12px] font-semibold" style="color:#1c1b1b">Quantidade</span>
             <div class="flex items-center border" style="border-color:rgba(28,27,27,.2)">

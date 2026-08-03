@@ -17,6 +17,7 @@ import { renderHero } from "./heroes.js";
 import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
+import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
@@ -302,8 +303,16 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
           <div class="space-y-8">
             <div>
               <h1 style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-5xl md:text-6xl mb-3 leading-tight">${esc(product.name)}</h1>
-              <p style="${SERIF}" class="text-2xl text-[#1c1b1b]">${esc(formatKz(product.price))}</p>
+              <p data-product-price style="${SERIF}" class="text-2xl text-[#1c1b1b]">${esc(formatKz(product.price))}</p>
             </div>
+
+            <!-- Variações (tipografia e cantos do modelo — MODELO-GUIA §0.2) -->
+            ${variationPickerHtml(product, custom, {
+              labelClass: "text-xs tracking-widest uppercase text-[#685b5f] font-bold",
+              valueClass: "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold tracking-[0.1em] uppercase text-[#6e6165] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+              valueStyle: "background:#f0dee3",
+              noteClass: "text-sm font-bold",
+            })}
 
             ${product.description
               ? `<div class="space-y-3"><h3 class="text-xs tracking-widest uppercase text-[#685b5f] font-bold">Descrição</h3><p class="text-[#524345] leading-relaxed text-lg font-light whitespace-pre-line">${esc(product.description)}</p></div>`

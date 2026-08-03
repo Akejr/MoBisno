@@ -157,7 +157,7 @@ R1, R8, R2, R5. Contém o único passo destrutivo em produção desta spec. A
 sequência de **D7 não é comutativa**: verificação entregue e corrida **antes** de
 existir botão que apague; remoção do registo **em último**.
 
-- [ ] 7. Preset «Ekolo Sports» e remoção dos modelos FoodMart e Neon Lab (R1, sequência D7)
+- [x] 7. Preset «Ekolo Sports» e remoção dos modelos FoodMart e Neon Lab (R1, sequência D7)
   - [x] 7.1 Renomear o nome apresentado do Preset em `web/templates/presets.ts` (passo 1 de D7)
     - `TEMPLATE_PRESETS[0].name = "Ekolo Sports"`; **o identificador `vermelho-moderno` não é tocado** — `getPreset(id)` e a marca `__basedOn` das Lojas em produção dependem dele
     - `getRecommendedPreset()` continua a devolver este Preset, com assinatura não anulável inalterada
@@ -170,7 +170,7 @@ existir botão que apague; remoção do registo **em último**.
     - 🖐 **Limpeza manual pendente do lado do Administrador:** existem duas Loja_Modelo em produção; apagar a duplicada e correr «Importar predefinidos» uma vez renomeia a que fica. Isto **não** é executável por um agente
     - _Requisitos: 1.1, 1.2, 1.3_ · _Assunção `[A1]`_
 
-  - [ ]* 7.2 Escrever `tests/presets.test.ts`
+  - [x]* 7.2 Escrever `tests/presets.test.ts`
     - Nome «Ekolo Sports» presente, id `vermelho-moderno` intacto, `getRecommendedPreset()` não anulável
     - _Requisitos: 1.1, 1.2, 1.3_
 
@@ -192,14 +192,14 @@ existir botão que apague; remoção do registo **em último**.
     - Está marcada como opcional e colocada na última onda do grafo apenas para não bloquear a automação. **A regra de negócio não muda: tem de correr antes de apagar as Loja_Modelo**
     - _Requisitos: 1.7, 1.8_ · _Decisão D7, assunção `[A4]`_
 
-  - [ ] 7.6 Remover `neonlab` e `foodmart` do registo e do Semeador (passo 5 de D7 — **o último**)
+  - [x] 7.6 Remover `neonlab` e `foodmart` do registo e do Semeador (passo 5 de D7 — **o último**)
     - `web/templates/registry.ts`: excluir as entradas `neonlab` e `foodmart` de `TEMPLATE_REGISTRY`; `getTemplate` de um id desconhecido continua a devolver o primeiro Modelo_De_Loja registado
     - `web/supabase/models.ts`: excluir «Neon Lab» e «FoodMart» da lista de modelos de fábrica
     - `web/lib/cartDrawer.ts`: remover os ramos de tema desses modelos (`ensureCartDarkStyle`, `ensureCartFmStyle`), que ficam sem uso
     - **Ordem obrigatória:** só depois de 7.5 e da eliminação das Loja_Modelo. Se o registo for removido primeiro, as demos publicadas e indexadas passam a ser servidas com o Modelo_De_Loja errado e o Painel_Admin deixa de as apresentar para as poder apagar
     - _Requisitos: 1.4, 1.5, 1.10_ · _Decisão D7_
 
-  - [ ]* 7.7 Escrever `tests/registry.test.ts`
+  - [x]* 7.7 Escrever `tests/registry.test.ts`
     - `neonlab` e `foodmart` fora de `TEMPLATE_REGISTRY`; `getTemplate` com id desconhecido devolve o primeiro registado
     - _Requisitos: 1.4, 1.10_
 
@@ -220,7 +220,7 @@ existir botão que apague; remoção do registo **em último**.
     - Tarefa de documentação, deliberada: o `SEO.md` é a fonte das invariantes que o R12.4 obriga a cumprir, e uma fonte desatualizada é uma armadilha para quem a seguir
     - _Requisitos: 8.8, 12.4_
 
-  - [ ]* 8.4 Escrever `tests/assistantScopes.test.ts` com asserções sobre a fonte
+  - [x]* 8.4 Escrever `tests/assistantScopes.test.ts` com asserções sobre a fonte
     - `readFileSync` de `api/assistant.js`: os cinco âmbitos (`site`, `editor`, `seo`, `seotitle`, `logo`) estão presentes, o texto novo de `site` e `editor` está lá, e o âmbito `seo` mantém a regra dos 160 caracteres
     - _Requisitos: 8.1, 8.2, 8.3, 8.4, 8.6, 8.7, 8.8_
 
@@ -242,12 +242,12 @@ existir botão que apague; remoção do registo **em último**.
     - Mesmo tratamento das três variantes, mesmo estado de progresso, mesma ação «Tentar de novo» e mesmo selo «Beta»
     - _Requisitos: 2.2, 2.3, 2.4, 2.5, 2.7, 2.8, 2.9, 2.10_
 
-  - [ ]* 9.4 Escrever `tests/logoApi.test.ts` com exemplos
+  - [x]* 9.4 Escrever `tests/logoApi.test.ts` com exemplos
     - Contorno já em uso no repositório: `await import()` com o especificador numa constante mais stub de `globalThis.fetch`; três exemplos — cinco propostas, menos de cinco (`missing > 0`), `!res.ok` (`server-error` com `error`/`detail`) e `fetch` rejeitado (`network-error`)
     - Sem teste de propriedade: o valor de R2 está no contrato de erro, não em variação de entrada
     - _Requisitos: 2.1, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 10. Várias localizações no bloco de mapa (R5)
+- [x] 10. Várias localizações no bloco de mapa (R5)
   - [x] 10.1 Criar `src/services/locations.ts` com `StorePlace`, `resolveLocations` e `mapEmbedSrc`
     - `resolveLocations(block, footerLocation?)`: `block.places` com ≥ 1 entrada → formato novo; senão `block.address`/`lat`/`lng` → localização única legada; senão morada do rodapé. Devolve sempre ≥ 1 entrada, é total e nunca lança
     - `mapEmbedSrc(place, fallbackAddress?)`: generalização de `boutiqueMapSrc` do Lumière — com coordenadas usa OpenStreetMap (`marker=lat,lng`), só com morada usa o embed da Google, sem chave de API
@@ -279,12 +279,12 @@ existir botão que apague; remoção do registo **em último**.
     - Acrescentar a guarda; não alterar nenhum teste existente do ficheiro
     - _Requisitos: 5.10, 12.4_ · _Decisão D9_
 
-  - [ ]* 10.7 Escrever `tests/locations.test.ts` com exemplos
+  - [x]* 10.7 Escrever `tests/locations.test.ts` com exemplos
     - Três exemplos, um por caso da cascata: lista de `places`, localização única legada (`address`/`lat`/`lng`), lista vazia → morada do rodapé; mais `mapEmbedSrc` com e sem coordenadas
     - Sem teste de propriedade: a regra é uma cascata de três casos enumeráveis
     - _Requisitos: 5.5, 5.6, 5.7, 5.8, 5.9_
 
-- [ ] 11. Validação da Fase B
+- [x] 11. Validação da Fase B
   - `get_diagnostics` nos ficheiros tocados de `src/` e `tests/` → `npm run build` → `npm run web:build` → `npx vitest run`
   - Critério de saída: **nenhum dos 197 testes da linha de base muda de resultado**; os testes novos passam
   - Verificar a §5 do `SEO.md` (com a guarda de paridade nova) e a §6.1 do `MODELO-GUIA.md` no bloco `location`
@@ -295,42 +295,42 @@ existir botão que apague; remoção do registo **em último**.
 R7 sozinho. Duas alterações de acesso a dados, ambas de leitura, ambas declaradas
 em **D5**. Entrega a Propriedade 5.
 
-- [ ] 12. Visão geral profissional no Painel_Admin (R7)
-  - [ ] 12.1 Criar `src/services/adminMetrics.ts` com `businessHealth`, `monthlyEvolution` e `attentionLists`
+- [x] 12. Visão geral profissional no Painel_Admin (R7)
+  - [x] 12.1 Criar `src/services/adminMetrics.ts` com `businessHealth`, `monthlyEvolution` e `attentionLists`
     - `businessHealth`: receita do mês corrente (transações de serviço `paid` com `paidAt` no mês), assinaturas ativas, contas em teste a expirar, conversão de teste para pago (0..1), Lojas publicadas, Lojas suspensas (via `resolveBilling` de `src/services/billing.ts` aplicado à conta dona)
     - `monthlyEvolution`: 6 meses mais recentes, do mais antigo para o mais recente, com receita e número de contas
     - `attentionLists`: as cinco listas (levantamentos por aprovar, pagamentos `open`/`failed`/`expired`, contas a expirar em 7 dias, Lojas sem Produtos, Lojas não publicadas), cada item com `href` para o ecrã do Painel_Admin que resolve a ação
-    - **Todas as funções excluem Loja_Modelo (`customization.__template`) e contas de Administrador** — a exclusão é aplicada em onze agregações distintas
+    - **Todas as funções excluem Loja_Modelo (`customization.__template`) e contas de Administrador** — a exclusão é aplicada em treze agregações distintas
     - Não confundir `adminOverview().salesTotal` (volume de vendas das Lojas) com a receita da Plataforma (transações de serviço): são grandezas diferentes e levam rótulos distintos
     - _Requisitos: 7.2, 7.3, 7.4, 7.5, 7.8_ · _Propriedade 5, decisão D5_
 
-  - [ ] 12.2 Alterar `web/supabase/admin.ts`: `trial_ends_at` e contagem de Produtos por Loja
+  - [x] 12.2 Alterar `web/supabase/admin.ts`: `trial_ends_at` e contagem de Produtos por Loja
     - Acrescentar `trial_ends_at` ao `select` **já existente** de `listAccounts()` e `trialEndsAt: string | null` a `AdminAccount`. A coluna existe em `profiles` e já é lida em `web/composition.ts`; sem ela não há «contas em teste a expirar» nem conversão de teste para pago
     - Acrescentar `adminStoreProductCounts(): Promise<ReadonlyMap<string, number>>` — consulta nova, `from("products").select("store_id")` contada em memória, sem `join`
     - Só leitura: nada escreve, nada migra
     - _Requisitos: 7.2, 7.4, 7.9_ · _Decisão D5 `[A3]`_
 
-  - [ ] 12.3 Reescrever a Visão geral em `web/views/adminPanel.ts`
+  - [x] 12.3 Reescrever a Visão geral em `web/views/adminPanel.ts`
     - Três secções, por esta ordem: saúde do negócio, «A precisar de atenção», histórico recente (transações de serviço e contas mais recentes, truncadas)
     - Consumir `adminMetrics.ts` com dados de `adminOverview`, `listAccounts`, `listStores`, `listAllWithdrawals`, `listServiceTransactions` e `adminStoreProductCounts`
     - Evolução mensal de receita e de contas nos 6 meses mais recentes; ligação em cada linha das cinco listas; mensagem de estado vazio por lista sem itens; estado de carregamento; «Atualizar» recarrega todas as secções
     - Valores monetários por `formatKz`; layout sem deslocamento horizontal a 360 px; separadores atuais mantidos (Visão geral, Contas, Lojas, Modelos, Transações, Levantamentos); `#F95901` é cor de interface de administração, não de Loja
     - _Requisitos: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.9, 7.10, 7.11, 7.12, 7.13, 7.14, 12.7_
 
-  - [ ]* 12.4 Estender `tests/geradores.ts` com `adminSnapshotArb`
+  - [x]* 12.4 Estender `tests/geradores.ts` com `adminSnapshotArb`
     - Conjunto arbitrário de contas (com e sem `is_admin`), Lojas (com e sem `__template`), levantamentos, transações de serviço e contagens de Produtos, tipado pelos `…Like` de `src/services/adminMetrics.ts`
     - _Requisitos: 7.2, 7.8_
 
-  - [ ]* 12.5 Escrever o teste da Propriedade 5 em `tests/adminMetrics.property.test.ts`
+  - [x]* 12.5 Escrever o teste da Propriedade 5 em `tests/adminMetrics.property.test.ts`
     - `// Feature: melhorias-loja-e-admin, Property 5: Para qualquer conjunto de dados de admin, acrescentar uma Loja_Modelo não altera nenhuma métrica nem nenhuma lista, e todas as métricas se mantêm nos seus limites`
     - Um único teste de propriedade, com `adminSnapshotArb` e `{ numRuns: 100 }` no mínimo: acrescentar uma Loja_Modelo não altera nenhuma das seis métricas nem nenhuma das cinco listas; nenhuma métrica é negativa; a conversão fica em [0, 1]; nenhuma contagem de Lojas excede o número de Lojas que não são Loja_Modelo
     - _Requisitos: 7.2, 7.4, 7.8_ · _Propriedade 5_
 
-  - [ ]* 12.6 Escrever `tests/adminMetrics.test.ts` com exemplos
+  - [x]* 12.6 Escrever `tests/adminMetrics.test.ts` com exemplos
     - Evolução de 6 meses com meses sem dados, listas vazias com estado vazio, e o `href` correto de cada tipo de item
     - _Requisitos: 7.3, 7.5, 7.6_
 
-- [ ] 13. Validação da Fase C
+- [x] 13. Validação da Fase C
   - `get_diagnostics` nos ficheiros tocados de `src/` e `tests/` → `npm run build` → `npm run web:build` → `npx vitest run`
   - Critério de saída: **nenhum dos 197 testes da linha de base muda de resultado**; os testes novos passam
   - _Requisitos: 12.1, 12.2, 12.3_
@@ -341,71 +341,71 @@ R4 sozinho. **É o único requisito que altera a forma dos dados de um Produto**
 fase que nenhuma outra bloqueia. Toda esta fase é ⚠ RISCO por natureza; as tarefas
 marcadas são as que alteram forma de dados ou assinaturas públicas.
 
-- [ ] 14. Domínio e módulos puros das Variação (R4)
-  - [ ] 14.1 ⚠ RISCO Acrescentar os tipos de Variação ao domínio e à Personalização
+- [x] 14. Domínio e módulos puros das Variação (R4)
+  - [x] 14.1 ⚠ RISCO Acrescentar os tipos de Variação ao domínio e à Personalização
     - `src/models/domain.ts`: `ProductVariationAxis`, `VariationPriceMode` (`"substitui" | "acresce"`), `ProductCombination` (`values`, `price?`, `stock?`), `ProductVariations` (`enabled`, `priceMode`, `axes`, `combinations`)
     - `web/templates/types.ts`: `productVariations?: Record<string, ProductVariations>` em `StoreCustomization` — serialização na Personalização, **não** em coluna nova, pelo precedente de `productImages` (`MODELO-GUIA.md` §9)
     - Altera a forma dos dados de um Produto: as Variação ficam fora do tipo `Product` e fora da validação de `src/services/productService.ts`, e é `normalizeVariations` que faz a guarda
     - _Requisitos: 4.1, 4.2, 4.4, 4.5, 4.12, 4.16_ · _Decisão D1_
 
-  - [ ] 14.2 ⚠ RISCO Criar `src/services/variations.ts`
+  - [x] 14.2 ⚠ RISCO Criar `src/services/variations.ts`
     - `normalizeVariations(custom: unknown, productId): ProductVariations | null` — total, nunca lança; devolve `null` quando `productVariations` não é objeto, a entrada do Produto não é objeto, `axes` não é array, não há eixos com valores, ou `enabled !== true`; descarta eixos com nome vazio, valores duplicados e Combinação com `values` de comprimento errado. É este `null` que garante o comportamento atual inalterado
     - `combinationsOf`, `syncCombinations`, `variantKeyOf` (separador U+001F), `variantLabelOf`, `findCombination`, `effectivePrice` (limitado a 0 por baixo), `combinationAvailable` (`stock === 0` esgotado, ausente = não controlado), `missingAxes`, `variationsPlainText`
     - _Requisitos: 4.3, 4.6, 4.7, 4.8, 4.10, 4.11, 4.12, 4.15, 4.16, 4.18, 4.20_ · _Propriedade 2_
 
-  - [ ] 14.3 Criar `src/services/cartLine.ts` com `CartLineIdentity` e `cartLineKey`
+  - [x] 14.3 Criar `src/services/cartLine.ts` com `CartLineIdentity` e `cartLineKey`
     - `cartLineKey({ productId, variantKey })` = `productId + "|" + (variantKey ?? "")`; para Produto sem Variação devolve `"<id>|"`, o que mantém os carrinhos já gravados em `localStorage` a funcionar sem migração
     - Duas Combinação distintas do mesmo Produto dão duas chaves distintas, logo duas linhas independentes
     - _Requisitos: 4.13, 4.14_
 
-  - [ ]* 14.4 Estender `tests/geradores.ts` com `variationsArb` e `combinationArb`
+  - [x]* 14.4 Estender `tests/geradores.ts` com `variationsArb` e `combinationArb`
     - `ProductVariations` arbitrárias (eixos, valores, `priceMode`) e `ProductCombination` arbitrárias (com e sem `price`, com `stock` ausente, `0` e positivo), incluindo valores negativos de `price` para exercer o limite inferior de `effectivePrice`
     - _Requisitos: 4.6, 4.7, 4.8_
 
-  - [ ]* 14.5 Escrever o teste da Propriedade 2 em `tests/variations.property.test.ts`
+  - [x]* 14.5 Escrever o teste da Propriedade 2 em `tests/variations.property.test.ts`
     - `// Feature: melhorias-loja-e-admin, Property 2: Para qualquer preço base, Combinação e modo de preço, o preço efetivo nunca é negativo e é igual ao preço base quando a Combinação não define preço`
     - Um único teste de propriedade, com `combinationArb` e `{ numRuns: 100 }` no mínimo: sem preço na Combinação → preço base; «substitui» com preço → preço da Combinação; «acresce» → soma; e sempre finito e ≥ 0
     - _Requisitos: 4.6, 4.7, 4.8, 4.16_ · _Propriedade 2_
 
-  - [ ]* 14.6 Escrever `tests/variations.test.ts` com exemplos
+  - [x]* 14.6 Escrever `tests/variations.test.ts` com exemplos
     - Produto cartesiano de dois eixos (R4.3), remoção de um valor de eixo com preservação das Combinação restantes (R4.19, R4.20), `missingAxes` com seleção incompleta (R4.10), Combinação esgotada com `stock === 0` (R4.11)
     - _Requisitos: 4.3, 4.10, 4.11, 4.19, 4.20_
 
-  - [ ]* 14.7 Escrever `tests/cartLine.test.ts` com exemplos
+  - [x]* 14.7 Escrever `tests/cartLine.test.ts` com exemplos
     - Duas Combinação = duas linhas com quantidade própria; item legado sem `variantKey` dá `"<id>|"` e continua a encontrar-se
     - _Requisitos: 4.13, 4.16_
 
-- [ ] 15. Pontos de chamada das Variação (R4)
-  - [ ] 15.1 ⚠ RISCO Alterar `web/lib/cart.ts`: `CartItem` e as assinaturas de `setQuantity` e `removeFromCart`
+- [x] 15. Pontos de chamada das Variação (R4)
+  - [x] 15.1 ⚠ RISCO Alterar `web/lib/cart.ts`: `CartItem` e as assinaturas de `setQuantity` e `removeFromCart`
     - `CartItem` ganha `variantKey?: string` e `variantLabel?: string`; `price` passa a ser o **preço efetivo** da linha
     - `setQuantity(storeId, lineKey, quantity)` e `removeFromCart(storeId, lineKey)`: o segundo parâmetro **muda de `productId` para `lineKey`**; o estado passa a ser chaveado por `cartLineKey`, não por `productId`
     - **Mudança de assinatura, não silenciosa:** quem passar um `productId` cru deixa de encontrar a linha, porque a chave de um item sem `variantKey` é `"<productId>|"`. Os pontos de chamada a atualizar são exatamente dois ficheiros — `web/lib/cartDrawer.ts` e `web/views/cart.ts` (tarefa 15.2)
     - `web/lib/cart.ts` depende de `localStorage` e fica fora do programa de testes; a validação é `npm run web:build` mais os testes de `cartLine.ts`
     - _Requisitos: 4.13, 4.14, 4.15, 4.16_
 
-  - [ ] 15.2 ⚠ RISCO Atualizar os pontos de chamada de `setQuantity`/`removeFromCart`
+  - [x] 15.2 ⚠ RISCO Atualizar os pontos de chamada de `setQuantity`/`removeFromCart`
     - `web/lib/cartDrawer.ts` e `web/views/cart.ts` passam a chamar com `cartLineKey(item)`
     - Ambos passam a apresentar `variantLabel` em cada linha que a tenha
     - Sem esta tarefa a Fase D fica com pontos de chamada a passar `productId` a um parâmetro `lineKey` — e `web/` não é verificado por tipos, por isso o `tsc` não o apanha: a guarda é `npm run web:build` mais os testes
     - _Requisitos: 4.13, 4.14_
 
-  - [ ] 15.3 Acrescentar a gestão de Variação ao Formulario_De_Produto (`web/lib/productForm.ts`)
+  - [x] 15.3 Acrescentar a gestão de Variação ao Formulario_De_Produto (`web/lib/productForm.ts`)
     - Controlo que ativa e desativa as Variação; definição de eixos com nome escolhido pelo Dono e lista de valores; lista de Combinação vinda de `combinationsOf`; modo de preço «substitui o preço base» / «acresce ao preço base»; preço e stock por Combinação
     - Remover uma Variação e remover um valor de Variação, com `syncCombinations` a descartar as Combinação que usavam o valor removido e a preservar as restantes
     - Gravar em `customization.productVariations[productId]`
     - _Requisitos: 4.1, 4.2, 4.3, 4.4, 4.5, 4.19, 4.20_
 
-  - [ ] 15.4 Apresentar os seletores de Variação na Pagina_De_Produto
+  - [x] 15.4 Apresentar os seletores de Variação na Pagina_De_Produto
     - `web/views/product.ts` e as funções `renderProduct` dos Modelo_De_Loja (`web/templates/productPage.ts` e os modelos que a especializam): um seletor por eixo, preço efetivo por `effectivePrice`, Combinação com `stock === 0` marcada «Esgotado» e rejeitada, seleção incompleta rejeitada com os nomes das Variação em falta
     - Seletores com a tipografia, os cantos e as cores do próprio Modelo_De_Loja (`MODELO-GUIA.md` §0.2); botões de marca com `var(--brand)` e `var(--brand-ink)`
     - Produto com `normalizeVariations` a devolver `null` corre exatamente o código de hoje: sem seletores, sem `variantKey`, preço igual a `product.price`
     - _Requisitos: 4.9, 4.10, 4.11, 4.12, 4.16, 4.17, 12.7_
 
-  - [ ] 15.5 Enviar o preço efetivo por linha no Checkout (`web/views/checkout.ts`)
+  - [x] 15.5 Enviar o preço efetivo por linha no Checkout (`web/views/checkout.ts`)
     - `products()` usa `i.price` de cada linha, que já é o preço efetivo da Combinação; a etiqueta da Combinação aparece na mensagem de WhatsApp **sem alterar `cartMessage.ts`**, porque `variantLabel` já é lido lá desde a Fase A
     - _Requisitos: 4.15, 3.11_
 
-  - [ ] 15.6 Espelhar `variationsPlainText` em `api/_seo.js` e acrescentar a guarda de paridade a `tests/seoInfra.test.ts`
+  - [x] 15.6 Espelhar `variationsPlainText` em `api/_seo.js` e acrescentar a guarda de paridade a `tests/seoInfra.test.ts`
     - O HTML pré-renderizado, sem JavaScript, passa a apresentar o nome de cada Variação e os respetivos valores como texto legível (`api/prerender.js` já lê `stores.customization`)
     - Paridade obrigatória do `SEO.md` §5.2, **só para esta função** — é a segunda e última das duas paridades desta spec
     - _Requisitos: 4.18, 12.4_ · _Decisão D9_

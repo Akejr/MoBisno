@@ -1,12 +1,19 @@
 /**
  * Métricas e listas da Visão geral do Painel_Admin (domínio puro, sem DOM).
  *
- * Três funções, uma por secção da Visão geral (R7.1):
+ * Quatro funções, três delas uma por secção da Visão geral (R7.1):
  *
  *  - {@link businessHealth} — as seis métricas de saúde do negócio (R7.2);
  *  - {@link monthlyEvolution} — evolução mensal de receita e de contas (R7.3);
  *  - {@link attentionLists} — as cinco listas de «A precisar de atenção» (R7.4),
- *    cada item com a ligação para o separador que resolve a ação (R7.5).
+ *    cada item com a ligação para o separador que resolve a ação (R7.5);
+ *  - {@link overviewCounts} — os cinco totais globais que `adminOverview()` de
+ *    `web/supabase/admin.ts` devolve (contas, Lojas, Lojas publicadas, volume de
+ *    vendas das Lojas e levantamentos por aprovar). Vive aqui, e não em `web/`,
+ *    porque metade desses totais escapava à exclusão do R7.8 enquanto era
+ *    contagem crua em base de dados: `salesTotal` somava as encomendas de
+ *    demonstração das Loja_Modelo e `accounts` contava as contas de
+ *    Administrador. Sendo função pura, a exclusão passa a ser testável (D8).
  *
  * **Não consulta nada.** Recebe os dados já lidos por `web/supabase/admin.ts`
  * (`adminOverview`, `listAccounts`, `listStores`, `listAllWithdrawals`,
@@ -19,19 +26,23 @@
  * **Exclusão de Loja_Modelo e de contas de Administrador (R7.8).** É aplicada
  * uma única vez, em {@link buildScope}, que produz os conjuntos elegíveis. Todas
  * as agregações leem exclusivamente esses conjuntos — nenhuma toca nos arrays
- * crus de `AdminMetricsInput`. É deliberado: a exclusão é consumida em treze
- * agregações distintas (seis métricas, duas séries mensais, cinco listas) e um
- * filtro repetido treze vezes esquece-se exatamente numa delas.
+ * crus de `AdminMetricsInput`. É deliberado: a exclusão é consumida em dezoito
+ * agregações distintas (seis métricas, duas séries mensais, cinco listas, cinco
+ * totais globais) e um filtro repetido dezoito vezes esquece-se exatamente numa
+ * delas — foi precisamente o que aconteceu enquanto os totais globais eram
+ * contados em base de dados.
  *
  * **Totalidade.** Os dados chegam de JSON e de colunas anuláveis: datas
  * inválidas, montantes `null`, `customization` de qualquer forma. Nenhuma função
  * lança, para qualquer entrada — nem sequer com `input` vazio. Segue o estilo de
  * `src/services/storeCustom.ts` e `src/services/locations.ts`.
  *
- * **Armadilha de nomes, dita de frente:** `adminOverview().salesTotal` é o
- * **volume de vendas das Lojas** (tabela `orders`); a **receita da Plataforma**
- * calculada aqui vem das **transações de serviço** (planos, SMS, logótipos). São
- * grandezas diferentes e levam rótulos distintos na interface (D5).
+ * **Armadilha de nomes, dita de frente:** {@link OverviewCounts.salesTotal} — o
+ * que `adminOverview().salesTotal` devolve — é o **volume de vendas das Lojas**
+ * (tabela `orders`, dinheiro dos clientes dos Donos); a **receita da Plataforma**
+ * é {@link BusinessHealth.monthRevenue} e vem das **transações de serviço**
+ * (planos, SMS, logótipos). São grandezas diferentes e levam rótulos distintos e
+ * inequívocos na interface (D5).
  */
 
 import { resolveBilling, type BillingState } from "./billing.js";
@@ -116,6 +127,21 @@ export interface WithdrawalLike {
   readonly createdAt?: string | null | undefined;
 }
 
+/**
+ * Encomenda de uma Loja (tabela `orders`). Forma mínima para o **volume de
+ * vendas das Lojas**: só o estado, o montante e a Loja a que pertence.
+ *
+ * `storeId` não é decorativo — é o que permite deixar fora as encomendas de
+ * demonstração das Loja_Modelo (R7.8). Sem ele, o volume apresentado ao
+ * Administrador vinha inflacionado pelas vendas de mentira dos modelos.
+ */
+export interface OrderLike {
+  readonly storeId?: string | null | undefined;
+  readonly amount?: number | string | null | undefined;
+  /** `"open"`, `"paid"`, `"failed"` ou `"cancelled"`. */
+  readonly status?: string | null | undefined;
+}
+
 /** Transação de serviço da Plataforma. Forma mínima de `AdminServiceTx`. */
 export interface ServiceTxLike {
   readonly id: string;
@@ -150,6 +176,11 @@ export interface AdminMetricsInput {
   readonly stores?: readonly StoreLike[] | null | undefined;
   readonly withdrawals?: readonly WithdrawalLike[] | null | undefined;
   readonly transactions?: readonly ServiceTxLike[] | null | undefined;
+  /**
+   * Encomendas das Lojas (tabela `orders`). Só {@link overviewCounts} as lê; as
+   * três secções da Visão geral não dependem delas.
+   */
+  readonly orders?: readonly OrderLike[] | null | undefined;
   /** Nº de Produtos por Loja (`storeId` → contagem). */
   readonly productCounts?: ReadonlyMap<string, number> | null | undefined;
 }
@@ -165,6 +196,28 @@ export interface BusinessHealth {
   readonly trialConversion: number;
   readonly publishedStores: number;
   readonly suspendedStores: number;
+}
+
+/**
+ * Os cinco totais globais da Plataforma, todos sobre os conjuntos elegíveis
+ * (R7.8). Estruturalmente igual a `AdminOverview` de `web/supabase/admin.ts`,
+ * que é o que esta forma existe para preencher. Nenhum total é negativo.
+ */
+export interface OverviewCounts {
+  /** Contas de cliente. Contas de Administrador **fora**. */
+  readonly accounts: number;
+  /** Lojas de cliente. Loja_Modelo **fora**. */
+  readonly stores: number;
+  /** Lojas de cliente com `state === "Publicada"`. */
+  readonly published: number;
+  /**
+   * **Volume de vendas das Lojas**: soma das encomendas `paid` das Lojas
+   * elegíveis. Dinheiro dos clientes dos Donos, **não** receita da Plataforma —
+   * essa é {@link BusinessHealth.monthRevenue}.
+   */
+  readonly salesTotal: number;
+  /** Levantamentos com `status === "requested"` de Lojas elegíveis. */
+  readonly pendingWithdrawals: number;
 }
 
 /** Um mês da evolução mensal. `month` no formato `"AAAA-MM"` (UTC). */
@@ -299,6 +352,8 @@ interface Scope {
   readonly storeIds: ReadonlySet<string>;
   /** Levantamentos de Lojas elegíveis. */
   readonly withdrawals: readonly WithdrawalLike[];
+  /** Encomendas de Lojas elegíveis (as de demonstração das Loja_Modelo ficam fora). */
+  readonly orders: readonly OrderLike[];
   /** Transações de serviço de contas que não são de Administrador. */
   readonly transactions: readonly ServiceTxLike[];
   /** Nº de Produtos por Loja, lido em segurança. */
@@ -323,6 +378,9 @@ function resolveNow(input: AdminMetricsInput | null | undefined, override?: Inst
  *  - **levantamentos** — só os de uma Loja **elegível**. Exigir pertença (em vez
  *    de excluir as Loja_Modelo conhecidas) é o que garante que acrescentar uma
  *    Loja_Modelo à entrada nunca pode retirar um levantamento da lista;
+ *  - **encomendas** — só as de uma Loja **elegível**, pela mesma razão. As
+ *    Loja_Modelo têm Produtos e encomendas de demonstração, e é exatamente por
+ *    isso que o volume de vendas não as pode somar;
  *  - **transações de serviço** — fora as de uma conta de Administrador conhecida.
  *
  * Uma Loja sem dono conhecido continua elegível: a lista de contas pode não
@@ -387,6 +445,11 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     (t) => !!t && !(typeof t.ownerId === "string" && adminIds.has(t.ownerId)),
   );
 
+  // Exclusão 5 — encomendas que não pertencem a uma Loja elegível. Mesma regra
+  // de pertença dos levantamentos, e não «excluir as Loja_Modelo conhecidas».
+  const rawOrders = asList(input?.orders);
+  const orders = rawOrders.filter((o) => !!o && typeof o.storeId === "string" && storeIds.has(o.storeId));
+
   const counts = input?.productCounts;
   const productsOf = (storeId: string): number => {
     if (!counts || typeof counts.get !== "function") return 0;
@@ -394,7 +457,7 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     return typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
   };
 
-  return { nowMs, accounts, billing, stores, storeIds, withdrawals, transactions, productsOf };
+  return { nowMs, accounts, billing, stores, storeIds, withdrawals, orders, transactions, productsOf };
 }
 
 /** Faturação da conta elegível, ou `null` quando a conta não é elegível/conhecida. */
@@ -412,6 +475,65 @@ function trialExpiringSoon(state: BillingState): boolean {
 function paidAtOf(tx: ServiceTxLike): number | null {
   if (asStatus(tx.status) !== "paid") return null;
   return asInstant(tx.paidAt ?? null);
+}
+
+// ---------------------------------------------------------------------------
+// Totais globais da Plataforma (R7.8) — o que `adminOverview()` apresenta
+// ---------------------------------------------------------------------------
+
+/**
+ * Os cinco totais globais da Plataforma, sobre os conjuntos elegíveis (R7.8):
+ *
+ *  - agregação 14 — **contas de cliente** (contas de Administrador fora);
+ *  - agregação 15 — **Lojas de cliente** (Loja_Modelo fora);
+ *  - agregação 16 — **Lojas publicadas** (`state === "Publicada"`);
+ *  - agregação 17 — **volume de vendas das Lojas**: encomendas `paid` das Lojas
+ *    elegíveis. É dinheiro dos clientes dos Donos e não receita da Plataforma —
+ *    ver a armadilha de nomes no topo do ficheiro;
+ *  - agregação 18 — **levantamentos por aprovar** (`status === "requested"`).
+ *
+ * Estas contagens eram feitas em base de dados por `adminOverview()`, e metade
+ * delas escapava à exclusão do R7.8: o volume de vendas somava as encomendas de
+ * demonstração das Loja_Modelo e as contas incluíam as de Administrador. Aqui
+ * saem do mesmo âmbito das outras treze agregações, pelo que:
+ *
+ *  - `published` coincide sempre com `businessHealth().publishedStores`;
+ *  - `pendingWithdrawals` coincide sempre com o comprimento de
+ *    `attentionLists().withdrawalsToApprove`.
+ *
+ * @param input Dados já lidos da Plataforma, incluindo `orders`.
+ * @param now Momento de referência; tem precedência sobre `input.now`. Nenhum
+ *        destes totais depende do tempo — é aceite só para a assinatura ser a
+ *        mesma das outras três funções.
+ */
+export function overviewCounts(input: AdminMetricsInput, now?: Instant): OverviewCounts {
+  const scope = buildScope(input, now);
+
+  // Agregação 17 — volume de vendas: só encomendas pagas de Lojas elegíveis.
+  let salesTotal = 0;
+  for (const order of scope.orders) {
+    if (asStatus(order.status) === "paid") salesTotal += asAmount(order.amount);
+  }
+
+  // Agregação 16 — mesmo critério de `businessHealth().publishedStores`.
+  let published = 0;
+  for (const store of scope.stores) {
+    if (asText(store.state) === PUBLISHED_STATE) published += 1;
+  }
+
+  // Agregação 18 — mesmo critério de `attentionLists().withdrawalsToApprove`.
+  let pendingWithdrawals = 0;
+  for (const withdrawal of scope.withdrawals) {
+    if (asStatus(withdrawal.status) === "requested") pendingWithdrawals += 1;
+  }
+
+  return {
+    accounts: scope.accounts.length,
+    stores: scope.stores.length,
+    published,
+    salesTotal,
+    pendingWithdrawals,
+  };
 }
 
 // ---------------------------------------------------------------------------

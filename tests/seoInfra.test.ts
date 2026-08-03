@@ -24,6 +24,8 @@ import {
 import { slugify, productSlugPath } from "../src/services/slug.js";
 import { formatKz } from "../src/services/format.js";
 import { resolveLocations, mapEmbedSrc, type StorePlace } from "../src/services/locations.js";
+import { normalizeVariations, variationsPlainText } from "../src/services/variations.js";
+import type { ProductVariations } from "../src/models/domain.js";
 
 const ROOT = join(__dirname, "..");
 
@@ -50,6 +52,14 @@ interface ApiSeo {
   resolveLocations(block: unknown, footerLocation?: string): StorePlace[];
   mapEmbedSrc(place: StorePlace, fallbackAddress?: string): string;
   locationsHtml(custom: unknown): string;
+  productVariationsOf(custom: unknown, productId: string): { enabled: true; axes: { name: string; values: string[] }[] } | null;
+  variationsPlainText(v: unknown): string;
+  productHtml(i: {
+    storeName: string;
+    product: { id: string; name: string; category: string | null; price: number; image_url: string | null; description?: string | null };
+    description: string; logoUrl: string | null; base: string; brand: string;
+    outOfStock?: boolean; custom?: unknown;
+  }): string;
 }
 
 // `api/_seo.js` é JavaScript puro: as funções serverless não passam pelo
@@ -64,6 +74,32 @@ function sourcesIn(dir: string): { file: string; text: string }[] {
   return readdirSync(join(ROOT, dir))
     .filter((f) => f.endsWith(".ts"))
     .map((f) => ({ file: `${dir}/${f}`, text: readFileSync(join(ROOT, dir, f), "utf8") }));
+}
+
+/**
+ * Vistas de loja **públicas** — as únicas a que a invariante §5.1 do `SEO.md`
+ * se aplica, e por isso as únicas que a guarda de ligações percorre.
+ *
+ * A fronteira é deliberada e NÃO deve ser alargada a `web/views` inteiro: o
+ * `#` é o esquema de rotas legítimo da aplicação **privada** (`dashboard.ts`,
+ * `adminPanel.ts`, `login.ts`, `landing.ts`, `wizard.ts`, `presetGallery.ts`,
+ * `editor.ts`…), que não é indexada e onde `href="#/painel"`, `href="#/criar"`
+ * ou `href="#/login"` estão corretos. Só estas cinco vistas são pré-renderizadas
+ * e servidas a motores de busca, e só nelas um fragmento apaga a ligação — o
+ * Google descarta o `#`, logo produtos e categorias ficariam sem ligações.
+ *
+ * Ao criar uma vista pública nova de loja, acrescenta-a aqui.
+ */
+const PUBLIC_STORE_VIEWS = ["storefront.ts", "product.ts", "category.ts", "cart.ts", "checkout.ts"] as const;
+
+function publicStoreViews(): { file: string; text: string }[] {
+  const existentes = new Set(readdirSync(join(ROOT, "web/views")));
+  return PUBLIC_STORE_VIEWS.map((f) => {
+    // Se uma destas vistas for renomeada, a guarda ficaria silenciosamente sem
+    // a percorrer: falha aqui em vez de deixar de vigiar.
+    expect(existentes.has(f), `vista pública em falta: web/views/${f}`).toBe(true);
+    return { file: `web/views/${f}`, text: readFileSync(join(ROOT, "web/views", f), "utf8") };
+  });
 }
 
 describe("SEO — ligações internas indexáveis", () => {
@@ -82,11 +118,13 @@ describe("SEO — ligações internas indexáveis", () => {
   });
 
   it("as vistas públicas também não geram ligações com fragmento", () => {
+    // Mesmo padrão exato da guarda dos modelos, acima: os dois desalinhados
+    // deixavam passar um `href="#/loja/…"` numa vista pública.
     const offenders: string[] = [];
-    for (const { file, text } of sourcesIn("web/views")) {
+    for (const { file, text } of publicStoreViews()) {
       text.split("\n").forEach((line, i) => {
         const code = line.replace(/\/\/.*$/, "").replace(/^\s*\*.*$/, "");
-        if (code.includes("`#/loja/")) offenders.push(`${file}:${i + 1}`);
+        if (code.includes("`#/loja/") || code.includes('href="#/')) offenders.push(`${file}:${i + 1}`);
       });
     }
     expect(offenders).toEqual([]);
@@ -351,5 +389,137 @@ describe("SEO — paridade das localizações entre api/_seo.js e src/services/l
     expect(html).toContain("Onde estamos");
     expect(html).toContain("Via S8");
     expect(html).toContain("<iframe ");
+  });
+});
+
+describe("SEO — paridade das Variação entre api/_seo.js e src/services/variations.ts", () => {
+  // Identificador do Produto usado em todos os casos. A chave do mapa
+  // `productVariations` é o `id` do Produto (decisão D1).
+  const PID = "p-1";
+
+  /** Personalização com uma entrada de Variação para `PID`. */
+  const de = (entry: unknown): unknown => ({ productVariations: { [PID]: entry } });
+
+  // Casos escolhidos para percorrer a forma do texto (um eixo, dois eixos,
+  // aparagem, duplicados) e **todos** os caminhos que dão `null` em
+  // `normalizeVariations` — é esse `null` que mantém o comportamento atual
+  // inalterado (R4.16) e que tem de coincidir nos dois módulos.
+  const casos: { nome: string; custom: unknown; productId?: string }[] = [
+    { nome: "dois eixos", custom: de({ enabled: true, axes: [
+      { name: "Cor", values: ["Preto", "Branco"] },
+      { name: "Tamanho", values: ["S", "M"] },
+    ] }) },
+    { nome: "um eixo", custom: de({ enabled: true, axes: [{ name: "Cor", values: ["Azul"] }] }) },
+    { nome: "nomes e valores com espaços a aparar", custom: de({ enabled: true, axes: [
+      { name: "  Cor  ", values: ["  Azul ", "Verde  "] },
+      { name: " Tamanho", values: ["M "] },
+    ] }) },
+    { nome: "valores duplicados (fica a primeira ocorrência)", custom: de({ enabled: true, axes: [
+      { name: "Cor", values: ["Azul", "Azul", "Verde", " Azul "] },
+    ] }) },
+    { nome: "eixo sem valores é descartado", custom: de({ enabled: true, axes: [
+      { name: "Cor", values: [] },
+      { name: "Tamanho", values: ["M"] },
+    ] }) },
+    { nome: "eixo sem valores utilizáveis é descartado", custom: de({ enabled: true, axes: [
+      { name: "Cor", values: [null, "  ", 3, {}] },
+      { name: "Tamanho", values: ["M"] },
+    ] }) },
+    { nome: "eixo sem nome é descartado", custom: de({ enabled: true, axes: [
+      { values: ["A"] },
+      { name: "  ", values: ["B"] },
+      { name: 7, values: ["C"] },
+      { name: "Tamanho", values: ["M"] },
+    ] }) },
+    { nome: "nenhum eixo sobrevivente", custom: de({ enabled: true, axes: [{ name: "Cor", values: ["  "] }, null, 3] }) },
+    { nome: "enabled a false", custom: de({ enabled: false, axes: [{ name: "Cor", values: ["Azul"] }] }) },
+    { nome: "enabled sem comparação estrita", custom: de({ enabled: "true", axes: [{ name: "Cor", values: ["Azul"] }] }) },
+    { nome: "enabled ausente", custom: de({ axes: [{ name: "Cor", values: ["Azul"] }] }) },
+    { nome: "axes não é array", custom: de({ enabled: true, axes: { name: "Cor", values: ["Azul"] } }) },
+    { nome: "axes ausente", custom: de({ enabled: true }) },
+    { nome: "entrada do Produto não é objeto", custom: de("Cor: Azul") },
+    { nome: "entrada do Produto é array", custom: de([{ name: "Cor", values: ["Azul"] }]) },
+    { nome: "productVariations não é objeto", custom: { productVariations: 7 } },
+    { nome: "productVariations é array", custom: { productVariations: [] } },
+    { nome: "Produto ausente do mapa", custom: { productVariations: { "outro-produto": { enabled: true, axes: [{ name: "Cor", values: ["Azul"] }] } } } },
+    { nome: "custom sem productVariations", custom: { blocks: [], footer: {} } },
+    { nome: "custom a null", custom: null },
+    { nome: "custom a undefined", custom: undefined },
+    { nome: "custom é número", custom: 42 },
+    { nome: "custom é array", custom: [{ enabled: true, axes: [{ name: "Cor", values: ["Azul"] }] }] },
+    { nome: "custom é cadeia", custom: "productVariations" },
+    { nome: "identificador de Produto vazio", custom: de({ enabled: true, axes: [{ name: "Cor", values: ["Azul"] }] }), productId: "" },
+  ];
+
+  it("o texto das Variação é idêntico nos dois módulos", () => {
+    for (const { nome, custom, productId } of casos) {
+      const id = productId ?? PID;
+      const esperado = variationsPlainText(normalizeVariations(custom, id));
+      const obtido = apiSeo.variationsPlainText(apiSeo.productVariationsOf(custom, id));
+      expect(obtido, `variationsPlainText — ${nome}`).toBe(esperado);
+      // Uma linha por eixo, sem linha em branco no fim.
+      expect(obtido.endsWith("\n"), `sem linha vazia no fim — ${nome}`).toBe(false);
+    }
+    // A forma exata, escrita à mão para o caso mais comum: se mudar, muda nos
+    // dois módulos ao mesmo tempo — e este exemplo obriga a notá-lo.
+    expect(variationsPlainText(normalizeVariations(casos[0]!.custom, PID)))
+      .toBe("Cor: Preto, Branco\nTamanho: S, M");
+    // Aparagem e remoção de duplicados chegam ao texto.
+    expect(apiSeo.variationsPlainText(apiSeo.productVariationsOf(casos[2]!.custom, PID)))
+      .toBe("Cor: Azul, Verde\nTamanho: M");
+    expect(apiSeo.variationsPlainText(apiSeo.productVariationsOf(casos[3]!.custom, PID)))
+      .toBe("Cor: Azul, Verde");
+  });
+
+  it("variationsPlainText é total e concorda nos dois módulos para entradas cruas", () => {
+    const crus: unknown[] = [
+      null, undefined, 0, 7, "Cor", [], [{ name: "Cor", values: ["Azul"] }], {},
+      { axes: null }, { axes: {} }, { axes: [] }, { axes: [null, 3, "x"] },
+      { axes: [{ name: "Cor", values: ["Azul", "Azul"] }] },
+      { axes: [{ name: " Cor ", values: [" Azul ", 5, null] }, { name: "Tamanho", values: ["M", "L"] }] },
+      // `enabled` não é lido por esta função: só os eixos contam.
+      { enabled: false, axes: [{ name: "Cor", values: ["Azul"] }] },
+    ];
+    for (const v of crus) {
+      const esperado = variationsPlainText(v as unknown as ProductVariations | null);
+      expect(apiSeo.variationsPlainText(v), `variationsPlainText(${JSON.stringify(v)})`).toBe(esperado);
+    }
+  });
+
+  it("o HTML de produto pré-renderizado traz o nome de cada Variação e os respetivos valores", () => {
+    // R4.18: sem JavaScript não há seletores, por isso o texto tem de estar no
+    // HTML — senão um motor de busca não vê que o Produto tem várias versões.
+    const product = {
+      id: PID, name: "Ténis Runner", category: "Calçado", price: 45000,
+      image_url: null, description: "Leve e resistente.",
+    };
+    const custom = de({ enabled: true, priceMode: "acresce", axes: [
+      { name: "Cor", values: ["Preto", "Branco"] },
+      { name: "Tamanho", values: ["S", "M"] },
+    ], combinations: [{ values: ["Preto", "S"], price: 1000 }] });
+
+    const html = apiSeo.productHtml({
+      storeName: "Sport AO", product, description: "Ténis leve.",
+      logoUrl: null, base: "", brand: "#F95901", custom,
+    });
+
+    const esperado = variationsPlainText(normalizeVariations(custom, PID));
+    expect(esperado).not.toBe("");
+    expect(html, "texto das Variação no HTML servido").toContain(esperado);
+    for (const parte of ["Cor: Preto, Branco", "Tamanho: S, M"]) {
+      expect(html, `linha no HTML: ${parte}`).toContain(parte);
+    }
+
+    // Produto sem Variação utilizáveis sai exatamente como antes (R4.16): o
+    // HTML não ganha um único nó a mais.
+    const semVariacoes = apiSeo.productHtml({
+      storeName: "Sport AO", product, description: "Ténis leve.",
+      logoUrl: null, base: "", brand: "#F95901",
+    });
+    expect(semVariacoes).not.toContain("mb-ssr-vars");
+    expect(apiSeo.productHtml({
+      storeName: "Sport AO", product, description: "Ténis leve.",
+      logoUrl: null, base: "", brand: "#F95901", custom: de({ enabled: false, axes: [{ name: "Cor", values: ["Preto"] }] }),
+    })).toBe(semVariacoes);
   });
 });

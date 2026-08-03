@@ -73,10 +73,28 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     deliveryFee = freeAbove > 0 && cartTotal(storeId) >= freeAbove ? 0 : base;
   }
 
-  function products(): PaymentProduct[] {
-    const base = getCart(storeId).map((i: CartItem) => ({
-      id: i.productId, productName: i.name, productPrice: i.price, productQuantity: i.quantity,
-    }));
+  /**
+   * Linha enviada a `/api/payment`, com a Combinação vendida.
+   *
+   * `variantKey` é o que permite ao servidor validar e abater o stock **por
+   * Combinação** (R4.11, R4.12): sem ela, `checkStock` só vê o `products.stock`
+   * do Produto inteiro e um Cliente esgota o tamanho M enquanto o Produto ainda
+   * tem unidades. O tipo é local para não alargar `PaymentProduct`, que é o
+   * contrato da API MoMenu — `api/payment.js` retira a chave do payload que lhe
+   * envia e guarda-a apenas em `orders.products`.
+   */
+  type CheckoutProduct = PaymentProduct & { variantKey?: string };
+
+  function products(): CheckoutProduct[] {
+    const base: CheckoutProduct[] = getCart(storeId).map((i: CartItem) => {
+      const line: CheckoutProduct = {
+        id: i.productId, productName: i.name, productPrice: i.price, productQuantity: i.quantity,
+      };
+      // Só chave utilizável: um item legado de `localStorage` não tem o campo, e
+      // nesse caso a linha sai exatamente como saía antes das Variação (R4.16).
+      if (typeof i.variantKey === "string" && i.variantKey !== "") line.variantKey = i.variantKey;
+      return line;
+    });
     if (physical && selectedArea && deliveryFee > 0) {
       base.push({ productName: `Entrega - ${selectedArea}`, productPrice: deliveryFee, productQuantity: 1 });
     }
@@ -84,7 +102,11 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
   }
 
   function ctx(): CheckoutLayoutCtx {
-    const items = getCart(storeId).map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, imageUrl: i.imageUrl }));
+    // `i.price` é o preço efetivo da linha e `i.variantLabel` a etiqueta da
+    // Combinação escolhida (R4.14, R4.15) — o resumo do pedido mostra ambas.
+    const items = getCart(storeId).map((i) => ({
+      name: i.name, price: i.price, quantity: i.quantity, imageUrl: i.imageUrl, variantLabel: i.variantLabel,
+    }));
     const subtotal = cartTotal(storeId);
     const gross = subtotal + (physical ? deliveryFee : 0);
     const discount = appliedDiscount ? discountAmount(appliedDiscount, gross) : 0;
@@ -297,9 +319,13 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     if (selected === "whatsapp") {
       // A mensagem é composta por src/services/cartMessage.ts — autor único do
       // texto, partilhado com a Gaveta_Do_Carrinho. Os extras preservam a área
-      // de entrega e o desconto tal como aqui apareciam (R3.12).
+      // de entrega e o desconto tal como aqui apareciam (R3.12). `variantLabel`
+      // vai por linha: `buildCartWhatsAppMessage` já a acrescenta quando existe
+      // (R3.11), por isso a Combinação aparece sem alterar esse módulo.
       const msg = buildCartWhatsAppMessage(
-        items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+        items.map((i) => ({
+          name: i.name, quantity: i.quantity, price: i.price, variantLabel: i.variantLabel,
+        })),
         formatKz,
         {
           delivery: physical && selectedArea ? { area: selectedArea, fee: deliveryFee } : undefined,

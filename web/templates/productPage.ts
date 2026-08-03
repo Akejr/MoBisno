@@ -10,6 +10,7 @@ import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { productGalleryHtml } from "./gallery.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
+import { variationPickerHtml } from "./variationPicker.js";
 import type { StoreRenderView, StoreCustomization, StoreProductView } from "./types.js";
 
 export type ProductPageVariant = "classico" | "galeria" | "imersivo";
@@ -35,6 +36,19 @@ function imgHtml(p: StoreProductView, cls: string): string {
   return p.imageUrl
     ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.name)}" class="${cls}" />`
     : `<div class="absolute inset-0 flex items-center justify-center bg-gray-100"><span class="material-symbols-outlined text-gray-300 text-6xl">image</span></div>`;
+}
+
+/**
+ * Seletores de Variação (R4.9, R4.17). Cantos arredondados e molduras cinzentas,
+ * os mesmos de `qtyHtml` — é essa a consistência que a §0.2 do `MODELO-GUIA.md`
+ * exige. Cadeia vazia num Produto sem Variação (R4.16).
+ */
+function variationsHtml(product: StoreProductView, custom: StoreCustomization | undefined): string {
+  return variationPickerHtml(product, custom, {
+    labelClass: "text-sm font-medium text-gray-700",
+    valueClass: "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-900 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+    noteClass: "text-sm font-medium",
+  });
 }
 
 function qtyHtml(): string {
@@ -104,7 +118,7 @@ export function renderProductPage(
   const phone = resolveWaPhone(custom);
   const waMsg = buildProductMessage(custom?.whatsapp?.messageTemplate, product.name, formatKz(product.price));
   const waHref = waLink(phone, waMsg);
-  const price = `<p class="mt-3 text-3xl font-bold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>`;
+  const price = `<p data-product-price class="mt-3 text-3xl font-bold" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>`;
   const perks = `<ul data-edit-perks class="mt-8 space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-6">${perksItemsHtml(custom, ctx.brand)}</ul>`;
 
   if (variant === "imersivo") {
@@ -115,7 +129,7 @@ export function renderProductPage(
         <div class="relative ${ctx.container} pb-10 md:pb-14 text-white w-full">
           ${breadcrumb(view, product, true)}
           <h1 class="text-4xl md:text-6xl font-black tracking-tight leading-[1.04] max-w-3xl">${esc(product.name)}</h1>
-          <p class="mt-3 text-3xl font-bold">${esc(formatKz(product.price))}</p>
+          <p data-product-price class="mt-3 text-3xl font-bold">${esc(formatKz(product.price))}</p>
         </div>
       </section>
       <div class="${ctx.container} py-10 md:py-14">
@@ -125,7 +139,8 @@ export function renderProductPage(
             ${perks}
           </div>
           <div class="lg:col-span-1 lg:sticky lg:top-24 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <p class="text-2xl font-bold mb-4" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
+            <p data-product-price class="text-2xl font-bold mb-4" style="color:${ctx.brand}">${esc(formatKz(product.price))}</p>
+            ${variationsHtml(product, custom)}
             <div class="flex items-center gap-4 mb-2"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
             ${actionsHtml(product, ctx, waHref)}
           </div>
@@ -146,6 +161,7 @@ export function renderProductPage(
           <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
           ${price}
           ${descHtml(product)}
+          ${variationsHtml(product, custom)}
           <div class="mt-8 flex items-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
           ${actionsHtml(product, ctx, waHref)}
           ${perks}
@@ -164,6 +180,7 @@ export function renderProductPage(
         <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">${esc(product.name)}</h1>
         ${price}
         ${descHtml(product)}
+        ${variationsHtml(product, custom)}
         <div class="mt-8 flex items-center gap-4"><span class="text-sm font-medium text-gray-700">Quantidade</span>${qtyHtml()}</div>
         ${actionsHtml(product, ctx, waHref)}
         ${perks}

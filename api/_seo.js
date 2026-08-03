@@ -405,6 +405,126 @@ export function mapEmbedSrc(place, fallbackAddress) {
   return `https://maps.google.com/maps?q=${encodeURIComponent(addr.trim())}&z=15&output=embed`;
 }
 
+/* -------------------------------- Variação -------------------------------- */
+
+/**
+ * Espelho de `src/services/variations.ts` — que é a FONTE DE VERDADE.
+ *
+ * Existe porque o HTML pré-renderizado, servido **sem JavaScript**, tem de
+ * apresentar o nome de cada Variação e os respetivos valores como texto legível
+ * (R4.18): os seletores são montados pela SPA, e sem esta linha de texto um
+ * rastreador não veria que o Produto existe em várias versões.
+ *
+ * **Só é espelhado o mínimo que o texto precisa** (decisão **D9**): a
+ * normalização dos eixos e a função `variationsPlainText`. O produto cartesiano
+ * das Combinação, o modo de preço, o preço efetivo, o stock e a chave de linha
+ * de Carrinho **não** aparecem no HTML pré-renderizado e por isso não são
+ * duplicados aqui. Ao alterar a forma do texto ou a normalização dos eixos,
+ * **alterar nos dois sítios**. `tests/seoInfra.test.ts` compara os dois módulos
+ * e falha se divergirem.
+ *
+ * As guardas repetem-se em vez de reaproveitarem as das Localizações de
+ * propósito: cada espelho tem de ser lido lado a lado com o seu módulo de
+ * origem, e `asLabel` das Variação **apara** o valor devolvido, ao contrário de
+ * `asLocationText`.
+ */
+
+/** Objeto onde faça sentido ler campos, ou `null`. Espelha `asRecord`. */
+function asVariationRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return value;
+}
+
+/**
+ * Etiqueta aparada, ou `undefined` quando não é texto com conteúdo. Espelha
+ * `asLabel`: o `trim` é aplicado ao valor devolvido, porque `"M"` e `"M "` não
+ * podem ser duas versões distintas do mesmo Produto.
+ */
+function asVariationLabel(value) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * Eixos utilizáveis de uma lista de forma desconhecida. Espelha `normalizeAxes`.
+ *
+ * Descarta, por eixo: entradas que não são objetos, nomes vazios ou de tipo
+ * errado, valores que não são texto utilizável e eixos que ficam sem nenhum
+ * valor. Dentro de cada eixo os valores duplicados são descartados, ficando a
+ * primeira ocorrência.
+ */
+function normalizeVariationAxes(value) {
+  const axes = [];
+  if (!Array.isArray(value)) return axes;
+  for (const entry of value) {
+    const record = asVariationRecord(entry);
+    if (!record) continue;
+    const name = asVariationLabel(record.name);
+    if (name === undefined) continue;
+    const values = [];
+    for (const rawValue of (Array.isArray(record.values) ? record.values : [])) {
+      const label = asVariationLabel(rawValue);
+      if (label === undefined) continue;
+      if (values.includes(label)) continue;
+      values.push(label);
+    }
+    if (values.length === 0) continue;
+    axes.push({ name, values });
+  }
+  return axes;
+}
+
+/**
+ * Eixos de Variação de um Produto, lidos da Personalização, ou `null`.
+ *
+ * Espelha os casos de `null` de `normalizeVariations` — e é esse `null` que
+ * mantém o comportamento atual inalterado (R4.16): `custom` não é objeto,
+ * `productVariations` não é objeto, a entrada do Produto não é objeto,
+ * `enabled !== true` (comparação estrita, sem coerção), `axes` não é array, ou
+ * não sobra nenhum eixo com valores.
+ *
+ * Devolve **apenas** `enabled` e `axes`, que é o que o texto do R4.18 lê; o
+ * `priceMode` e as `combinations` ficam do lado do domínio (decisão D9).
+ *
+ * Total: nunca lança, para qualquer `custom` e qualquer `productId`.
+ */
+export function productVariationsOf(custom, productId) {
+  const map = asVariationRecord(asVariationRecord(custom)?.productVariations);
+  if (!map) return null;
+  if (typeof productId !== "string" || productId === "") return null;
+  const entry = asVariationRecord(map[productId]);
+  if (!entry) return null;
+  if (entry.enabled !== true) return null;
+  if (!Array.isArray(entry.axes)) return null;
+  const axes = normalizeVariationAxes(entry.axes);
+  if (axes.length === 0) return null;
+  return { enabled: true, axes };
+}
+
+/**
+ * Espelha `src/services/variations.ts:variationsPlainText`.
+ *
+ * Uma linha por eixo, `nome + ": " + valores unidos por ", "`, as linhas unidas
+ * por `"\n"`, sem linha em branco no fim. Para os eixos `Cor = [Preto, Branco]`
+ * e `Tamanho = [S, M]`:
+ *
+ * ```text
+ * Cor: Preto, Branco
+ * Tamanho: S, M
+ * ```
+ *
+ * Devolve `""` quando não há nenhum eixo utilizável (incluindo `v` a `null`), e
+ * quem desenha o HTML omite a secção nesse caso.
+ *
+ * Total: nunca lança, para qualquer entrada.
+ */
+export function variationsPlainText(v) {
+  return normalizeVariationAxes(asVariationRecord(v)?.axes)
+    .map((axis) => `${axis.name}: ${axis.values.join(", ")}`)
+    .join("\n");
+}
+
 /* ----------------------------- Conteúdo (SSR) ----------------------------- */
 
 /**
@@ -562,8 +682,13 @@ export function categoryHtml({ storeName, category, description, logoUrl, produc
   </div>`;
 }
 
-/** Conteúdo de uma página de produto. */
-export function productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock }) {
+/**
+ * Conteúdo de uma página de produto.
+ *
+ * `custom` é a `customization` da Loja e é opcional: sem ela a página sai como
+ * antes, apenas sem o texto das Variação (R4.18).
+ */
+export function productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom }) {
   const img = product.image_url
     ? `<img src="${esc(product.image_url)}" alt="${esc(product.name)}" />`
     : "";
@@ -571,6 +696,10 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
     ? ` › <a href="${esc(base)}/categoria/${esc(categorySlug(product.category))}">${esc(product.category)}</a>`
     : "";
   const stock = outOfStock ? `<p><strong>Esgotado</strong></p>` : "";
+  // Variação como texto legível, sem JavaScript (R4.18). O texto sai numa única
+  // linha por eixo, tal como o domínio o produz; os seletores são da SPA.
+  const variations = variationsPlainText(productVariationsOf(custom, product.id));
+  const variationsText = variations ? `<p class="mb-ssr-vars">${esc(variations)}</p>` : "";
   const full = String(product.description ?? "").trim();
   return `${ssrStyle(brand)}${bootScreen(storeName, logoUrl)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
@@ -581,6 +710,7 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
         <h1>${esc(product.name)}</h1>
         <p class="mb-ssr-price">${esc(formatKz(product.price))}</p>
         ${stock}
+        ${variationsText}
         <p>${esc(full || description)}</p>
         <p>Entrega em Luanda e em todo o Angola. Pagamento por Multicaixa Express, Referência Bancária ou WhatsApp.</p>
       </div>
