@@ -31,7 +31,7 @@ import { CHECKOUT_VARIANTS, renderCheckout, type CheckoutVariant } from "../temp
 import { deliveredAreas } from "../lib/areas.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
 import { applyInk } from "../lib/ink.js";
-import { applyFieldColors } from "../lib/fieldColors.js";
+import { applyFieldColors, fieldColorCss, paintFieldColor } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { readableInk } from "../lib/brand.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
@@ -1616,10 +1616,8 @@ export async function renderEditor(): Promise<void> {
       "[data-theme] :is(.rounded,.rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl){border-radius:var(--mb-radius)}" +
       "[data-theme] :is(h1,h2,h3,h4){font-family:var(--mb-head-font)}";
     // Cores de texto por-campo (isoladas) — aplicadas também no preview (#5).
-    const fieldCss = Object.entries(custom.fieldColors ?? {})
-      .filter(([, c]) => !!c)
-      .map(([p, c]) => `[data-edit="${p}"]{color:${c} !important}`)
-      .join("");
+    // A regra (incluindo os ícones do botão do rótulo) vive em lib/fieldColors.
+    const fieldCss = fieldColorCss(custom.fieldColors);
     return `<!DOCTYPE html><html lang="pt-AO"><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1809,12 +1807,13 @@ ${fieldCss}
     if (/^#[0-9a-f]{6}$/i.test(c)) return c;
     return rgbToHex(c) || (custom.colors?.text ?? "#111827");
   }
+  /**
+   * Resposta imediata enquanto o Dono arrasta o seletor de cor. Delega em
+   * `paintFieldColor` para pintar exactamente os mesmos elementos que a loja
+   * publicada — texto editável e ícones do botão a que ele pertence.
+   */
   function paintField(path: string, color: string | null): void {
-    const prev = $("#preview");
-    prev?.querySelectorAll<HTMLElement>(`[data-edit="${CSS.escape(path)}"]`).forEach((e) => {
-      if (color) e.style.setProperty("color", color, "important");
-      else e.style.removeProperty("color");
-    });
+    paintFieldColor($("#preview"), path, color, custom.fieldColors);
   }
   function showTextTools(el: HTMLElement): void {
     activeTextPath = el.dataset.edit ?? null;
