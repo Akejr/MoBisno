@@ -58,6 +58,16 @@ function todosOsPrompts(descricao = BRIEFING): string[] {
   return Array.from({ length: VARIATION_COUNT }, (_, i) => buildPrompt(descricao, i));
 }
 
+/**
+ * Os seis blocos do prompt, pela ordem em que o modelo os lê: abertura,
+ * briefing, precedência, direção da variação, predefinições e requisitos de
+ * ficheiro. `buildPrompt` junta-os com linha em branco, e nenhum bloco tem
+ * linhas em branco lá dentro — é isso que torna a divisão fiável.
+ */
+function blocos(prompt: string): string[] {
+  return prompt.split("\n\n");
+}
+
 describe("buildPrompt — precedência do briefing do Dono", () => {
   it("gera uma direção por proposta da grelha (R2.1: são cinco)", () => {
     // A grelha do painel mostra cinco cartões e `LOGO_PROPOSALS` pede cinco.
@@ -83,6 +93,22 @@ describe("buildPrompt — precedência do briefing do Dono", () => {
       expect(precedencia).toBeGreaterThanOrEqual(0);
       expect(precedencia).toBeLessThan(predefinicoes);
       expect(prompt).toContain("VINCULATIVO");
+    }
+  });
+
+  it("monta os seis blocos pela ordem em que têm de ser lidos", () => {
+    // A divisão em blocos é o que os restantes exemplos usam para distinguir
+    // «a variação impõe isto» de «a casa prefere isto». Se a montagem mudar,
+    // é aqui que se parte primeiro — e não em asserções de texto solto.
+    for (const prompt of todosOsPrompts()) {
+      const partes = blocos(prompt);
+
+      expect(partes).toHaveLength(6);
+      expect(partes[1]).toBe(`"""${BRIEFING}"""`);
+      expect(partes[2]).toMatch(/^PRECEDÊNCIA/);
+      expect(partes[3]).toMatch(/^VARIAÇÃO [A-E]/);
+      expect(partes[4]).toMatch(/^PREDEFINIÇÕES DA CASA/);
+      expect(partes[5]).toMatch(/^REQUISITOS DE FICHEIRO/);
     }
   });
 
@@ -130,11 +156,44 @@ describe("buildPrompt — o que nenhuma direção pode voltar a impor", () => {
     }
   });
 
-  it("nunca fixa a família tipográfica nem a caixa das letras à revelia do Dono", () => {
+  it("mantém as preferências de tipografia e de cor no bloco subordinado ao briefing", () => {
+    // A versão original impunha «tipografia sans-serif moderna, minúsculas» no
+    // bloco partilhado, em pé de igualdade com as regras técnicas, e ganhava a
+    // quem pedisse letra elegante. Estas preferências podem existir — sem elas
+    // o resultado cai no corporativo datado —, mas só dentro das predefinições,
+    // que o cabeçalho declara aplicáveis apenas ao que o cliente não disse.
     for (const prompt of todosOsPrompts()) {
-      // «tipografia sans-serif moderna, minúsculas» estava em todas e ganhava a
-      // quem pedisse letra elegante (serifada) ou maiúsculas.
-      expect(prompt).not.toMatch(/tipografia sans-serif|em minúsculas/i);
+      const [, , , variacao, predefinicoes] = blocos(prompt);
+
+      expect(predefinicoes).toContain("só onde o cliente nada disse");
+      // A direção da variação trata de estrutura; não fixa letra nem cor.
+      expect(variacao).not.toMatch(/sans-serif|serifada|minúscul|maiúscul/i);
+    }
+  });
+
+  it("afasta explicitamente o registo corporativo antiquado", () => {
+    // A queixa que motivou esta segunda passagem: azul-marinho pesado, letra
+    // encorpada, emblema circular e descritor do setor em maiúsculas
+    // espaçadas. Duas das direções antigas ENCOMENDAVAM esse resultado.
+    for (const prompt of todosOsPrompts()) {
+      const [, , , variacao, predefinicoes] = blocos(prompt);
+
+      expect(predefinicoes).toMatch(/emblemas circulares/i);
+      expect(predefinicoes).toMatch(/azul-marinho/i);
+      // Nenhuma direção pode ENCOMENDAR contenção nem descritor. Mencioná-los
+      // para os proibir é legítimo — a variação B fá-lo —, por isso o que se
+      // procura são as construções afirmativas, não as palavras soltas.
+      expect(variacao).not.toMatch(/^VARIAÇÃO [A-E] — (EMBLEMA|SELO|DISTINTIVO)/);
+      expect(variacao).not.toMatch(/dentro de (um|uma) (círculo|moldura|contenção|retângulo|arco)/i);
+      expect(variacao).not.toMatch(/setor do negócio|descritor[^.]*espaçad/i);
+    }
+  });
+
+  it("não deixa entrar texto além do nome da marca", () => {
+    // O descritor («BUSINESS EMAILS» por baixo do nome) era permitido pelos
+    // requisitos de ficheiro e aparecia sozinho, sem ninguém o pedir.
+    for (const prompt of todosOsPrompts()) {
+      expect(prompt).toContain("sem descritor do setor, sem slogan");
     }
   });
 

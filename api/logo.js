@@ -40,7 +40,7 @@ const TECHNICAL = [
   "- Fundo TOTALMENTE transparente. Sem fundo, moldura, cartão, sombra projetada, mockup, cenário nem reflexo.",
   "- Um único logótipo, isolado e centrado, com margem folgada. Nada de grelhas de variantes, paletas de cor, folhas de estilo de marca ou texto explicativo à volta.",
   "- Marca simples e escalável, ainda legível a 32px (favicon). Sem detalhe fotográfico nem 3D pesado.",
-  "- Se o logótipo tiver texto, o nome da marca tem de estar escrito CORRETAMENTE, letra por letra. Nenhum texto além do nome da marca e, quando faça sentido, um descritor curto do setor.",
+  "- Se o logótipo tiver texto, o nome da marca tem de estar escrito CORRETAMENTE, letra por letra. Nenhum outro texto: sem descritor do setor, sem slogan, sem morada, sem legendas — a não ser que o cliente o peça.",
 ].join("\n");
 
 /**
@@ -62,15 +62,27 @@ const PRECEDENCE = [
 ].join("\n");
 
 /**
- * Predefinições estéticas. Subordinadas ao briefing pela regra acima — daí não
- * imporem já cor, gradiente, caixa da letra nem a presença de símbolo, que era
- * o que uniformizava as cinco propostas.
+ * Predefinições estéticas — o REGISTO visual da casa.
+ *
+ * Subordinadas ao briefing pela regra acima: descrevem gosto, não impõem
+ * decisões que o cliente possa ter tomado. Mas são deliberadamente
+ * ESPECÍFICAS, e isso é a segunda correção deste gerador.
+ *
+ * PORQUÊ: uma primeira tentativa de corrigir a obediência tirou daqui, além
+ * dos mandatos, as âncoras de gosto («Stripe/Notion», «premium»). Sobrou um
+ * «profissional e elegante» genérico — e para um modelo de imagem, genérico
+ * significa corporativo datado: azul-marinho pesado, letra encorpada, emblema
+ * circular, descritor do setor em maiúsculas espaçadas. As âncoras voltam,
+ * agora como predefinições que o briefing pode contrariar.
  */
 const DEFAULTS = [
-  "PREDEFINIÇÕES DA CASA (só onde o cliente nada disse):",
-  "- Nível de estúdio de branding profissional: elegante, intencional, bem desenhado. Nunca clip-art, ícones de stock, efeitos baratos nem ilustração literal (envelope, carrinho, telefone, lâmpada, casa, engrenagem, balão de fala).",
-  "- Paleta contida, 1 a 2 cores. Composição equilibrada, espaço em branco generoso, kerning cuidado.",
-  "- Se desenhares um símbolo e o cliente não o descreveu, faz uma marca ABSTRATA e distinta — geométrica ou fluida, com espaço negativo inteligente —, não um pictograma.",
+  "PREDEFINIÇÕES DA CASA (só onde o cliente nada disse; nunca contra o briefing):",
+  "- REGISTO: marca de software moderno, do nível visual de Stripe, Linear, Vercel ou Notion. Contemporâneo, confiante e leve.",
+  "- EVITA o registo empresarial antiquado, que é o erro mais comum aqui: azul-marinho escuro e apagado, letras muito encorpadas, emblemas circulares, brasões, escudos, faixas, e o descritor do setor em maiúsculas muito espaçadas por baixo do nome. Isso faz o logótipo parecer de 1998.",
+  "- COR: uma só cor dominante, viva e luminosa. Se o cliente indicou uma cor, usa essa mesma família na versão vibrante e saturada, não na versão escura e sóbria.",
+  "- TIPOGRAFIA: sans-serif geométrica, formas quase circulares, peso leve a normal — nunca pesado —, espacejamento folgado. Caixa baixa assenta bem, salvo indicação em contrário.",
+  "- SÍMBOLO, quando houver: discreto e MUITO mais pequeno que o nome, um único gesto simples ao lado do texto. É um acompanhante, não o protagonista. Abstrato — nunca pictograma literal (envelope, carrinho, telefone, lâmpada, casa, engrenagem, balão de fala), nunca clip-art.",
+  "- Espaço em branco generoso: a marca respira no centro da imagem e não preenche a moldura.",
 ].join("\n");
 
 /**
@@ -84,30 +96,34 @@ const DEFAULTS = [
  * equivalente em vez de desobedecer ou de colapsar sobre as outras.
  */
 const VARIATIONS = [
-  // A — a letra é o logótipo.
+  // A — a letra é o logótipo, sem qualquer elemento gráfico.
   [
-    "VARIAÇÃO A — WORDMARK TIPOGRÁFICO. Só o nome da marca, sem símbolo nenhum.",
-    "Todo o interesse vem da própria letra: proporções cuidadas, espacejamento trabalhado e UM detalhe distinto e subtil (uma ligadura, um terminal cortado, uma contra-forma aberta, um ponto substituído).",
+    "VARIAÇÃO A — WORDMARK PURO. Só o nome da marca, numa única cor, sem símbolo nenhum e sem descritor.",
+    "Todo o interesse vem do desenho da letra: proporções cuidadas, espacejamento trabalhado e UM detalhe distinto e subtil (uma ligadura, um terminal cortado, uma contra-forma aberta).",
   ].join(" "),
-  // B — lockup horizontal clássico.
+  // B — o registo da referência: símbolo minúsculo + nome.
   [
-    "VARIAÇÃO B — LOCKUP HORIZONTAL. Marca à esquerda e nome à direita, alinhados pelo eixo ótico, separados por um intervalo generoso.",
-    "Sem símbolo permitido: substitui a marca da esquerda pela inicial do nome tratada como peça gráfica autónoma, no mesmo lugar e com o mesmo peso visual.",
+    "VARIAÇÃO B — SÍMBOLO COMPANHEIRO + NOME. Um símbolo pequeno e simples à esquerda, seguido do nome, alinhados pelo eixo ótico e separados por um intervalo generoso.",
+    "O símbolo é de um só gesto e claramente MAIS PEQUENO que o nome — acompanha-o, não compete com ele. Nada de emblemas, molduras nem formas pesadas.",
+    "Sem símbolo permitido: fica o nome sozinho, e o intervalo à esquerda desaparece em vez de ser preenchido.",
   ].join(" "),
-  // C — a inicial como marca.
+  // C — a inicial como peça gráfica.
   [
-    "VARIAÇÃO C — MONOGRAMA. Constrói a marca a partir da inicial (ou das duas iniciais) do nome, trabalhada como forma e não como letra tirada de uma fonte, com espaço negativo inteligente. O nome completo entra pequeno por baixo, ou fica de fora.",
+    "VARIAÇÃO C — MONOGRAMA. A inicial do nome trabalhada como peça gráfica autónoma, desenhada e não tirada de uma fonte, com espaço negativo inteligente. O nome completo entra em baixo, pequeno e discreto, ou fica de fora.",
+    "A inicial vive solta, sem círculo, quadrado nem escudo à volta.",
     "Sem símbolo permitido: mantém o monograma estritamente tipográfico — a letra desenhada, sem forma abstrata à volta nem dentro.",
   ].join(" "),
-  // D — composição vertical com descritor.
+  // D — a marca nasce dentro da própria palavra.
   [
-    "VARIAÇÃO D — EMPILHADO COM DESCRITOR. Composição vertical e centrada: o nome em destaque e, por baixo, o setor do negócio em letras muito espaçadas e bem mais pequenas.",
-    "Se houver símbolo, entra pequeno e centrado por cima do nome. Sem símbolo permitido: fica só o par nome + descritor, e o contraste de escala entre os dois é que sustenta a composição.",
+    "VARIAÇÃO D — MARCA INTEGRADA. O elemento gráfico nasce DENTRO da própria palavra: o ponto de um «i» que vira uma forma, a contra-forma de um «o» que se abre, uma letra que se prolonga num traço.",
+    "Um só ponto de interesse, no resto a palavra fica limpa. O acento pode estar num tom diferente da mesma cor.",
+    "Sem símbolo permitido: o acento tem de continuar a ser letra — muda-lhe a cor ou o peso, sem lhe acrescentar forma nova.",
   ].join(" "),
-  // E — contenção: selo/moldura.
+  // E — composição vertical, sem descritor nem moldura.
   [
-    "VARIAÇÃO E — EMBLEMA CONTIDO. O conjunto vive dentro de uma contenção geométrica simples — um círculo, um arco, um retângulo ou um par de linhas —, com o nome centrado lá dentro.",
-    "A contenção é uma linha fina, não uma mancha cheia. Sem símbolo permitido: a moldura e as linhas são geometria, não símbolo, por isso mantêm-se; lá dentro fica apenas o nome.",
+    "VARIAÇÃO E — EMPILHADO MINIMAL. Composição vertical e centrada, com muito ar: um símbolo pequeno e simples em cima e o nome centrado por baixo.",
+    "Sem descritor do setor, sem moldura, sem linhas separadoras. O silêncio entre os dois elementos é que faz a composição.",
+    "Sem símbolo permitido: fica só o nome centrado, com margens largas e o espacejamento das letras ligeiramente aberto.",
   ].join(" "),
 ];
 
