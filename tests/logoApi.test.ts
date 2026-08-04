@@ -33,10 +33,25 @@ import { describe, it, expect, afterEach } from "vitest";
 /** Especificador em constante: mantém `web/lib/logoApi.ts` fora do `tsc`. */
 const ESPECIFICADOR_LOGO_API = "../web/lib/logoApi.js";
 
+/** Receita de composição de uma direção, como `api/logo.js` a devolve. */
+interface Direction {
+  slot: string;
+  layout: string;
+  fontFamily: string;
+  weight: number;
+  color: string;
+  symbol: string | null;
+}
+
 type LogoResult =
-  | { kind: "ok"; images: string[]; requested: number; missing: number }
+  | { kind: "ok"; brief: unknown; directions: Direction[]; requested: number; missing: number }
   | { kind: "server-error"; status: number; error: string; detail?: string }
   | { kind: "network-error"; message: string };
+
+/** Direção mínima utilizável (o que `isDirection` exige para a deixar passar). */
+function direcao(slot: string, over: Partial<Direction> = {}): Direction {
+  return { slot, layout: "wordmark", fontFamily: "Manrope", weight: 700, color: "#111827", symbol: null, ...over };
+}
 
 const { LOGO_PROPOSALS, generateLogos, improveLogoDescription } = (await import(
   ESPECIFICADOR_LOGO_API
@@ -98,40 +113,45 @@ afterEach(() => {
 });
 
 const DESCRICAO = "Loja de artigos desportivos, cores laranja e preto, estilo moderno";
-const PREFIXO_PNG = "data:image/png;base64,";
 
 describe("generateLogos — contrato de erro do Gerador_De_Logotipos", () => {
   it("pede cinco propostas e devolve `ok` sem nada em falta quando as cinco chegam (R2.1, R2.2)", async () => {
-    const b64 = ["monograma", "abstrato", "combinacao", "emblema", "wordmark"];
-    stubResposta(comJson(true, 200, { images: b64 }));
+    const direcoes = ["wordmark", "spaced", "initial", "companion", "crest"].map((s) => direcao(s));
+    const brief = { brandName: "Ekolo", wantsSymbol: "either" };
+    stubResposta(comJson(true, 200, { brief, directions: direcoes, requested: 5 }));
 
     const resultado = await generateLogos(DESCRICAO);
 
     expect(LOGO_PROPOSALS).toBe(5);
-    expect(resultado).toEqual({
-      kind: "ok",
-      images: b64.map((s) => `${PREFIXO_PNG}${s}`),
-      requested: 5,
-      missing: 0,
-    });
+    expect(resultado).toEqual({ kind: "ok", brief, directions: direcoes, requested: 5, missing: 0 });
     // A descrição do Dono é transportada tal e qual para a função serverless.
     expect(pedidos).toEqual([{ url: "/api/logo", corpo: { description: DESCRICAO } }]);
   });
 
   it("devolve `ok` com `missing > 0` quando chegam menos de cinco propostas (R2.3)", async () => {
-    // O servidor devolve duas propostas utilizáveis mais três entradas
-    // inúteis: `api/logo.js` omite as direções que não conseguiu gerar, e o
-    // cliente não deve contar cadeias vazias nem valores de outro tipo.
-    stubResposta(comJson(true, 200, { images: ["monograma", "", "emblema", null, 7] }));
+    // `api/logo.js` omite as direções cujo símbolo não conseguiu gerar. O
+    // cliente não pode contar entradas truncadas nem valores de outro tipo:
+    // uma receita incompleta rebentaria no Canvas em vez de faltar um cartão.
+    const boas = [direcao("wordmark"), direcao("initial")];
+    stubResposta(comJson(true, 200, {
+      brief: {},
+      directions: [boas[0], { slot: "sem-fonte" }, boas[1], null, 7],
+      requested: 5,
+    }));
 
     const resultado = await generateLogos(DESCRICAO);
 
-    expect(resultado).toEqual({
-      kind: "ok",
-      images: [`${PREFIXO_PNG}monograma`, `${PREFIXO_PNG}emblema`],
-      requested: 5,
-      missing: 3,
-    });
+    expect(resultado).toEqual({ kind: "ok", brief: {}, directions: boas, requested: 5, missing: 3 });
+  });
+
+  it("assume as cinco propostas quando o servidor não diz quantas pediu", async () => {
+    // `requested` ausente ou absurdo não pode zerar a contagem de propostas em
+    // falta: o cartão «faltaram N» é o que explica ao Dono a grelha incompleta.
+    stubResposta(comJson(true, 200, { brief: {}, directions: [direcao("wordmark")] }));
+
+    const resultado = await generateLogos(DESCRICAO);
+
+    expect(resultado).toMatchObject({ kind: "ok", requested: 5, missing: 4 });
   });
 
   it("devolve `server-error` com o `error` e o `detail` do servidor quando `!res.ok` (R2.4, R2.6)", async () => {

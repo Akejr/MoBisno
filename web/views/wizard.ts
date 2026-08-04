@@ -9,7 +9,8 @@
  */
 import { render, $, go, esc } from "../lib/dom.js";
 import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores, adminPanelFor, STORE_APEX } from "../composition.js";
-import { generateLogos, dataUrlToUint8Array, LOGO_PROPOSALS, type LogoResult } from "../lib/logoApi.js";
+import { generateLogos, dataUrlToUint8Array, LOGO_PROPOSALS, type LogoResult, type LogoDirection } from "../lib/logoApi.js";
+import { composeLogo, PREVIEW_SIZE, FINAL_SIZE } from "../lib/logoCompose.js";
 import { openLogoCheckout, LOGO_PRICE_KZ } from "../lib/logoPurchase.js";
 import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
@@ -653,8 +654,8 @@ async function runLogoGeneration(description: string, ownerId: string, storeId: 
   }
   clearInput();
 
-  if (result.kind === "ok" && result.images.length > 0) {
-    showLogoOptions(result, ownerId, storeId);
+  if (result.kind === "ok" && result.directions.length > 0) {
+    await showLogoOptions(result, ownerId, storeId);
     return;
   }
   showLogoFailure(logoFailureText(result), ownerId, storeId);
@@ -720,8 +721,16 @@ function showLogoFailure(msg: { text: string; detail?: string }, ownerId: string
  * transparente sobre o fundo axadrezado (R2.2); quando ficaram propostas em
  * falta, o cartão diz quantas (R2.3).
  */
-function showLogoOptions(result: { images: string[]; requested: number; missing: number }, ownerId: string, storeId: string): void {
-  const images = result.images;
+async function showLogoOptions(
+  result: { directions: LogoDirection[]; brief: { brandName: string }; requested: number; missing: number },
+  ownerId: string,
+  storeId: string,
+): Promise<void> {
+  // As direções são receitas: o PNG de cada proposta é composto aqui, com o
+  // nome da marca desenhado por nós (ver `web/lib/logoCompose.ts`).
+  const images = await Promise.all(
+    result.directions.map((d) => composeLogo(result.brief.brandName, d, PREVIEW_SIZE)),
+  );
   const row = document.createElement("div");
   row.className = "flex items-end gap-2";
   const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0;background-color:#fff;";
@@ -744,8 +753,11 @@ function showLogoOptions(result: { images: string[]; requested: number; missing:
   scrollDown();
   row.querySelectorAll<HTMLElement>("[data-wlogo-pick]").forEach((b) =>
     b.addEventListener("click", () => {
-      const src = images[Number(b.dataset.wlogoPick)];
-      if (src) void pickWizardLogo(src, ownerId, storeId);
+      const chosen = result.directions[Number(b.dataset.wlogoPick)];
+      if (!chosen) return;
+      // Recomposto em alta resolução: mesmo desenho, ficheiro melhor.
+      void composeLogo(result.brief.brandName, chosen, FINAL_SIZE)
+        .then((src) => { if (src) void pickWizardLogo(src, ownerId, storeId); });
     }));
   // Propostas em falta: repetir o pedido é uma opção sem perder as recebidas.
   row.querySelector<HTMLElement>("[data-wlogo-retry]")?.addEventListener("click", () => {

@@ -15,10 +15,32 @@
  *
  * O chamador é que escolhe o texto apresentado ao Dono. Este módulo não
  * inventa mensagens de erro do servidor: limita-se a transportá-las.
+ *
+ * NOTA sobre o payload de sucesso: o servidor deixou de devolver imagens
+ * prontas. Devolve o briefing estruturado e cinco RECEITAS de composição, cada
+ * uma com a tipografia, a cor e o arranjo a aplicar, e o símbolo em PNG apenas
+ * nas direções que o exigem. O PNG final nasce em `web/lib/logoCompose.ts`, no
+ * browser — é o que garante que o nome da marca está sempre bem escrito e que
+ * as cinco propostas partilham a mesma tipografia.
  */
+import type { LogoDirection } from "./logoCompose.js";
 
-/** Nº de propostas pedidas ao servidor (uma por direção de arte de `api/logo.js`). */
+export type { LogoDirection };
+
+/** Nº de propostas pedidas ao servidor (uma por direção de `api/logo.js`). */
 export const LOGO_PROPOSALS = 5;
+
+/** Briefing estruturado que o servidor extrai da descrição do Dono. */
+export interface LogoBrief {
+  brandName: string;
+  sector: string;
+  wantsSymbol: "yes" | "no" | "either";
+  colors: string[];
+  typographyMood: string;
+  letterCase: string;
+  symbolConcepts: string[];
+  avoid: string[];
+}
 
 /**
  * Resultado do Gerador_De_Logotipos.
@@ -28,11 +50,12 @@ export const LOGO_PROPOSALS = 5;
  */
 export type LogoResult =
   /**
-   * O servidor respondeu com propostas. `images` são data URLs PNG
-   * (`data:image/png;base64,…`), possivelmente menos de `requested`.
-   * `missing = requested - images.length` e nunca é negativo.
+   * O servidor respondeu com propostas. `directions` são receitas de
+   * composição — o PNG só existe depois de `composeLogo` as desenhar — e podem
+   * ser menos de `requested` quando um símbolo falhou. `missing = requested -
+   * directions.length` e nunca é negativo.
    */
-  | { kind: "ok"; images: string[]; requested: number; missing: number }
+  | { kind: "ok"; brief: LogoBrief; directions: LogoDirection[]; requested: number; missing: number }
   /**
    * O servidor recusou o pedido. `status` é o código HTTP; `error` e `detail`
    * vêm tal como `api/logo.js` os devolve (`{ error, detail? }`). `error` pode
@@ -83,7 +106,7 @@ export async function generateLogos(description: string): Promise<LogoResult> {
     return { kind: "network-error", message: errorMessage(err) };
   }
 
-  const data = (body ?? {}) as { images?: unknown; error?: unknown; detail?: unknown };
+  const data = (body ?? {}) as { brief?: unknown; directions?: unknown; requested?: unknown; error?: unknown; detail?: unknown };
 
   if (!res.ok) {
     const detail = textOrUndefined(data.detail);
@@ -95,12 +118,31 @@ export async function generateLogos(description: string): Promise<LogoResult> {
     };
   }
 
-  const raw = Array.isArray(data.images) ? data.images : [];
-  const images = raw
-    .filter((b): b is string => typeof b === "string" && b.length > 0)
-    .map((b64) => `data:image/png;base64,${b64}`);
-  const requested = LOGO_PROPOSALS;
-  return { kind: "ok", images, requested, missing: Math.max(0, requested - images.length) };
+  const raw = Array.isArray(data.directions) ? data.directions : [];
+  const directions = raw.filter(isDirection);
+  const requested = typeof data.requested === "number" && data.requested > 0 ? data.requested : LOGO_PROPOSALS;
+  return {
+    kind: "ok",
+    brief: (data.brief ?? {}) as LogoBrief,
+    directions,
+    requested,
+    missing: Math.max(0, requested - directions.length),
+  };
+}
+
+/**
+ * Uma direção só é utilizável se trouxer a receita mínima de composição. O
+ * corpo vem de uma função serverless que fala com um modelo: filtrar aqui
+ * impede que uma entrada truncada rebente no Canvas.
+ */
+function isDirection(value: unknown): value is LogoDirection {
+  if (!value || typeof value !== "object") return false;
+  const d = value as Partial<LogoDirection>;
+  return typeof d.slot === "string"
+    && typeof d.layout === "string"
+    && typeof d.fontFamily === "string"
+    && typeof d.color === "string"
+    && typeof d.weight === "number";
 }
 
 /** Motivo técnico de uma exceção, em texto utilizável. */

@@ -12,7 +12,8 @@ import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
-import { generateLogos, improveLogoDescription, dataUrlToUint8Array, LOGO_PROPOSALS } from "../lib/logoApi.js";
+import { generateLogos, improveLogoDescription, dataUrlToUint8Array, LOGO_PROPOSALS, type LogoDirection } from "../lib/logoApi.js";
+import { composeLogo, PREVIEW_SIZE, FINAL_SIZE } from "../lib/logoCompose.js";
 import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { resolveWaPhone } from "../lib/whatsapp.js";
 import { openPlanCheckout } from "../lib/planCheckout.js";
@@ -52,12 +53,32 @@ function comingSoonNotice(text: string): string {
 }
 
 /**
+ * Versão do Gerador_De_Logotipos, apresentada ao lado do selo «Beta».
+ *
+ * SUBIR A CADA ALTERAÇÃO do gerador — prompt, plano de direções, composição
+ * tipográfica ou interface da secção. É o que permite ao Dono dizer «as
+ * propostas pioraram na 1.3» em vez de «pioraram esta semana», e a nós saber
+ * de que versão fala um screenshot enviado por ele.
+ *
+ * Histórico:
+ *  - 1.0  gerador inicial (a IA de imagem desenhava o logótipo completo).
+ *  - 1.1  o briefing do Dono passa a ganhar às predefinições de estilo.
+ *  - 1.2  briefing estruturado, plano determinístico de cinco direções e nome
+ *         da marca composto por nós com tipografia curada.
+ */
+export const LOGO_GENERATOR_VERSION = "1.2";
+
+/**
  * Selo «Beta» das funcionalidades já disponíveis mas ainda em afinação (R2.9).
  * Segue o estilo visual de `comingSoonBadge()` para a interface ficar coerente,
  * mas diz outra coisa: «Beta» é usável hoje, «Em breve» não é.
+ *
+ * `version` acrescenta a versão em letra mais pequena, ao lado do selo.
  */
-function betaBadge(): string {
-  return `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[14px]">science</span> Beta</span>`;
+function betaBadge(version?: string): string {
+  const selo = `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[14px]">science</span> Beta</span>`;
+  if (!version) return selo;
+  return `${selo}<span class="text-[11px] text-gray-400 font-medium shrink-0">versão ${esc(version)}</span>`;
 }
 
 function navItem(href: string, icon: string, label: string, active: boolean): string {
@@ -626,7 +647,7 @@ export async function renderDashboard(): Promise<void> {
     render(shell(`
       <div class="flex flex-wrap items-center gap-2 mb-2">
         <h3 class="text-2xl md:text-3xl font-black tracking-tight">Criar logótipo</h3>
-        ${betaBadge()}
+        ${betaBadge(LOGO_GENERATOR_VERSION)}
       </div>
       <p class="text-gray-500 mb-5 max-w-2xl">Descreva o seu negócio e a IA cria <strong>${LOGO_PROPOSALS} variações</strong> de logótipo em PNG com fundo transparente. Escolha a que preferir — fica guardada em "Meus logótipos".</p>
 
@@ -789,12 +810,18 @@ export async function renderDashboard(): Promise<void> {
      * Desenha as propostas recebidas. `missing` é quantas das `LOGO_PROPOSALS`
      * pedidas não chegaram: quando é maior que zero, mostra-se o que chegou e
      * diz-se ao Dono quantas ficaram em falta (R2.3).
+     *
+     * As direções são RECEITAS, não imagens: o PNG de cada proposta nasce aqui,
+     * em `composeLogo`, com o nome da marca desenhado por nós. O ficheiro que o
+     * Dono guarda é composto de novo em `FINAL_SIZE` no momento da escolha —
+     * mesmo desenho, mais resolução.
      */
-    async function renderVariations(dataUrls: string[], missing: number): Promise<void> {
+    async function renderVariations(directions: LogoDirection[], brandName: string, missing: number): Promise<void> {
       if (!resultsWrap || !resultsEl) return;
       resultsWrap.classList.remove("hidden");
+      const clean = await Promise.all(directions.map((d) => composeLogo(brandName, d, PREVIEW_SIZE)));
       // Gera as versões com marca de água para pré-visualização.
-      const display = await Promise.all(dataUrls.map((u) => watermark(u)));
+      const display = await Promise.all(clean.map((u) => watermark(u)));
       const guard = 'oncontextmenu="return false" draggable="false" style="max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none"';
       const faltam = missing > 0
         ? `<div class="rounded-2xl border p-4 mb-4 flex items-start gap-3" style="border-color:${ACCENT_TINT};background:${ACCENT_TINT}">
@@ -813,7 +840,7 @@ export async function renderDashboard(): Promise<void> {
           ${display.map((src, i) => `
             <div class="rounded-2xl border border-gray-200 overflow-hidden bg-white transition-shadow hover:shadow-md">
               <div class="aspect-square flex items-center justify-center p-3" style="${checker}">
-                <img src="${src}" alt="Variação ${i + 1}" ${guard} />
+                <img src="${src}" alt="${esc(directions[i]?.label ?? `Variação ${i + 1}`)}" ${guard} />
               </div>
               <button data-logo-pick="${i}" class="w-full py-2.5 text-sm font-bold text-white inline-flex items-center justify-center gap-1.5 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check_circle</span> Escolher</button>
             </div>`).join("")}
@@ -821,9 +848,13 @@ export async function renderDashboard(): Promise<void> {
       resultsEl.querySelectorAll<HTMLButtonElement>("[data-logo-pick]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const idx = Number(btn.dataset.logoPick);
-          const src = dataUrls[idx]; // versão LIMPA (sem marca de água)
-          if (!src) return;
+          const chosen = directions[idx];
+          if (!chosen) return;
           await withButton(btn, async () => {
+            // Composto de novo em alta resolução: mesmo desenho, sem marca de
+            // água e com o acabamento que o cartão de pré-visualização não tem.
+            const src = await composeLogo(brandName, chosen, FINAL_SIZE);
+            if (!src) { toast("Não foi possível preparar o ficheiro do logótipo.", "error"); return; }
             const content = dataUrlToUint8Array(src);
             const validation = panel.services.fileService.validate({ content, fileName: "logotipo.png" }, LOGO_POLICY);
             if (!validation.ok) { toast(validation.error.message, "error"); return; }
@@ -907,7 +938,7 @@ export async function renderDashboard(): Promise<void> {
             return;
           }
 
-          if (!result.images.length) {
+          if (!result.directions.length) {
             // Respondeu sem propostas: é aviso, não falha de comunicação.
             renderFailure({
               icon: "image_not_supported",
@@ -918,9 +949,9 @@ export async function renderDashboard(): Promise<void> {
             return;
           }
 
-          await renderVariations(result.images, result.missing);
+          await renderVariations(result.directions, result.brief.brandName, result.missing);
           if (result.missing > 0) {
-            toast(`Chegaram ${result.images.length} de ${LOGO_PROPOSALS} propostas.`);
+            toast(`Chegaram ${result.directions.length} de ${LOGO_PROPOSALS} propostas.`);
           }
         }, "A gerar…");
       } finally {
