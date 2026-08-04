@@ -30,9 +30,9 @@ import { PRODUCTPAGE_VARIANTS, renderProductPage, type ProductPageVariant } from
 import { CHECKOUT_VARIANTS, renderCheckout, type CheckoutVariant } from "../templates/checkoutLayouts.js";
 import { deliveredAreas } from "../lib/areas.js";
 import { PRODUCT_VARIANTS, cardAspectClass, gridColsClass, type ProductVariant } from "../templates/productGrid.js";
-import { applyInk } from "../lib/ink.js";
+import { applyInk, INK_CSS } from "../lib/ink.js";
 import { applyFieldColors, fieldColorCss, paintFieldColor } from "../lib/fieldColors.js";
-import { applyIconColor } from "../lib/iconColor.js";
+import { applyIconColor, ICON_CSS, markIconTextButtonsInHtml } from "../lib/iconColor.js";
 import { readableInk } from "../lib/brand.js";
 import { applyTheme, THEME_STYLES } from "../lib/theme.js";
 import { openMapPicker } from "../lib/mapPicker.js";
@@ -1606,11 +1606,6 @@ export async function renderEditor(): Promise<void> {
       tv ? `--mb-head-font:${tv.head}` : "",
       tv?.body ? `--mb-body-font:${tv.body}` : "",
     ].filter(Boolean).join(";");
-    const inkCss =
-      "[data-ink] :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,figcaption,label){color:var(--ink)}" +
-      "[data-ink] .material-symbols-outlined{color:var(--ink)}" +
-      "[data-ink] .mb-dark,[data-ink] .mb-dark :is(h1,h2,h3,h4,h5,h6,p,li,a,blockquote,span,figcaption,label),[data-ink] .mb-dark .material-symbols-outlined{color:inherit}" +
-      "[data-icons] .material-symbols-outlined{color:var(--mb-icons) !important}[data-icons] .mb-dark .material-symbols-outlined{color:inherit !important}";
     const themeCss =
       "[data-theme]{font-family:var(--mb-body-font,inherit)}" +
       "[data-theme] :is(.rounded,.rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl){border-radius:var(--mb-radius)}" +
@@ -1618,6 +1613,16 @@ export async function renderEditor(): Promise<void> {
     // Cores de texto por-campo (isoladas) — aplicadas também no preview (#5).
     // A regra (incluindo os ícones do botão do rótulo) vive em lib/fieldColors.
     const fieldCss = fieldColorCss(custom.fieldColors);
+    // Cor global de ícones e cor de texto: as folhas vêm inteiras de
+    // lib/iconColor (`ICON_CSS`) e de lib/ink (`INK_CSS`) — nenhuma regra é
+    // copiada para aqui, senão volta a divergir do original ao primeiro
+    // acrescento. Ambas têm a exceção do ícone de botão com texto, que precisa
+    // da marca `data-mb-icon-text`: dentro do `iframe` não corre JavaScript,
+    // por isso o HTML chega já marcado — `markIconTextButtonsInHtml` faz a mesma
+    // travessia do preview vivo num documento inerte. Só quando alguma das duas
+    // cores está definida: sem elas as exceções são inertes e alternar entre
+    // computador e telemóvel não paga travessia nenhuma.
+    const bodyHtml = iconC || ink ? markIconTextButtonsInHtml(innerHtml) : innerHtml;
     return `<!DOCTYPE html><html lang="pt-AO"><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1629,11 +1634,12 @@ export async function renderEditor(): Promise<void> {
 <style>
 .material-symbols-outlined{font-variation-settings:"FILL" 0,"wght" 400,"GRAD" 0,"opsz" 24;vertical-align:middle}
 body{font-family:Inter,sans-serif;margin:0}
-${inkCss}
+${INK_CSS}
+${ICON_CSS}
 ${themeCss}
 ${fieldCss}
 </style>
-</head><body ${bodyAttrs} style="${bodyStyle}">${innerHtml}</body></html>`;
+</head><body ${bodyAttrs} style="${bodyStyle}">${bodyHtml}</body></html>`;
   }
 
   /* ----------------------- Painel de pré-visualização ----------------------- */

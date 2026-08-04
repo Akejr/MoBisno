@@ -88,6 +88,16 @@ describe("fieldColors — a cor do campo sobe até ao botão e pinta os ícones"
     expect(alvos).toContain("if (iconOwnedByOtherField(icon, button, path, map)) return;");
   });
 
+  it("a cor por-campo vence também a cor de texto (ink), que não usa !important", () => {
+    const INK = ler("web/lib/ink.ts");
+    // A exceção do ícone de botão com texto entrou também em `INK_CSS`. Como
+    // nenhuma regra de ink é `!important`, o inline `!important` de fieldColors
+    // continua a ganhar — e o ink nunca pinta inline, logo não há corrida.
+    expect(INK).toContain("{color:inherit}");
+    expect(INK.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")).not.toContain("!important");
+    expect(INK).not.toContain('setProperty("color"');
+  });
+
   it("a cor por-campo vence a cor global de ícones: !important inline", () => {
     // iconColor.ts usa `!important` numa folha de estilo; inline com a mesma
     // força ganha, logo a intenção mais específica (este botão) prevalece.
@@ -191,5 +201,21 @@ describe("as vistas da loja publicada continuam a aplicar as cores por-campo", (
     for (const v of VISTAS) {
       expect(ler(v), `${v} constrói o seu próprio seletor de campo`).not.toMatch(/\[data-edit="\$\{/);
     }
+  });
+});
+
+describe("a gaveta em iframe do editor não perde as cores por-campo", () => {
+  it("continua a emitir fieldColorCss, agora ao lado da folha partilhada de ícones", () => {
+    const iframe = trecho(EDITOR, "function buildIframeDoc", "\n  /* ------");
+    expect(iframe).toContain("const fieldCss = fieldColorCss(custom.fieldColors);");
+    expect(iframe).toContain("${fieldCss}");
+    // A cor global de ícones da gaveta passou a vir de lib/iconColor (`ICON_CSS`)
+    // em vez de ser copiada à mão. A regra dos ícones de `fieldColorCss`
+    // (`:is(botões):has([data-edit=…]) .material-symbols-outlined`) tem mais
+    // especificidade do que a do botão com texto, por isso a cor do campo
+    // continua a ganhar dentro do iframe, como ganha no preview vivo com o
+    // `!important` inline.
+    expect(iframe).toContain("${ICON_CSS}");
+    expect(EDITOR).toContain('import { applyIconColor, ICON_CSS, markIconTextButtonsInHtml } from "../lib/iconColor.js"');
   });
 });
