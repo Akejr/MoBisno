@@ -43,7 +43,7 @@ interface ApiSeo {
   categoryDescription(i: { category: string; storeName: string; count?: number; sampleNames?: string[]; priceFrom?: string | null }): string;
   identifierFromHost(host: string): string | null;
   metaTags(i: Record<string, unknown>): string;
-  inject(shell: string, i: { title: string; tags: string; bodyHtml?: string; lang?: string }): string;
+  inject(shell: string, i: { title: string; tags: string; bodyHtml?: string; lang?: string; ssrData?: unknown }): string;
   storeHomeHtml(i: {
     storeName: string; description: string; logoUrl: string | null;
     products: { id: string; name: string; category: string | null; price: number; image_url: string | null }[];
@@ -298,6 +298,37 @@ describe("SEO — conteudo presente no HTML mas invisivel ao visitante", () => {
     expect(html).toContain('<style id="mb-ssr-style">');
     expect(html).toMatch(/\.mb-ssr-grid\{[^}]*grid-template-columns/);
     expect(html).toMatch(/\.mb-ssr-top\{[^}]*display:flex/);
+  });
+});
+
+describe("SEO — dados embutidos no HTML para a SPA desenhar sem rede", () => {
+  const shell = '<html lang="pt"><head><title>t</title></head><body><div id="app"></div></body></html>';
+  const dados = {
+    store: { id: "s1", identifier: "juddy", template_id: "lumiere", customization: {} },
+    logo: null,
+    banners: [],
+    products: [{ id: "p1", name: "Lip </script><img src=x onerror=alert(1)> Oil", available: true }],
+  };
+
+  it("escapa o `<` para um produto não poder fechar o bloco e injetar HTML", () => {
+    // A descrição e o nome do produto são escritos pelo dono da loja. Sem
+    // escapar, bastava lá pôr "</script>" para fechar o bloco de dados e
+    // injetar marcação na página de toda a gente que a visitasse.
+    const html = apiSeo.inject(shell, { title: "T", tags: "", lang: "pt-AO", ssrData: dados });
+
+    expect(html).not.toContain("</script><img");
+    expect(html).toContain("\\u003c/script");
+    // E continua a ser JSON legível depois de desescapado pelo motor de JS.
+    const bruto = html.match(/id="mb-ssr-data">(.*?)<\/script>/s)?.[1] ?? "";
+    const lido = JSON.parse(bruto.replace(/\\u003c/g, "<")) as typeof dados;
+    expect(lido.products[0]!.name).toBe(dados.products[0]!.name);
+    expect(lido.store.template_id).toBe("lumiere");
+  });
+
+  it("não emite bloco nenhum quando não há dados a embutir", () => {
+    // As páginas da plataforma não têm loja: um bloco vazio só somava bytes.
+    const html = apiSeo.inject(shell, { title: "T", tags: "", lang: "pt-AO" });
+    expect(html).not.toContain("mb-ssr-data");
   });
 });
 

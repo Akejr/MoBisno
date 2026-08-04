@@ -554,9 +554,30 @@ export function variationsPlainText(v) {
  * mais simples da loja antes da SPA assumir. A resposta certa é esta folha de
  * estilo — fazer com que essa versão tenha bom aspeto —, não escondê-la.
  */
-function ssrStyle(brand) {
+/**
+ * Tema da loja aplicado ao bloco pré-renderizado. Espelha os valores de
+ * `web/lib/theme.ts` — se lá mudarem, mudar aqui.
+ *
+ * Serve para a transição: quando a SPA assume, a letra, os cantos e a cor já
+ * são os mesmos, e o salto entre as duas versões deixa de se notar. Sem isto, a
+ * página pré-renderizada era sempre Inter com cantos de 12px, mesmo numa loja
+ * com serifas e cantos retos.
+ */
+const SSR_THEMES = {
+  moderno: { head: "Inter,system-ui,sans-serif", body: "Inter,system-ui,sans-serif", radius: "16px" },
+  classico: { head: "'Noto Serif',Georgia,serif", body: "Inter,system-ui,sans-serif", radius: "6px" },
+  minimal: { head: "Inter,system-ui,sans-serif", body: "Inter,system-ui,sans-serif", radius: "0px" },
+  editorial: { head: "'Playfair Display',Georgia,serif", body: "Montserrat,Inter,system-ui,sans-serif", radius: "2px" },
+};
+const SSR_THEME_DEFAULT = { head: "Inter,system-ui,-apple-system,\"Segoe UI\",sans-serif", body: "Inter,system-ui,-apple-system,\"Segoe UI\",sans-serif", radius: "12px" };
+
+function ssrStyle(brand, custom) {
+  const estilo = custom && custom.theme && custom.theme.style;
+  const t = SSR_THEMES[estilo] || SSR_THEME_DEFAULT;
   return `<style id="mb-ssr-style">
-    .mb-ssr{max-width:1080px;margin:0 auto;padding:22px 20px 60px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#1c1b1b;-webkit-font-smoothing:antialiased}
+    .mb-ssr{max-width:1080px;margin:0 auto;padding:22px 20px 60px;font-family:${t.body};color:#1c1b1b;-webkit-font-smoothing:antialiased}
+    .mb-ssr h1,.mb-ssr h2,.mb-ssr-top strong{font-family:${t.head}}
+    .mb-ssr-grid img,.mb-ssr-ph,.mb-ssr-prod img{border-radius:${t.radius}}
     .mb-ssr a{color:inherit;text-decoration:none}
     .mb-ssr img{max-width:100%}
     .mb-ssr-top{display:flex;align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid #eceaea;margin-bottom:26px}
@@ -571,11 +592,11 @@ function ssrStyle(brand) {
     .mb-ssr-nav a{border:1px solid #e6e3e3;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600}
     .mb-ssr-grid{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:18px}
     .mb-ssr-grid a{display:flex;flex-direction:column;gap:7px}
-    .mb-ssr-grid img,.mb-ssr-ph{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;background:#f5f3f3;display:block}
+    .mb-ssr-grid img,.mb-ssr-ph{width:100%;aspect-ratio:1/1;object-fit:cover;background:#f5f3f3;display:block}
     .mb-ssr-grid .n{font-size:14px;font-weight:600;line-height:1.35}
     .mb-ssr-grid .p{font-size:14px;font-weight:800;color:${brand}}
     .mb-ssr-prod{display:grid;grid-template-columns:1fr;gap:24px;margin-top:8px}
-    .mb-ssr-prod img{width:100%;border-radius:14px;object-fit:cover;background:#f5f3f3}
+    .mb-ssr-prod img{width:100%;object-fit:cover;background:#f5f3f3}
     .mb-ssr-price{font-size:23px;font-weight:800;color:${brand};margin:0 0 12px}
     .mb-ssr-vars{font-size:14px}
     .mb-ssr-places{list-style:none;padding:0;margin:0 0 14px;display:grid;gap:8px;font-size:14px}
@@ -671,7 +692,7 @@ export function storeHomeHtml({ storeName, description, logoUrl, products, categ
   const grid = products.length
     ? `<h2>Produtos</h2><ul class="mb-ssr-grid">${productCards(products, base)}</ul>`
     : "";
-  return `${ssrStyle(brand)}<div class="mb-ssr">
+  return `${ssrStyle(brand, custom)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
     <h1>${esc(storeName)}</h1>
     <p>${esc(description)}</p>
@@ -683,11 +704,11 @@ export function storeHomeHtml({ storeName, description, logoUrl, products, categ
 }
 
 /** Conteúdo de uma página de listagem (categoria ou todos os produtos). */
-export function categoryHtml({ storeName, category, description, logoUrl, products, base, brand }) {
+export function categoryHtml({ storeName, category, description, logoUrl, products, base, brand, custom }) {
   const grid = products.length
     ? `<ul class="mb-ssr-grid">${productCards(products, base)}</ul>`
     : `<p>Ainda não há produtos nesta categoria.</p>`;
-  return `${ssrStyle(brand)}<div class="mb-ssr">
+  return `${ssrStyle(brand, custom)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
     <p class="mb-ssr-crumb"><a href="${esc(base || "/")}">${esc(storeName)}</a> › ${esc(category)}</p>
     <h1>${esc(category)}</h1>
@@ -716,7 +737,7 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
   const variations = variationsPlainText(productVariationsOf(custom, product.id));
   const variationsText = variations ? `<p class="mb-ssr-vars">${esc(variations)}</p>` : "";
   const full = String(product.description ?? "").trim();
-  return `${ssrStyle(brand)}<div class="mb-ssr">
+  return `${ssrStyle(brand, custom)}<div class="mb-ssr">
     ${topBar(storeName, logoUrl, base || "/")}
     <p class="mb-ssr-crumb"><a href="${esc(base || "/")}">${esc(storeName)}</a>${crumbCat} › ${esc(product.name)}</p>
     <div class="mb-ssr-prod">
@@ -746,7 +767,7 @@ export function platformHtml({ heading, intro, sections = [], links = [], extraH
   const nav = links.length
     ? `<nav class="mb-ssr-nav">${links.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join("")}</nav>`
     : "";
-  return `${ssrStyle("#F95901")}<div class="mb-ssr">
+  return `${ssrStyle("#F95901", null)}<div class="mb-ssr">
     <div class="mb-ssr-top"><a href="/"><img src="/logo-header.png" alt="MôBisno" width="40" height="40" /><strong>MôBisno</strong></a></div>
     <h1>${esc(heading)}</h1>
     <p>${esc(intro)}</p>
@@ -764,7 +785,39 @@ export function platformHtml({ heading, intro, sections = [], links = [], extraH
  * duplicar), acrescenta as tags desta página e injeta o conteúdo dentro de
  * `#app`. A SPA substitui esse conteúdo quando arranca.
  */
-export function inject(shell, { title, tags, bodyHtml, lang }) {
+/**
+ * Identificador do bloco com os dados da loja embutidos no HTML.
+ *
+ * O servidor já leu a loja, o logótipo, os banners e os produtos para escrever
+ * a página. Sem isto, deitava-os fora e a SPA ia buscá-los outra vez ao
+ * Supabase — três idas encadeadas que mediam cerca de um segundo, durante o
+ * qual o visitante ficava a olhar para a página pré-renderizada. Com os dados
+ * embutidos, a SPA desenha assim que o JavaScript acaba de carregar.
+ *
+ * O nome é partilhado com `web/lib/storeCache.ts`, que os lê.
+ */
+export const SSR_DATA_ID = "mb-ssr-data";
+
+/**
+ * Bloco `<script type="application/json">` com as LINHAS cruas do Supabase.
+ *
+ * Cruas de propósito: a conversão para os modelos de domínio já existe em
+ * `web/supabase/repositories.ts` e é reutilizada no cliente. Duplicá-la aqui
+ * criaria mais um espelho a manter, como o que já existe entre este ficheiro e
+ * `src/services/` — e esse já custa caro.
+ *
+ * Os dados são exatamente os que a página mostra a quem a visita: a mesma
+ * leitura que a chave anónima faz com as políticas de RLS em vigor. Não vai
+ * aqui nada que o visitante não pudesse ler por si.
+ */
+export function ssrDataScript(data) {
+  // `<` escapado: sem isto, uma descrição de produto com "</script>" fechava o
+  // bloco e injetava HTML na página.
+  const json = JSON.stringify(data).replace(/</g, "\\u003c");
+  return `<script type="application/json" id="${SSR_DATA_ID}">${json}</script>`;
+}
+
+export function inject(shell, { title, tags, bodyHtml, lang, ssrData }) {
   let out = shell
     .replace(/\s*<meta\s+name="description"[^>]*>/gi, "")
     .replace(/\s*<meta\s+name="keywords"[^>]*>/gi, "")
@@ -779,9 +832,10 @@ export function inject(shell, { title, tags, bodyHtml, lang }) {
   if (lang) out = out.replace(/<html[^>]*lang="[^"]*"/i, `<html lang="${esc(lang)}"`);
   out = out.replace(/<\/head>/i, `    ${tags}\n  </head>`);
 
-  if (bodyHtml) {
+  const dentro = `${bodyHtml || ""}${ssrData ? ssrDataScript(ssrData) : ""}`;
+  if (dentro) {
     out = out.replace(/<div id="app"[^>]*>\s*<\/div>/i, (m) =>
-      m.replace(/>\s*<\/div>$/, `>${bodyHtml}</div>`));
+      m.replace(/>\s*<\/div>$/, `>${dentro}</div>`));
   }
   return out;
 }

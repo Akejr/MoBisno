@@ -18,7 +18,7 @@ import { supabase } from "./client.js";
 /* ------------------------------- mappers -------------------------------- */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-function toStore(r: any): Store {
+export function toStore(r: any): Store {
   return {
     id: r.id, ownerId: r.owner_id, name: r.name, storeType: r.store_type,
     templateId: r.template_id, identifier: r.identifier, subdomain: r.subdomain,
@@ -32,7 +32,7 @@ function fromStore(s: Store): Record<string, unknown> {
     state: s.state, created_at: s.createdAt,
   };
 }
-function toProduct(r: any): Product {
+export function toProduct(r: any): Product {
   return {
     id: r.id, storeId: r.store_id, name: r.name, description: r.description ?? "",
     category: r.category ?? undefined,
@@ -42,10 +42,10 @@ function toProduct(r: any): Product {
     available: r.available, stock: r.stock ?? null, createdAt: r.created_at,
   };
 }
-function toBanner(r: any): Banner {
+export function toBanner(r: any): Banner {
   return { id: r.id, storeId: r.store_id, imageUrl: r.image_url, position: r.position, createdAt: r.created_at };
 }
-function toAsset(r: any): Asset {
+export function toAsset(r: any): Asset {
   return { id: r.id, storeId: r.store_id, kind: r.kind as AssetKind, url: r.url, format: r.format as ImageFormat, sizeBytes: r.size_bytes };
 }
 

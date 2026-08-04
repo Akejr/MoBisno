@@ -8,9 +8,67 @@ import { storeRepository, assetRepository, bannerRepository, productRepository }
 import { createStorefrontResolver, type StorefrontResult } from "../../src/services/storefrontResolver.js";
 import { renderStore, type StoreViewModel } from "../../src/storefront/storeRenderer.js";
 import { getCustomization } from "../supabase/customization.js";
+import { toStore, toProduct, toBanner, toAsset } from "../supabase/repositories.js";
 import type { StoreCustomization } from "../templates/types.js";
 
 const resolver = createStorefrontResolver({ storeRepository, assetRepository, bannerRepository, productRepository });
+
+/** Id do bloco que `api/_seo.js` embute no HTML (`SSR_DATA_ID`). */
+const SSR_DATA_ID = "mb-ssr-data";
+
+/**
+ * Lê os dados que o servidor embutiu no HTML e constrói a loja sem tocar na
+ * rede. Devolve `null` quando não há bloco, quando é de outra loja, ou quando
+ * não se deixa ler.
+ *
+ * PORQUÊ: o `api/prerender.js` já leu a loja, o logótipo, os banners e os
+ * produtos para escrever a página. Sem isto, a SPA ia buscar tudo outra vez —
+ * três idas encadeadas ao Supabase, cerca de um segundo medido em produção,
+ * durante o qual o visitante ficava a olhar para a página pré-renderizada antes
+ * de a loja aparecer.
+ *
+ * As linhas vêm cruas do servidor e são convertidas aqui pelos mesmos
+ * conversores que os repositórios usam. É de propósito: converter no servidor
+ * obrigaria a manter um espelho das conversões em `api/`, e esse tipo de
+ * espelho já custa caro neste projeto.
+ *
+ * **Uso único.** O bloco é removido depois de lido, para uma navegação dentro
+ * da SPA (ou um recarregamento passados os 60s de cache) voltar a ler dados
+ * frescos. O HTML fica 10 minutos em cache na CDN, por isso o que aqui vem pode
+ * ter até essa idade — a mesma que o conteúdo pré-renderizado já tinha.
+ */
+function fromEmbeddedData(identifier: string): LoadedStorefront | null {
+  const el = typeof document === "undefined" ? null : document.getElementById(SSR_DATA_ID);
+  if (!el?.textContent) return null;
+  el.remove();
+
+  try {
+    const raw = JSON.parse(el.textContent) as {
+      store?: { identifier?: string; customization?: unknown };
+      logo?: unknown;
+      banners?: unknown[];
+      products?: { available?: boolean }[];
+    };
+    const store = raw.store;
+    if (!store || String(store.identifier ?? "").toLowerCase() !== identifier.toLowerCase()) return null;
+
+    const result: StorefrontResult = {
+      kind: "render",
+      store: toStore(store),
+      logo: raw.logo ? toAsset(raw.logo) : null,
+      banners: (raw.banners ?? []).map(toBanner),
+      // O resolvedor só devolve produtos disponíveis; o servidor já filtra, mas
+      // repetir aqui mantém a garantia do lado de cá.
+      products: (raw.products ?? []).filter((p) => p.available === true).map(toProduct),
+    };
+    const custom = (store.customization && typeof store.customization === "object"
+      ? store.customization
+      : {}) as StoreCustomization;
+    return { result, view: renderStore(result), custom };
+  } catch {
+    return null; // bloco corrompido: segue-se pelo caminho normal
+  }
+}
 
 export interface LoadedStorefront {
   result: StorefrontResult;
@@ -40,6 +98,13 @@ export async function loadStorefront(identifier: string): Promise<LoadedStorefro
 
   const emCurso = inFlight.get(key);
   if (emCurso) return emCurso;
+
+  // Dados embutidos pelo servidor: desenha já, sem uma única ida à rede.
+  const embutidos = fromEmbeddedData(identifier);
+  if (embutidos) {
+    cache.set(key, { at: Date.now(), data: embutidos });
+    return embutidos;
+  }
 
   const pedido = (async (): Promise<LoadedStorefront> => {
     const host = `${identifier}.mobisno.store`;

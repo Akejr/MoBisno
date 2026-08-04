@@ -181,9 +181,13 @@ export default async function handler(req, res) {
 
     const canonicalBase = `https://${identifier}.${STORE_APEX}`;
 
+    // As colunas extra (`store_type`, `template_id`, `subdomain`, `created_at`)
+    // não entram no HTML: são para os dados embutidos que a SPA usa para
+    // desenhar sem ir à rede. O `template_id` é o que decide o modelo da loja,
+    // por isso sem ele os dados embutidos não serviam para nada.
     const { data: store } = await db
       .from("stores")
-      .select("id, name, identifier, state, owner_id, customization")
+      .select("id, name, identifier, state, owner_id, customization, store_type, template_id, subdomain, created_at")
       .eq("identifier", identifier)
       .eq("state", "Publicada")
       .maybeSingle();
@@ -209,14 +213,23 @@ export default async function handler(req, res) {
     const custom = (store.customization && typeof store.customization === "object") ? store.customization : {};
     const brand = (custom.colors && custom.colors.primary) || "#F95901";
 
-    const { data: logo } = await db.from("assets").select("url")
-      .eq("store_id", store.id).eq("kind", "logo").maybeSingle();
+    // Em paralelo: as três dependem apenas de `store.id`. Os banners não eram
+    // lidos aqui — passam a ser, porque a SPA precisa deles para desenhar a
+    // partir dos dados embutidos.
+    const [{ data: logo }, { data: allProducts }, { data: banners }] = await Promise.all([
+      db.from("assets").select("id, store_id, kind, url, format, size_bytes")
+        .eq("store_id", store.id).eq("kind", "logo").maybeSingle(),
+      db.from("products")
+        .select("id, store_id, name, description, category, price, image_url, available, stock, featured, physical, created_at")
+        .eq("store_id", store.id).eq("available", true),
+      db.from("banners").select("id, store_id, image_url, position, created_at")
+        .eq("store_id", store.id).order("position", { ascending: true }),
+    ]);
     const logoUrl = logo?.url || null;
-
-    const { data: allProducts } = await db.from("products")
-      .select("id, name, description, category, price, image_url, available, stock")
-      .eq("store_id", store.id).eq("available", true);
     const products = allProducts || [];
+
+    // Dados embutidos no HTML: poupam à SPA três idas ao Supabase (~1s).
+    const ssrData = { store, logo: logo || null, banners: banners || [], products };
 
     const seoDesc = custom.seo && custom.seo.description;
     const storeDesc = storeDescription(storeName, seoDesc);
@@ -263,6 +276,7 @@ export default async function handler(req, res) {
         // `custom` traz `productVariations`: é daqui que sai o texto das
         // Variação no HTML servido sem JavaScript (R4.18).
         bodyHtml: productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom }),
+        ssrData,
       }));
     }
 
@@ -303,7 +317,8 @@ export default async function handler(req, res) {
       });
       return send(inject(shell, {
         title, tags, lang: LANGUAGE,
-        bodyHtml: categoryHtml({ storeName, category: label, description, logoUrl, products: items, base, brand }),
+        bodyHtml: categoryHtml({ storeName, category: label, description, logoUrl, products: items, base, brand, custom }),
+        ssrData,
       }));
     }
 
@@ -346,6 +361,7 @@ export default async function handler(req, res) {
         // os mapas no HTML servido sem JavaScript (R5.10).
         custom,
       }),
+      ssrData,
     }));
   } catch (e) {
     console.error("prerender", e);
