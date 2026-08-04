@@ -5,27 +5,19 @@
  * `isCurrentUserAdmin`).
  */
 import { supabase } from "./client.js";
-import type { PlanId } from "../../src/services/plans.js";
 import { overviewCounts } from "../../src/services/adminMetrics.js";
 
 export interface AdminAccount {
   id: string;
   email: string;
   name: string;
-  plan: string;
   isAdmin: boolean;
   createdAt: string;
   storeCount: number;
   /** Fim do período de subscrição pago (ISO) ou null. */
   planExpiresAt: string | null;
   /** Plano agendado para o próximo período, ou null. */
-  nextPlan: string | null;
-  /**
-   * Fim do período de teste grátis (ISO) ou null. A coluna `trial_ends_at`
-   * existe em `profiles` desde a migração `0018_trial.sql`; é a fonte das
-   * «contas em teste a expirar» e da conversão de teste para pago (R7.2).
-   */
-  trialEndsAt: string | null;
+
 }
 
 /** Funcionalidades ativas numa loja (vistas pelo admin). */
@@ -50,7 +42,6 @@ export interface AdminStore {
   subdomain: string;
   identifier: string;
   templateId: string;
-  plan: string;
   createdAt: string;
   features: StoreFeatures;
 }
@@ -138,10 +129,16 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
   return row?.is_admin === true;
 }
 
-async function profilesMap(): Promise<Map<string, { email: string; name: string; plan: string }>> {
-  const { data } = await supabase.from("profiles").select("id, email, name, plan");
-  const m = new Map<string, { email: string; name: string; plan: string }>();
-  (data ?? []).forEach((p) => m.set(p.id, { email: p.email ?? "", name: p.name ?? "", plan: p.plan ?? "basico" }));
+async function profilesMap(): Promise<Map<string, { email: string; name: string; active: boolean }>> {
+  const { data } = await supabase.from("profiles").select("id, email, name, is_admin, plan_expires_at");
+  const m = new Map<string, { email: string; name: string; active: boolean }>();
+  const agora = Date.now();
+  (data ?? []).forEach((p) => m.set(p.id, {
+    email: p.email ?? "",
+    name: p.name ?? "",
+    // Mesma regra de `resolveBilling`: administrador, ou data futura.
+    active: p.is_admin === true || (!!p.plan_expires_at && Date.parse(p.plan_expires_at) > agora),
+  }));
   return m;
 }
 
@@ -195,7 +192,7 @@ export async function adminOverview(): Promise<AdminOverview> {
 /** Lista de contas com o nº de lojas. */
 export async function listAccounts(): Promise<AdminAccount[]> {
   const [{ data: profiles }, { data: stores }] = await Promise.all([
-    supabase.from("profiles").select("id, email, name, plan, is_admin, created_at, plan_expires_at, next_plan, trial_ends_at").order("created_at", { ascending: false }),
+    supabase.from("profiles").select("id, email, name, plan, is_admin, created_at, plan_expires_at").order("created_at", { ascending: false }),
     supabase.from("stores").select("owner_id"),
   ]);
   const counts = new Map<string, number>();
@@ -204,13 +201,10 @@ export async function listAccounts(): Promise<AdminAccount[]> {
     id: p.id,
     email: p.email ?? "",
     name: p.name ?? "",
-    plan: p.plan ?? "basico",
     isAdmin: p.is_admin === true,
     createdAt: p.created_at,
     storeCount: counts.get(p.id) ?? 0,
     planExpiresAt: p.plan_expires_at ?? null,
-    nextPlan: p.next_plan ?? null,
-    trialEndsAt: p.trial_ends_at ?? null,
   }));
 }
 
@@ -246,7 +240,7 @@ export async function adminStoreProductCounts(): Promise<ReadonlyMap<string, num
   return counts;
 }
 
-/** Lista de todas as lojas, com o dono, plano e funcionalidades ativas. */
+/** Lista de todas as lojas, com o dono, subscrição e funcionalidades ativas. */
 export async function listStores(): Promise<AdminStore[]> {
   const [{ data: stores }, { data: pays }, pm] = await Promise.all([
     supabase.from("stores").select("id, name, owner_id, state, subdomain, identifier, template_id, customization, created_at").order("created_at", { ascending: false }),
@@ -277,7 +271,7 @@ export async function listStores(): Promise<AdminStore[]> {
       subdomain: s.subdomain,
       identifier: s.identifier,
       templateId: s.template_id,
-      plan: o?.plan ?? "basico",
+      subscriptionActive: o?.active === true,
       createdAt: s.created_at,
       features: {
         online: onlineByStore.get(s.id) ?? false,
@@ -441,7 +435,7 @@ function txStatus(status: string, method: string, dueDate: string | null): Admin
 /** Lista as transações de serviços (planos + SMS), mais recentes primeiro. */
 export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
   const [{ data: plans }, { data: sms }, { data: logos }, { data: stores }, pm] = await Promise.all([
-    supabase.from("plan_payments").select("id, owner_id, plan, amount, method, status, reference_due_date, created_at, paid_at").order("created_at", { ascending: false }),
+    supabase.from("plan_payments").select("id, owner_id, period, amount, method, status, reference_due_date, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("sms_purchases").select("id, owner_id, store_id, quantity, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("logo_purchases").select("id, owner_id, store_id, amount, method, status, created_at, paid_at").order("created_at", { ascending: false }),
     supabase.from("stores").select("id, name"),
@@ -450,15 +444,17 @@ export async function listServiceTransactions(): Promise<AdminServiceTx[]> {
   const storeNames = new Map<string, string>();
   (stores ?? []).forEach((s) => storeNames.set(s.id, s.name));
 
-  const planName = (id: string): string => {
-    const map: Record<string, string> = { basico: "Básico", profissional: "Profissional", empresarial: "Empresarial" };
+  // O que se compra é o ciclo, não um escalão. As linhas antigas ainda trazem
+  // nomes de escalão em `period` ausente — daí o recurso ao texto cru.
+  const periodName = (id: string): string => {
+    const map: Record<string, string> = { mensal: "mensal", anual: "anual" };
     return map[id] ?? id;
   };
 
   const planTx: AdminServiceTx[] = (plans ?? []).map((r) => ({
     id: String(r.id),
     service: "plan",
-    description: `Plano ${planName(String(r.plan))}`,
+    description: `Subscrição ${periodName(String(r.period ?? "mensal"))}`,
     ownerId: r.owner_id,
     ownerEmail: pm.get(r.owner_id)?.email ?? "",
     ownerName: pm.get(r.owner_id)?.name ?? "",
@@ -517,11 +513,22 @@ export async function adminDeleteStore(storeId: string): Promise<boolean> {
   return !error;
 }
 
-export async function adminSetAccountPlan(ownerId: string, plan: PlanId): Promise<boolean> {
-  // Concessão pelo admin: plano ativo sem data de fim (expiração longa).
+/**
+ * Liga ou desliga a subscrição de uma conta, pela mão do Administrador.
+ *
+ * A concessão usa uma validade LONGA em vez de ausência de data. Não é detalhe:
+ * enquanto «sem data» significava plano permanente, qualquer conta que
+ * escolhesse um plano no assistente e nunca pagasse ficava com subscrição
+ * vitalícia grátis. Hoje a regra é só «a data é futura?», e uma concessão é
+ * apenas uma data muito longe.
+ */
+export async function adminSetSubscription(ownerId: string, active: boolean): Promise<boolean> {
   const farFuture = new Date(Date.now() + 100 * 365 * 24 * 3600 * 1000).toISOString();
-  const { error } = await supabase.from("profiles").update({ plan, plan_expires_at: farFuture, next_plan: null }).eq("id", ownerId);
-  if (error) console.error("adminSetAccountPlan", error);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ plan_expires_at: active ? farFuture : null })
+    .eq("id", ownerId);
+  if (error) console.error("adminSetSubscription", error);
   return !error;
 }
 

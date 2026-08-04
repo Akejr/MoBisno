@@ -220,10 +220,9 @@ const umPorLista: AdminMetricsInput = {
   now: AGORA,
   accounts: [
     {
-      id: "conta-teste",
+      id: "conta-a-expirar",
       email: "teste@exemplo.ao",
-      plan: "basico",
-      trialEndsAt: "2025-01-18T12:00:00.000Z", // exatamente 3 dias
+      planExpiresAt: "2025-01-18T12:00:00.000Z", // exatamente 3 dias
       createdAt: "2025-01-10T00:00:00.000Z",
     },
   ],
@@ -301,10 +300,10 @@ describe("attentionLists — `href` do separador certo por tipo de item (R7.5)",
   it("conta a expirar leva ao separador «Contas»", () => {
     const [item] = attentionLists(umPorLista).accountsExpiring7d;
 
-    expect(item?.id).toBe("conta-teste");
+    expect(item?.id).toBe("conta-a-expirar");
     expect(item?.href).toBe(ADMIN_HREFS.contas);
     expect(item?.title).toBe("teste@exemplo.ao");
-    expect(item?.detail).toBe("Teste termina em 3 dias");
+    expect(item?.detail).toBe("Subscrição termina em 3 dias");
   });
 
   it("Loja sem Produtos e Loja não publicada levam ambas ao separador «Lojas»", () => {
@@ -355,17 +354,18 @@ describe("attentionLists — contagem de Produtos ausente e contagem zero (R7.4)
 });
 
 describe("attentionLists e businessHealth — coerência que a interface expõe lado a lado", () => {
-  it("`trialsExpiring` e o comprimento de `accountsExpiring7d` coincidem sempre (mesmo critério)", () => {
+  it("`subscriptionsExpiring` e o comprimento de `accountsExpiring7d` coincidem sempre (mesmo critério)", () => {
     const instantaneo: AdminMetricsInput = {
       now: AGORA,
       accounts: [
         // Dentro da janela de 7 dias: contam nos dois sítios.
-        { id: "t-hoje", email: "h@exemplo.ao", trialEndsAt: "2025-01-15T23:00:00.000Z" },
-        { id: "t-3d", email: "t3@exemplo.ao", trialEndsAt: "2025-01-18T12:00:00.000Z" },
-        { id: "t-7d", email: "t7@exemplo.ao", trialEndsAt: "2025-01-22T12:00:00.000Z" },
-        // Fora da janela: teste longo, e teste já terminado (deixa de estar em teste).
-        { id: "t-20d", email: "t20@exemplo.ao", trialEndsAt: "2025-02-04T12:00:00.000Z" },
-        { id: "t-passado", email: "tp@exemplo.ao", trialEndsAt: "2025-01-01T12:00:00.000Z" },
+        { id: "t-hoje", email: "h@exemplo.ao", planExpiresAt: "2025-01-15T23:00:00.000Z" },
+        { id: "t-3d", email: "t3@exemplo.ao", planExpiresAt: "2025-01-18T12:00:00.000Z" },
+        { id: "t-7d", email: "t7@exemplo.ao", planExpiresAt: "2025-01-22T12:00:00.000Z" },
+        // Fora da janela: subscrição longa, e subscrição já caducada (essa deixa
+        // de estar ativa, por isso não é «a expirar» — já expirou).
+        { id: "t-20d", email: "t20@exemplo.ao", planExpiresAt: "2025-02-04T12:00:00.000Z" },
+        { id: "t-passado", email: "tp@exemplo.ao", planExpiresAt: "2025-01-01T12:00:00.000Z" },
       ],
     };
 
@@ -375,8 +375,8 @@ describe("attentionLists e businessHealth — coerência que a interface expõe 
     // O número da secção de saúde e o comprimento da lista de «A precisar de
     // atenção» ficam um ao lado do outro no ecrã: divergirem é um defeito que
     // ninguém apanharia de outra forma.
-    expect(saude.trialsExpiring).toBe(3);
-    expect(listas.accountsExpiring7d).toHaveLength(saude.trialsExpiring);
+    expect(saude.subscriptionsExpiring).toBe(3);
+    expect(listas.accountsExpiring7d).toHaveLength(saude.subscriptionsExpiring);
     expect(listas.accountsExpiring7d.map((i) => i.id)).toEqual(["t-hoje", "t-3d", "t-7d"]);
     expect(ATTENTION_WINDOW_DAYS).toBe(7);
   });
@@ -408,8 +408,8 @@ describe("totalidade: entradas degeneradas não lançam", () => {
     expect(businessHealth({})).toEqual({
       monthRevenue: 0,
       activeSubscriptions: 0,
-      trialsExpiring: 0,
-      trialConversion: 0,
+      subscriptionsExpiring: 0,
+      payingRate: 0,
       publishedStores: 0,
       suspendedStores: 0,
     });

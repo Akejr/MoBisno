@@ -8,12 +8,11 @@
  * authService, wizardFlow, identifierService).
  */
 import { render, $, go, esc } from "../lib/dom.js";
-import { TEMPLATES, identifierService, authService, wizardFlow, appState, publishStore, currentSession, setOwnerPlan, getOwnerPlan, countPublishedStores, adminPanelFor, STORE_APEX } from "../composition.js";
+import { TEMPLATES, identifierService, authService, wizardFlow, appState, currentSession, adminPanelFor, STORE_APEX } from "../composition.js";
 import { generateLogos, dataUrlToUint8Array, LOGO_PROPOSALS, type LogoResult, type LogoDirection } from "../lib/logoApi.js";
 import { composeLogo, PREVIEW_SIZE, FINAL_SIZE } from "../lib/logoCompose.js";
 import { openLogoCheckout, LOGO_PRICE_KZ } from "../lib/logoPurchase.js";
 import { LOGO_POLICY } from "../../src/services/fileService.js";
-import { DEFAULT_PLAN, getPlan, isPlanId, canPublishAnotherStore, type PlanId } from "../../src/services/plans.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { generateSeoDescription, generateSeoTitle } from "../lib/seoGen.js";
@@ -21,18 +20,13 @@ import type { Session } from "../../src/services/authService.js";
 
 const ACCENT = "#F95901";
 
-const wiz: { data: Record<string, unknown>; session: Session | null; plan: PlanId; subdomain: string; storeId: string } = {
+const wiz: { data: Record<string, unknown>; session: Session | null; subdomain: string; storeId: string } = {
   data: {},
   session: null,
-  plan: DEFAULT_PLAN,
   subdomain: "",
   storeId: "",
 };
 
-function syncPlanFromHash(): void {
-  const m = (location.search + location.hash).match(/[?&]plano=([a-z]+)/i);
-  if (m && isPlanId(m[1])) wiz.plan = m[1];
-}
 
 function defaultTemplateId(): string {
   return TEMPLATES.find((t) => t.ready)?.id ?? TEMPLATES[0]?.id ?? "galeria";
@@ -233,7 +227,6 @@ function inputBusy(label: string): void {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function renderWizard(): void {
-  syncPlanFromHash();
   wiz.data = { [WIZARD_FIELDS.templateId]: defaultTemplateId() };
   renderShell();
   void start();
@@ -314,7 +307,6 @@ function askPassword(): void {
         appState.session = res.value;
         appState.ownerId = res.value.ownerId;
         wiz.data[WIZARD_FIELDS.ownerId] = res.value.ownerId;
-        await setOwnerPlan(wiz.plan);
         await botSay("Boa, conta criada! 🎉");
         askStoreName();
       },
@@ -509,18 +501,8 @@ function askSubdomainCustom(): void {
 
 function createStore(): void {
   void (async () => {
-    inputBusy("A criar e publicar a tua loja…");
-    // Limite do plano (contas existentes com várias lojas).
-    if (wiz.session) {
-      const plan = getPlan(await getOwnerPlan(wiz.session.ownerId));
-      const published = await countPublishedStores(wiz.session.ownerId);
-      if (!canPublishAnotherStore(plan, published)) {
-        await botSay(`O teu plano ${plan.name} não permite publicar outra loja. Podes fazer upgrade no painel.`);
-        clearInput();
-        inputText({ placeholder: "Escreve qualquer coisa para ir ao painel", cta: "Ir ao painel", onSubmit: () => go("#/painel") });
-        return;
-      }
-    }
+    inputBusy("A criar a tua loja…");
+    // Deixou de haver limite de lojas por escalão: não há escalões.
     if (!wiz.session) { await botSay("Faltou criar a conta. Vamos recomeçar."); askName(); return; }
 
     const result = await wizardFlow.completeCreation(wiz.data, wiz.session);
@@ -529,7 +511,9 @@ function createStore(): void {
       askSubdomainCustom();
       return;
     }
-    await publishStore(result.store.ownerId, result.store.id);
+    // A loja NASCE EM RASCUNHO. Publicar exige subscrição ativa, e é imposto
+    // pela base de dados (gatilho `stores_publish_requires_plan`, migração
+    // 0019): tentar publicar aqui rebentaria com uma exceção do Postgres.
     appState.storeId = result.store.id;
     appState.storeIdentifier = result.store.identifier;
     appState.templateId = result.store.templateId;
@@ -546,7 +530,7 @@ function createStore(): void {
       } catch { /* SEO é opcional; não bloquear a criação */ }
     }
 
-    await botSay("Está tudo feito! ✨ A tua loja foi criada e publicada, e já ficou pronta para aparecer nas pesquisas do Google.");
+    await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade — para a pôres online, ativas a subscrição no painel.");
     askLogo(result.store.ownerId, result.store.id);
   })();
 }
@@ -810,7 +794,7 @@ function goToModels(): void {
     clearInput();
     await wait(900);
     // Reinicia o estado para uma próxima criação.
-    wiz.data = {}; wiz.session = null; wiz.subdomain = ""; wiz.plan = DEFAULT_PLAN; wiz.storeId = "";
+    wiz.data = {}; wiz.session = null; wiz.subdomain = ""; wiz.storeId = "";
     go("#/modelos");
   })();
 }

@@ -1,189 +1,105 @@
 /**
- * Planos de subscrição da MôBisno (módulo de domínio puro e testável).
+ * Subscrição da MôBisno (módulo de domínio puro e testável).
  *
- * Define o catálogo de planos, os respetivos limites e funcionalidades, e
- * funções puras de verificação usadas para ativar/desativar funções com base
- * no plano do Dono_da_Loja:
- *  - número máximo de lojas **publicadas**;
- *  - número máximo de produtos por loja;
- *  - métodos de checkout disponíveis;
- *  - domínio próprio e funcionalidades empresariais.
+ * Há **um só plano**, com dois ciclos de pagamento: mensal ou anual. Não há
+ * escalões, não há limites de lojas nem de produtos, e não há funcionalidades
+ * reservadas — quem paga tem tudo.
  *
- * O módulo não tem dependências de infraestrutura: a persistência do plano
- * (coluna `plan` em `profiles`) e a leitura/escrita ficam na raiz de composição.
+ * PORQUÊ: os três escalões anteriores (Básico/Profissional/Empresarial) traziam
+ * uma matriz de limites e funcionalidades que atravessava o painel, o checkout e
+ * as funções serverless, e uma máquina de faturação com cinco ramos a interagir
+ * (pago, plano agendado, teste grátis, atribuição permanente, expirado). Foi
+ * dessa complexidade que nasceu a avaria em que uma loja com pagamentos ativos
+ * recusava cobrar: o painel lia um plano e o servidor lia outro.
+ *
+ * Além disso, o escalão Básico desligava o Multicaixa Express — cobrava-se a
+ * alguém para essa pessoa **não** poder receber pagamentos online, que é a
+ * principal razão para usar a plataforma.
+ *
+ * O módulo não tem dependências de infraestrutura: a persistência (coluna
+ * `plan_expires_at` em `profiles`) fica na raiz de composição.
  */
 
-/** Identificador estável de um plano. */
-export type PlanId = "basico" | "profissional" | "empresarial";
+/**
+ * Identificador do plano gravado na coluna `plan`. Há um só; o valor existe
+ * para a coluna continuar a ter conteúdo legível e para a restrição da base de
+ * dados o poder validar.
+ */
+export type PlanId = "pro";
 
-/** Métodos de checkout que um plano pode disponibilizar. */
-export type CheckoutMethod = "whatsapp" | "multicaixa";
+/** O único plano. */
+export const PLAN_ID: PlanId = "pro";
 
-/** Limites quantitativos de um plano (use `Infinity` para "ilimitado"). */
-export interface PlanLimits {
-  /** Máximo de lojas no estado "Publicada" que o Dono pode ter em simultâneo. */
-  readonly maxPublishedStores: number;
-  /** Máximo de produtos por loja. */
-  readonly maxProductsPerStore: number;
-}
+/** Nome apresentado ao Dono. */
+export const PLAN_NAME = "MôBisno";
 
-/** Funcionalidades booleanas desbloqueadas por um plano. */
-export interface PlanFeatures {
-  readonly whatsappCheckout: boolean;
-  /** Multicaixa Express + referência bancária. */
-  readonly multicaixaCheckout: boolean;
-  readonly customDomain: boolean;
-  readonly dedicatedManager: boolean;
-  readonly customIntegrations: boolean;
-  readonly prioritySupport: boolean;
-}
+/** Ciclo de pagamento escolhido pelo Dono. */
+export type BillingPeriod = "mensal" | "anual";
 
-/** Definição completa de um plano. */
-export interface Plan {
-  readonly id: PlanId;
-  readonly name: string;
-  /** Preço mensal em Kwanzas (Kz). */
-  readonly priceKz: number;
-  readonly limits: PlanLimits;
-  readonly features: PlanFeatures;
-  /** Lista de destaques apresentada na página de preços/conta. */
-  readonly highlights: readonly string[];
-}
+/** Ciclos na ordem de apresentação. */
+export const BILLING_PERIODS: readonly BillingPeriod[] = ["mensal", "anual"];
 
-/** Plano por omissão atribuído a uma conta recém-criada. */
-export const DEFAULT_PLAN: PlanId = "basico";
-
-/** Ordem canónica dos planos (do mais simples ao mais completo). */
-export const PLAN_ORDER: readonly PlanId[] = ["basico", "profissional", "empresarial"];
-
-/** Catálogo de planos. Fonte única de verdade para limites e funcionalidades. */
-export const PLANS: Readonly<Record<PlanId, Plan>> = {
-  basico: {
-    id: "basico",
-    name: "Básico",
-    priceKz: 5000,
-    limits: { maxPublishedStores: 1, maxProductsPerStore: 100 },
-    features: {
-      whatsappCheckout: true,
-      multicaixaCheckout: false,
-      customDomain: false,
-      dedicatedManager: false,
-      customIntegrations: false,
-      prioritySupport: false,
-    },
-    highlights: [
-      "1 loja publicada",
-      "100 produtos registados",
-      "Checkout via WhatsApp",
-      "Endereço .sualoja.digital",
-    ],
-  },
-  profissional: {
-    id: "profissional",
-    name: "Profissional",
-    priceKz: 11000,
-    limits: { maxPublishedStores: 3, maxProductsPerStore: Number.POSITIVE_INFINITY },
-    features: {
-      whatsappCheckout: true,
-      multicaixaCheckout: true,
-      customDomain: true,
-      dedicatedManager: false,
-      customIntegrations: false,
-      prioritySupport: false,
-    },
-    highlights: [
-      "Tudo do plano Básico",
-      "Produtos ilimitados",
-      "Checkout Multicaixa Express e referência bancária",
-      "3 lojas publicadas",
-      "Domínio próprio (opcional)",
-    ],
-  },
-  empresarial: {
-    id: "empresarial",
-    name: "Empresarial",
-    priceKz: 25000,
-    limits: {
-      maxPublishedStores: Number.POSITIVE_INFINITY,
-      maxProductsPerStore: Number.POSITIVE_INFINITY,
-    },
-    features: {
-      whatsappCheckout: true,
-      multicaixaCheckout: true,
-      customDomain: true,
-      dedicatedManager: true,
-      customIntegrations: true,
-      prioritySupport: true,
-    },
-    highlights: [
-      "Tudo do plano Profissional",
-      "Lojas ilimitadas",
-      "Gestor dedicado",
-      "Integrações à medida",
-      "Suporte prioritário",
-    ],
-  },
+/** Preço de cada ciclo, em Kwanzas. */
+export const PRICE_KZ: Readonly<Record<BillingPeriod, number>> = {
+  mensal: 11_000,
+  anual: 120_000,
 };
 
-/** Type guard: verifica se um valor desconhecido é um {@link PlanId} válido. */
-export function isPlanId(value: unknown): value is PlanId {
-  return typeof value === "string" && Object.prototype.hasOwnProperty.call(PLANS, value);
+/** Duração de cada ciclo, em dias. */
+export const PERIOD_DAYS: Readonly<Record<BillingPeriod, number>> = {
+  mensal: 30,
+  anual: 365,
+};
+
+/** Rótulo de cada ciclo. */
+export const PERIOD_LABEL: Readonly<Record<BillingPeriod, string>> = {
+  mensal: "Mensal",
+  anual: "Anual",
+};
+
+/** O que a subscrição inclui, para a página de preços e para o painel. */
+export const PLAN_HIGHLIGHTS: readonly string[] = [
+  "Lojas e produtos ilimitados",
+  "Checkout Multicaixa Express e referência bancária",
+  "Checkout via WhatsApp",
+  "Endereço próprio .sualoja.digital",
+  "Editor visual, modelos prontos e logótipo por IA",
+  "Códigos de desconto, stock, variações e avaliações",
+];
+
+/** Type guard de {@link BillingPeriod}. */
+export function isBillingPeriod(value: unknown): value is BillingPeriod {
+  return value === "mensal" || value === "anual";
 }
 
 /**
- * Resolve um plano a partir de um identificador possivelmente inválido,
- * recorrendo ao {@link DEFAULT_PLAN} quando o valor não é reconhecido.
+ * Ciclo a partir de um valor possivelmente inválido (corpo de pedido, coluna da
+ * base de dados). Recorre a `mensal`, o mais barato — nunca cobrar a mais por
+ * um valor que não se percebeu.
  */
-export function getPlan(id: unknown): Plan {
-  return isPlanId(id) ? PLANS[id] : PLANS[DEFAULT_PLAN];
+export function asBillingPeriod(value: unknown): BillingPeriod {
+  return isBillingPeriod(value) ? value : "mensal";
 }
 
-/** Lista de planos na ordem canónica. */
-export function listPlans(): Plan[] {
-  return PLAN_ORDER.map((id) => PLANS[id]);
+/** Preço do ciclo, em Kwanzas. */
+export function priceOf(period: BillingPeriod): number {
+  return PRICE_KZ[period];
 }
 
-/** Posição do plano na ordem canónica (0 = mais simples). */
-export function planRank(id: PlanId): number {
-  return PLAN_ORDER.indexOf(id);
+/** Duração do ciclo, em dias. */
+export function daysOf(period: BillingPeriod): number {
+  return PERIOD_DAYS[period];
 }
 
 /**
- * Indica se o Dono pode publicar mais uma loja, dado o número de lojas já
- * publicadas. Lojas em rascunho não contam para o limite.
+ * Quanto o ciclo anual poupa face a doze meses avulsos, em Kwanzas.
+ * Positivo enquanto o anual compensar; zero se deixar de compensar.
  */
-export function canPublishAnotherStore(plan: Plan, publishedCount: number): boolean {
-  const count = Number.isFinite(publishedCount) ? Math.max(0, publishedCount) : 0;
-  return count < plan.limits.maxPublishedStores;
+export function yearlySavingKz(): number {
+  return Math.max(0, PRICE_KZ.mensal * 12 - PRICE_KZ.anual);
 }
 
-/**
- * Indica se é possível adicionar `adding` produto(s) a uma loja que já tem
- * `currentCount` produtos, sem exceder o limite do plano.
- */
-export function canAddProducts(plan: Plan, currentCount: number, adding = 1): boolean {
-  const count = Number.isFinite(currentCount) ? Math.max(0, currentCount) : 0;
-  return count + Math.max(0, adding) <= plan.limits.maxProductsPerStore;
-}
-
-/**
- * Número de produtos ainda disponíveis numa loja (pode ser `Infinity`).
- * Nunca devolve valores negativos.
- */
-export function remainingProducts(plan: Plan, currentCount: number): number {
-  const count = Number.isFinite(currentCount) ? Math.max(0, currentCount) : 0;
-  return Math.max(0, plan.limits.maxProductsPerStore - count);
-}
-
-/** Métodos de checkout disponíveis para o plano, na ordem de apresentação. */
-export function allowedCheckoutMethods(plan: Plan): CheckoutMethod[] {
-  const methods: CheckoutMethod[] = [];
-  if (plan.features.whatsappCheckout) methods.push("whatsapp");
-  if (plan.features.multicaixaCheckout) methods.push("multicaixa");
-  return methods;
-}
-
-/** Formata um limite numérico para apresentação ("Ilimitado" quando infinito). */
-export function formatLimit(value: number): string {
-  return Number.isFinite(value) ? String(value) : "Ilimitado";
+/** Quantos meses o desconto anual equivale a oferecer (arredondado para baixo). */
+export function yearlyFreeMonths(): number {
+  return Math.floor(yearlySavingKz() / PRICE_KZ.mensal);
 }

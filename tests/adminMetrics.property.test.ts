@@ -86,15 +86,15 @@ describe("adminMetrics — métricas e listas da Visão geral do Painel_Admin (p
         // ── Asserção 2 — nenhuma métrica é negativa.
         expect(saudeAntes.monthRevenue).toBeGreaterThanOrEqual(0);
         expect(saudeAntes.activeSubscriptions).toBeGreaterThanOrEqual(0);
-        expect(saudeAntes.trialsExpiring).toBeGreaterThanOrEqual(0);
-        expect(saudeAntes.trialConversion).toBeGreaterThanOrEqual(0);
+        expect(saudeAntes.subscriptionsExpiring).toBeGreaterThanOrEqual(0);
+        expect(saudeAntes.payingRate).toBeGreaterThanOrEqual(0);
         expect(saudeAntes.publishedStores).toBeGreaterThanOrEqual(0);
         expect(saudeAntes.suspendedStores).toBeGreaterThanOrEqual(0);
         // Receita agregada finita: `asAmount` limita `NaN` e `Infinity` a zero.
         expect(Number.isFinite(saudeAntes.monthRevenue)).toBe(true);
 
         // ── Asserção 3 — a conversão fica em [0, 1].
-        expect(saudeAntes.trialConversion).toBeLessThanOrEqual(1);
+        expect(saudeAntes.payingRate).toBeLessThanOrEqual(1);
 
         // ── Asserção 4 — nenhuma contagem de Lojas excede as Lojas que não são
         // Loja_Modelo. Oráculo independente do módulo: conta as Lojas do
@@ -128,8 +128,8 @@ describe("adminMetrics — métricas e listas da Visão geral do Painel_Admin (p
         if (
           saudeAntes.monthRevenue > 0 ||
           saudeAntes.activeSubscriptions > 0 ||
-          saudeAntes.trialsExpiring > 0 ||
-          saudeAntes.trialConversion > 0 ||
+          saudeAntes.subscriptionsExpiring > 0 ||
+          saudeAntes.payingRate > 0 ||
           saudeAntes.publishedStores > 0 ||
           saudeAntes.suspendedStores > 0
         ) {

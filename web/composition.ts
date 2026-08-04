@@ -13,7 +13,6 @@ import { createFileService } from "../src/services/fileService.js";
 import { createWizardFlow } from "../src/app/wizardFlow.js";
 import { createAdminPanel, type AdminPanel } from "../src/app/adminPanel.js";
 import type { Session } from "../src/services/authService.js";
-import { DEFAULT_PLAN, type PlanId } from "../src/services/plans.js";
 import { resolveBilling, type BillingState } from "../src/services/billing.js";
 import { templateOptions } from "./templates/registry.js";
 
@@ -130,58 +129,32 @@ export async function getOwnerName(ownerId: string): Promise<string> {
   return (data?.name as string | undefined)?.trim() ?? "";
 }
 
-/* ------------------------------- Planos -------------------------------- */
-
-/** Lê o plano de subscrição da conta autenticada (ou o plano por omissão). */
-export async function getOwnerPlan(ownerId?: string | null): Promise<PlanId> {
-  const id = ownerId ?? (await currentOwnerId());
-  if (!id) return DEFAULT_PLAN;
-  const billing = await getOwnerBilling(id);
-  return billing.effectivePlan;
-}
+/* ---------------------------- Subscrição ------------------------------- */
 
 /**
- * Estado de faturação completo da conta (plano efetivo, dias para renovação,
- * plano agendado). Quando `id` é o utilizador autenticado e um período terminou,
- * persiste a transição (promoção do plano agendado ou queda para básico).
+ * Estado da subscrição da conta.
+ *
+ * Deixou de haver escalões e teste grátis: a regra é «administrador, ou
+ * `plan_expires_at` no futuro». Também já não há transição a persistir — o
+ * carry-over só existia para trocar entre planos.
  */
 export async function getOwnerBilling(ownerId?: string | null): Promise<BillingState> {
   const id = ownerId ?? (await currentOwnerId());
-  if (!id) {
-    return resolveBilling({ plan: DEFAULT_PLAN, planExpiresAt: null, nextPlan: null });
-  }
+  if (!id) return resolveBilling({ planExpiresAt: null });
   const { data } = await supabase
     .from("profiles")
-    .select("plan, plan_expires_at, next_plan, trial_ends_at, is_admin")
+    .select("plan_expires_at, is_admin")
     .eq("id", id)
     .maybeSingle();
-  const state = resolveBilling({
-    plan: data?.plan,
+  return resolveBilling({
     planExpiresAt: data?.plan_expires_at,
-    nextPlan: data?.next_plan,
-    trialEndsAt: data?.trial_ends_at,
     isAdmin: data?.is_admin === true,
   });
-  // Persiste a transição apenas para a própria conta (RLS permite-o).
-  if (state.transition) {
-    const me = await currentOwnerId();
-    if (me === id) {
-      await supabase.from("profiles").update({
-        plan: state.transition.plan,
-        plan_expires_at: state.transition.planExpiresAt,
-        next_plan: state.transition.nextPlan,
-      }).eq("id", id);
-    }
-  }
-  return state;
 }
 
-/** Define o plano de subscrição da conta autenticada. Devolve `true` em sucesso. */
-export async function setOwnerPlan(planId: PlanId): Promise<boolean> {
-  const id = await currentOwnerId();
-  if (!id) return false;
-  const { error } = await supabase.from("profiles").update({ plan: planId }).eq("id", id);
-  return !error;
+/** A conta pode publicar e manter lojas online? */
+export async function ownerCanPublish(ownerId?: string | null): Promise<boolean> {
+  return (await getOwnerBilling(ownerId)).accessActive;
 }
 
 /** Conta as lojas do Dono que estão no estado "Publicada". */

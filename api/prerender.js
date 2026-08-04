@@ -25,7 +25,7 @@
  * É defensiva: perante qualquer erro devolve o shell inalterado (nunca 500).
  */
 
-import { admin } from "./_shared.js";
+import { admin, accountActive } from "./_shared.js";
 import {
   STORE_APEX, PLATFORM_APEX, LANGUAGE, PLATFORM_NAME,
   esc, truncate, slugify, productSlugPath, categorySlug, formatKz, identifierFromHost,
@@ -118,15 +118,15 @@ const PLATFORM_FAQ = [
   },
   {
     question: "Que métodos de pagamento posso aceitar?",
-    answer: "Multicaixa Express, Referência Bancária e encomendas por WhatsApp. O checkout por WhatsApp está disponível em todos os planos; o Multicaixa Express e a referência bancária a partir do plano Profissional.",
+    answer: "Multicaixa Express, Referência Bancária e encomendas por WhatsApp. Estão todos incluídos na subscrição, sem escalões nem funcionalidades reservadas.",
   },
   {
     question: "Quanto custa?",
-    answer: "O plano Básico custa 5.000 Kz por mês, o Profissional 11.000 Kz e o Empresarial 25.000 Kz. Todos começam com uma semana de teste grátis.",
+    answer: "11.000 Kz por mês, ou 120.000 Kz por ano — poupa 12.000 Kz face a doze meses avulsos. Um preço único, com lojas e produtos ilimitados. Criar a loja e vê-la é grátis; a subscrição é necessária para a publicar.",
   },
   {
     question: "Posso usar o meu próprio domínio?",
-    answer: "Sim, a partir do plano Profissional pode ligar um domínio próprio à sua loja.",
+    answer: "Sim, a subscrição inclui a ligação de um domínio próprio à sua loja.",
   },
 ];
 
@@ -198,15 +198,9 @@ export default async function handler(req, res) {
     // Conta sem acesso (teste terminou e sem plano) → a loja sai da web.
     if (store.owner_id) {
       const { data: prof } = await db
-        .from("profiles").select("is_admin, trial_ends_at, plan_expires_at")
+        .from("profiles").select("is_admin, plan_expires_at")
         .eq("id", store.owner_id).maybeSingle();
-      const now = Date.now();
-      const active = !!prof && (
-        prof.is_admin === true ||
-        (prof.trial_ends_at && Date.parse(prof.trial_ends_at) > now) ||
-        (prof.plan_expires_at && Date.parse(prof.plan_expires_at) > now)
-      );
-      if (!active) return send(notFoundHtml(shell, "Loja indisponível", canonicalBase), 410, false);
+      if (!accountActive(prof)) return send(notFoundHtml(shell, "Loja indisponível", canonicalBase), 410, false);
     }
 
     const storeName = store.name;

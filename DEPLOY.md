@@ -82,7 +82,8 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
    as avaliações de produtos; a `0017` os eventos de loja (analytics)).
 
    **Há duas migrações com o número 0018** — aplicar **as duas**:
-   `0018_trial.sql` (teste grátis de 1 semana e suspensão da loja sem pagamento)
+   `0018_trial.sql` (superada pela 0019; aplique-a na mesma, a ordem conta) e
+   `0019_single_plan.sql` (preço único, sem teste grátis, publicar exige subscrição)
    e `0018_logo_purchases.sql` (tabela `logo_purchases`, sem a qual a compra de
    logótipo por IA falha no servidor).
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
@@ -254,7 +255,7 @@ Todas na Vercel → Settings → Environment Variables (Production + Preview). E
 
 ## Checklist de lançamento
 
-- [ ] Migrações `0001` … `0017` + **`0018_trial.sql` e `0018_logo_purchases.sql`**.
+- [ ] Migrações `0001` … `0017` + **`0018_trial.sql`, `0018_logo_purchases.sql` e `0019_single_plan.sql`**.
 - [ ] Bucket `store-assets` público (criado pela `0001`).
 - [ ] Variáveis de ambiente da tabela acima.
 - [ ] Domínios e wildcards (`*.sualoja.digital` é essencial) com SSL emitido.

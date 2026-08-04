@@ -9,12 +9,16 @@
  */
 import { esc, formatKz, toast } from "./dom.js";
 import { initPayment, checkStatus } from "./paymentsApi.js";
-import type { Plan } from "../../src/services/plans.js";
+import { PRICE_KZ, PERIOD_LABEL, type BillingPeriod } from "../../src/services/plans.js";
 
 const ACCENT = "#F95901";
 
-export function openPlanCheckout(opts: { ownerId: string; plan: Plan; onPaid: () => void }): void {
-  const { ownerId, plan, onPaid } = opts;
+export function openPlanCheckout(opts: { ownerId: string; period: BillingPeriod; onPaid: () => void }): void {
+  const { ownerId, period, onPaid } = opts;
+  // Deixou de haver escalões: o que se compra é o CICLO. É ele que viaja até
+  // ao servidor e decide se a subscrição recebe 30 ou 365 dias.
+  const preco = PRICE_KZ[period];
+  const rotulo = PERIOD_LABEL[period];
   const qa = location.search.includes("qa=1");
   let method: "mcx" | "reference" = "mcx";
 
@@ -55,10 +59,10 @@ export function openPlanCheckout(opts: { ownerId: string; plan: Plan; onPaid: ()
   function drawForm(): void {
     card.innerHTML = `
       <div class="flex items-center justify-between mb-1">
-        <h3 class="text-lg font-black text-gray-900">Subscrever ${esc(plan.name)}</h3>
+        <h3 class="text-lg font-black text-gray-900">Subscrição ${esc(rotulo.toLowerCase())}</h3>
         <button data-close class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button>
       </div>
-      <p class="text-gray-500 text-sm mb-4">Pagamento mensal de <b style="color:${ACCENT}">${esc(formatKz(plan.priceKz))}</b>.</p>
+      <p class="text-gray-500 text-sm mb-4">Pagamento ${period === "anual" ? "anual" : "mensal"} de <b style="color:${ACCENT}">${esc(formatKz(preco))}</b>.</p>
       <div class="space-y-2 mb-4">
         ${methodCard("mcx", "smartphone", "Multicaixa Express", "Ativação imediata.")}
         ${methodCard("reference", "receipt_long", "Referência Bancária", "Pague no ATM / Internet Banking.")}
@@ -90,9 +94,9 @@ export function openPlanCheckout(opts: { ownerId: string; plan: Plan; onPaid: ()
     const res = await initPayment({
       kind: "plan",
       ownerId,
-      plan: plan.id,
+      period,
       method,
-      products: [{ productName: `Plano ${plan.name} (MôBisno)`, productPrice: plan.priceKz, productQuantity: 1 }],
+      products: [{ productName: `Subscrição ${rotulo.toLowerCase()} (MôBisno)`, productPrice: preco, productQuantity: 1 }],
       phoneNumber: method === "mcx" ? phone : undefined,
       qa,
       simulateResult: qa && method === "mcx" ? "success" : undefined,
@@ -111,7 +115,7 @@ export function openPlanCheckout(opts: { ownerId: string; plan: Plan; onPaid: ()
   function drawDone(): void {
     card.innerHTML = `<div class="text-center py-6">
       <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center" style="background:rgba(16,185,129,.12);color:#059669"><span class="material-symbols-outlined" style="font-size:32px">check_circle</span></div>
-      <h3 class="text-xl font-black mt-3">Plano ${esc(plan.name)} ativado!</h3>
+      <h3 class="text-xl font-black mt-3">Subscrição ativada!</h3>
       <p class="text-gray-500 text-sm mt-1">Obrigado. O seu plano já está ativo.</p>
       <button id="plan-finish" class="mt-5 w-full py-3 rounded-xl text-white font-bold" style="background:${ACCENT}">Concluir</button>
     </div>`;
@@ -125,7 +129,7 @@ export function openPlanCheckout(opts: { ownerId: string; plan: Plan; onPaid: ()
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
         <div class="flex justify-between"><span class="text-gray-500">Entidade</span><span class="font-black tracking-wider">${esc(res.entity ?? "—")}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Referência</span><span class="font-black tracking-wider">${esc(res.referenceNumber ?? "—")}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Montante</span><span class="font-black" style="color:${ACCENT}">${esc(formatKz(res.amount ?? plan.priceKz))}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Montante</span><span class="font-black" style="color:${ACCENT}">${esc(formatKz(res.amount ?? preco))}</span></div>
         ${due ? `<div class="flex justify-between"><span class="text-gray-500">Validade</span><span class="font-semibold">${esc(due)}</span></div>` : ""}
       </div>
       <p id="plan-ref-status" class="text-center text-sm text-gray-500 mt-3"></p>

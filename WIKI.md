@@ -12,7 +12,7 @@
 4. [Domínios e Roteamento](#4-domínios-e-roteamento)
 5. [Base de Dados — Supabase](#5-base-de-dados--supabase)
 6. [Modelos de Domínio](#6-modelos-de-domínio)
-7. [Planos e Faturação](#7-planos-e-faturação)
+7. [Subscrição e Faturação](#7-subscrição-e-faturação)
 8. [Pagamentos — MoMenu](#8-pagamentos--momenu)
 9. [Autenticação e Segurança](#9-autenticação-e-segurança)
 10. [Frontend — Web SPA](#10-frontend--web-spa)
@@ -25,7 +25,7 @@
 17. [Avaliações de Produtos](#17-avaliações-de-produtos)
 18. [Analytics](#18-analytics)
 19. [Painel de Administração](#19-painel-de-administração)
-20. [Teste Grátis e Suspensão](#20-teste-grátis-e-suspensão)
+20. [Pré-visualização e Suspensão](#20-pré-visualização-e-suspensão)
 21. [Assistente de IA](#21-assistente-de-ia)
 22. [Testes](#22-testes)
 23. [Build e Deploy](#23-build-e-deploy)
@@ -90,7 +90,7 @@
 ├── src/                    # Domínio puro (TypeScript, sem DOM, testável)
 │   ├── models/             # Tipos de domínio (domain.ts, index.ts, result.ts)
 │   ├── services/           # Lógica de negócio pura
-│   │   ├── billing.ts      # Resolução de plano/faturação/trial
+│   │   ├── billing.ts      # Acesso: admin ou plan_expires_at futuro
 │   │   ├── plans.ts        # Catálogo de planos, limites, funcionalidades
 │   │   ├── seo.ts          # Geração de títulos/descrições/JSON-LD (puro)
 │   │   ├── storeService.ts # Criação/validação de lojas
@@ -192,7 +192,7 @@
 │       └── legal.ts        # Termos / Privacidade / Política
 │
 ├── supabase/
-│   ├── migrations/         # SQL: 0001_init.sql … 0018_trial.sql
+│   ├── migrations/         # SQL: 0001_init.sql … 0019_single_plan.sql
 │   └── scripts/
 │       ├── create_admin.sql      # Cria admin dotangola@gmail.com
 │       └── reset_test_data.sql
@@ -295,7 +295,7 @@ if (isStoreApexRoot()) {
 
 | Tabela | Descrição |
 |---|---|
-| `profiles` | Extensão de `auth.users`; campos: `plan`, `plan_expires_at`, `next_plan`, `trial_ends_at`, `is_admin` |
+| `profiles` | Extensão de `auth.users`; campos: `plan` (sempre `pro`), `plan_expires_at`, `is_admin`. `next_plan` e `trial_ends_at` foram removidas na `0019` |
 | `stores` | Lojas: `owner_id`, `name`, `identifier`, `template_id`, `state`, `subdomain` |
 | `products` | Produtos: `store_id`, `name`, `price`, `stock`, `available`, `featured`, `physical`, etc. |
 | `assets` | Imagens (logo, produto, banner) associadas a lojas |
@@ -316,7 +316,7 @@ if (isStoreApexRoot()) {
 
 Regras críticas:
 - `stores`: SELECT só pelo `owner_id` (ou admin). UPDATE/DELETE idem.
-- `stores` (leitura pública): `state = 'Publicada' AND public.account_active(owner_id)` — inclui verificação de trial/plano/admin.
+- `stores` (leitura pública): `state = 'Publicada' AND public.account_active(owner_id)` — administrador ou subscrição válida.
 - `products`, `assets`, `banners`: SELECT público por `store_id` se a loja for publicada; escrita só pelo dono.
 - `profiles`: cada utilizador lê/atualiza o seu próprio perfil; admins leem todos.
 
@@ -329,7 +329,6 @@ CREATE OR REPLACE FUNCTION public.account_active(uid uuid)
 RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$
   SELECT
     COALESCE(is_admin, false) = true
-    OR (trial_ends_at IS NOT NULL AND trial_ends_at > now())
     OR (plan_expires_at IS NOT NULL AND plan_expires_at > now())
   FROM public.profiles WHERE id = uid;
 $$;
@@ -392,49 +391,62 @@ JSON guardado em `store_customizations`. Campos principais:
 
 ---
 
-## 7. Planos e Faturação
+## 7. Subscrição e Faturação
 
-### Catálogo de Planos (`src/services/plans.ts`)
+### Preço único
 
-| Plano | Preço/mês | Lojas publicadas | Produtos | Checkout MCX | Domínio próprio |
-|---|---|---|---|---|---|
-| Básico | 5.000 Kz | 1 | 100 | ✗ | ✗ |
-| Profissional | 11.000 Kz | 3 | Ilimitado | ✓ | ✓ |
-| Empresarial | 25.000 Kz | Ilimitado | Ilimitado | ✓ | ✓ + gestor dedicado |
+| | Preço | Duração |
+|---|---|---|
+| Mensal | 11.000 Kz | 30 dias |
+| Anual | 120.000 Kz | 365 dias (poupa 12.000 Kz, ~1 mês) |
 
-Todos os planos incluem checkout via WhatsApp. O domínio próprio continua listado
-nos planos mas está «Em breve» e bloqueado na interface (§29).
+**Não há escalões.** Quem subscreve tem tudo: lojas e produtos ilimitados,
+Multicaixa Express, referência bancária, WhatsApp, domínio próprio, editor,
+modelos, descontos, stock, variações e avaliações. Catálogo em
+`src/services/plans.ts`.
 
-### Lógica de Faturação (`src/services/billing.ts`)
+**Não há teste grátis.** Criar a loja, personalizá-la e **pré-visualizá-la** é
+grátis e sem prazo; a subscrição serve para **publicar**. É uma porta melhor do
+que um relógio de 7 dias: chega quando o dono já investiu esforço e quer pôr a
+loja no ar, e não há nada a expirar.
 
-`resolveBilling(input, now)` é uma **função pura** (sem I/O) que recebe:
-- `plan`, `planExpiresAt`, `nextPlan`, `trialEndsAt`, `isAdmin`
+### A regra de acesso (`src/services/billing.ts`)
 
-E devolve `BillingState`:
-- `effectivePlan`: plano cujas funcionalidades estão ativas agora.
-- `inTrial`: está no período de teste (7 dias).
-- `accessActive`: loja pode ficar online?
-- `suspended`: acesso terminado (precisa de pagar).
-- `daysRemaining`: dias até renovação.
-- `transition`: alteração a persistir no perfil (carry-over).
+`resolveBilling({ planExpiresAt, isAdmin }, now)` é uma **função pura**. A regra
+inteira é: **ativo se for administrador, ou se `plan_expires_at` for futuro.**
 
-### Carry-Over (mudança de plano com tempo restante)
+Devolve `accessActive`, `expiresAt`, `daysRemaining`, `expired` (já pagou e
+caducou — distinto de nunca ter pago), `byAdmin` e `suspended`.
 
-Se o utilizador pagar um plano diferente enquanto o atual ainda tem tempo:
-- `nextPlan` fica agendado na BD.
-- Quando o período atual termina, `billing.ts` ativa o `nextPlan` por mais 30 dias.
-- A lógica está em `resolveBilling` + `planActivationPatch`.
+> **Porque é tão pouco.** A versão anterior tinha cinco ramos a interagir —
+> pago, plano agendado (carry-over), teste grátis, atribuição permanente e
+> expirado. Um deles era um acidente: plano gravado **sem** data de expiração
+> contava como permanente, e o assistente gravava exactamente isso ao registar o
+> plano escolhido e não pago. Resultado: plano vitalício grátis. Pior, o espelho
+> em `api/_shared.js` não tinha esse ramo e lia «básico» — o painel dizia ao dono
+> que tinha plano ativo e o checkout recusava cobrar aos clientes dele
+> (`PLAN_NOT_COVERED`). Guardado por `tests/planParity.test.ts`.
 
-### Ativação de Plano pelo Servidor
+### Renovação
 
-`api/_shared.js` → `activatePlan(db, ownerId, newPlan)`. **Não importa de `src/`**: `api/` é JavaScript sem passo de compilação, por isso a regra de `planActivationPatch` está espelhada à mão (renova o mesmo plano, agenda um plano diferente quando há tempo restante, ativa já quando não há período em curso). Ao alterar a regra em `src/services/billing.ts`, alterar aqui também.  
-`api/payment.js` chama `activatePlan` no MCX (pago de imediato) e `api/webhook.js` chama-o quando a Referência Bancária é confirmada.
+`planActivationPatch(current, period, now)` acrescenta o ciclo **ao fim do
+período atual** quando ainda há tempo, para quem paga adiantado não perder dias;
+sem período em curso, conta a partir de agora. Espelhado em
+`api/_shared.js:activatePlan` — e agora o espelho é fiel, porque é uma data.
 
-### Admin tem acesso eterno
+### Administrador
 
-`adminSetAccountPlan` (em `web/supabase/admin.ts`) define `plan_expires_at` a 100 anos. `account_active` verifica `is_admin = true` para bypass total.
+Acesso sempre ativo, sem pagar (`is_admin` em `profiles`, verificado tanto por
+`resolveBilling` como por `public.account_active`). No painel de administração,
+o admin liga/desliga a subscrição de uma conta (`adminSetSubscription`), que
+grava uma validade longa ou `null`.
 
----
+### Publicar exige subscrição
+
+Imposto pela **base de dados**, não pelo botão: o gatilho
+`stores_publish_requires_plan` (migração `0019`) recusa a transição para
+`Publicada` sem conta ativa. O painel apanha o caso antes para dar uma frase
+útil em vez de um erro do Postgres.
 
 ## 8. Pagamentos — MoMenu
 
@@ -626,7 +638,7 @@ Todas as funções em `api/` são **ESM** com `export default handler(req, res)`
 
 Utilitários partilhados por todas as funções:
 - `admin()`: cliente com `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS), ou `null` se faltarem variáveis de ambiente.
-- `effectivePlanId(profile, now?)`: plano efetivo a partir da **linha de `profiles` já lida** (considera expiração, carry-over e trial).
+- `accountActive(profile, now?)`: a conta tem subscrição ativa (administrador, ou `plan_expires_at` futuro). Espelha `resolveBilling`.
 - `activatePlan(db, ownerId, newPlan)`: renova/agenda/ativa o plano após pagamento confirmado.
 - `checkStock(db, products, storeId)`: recusa a encomenda quando falta stock. Devolve o nome do primeiro Produto sem stock, ou `null`.
 - `decrementStock(db, products, storeId)`: abate o stock vendido.
@@ -974,7 +986,7 @@ Requer `is_admin = true` no perfil. Botão "Painel de Administração" visível 
 - Total de contas, lojas publicadas, receita estimada do mês, transações recentes.
 
 **Contas:**
-- Tabela de todos os utilizadores com filtros (ativo/suspenso/trial).
+- Tabela de todos os utilizadores com filtro de subscrição (com/sem).
 - Expandir conta → ver lojas, plano, datas.
 - Ações: mudar plano, suspender, ativar.
 
@@ -1021,34 +1033,34 @@ plataforma** é `businessHealth().monthRevenue` e vem das transações de servi�
 
 ---
 
-## 20. Teste Grátis e Suspensão
+## 20. Pré-visualização e Suspensão
 
-### Regra
+### Criar é grátis; publicar exige subscrição
 
-Toda conta criada recebe **7 dias de teste grátis**. Após o período:
-- Se não pagou: loja fica offline (invisível na web, bloqueada por RLS).
-- Aviso no dashboard: banner vermelho "Loja offline — Ative o seu plano para voltar a aparecer online".
+Uma loja nasce em **Rascunho**. O dono personaliza-a e vê-a em
+`/previsualizar/<identificador>` — a loja tal como ficará publicada, com uma
+barra por cima a dizer que só ele a vê.
 
-### Implementação
+`storefrontResolver.resolveForOwner(identifier, ownerId)` é o caminho que o
+permite: devolve a loja **em qualquer estado**, mas só ao seu dono. A porta
+pública (`resolve`) continua a recusar rascunhos — guardado por
+`tests/storePreview.test.ts`. O carrinho e o checkout não são montados na
+pré-visualização: é uma vista da loja, não uma loja a funcionar.
 
-**BD** (`0018_trial.sql`):
-- `profiles.trial_ends_at = now() + interval '7 days'` (default na criação).
-- `public.account_active(uid)` (SECURITY DEFINER): `is_admin OR trial_ends_at > now() OR plan_expires_at > now()`.
-- Política `stores_public_read`: `state = 'Publicada' AND public.account_active(owner_id)`.
+### Suspensão
 
-**Nenhum cron job necessário.** A suspensão é automática via RLS.
+**Nenhum cron job.** Quando `plan_expires_at` fica no passado:
 
-**`src/services/billing.ts`**:
-- `BillingInput.trialEndsAt`, `BillingState.inTrial`, `trialDaysRemaining`, `accessActive`, `suspended`.
+- `public.account_active(uid)` passa a falso;
+- a política `stores_public_read` deixa de servir a loja: sai da web;
+- `api/prerender.js` devolve **410**;
+- `api/payment.js` recusa novos pagamentos (`PLAN_NOT_COVERED`).
 
-**`web/views/dashboard.ts`** — `planStatusCard`:
-- `suspended`: banner vermelho com CTA de pagamento.
-- `inTrial`: banner laranja "Teste grátis — N dias restantes".
-- Plano pago: banner verde com data de renovação.
+A loja **não é despublicada**: o estado fica `Publicada` e ela volta sozinha ao
+ar mal a subscrição seja renovada.
 
-**Landing page** (`web/views/landing.ts`): botões de plano mostram "Testar 1 semana grátis".
-
----
+No painel, `planStatusCard` distingue quem **nunca pagou** («A sua loja ainda
+não está online») de quem **deixou caducar** («A sua subscrição terminou»).
 
 ## 21. Assistente de IA
 
@@ -1187,8 +1199,9 @@ Aplicar **por ordem** no SQL Editor do Supabase. Nunca pular uma migração.
 | 0015 | `0015_product_stock.sql` | Coluna `stock` em `products` |
 | 0016 | `0016_reviews.sql` | Tabela `product_reviews` |
 | 0017 | `0017_store_events.sql` | Tabela `store_events` (analytics) |
-| 0018 | `0018_trial.sql` | Coluna `trial_ends_at` em `profiles`; função `account_active`; política `stores_public_read` atualizada |
+| 0018 | `0018_trial.sql` | Coluna `trial_ends_at`; função `account_active`. **Superada pela 0019** |
 | 0018 | `0018_logo_purchases.sql` | Tabela `logo_purchases` (criação de logótipo por IA, compra avulsa). Partilha o número `0018` com `0018_trial.sql`; são independentes e a ordem entre as duas não importa |
+| 0019 | `0019_single_plan.sql` | Plano único `pro`; larga `trial_ends_at` e `next_plan`; `account_active` sem teste; coluna `period` em `plan_payments`; gatilho que exige subscrição para publicar |
 
 ### Scripts Utilitários
 
@@ -1357,7 +1370,7 @@ devolvem antes de escrever. Reverter é pôr a bandeira a `false`.
 
 ### Domínio Próprio — «Em breve», bloqueado na interface
 
-Continua a ser feature dos planos Profissional e Empresarial, mas a configuração
+Continua incluído na subscrição, mas a configuração
 técnica (CNAME para a Vercel) é manual e não há automação de DNS na plataforma.
 Enquanto isso, `COMING_SOON.customDomain` mostra «Em breve» e **bloqueia guardar**
 um domínio: o campo aparece, o "Guardar" está desativado e o manipulador recusa
@@ -1374,8 +1387,6 @@ com um aviso. Nada é escrito em `customization.customDomain`.
 | Email transacional (confirmação, welcome) | ❌ Não implementado | Supabase Auth envia email de confirmação; resto manual |
 | Verificação de email com template da marca | ❌ Não implementado | Requer SMTP próprio + template HTML com logo |
 | App móvel | ❌ Não planeado | SPA responsiva; PWA possível |
-| Integrações à medida (Empresarial) | ❌ Não implementado | Feature declarada no plano |
-| Gestor dedicado (Empresarial) | ❌ Operacional, não técnico | |
 | Cron de expiração de planos | ✅ Não necessário | RLS com `account_active()` trata tudo |
 | Pesquisa dentro da loja | ✅ Implementado | `web/lib/search.ts` — busca por nome/categoria |
 | Retentativas de webhook | ❌ Não implementado | Fire-and-forget; fallback manual "Já paguei" |

@@ -64,6 +64,21 @@ export type StorefrontResult =
 export interface StorefrontResolver {
   /** Resolve a Loja a renderizar a partir do cabeçalho `Host`. */
   resolve(host: string): Promise<StorefrontResult>;
+  /**
+   * Resolve a Loja de um Dono **independentemente do estado**, para a
+   * pré-visualização privada.
+   *
+   * PORQUÊ: uma Loja por publicar é invisível na web — `resolve` devolve
+   * `not_found` e as políticas de leitura pública recusam-na. Sem este caminho,
+   * o Dono não teria como ver aquilo que construiu antes de subscrever, e o
+   * modelo de negócio passou a ser exactamente esse: criar e ver é grátis,
+   * publicar é que exige subscrição.
+   *
+   * A Loja é devolvida **apenas** se pertencer a `ownerId`. Não é a única
+   * defesa: `findByIdForOwner` filtra por dono no repositório e as políticas da
+   * base de dados impedem ler a Loja de outra pessoa. É a terceira.
+   */
+  resolveForOwner(identifier: string, ownerId: string): Promise<StorefrontResult>;
 }
 
 /** Dependências configuráveis do {@link StorefrontResolver}. */
@@ -170,27 +185,32 @@ export function createStorefrontResolver(
         return { kind: "not_found" };
       }
 
-      // Loja existente e Publicada: reunir os recursos a renderizar (Requisito 9.1).
-      //
-      // Em PARALELO, de propósito: as três consultas dependem apenas de
-      // `store.id` e não umas das outras. Encadeadas, somavam três idas ao
-      // servidor à espera umas das outras — em Angola, mais de meio segundo de
-      // cascata que o visitante passava a olhar para a página pré-renderizada
-      // antes de a loja aparecer.
-      const [logo, banners, allProducts] = await Promise.all([
-        assetRepository.findLogo(store.id),
-        bannerRepository.listByStore(store.id),
-        productRepository.listByStore(store.id),
-      ]);
-      const products = allProducts.filter((product) => product.available === true);
+      return gather(store);
+    },
 
-      return {
-        kind: "render",
-        store,
-        logo,
-        banners,
-        products,
-      };
+    async resolveForOwner(identifier: string, ownerId: string): Promise<StorefrontResult> {
+      if (!identifier || !ownerId) return { kind: "not_found" };
+      const store = await storeRepository.findByIdentifier(identifier);
+      // O dono só vê o que é dele. O estado não conta: é esse o objetivo.
+      if (store === null || store.ownerId !== ownerId) return { kind: "not_found" };
+      return gather(store);
     },
   };
+
+  /** Reúne os recursos de uma Loja já resolvida (Requisito 9.1). */
+  async function gather(store: Store): Promise<StorefrontResult> {
+    // Em PARALELO, de propósito: as três consultas dependem apenas de
+    // `store.id` e não umas das outras. Encadeadas, somavam três idas ao
+    // servidor à espera umas das outras — em Angola, mais de meio segundo de
+    // cascata que o visitante passava a olhar para a página pré-renderizada
+    // antes de a loja aparecer.
+    const [logo, banners, allProducts] = await Promise.all([
+      assetRepository.findLogo(store.id),
+      bannerRepository.listByStore(store.id),
+      productRepository.listByStore(store.id),
+    ]);
+    const products = allProducts.filter((product) => product.available === true);
+
+    return { kind: "render", store, logo, banners, products };
+  }
 }

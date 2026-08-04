@@ -129,6 +129,21 @@ export async function loadStorefront(identifier: string): Promise<LoadedStorefro
   }
 }
 
+/**
+ * Carrega a loja de um Dono para PRÉ-VISUALIZAÇÃO, mesmo por publicar.
+ *
+ * Não passa pela cache nem pelos dados embutidos: a pré-visualização é do
+ * rascunho, muda a cada gravação no editor, e servir uma versão de há um minuto
+ * seria pior do que não a mostrar.
+ */
+export async function loadStorePreview(identifier: string, ownerId: string): Promise<LoadedStorefront> {
+  const result = await resolver.resolveForOwner(identifier, ownerId);
+  const custom: StoreCustomization = result.kind === "render"
+    ? await getCustomization(result.store.id)
+    : {};
+  return { result, view: renderStore(result), custom };
+}
+
 /** Invalida a cache (uma loja específica ou toda). */
 export function invalidateStorefront(identifier?: string): void {
   if (identifier) {

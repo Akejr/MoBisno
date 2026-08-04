@@ -6,7 +6,7 @@
 import { render, $, go, esc, toast, formatKz, withBusy, withButton, fadeInImages } from "../lib/dom.js";
 import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerBilling, countPublishedStores, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
-import { getPlan, listPlans, planRank, canAddProducts, remainingProducts, formatLimit, isPlanId, type Plan } from "../../src/services/plans.js";
+import { PRICE_KZ, BILLING_PERIODS, PERIOD_LABEL, PLAN_HIGHLIGHTS, yearlySavingKz, type BillingPeriod } from "../../src/services/plans.js";
 import { PLAN_PERIOD_DAYS, type BillingState } from "../../src/services/billing.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
@@ -127,7 +127,7 @@ export async function renderDashboard(): Promise<void> {
 
   const panel = adminPanelFor(store.id);
   const billing = await getOwnerBilling(ownerId);
-  const plan = getPlan(billing.effectivePlan);
+
   const isAdmin = await isCurrentUserAdmin();
   const tab = currentTab();
   const storeUrl = publicStoreUrl(store.identifier);
@@ -174,7 +174,9 @@ export async function renderDashboard(): Promise<void> {
           <h2 class="text-xl font-black tracking-tight capitalize">${tab === "inicio" ? "Início" : tab === "config" ? "Configurações" : tab === "plano" ? "Plano" : tab === "analises" ? "Análises" : tab === "logotipo" ? "Criar logótipo" : esc(tab)}</h2>
           <div class="flex items-center gap-2 shrink-0">
             <a href="#/personalizar" class="text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">palette</span><span class="hidden sm:inline">Personalizar loja</span></a>
-            <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="text-gray-500 hover:text-gray-900 text-sm font-semibold flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
+            ${store.state === "Publicada" && billing.accessActive
+              ? `<a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="text-gray-500 hover:text-gray-900 text-sm font-semibold flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>`
+              : `<a href="/previsualizar/${esc(store.identifier)}" target="_blank" rel="noopener" class="text-gray-500 hover:text-gray-900 text-sm font-semibold flex items-center gap-1 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors" title="Só você vê esta pré-visualização"><span class="material-symbols-outlined text-[18px]">visibility</span><span class="hidden sm:inline">Pré-visualizar</span></a>`}
           </div>
         </header>
         <main class="flex-1 min-w-0 p-margin-mobile md:p-margin-desktop">
@@ -206,7 +208,6 @@ export async function renderDashboard(): Promise<void> {
 
   async function renderInicio(): Promise<void> {
     const products = await productRepository.listByStore(store!.id);
-    const prodLimit = plan.limits.maxProductsPerStore;
     const payCfg = await getPaymentConfig(store!.id);
     const online = payCfg.onlineEnabled;
     const ownerName = (await getOwnerName(ownerId)) || store!.name;
@@ -225,20 +226,30 @@ export async function renderDashboard(): Promise<void> {
       <section class="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h3 class="text-2xl md:text-3xl font-black tracking-tight break-words">Olá, ${esc(ownerName)}</h3>
-          <p class="text-gray-500 mt-1 break-words">Endereço: <a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">${esc(storeUrl.replace(/^https?:\/\//, ""))}</a></p>
+          <p class="text-gray-500 mt-1 break-words">Endereço: ${published && !suspended
+            ? `<a href="${esc(storeUrl)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">${esc(storeUrl.replace(/^https?:\/\//, ""))}</a>`
+            : `<span class="font-semibold text-gray-400">${esc(storeUrl.replace(/^https?:\/\//, ""))}</span> <a href="/previsualizar/${esc(store!.identifier)}" target="_blank" rel="noopener" class="font-semibold hover:underline" style="color:${ACCENT}">pré-visualizar</a>`}</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           ${statePill}
-          ${suspended ? "" : `<button id="toggle-state" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">${published ? "Despublicar" : "Publicar"}</button>`}
-          <a href="#/painel/plano" class="inline-flex items-center gap-1.5 font-semibold px-3 py-1.5 rounded-full text-sm" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> ${esc(plan.name)}</a>
+          ${`<button id="toggle-state" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">${published ? "Despublicar" : "Publicar"}</button>`}
+          <a href="#/painel/plano" class="inline-flex items-center gap-1.5 font-semibold px-3 py-1.5 rounded-full text-sm" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> ${billing.accessActive ? "Subscrição ativa" : "Sem subscrição"}</a>
         </div>
       </section>
 
-      ${planStatusCard(billing, plan.name)}`;
+      ${planStatusCard(billing)}`;
 
     function bindInicio(): void {
       $("#toggle-state")?.addEventListener("click", async () => {
         const next = published ? "Rascunho" : "Publicada";
+        // Publicar exige subscrição. A base de dados também o impõe (gatilho
+        // `stores_publish_requires_plan`), mas apanhá-lo aqui dá ao Dono uma
+        // frase útil em vez de um erro do Postgres.
+        if (next === "Publicada" && !billing.accessActive) {
+          toast("Ative a subscrição para publicar a loja.", "error");
+          go("#/painel/plano");
+          return;
+        }
         const ok = await withBusy(() => setStoreState(ownerId, store!.id, next), "A atualizar…");
         if (ok) { toast(next === "Publicada" ? "Loja publicada." : "Loja despublicada."); await renderDashboard(); }
         else toast("Não foi possível atualizar o estado.", "error");
@@ -343,8 +354,7 @@ export async function renderDashboard(): Promise<void> {
 
   async function renderProdutos(): Promise<void> {
     const list = await productRepository.listByStore(store!.id);
-    const limit = plan.limits.maxProductsPerStore;
-    const atLimit = !canAddProducts(plan, list.length);
+    const atLimit = false; // sem escalões, não há limite de produtos
     const usage = Number.isFinite(limit) ? `${list.length} / ${limit}` : `${list.length}`;
     const cats = [...new Set(list.map((p) => p.category).filter((c): c is string => !!c))];
 
@@ -361,7 +371,6 @@ export async function renderDashboard(): Promise<void> {
         </div>
         ${addBtn}
       </div>
-      ${atLimit ? `<div class="mb-5 rounded-xl px-4 py-3 text-sm flex items-center gap-2" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">info</span> Atingiu o limite de ${formatLimit(limit)} produtos do plano ${esc(plan.name)}. Faça upgrade para adicionar mais.</div>` : ""}
       <div class="flex flex-col sm:flex-row gap-3 mb-5">
         <div class="relative flex-1 min-w-0">
           <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
@@ -459,7 +468,6 @@ export async function renderDashboard(): Promise<void> {
       b.addEventListener("click", () => { view = b.dataset.view === "list" ? "list" : "grid"; localStorage.setItem("mb-prod-view", view); applyView(); drawGrid(); }));
 
     $("#add")?.addEventListener("click", () => {
-      if (!canAddProducts(plan, list.length)) { toast(`Limite de ${formatLimit(plan.limits.maxProductsPerStore)} produtos atingido no plano ${plan.name}.`, "error"); return; }
       openProductForm({ panel, ownerId, storeId: store!.id, categories: cats, onDone: renderProdutos });
     });
   }
@@ -535,7 +543,7 @@ export async function renderDashboard(): Promise<void> {
     }
 
     const waPhone = custom.whatsapp?.phone || resolveWaPhone(custom);
-    const online = plan.features.multicaixaCheckout;
+    const online = billing.accessActive;
 
     const field = (id: string, label: string, value: string, ph: string, type = "text"): string => `
       <label class="block">
@@ -548,7 +556,7 @@ export async function renderDashboard(): Promise<void> {
       <div class="bg-white border border-gray-200 rounded-2xl p-6">
         <div class="flex items-center gap-3 mb-4">
           <div class="w-10 h-10 rounded-full flex items-center justify-center bg-green-100 text-green-600"><span class="material-symbols-outlined">chat</span></div>
-          <div><h3 class="font-black text-gray-900">WhatsApp</h3><p class="text-sm text-gray-500">Disponível em todos os planos.</p></div>
+          <div><h3 class="font-black text-gray-900">WhatsApp</h3><p class="text-sm text-gray-500">Incluído na subscrição.</p></div>
         </div>
         ${field("wa-phone", "Número de WhatsApp", waPhone, "+244 9XX XXX XXX")}
         <button id="save-wa" class="mt-4 w-full text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>
@@ -591,8 +599,8 @@ export async function renderDashboard(): Promise<void> {
       <div class="bg-white border border-gray-200 rounded-2xl p-10 text-center">
         <span class="material-symbols-outlined" style="font-size:42px;color:${ACCENT}">lock</span>
         <h3 class="font-black text-gray-900 mt-2">Pagamentos online</h3>
-        <p class="text-sm text-gray-500 max-w-md mx-auto mt-1">Multicaixa Express e Referência Bancária estão disponíveis a partir do plano <b>Profissional</b>. Faça upgrade para os ativar.</p>
-        <a href="#/painel/plano" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Ver planos</a>
+        <p class="text-sm text-gray-500 max-w-md mx-auto mt-1">Multicaixa Express e Referência Bancária fazem parte da subscrição. Ative-a para os usar.</p>
+        <a href="#/painel/plano" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Ativar subscrição</a>
       </div>`;
 
     const statusBanner = online && cfg.onlineEnabled
@@ -979,7 +987,7 @@ export async function renderDashboard(): Promise<void> {
 
   async function renderConfig(): Promise<void> {
     const c = await getCustomization(store!.id);
-    const canDomain = plan.features.customDomain;
+    const canDomain = billing.accessActive;
     const smsCredits = await getSmsCredits(store!.id);
     const discounts = await listDiscounts(store!.id);
     const reviews = await listStoreReviews(store!.id);
@@ -1084,8 +1092,8 @@ export async function renderDashboard(): Promise<void> {
       <button id="save-domain" ${domainSoon ? `disabled aria-disabled="true" title="Em breve"` : ""} class="mt-5 text-white px-5 py-2.5 rounded-xl text-sm font-bold inline-flex items-center gap-1 transition-opacity ${domainSoon ? "opacity-60 cursor-not-allowed" : "hover:opacity-95"}" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar domínio</button>`
       : `
       ${domainSoon ? comingSoonNotice("O domínio próprio fica disponível em breve.") : ""}
-      <p class="text-sm text-gray-500">O domínio próprio está disponível a partir do plano <b>Profissional</b>.</p>
-      <a href="#/painel/plano" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Ver planos</a>`;
+      <p class="text-sm text-gray-500">O domínio próprio faz parte da subscrição.</p>
+      <a href="#/painel/plano" class="inline-flex items-center gap-1.5 mt-4 text-white px-5 py-2.5 rounded-xl text-sm font-bold" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">workspace_premium</span> Ativar subscrição</a>`;
 
     const dangerBody = `
       <p class="text-sm text-gray-600">Apagar a loja remove <b>permanentemente</b> todos os produtos, imagens, banners, personalização e configurações. <b class="text-red-600">Esta ação é irreversível.</b></p>
@@ -1099,7 +1107,7 @@ export async function renderDashboard(): Promise<void> {
         ${settingsAccordion({ icon: "sell", title: "Código de desconto", desc: "Crie e gira códigos de desconto para os seus clientes.", body: discountBody })}
         ${settingsAccordion({ icon: "ads_click", title: "Marketing e Pixels", desc: "Meta Pixel e Google Analytics para medir e impulsionar vendas.", body: marketingBody })}
         ${settingsAccordion({ icon: "reviews", title: "Avaliações", desc: "Veja e modere as avaliações dos seus clientes.", body: reviewsBody })}
-        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Profissional", comingSoon: domainSoon })}
+        ${settingsAccordion({ icon: "language", title: "Domínio", desc: "Ligue o seu próprio domínio à loja.", body: domainBody, lockedPlan: canDomain ? undefined : "Subscrição", comingSoon: domainSoon })}
         ${settingsAccordion({ icon: "warning", title: "Apagar a loja", desc: "Remove a loja para sempre. Ação irreversível.", body: dangerBody, danger: true })}
       </section>`));
     bindShell();
@@ -1251,35 +1259,54 @@ export async function renderDashboard(): Promise<void> {
   }
 
   async function renderPlano(): Promise<void> {
-    const published = await countPublishedStores(ownerId);
-    const productCount = (await productRepository.listByStore(store!.id)).length;
-    const storeLimit = plan.limits.maxPublishedStores;
-    const prodLimit = plan.limits.maxProductsPerStore;
+    const ativa = billing.accessActive;
+    const poupanca = yearlySavingKz();
 
-    const usage = `
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        ${usageCard("storefront", "Lojas publicadas", `${published}${Number.isFinite(storeLimit) ? ` / ${storeLimit}` : ""}`, Number.isFinite(storeLimit) ? Math.min(1, published / storeLimit) : 0)}
-        ${usageCard("inventory_2", "Produtos (loja atual)", `${productCount}${Number.isFinite(prodLimit) ? ` / ${prodLimit}` : ""}`, Number.isFinite(prodLimit) ? Math.min(1, productCount / prodLimit) : 0)}
+    // Um preço, dois ciclos. O cartão do ciclo é a única escolha que resta —
+    // deixou de haver escalões para comparar.
+    const cartoes = BILLING_PERIODS.map((ciclo) => {
+      const anual = ciclo === "anual";
+      const preco = PRICE_KZ[ciclo].toLocaleString("pt-PT");
+      return `<div class="relative rounded-2xl border-2 bg-white p-6 flex flex-col text-left" style="border-color:${anual ? ACCENT : "#e5e7eb"}">
+        ${anual && poupanca > 0 ? `<div class="absolute top-0 right-0 text-[11px] font-bold text-white px-3 py-1 rounded-bl-xl" style="background:${ACCENT}">POUPA ${poupanca.toLocaleString("pt-PT")} Kz</div>` : ""}
+        <h4 class="text-lg font-black text-gray-900">${esc(PERIOD_LABEL[ciclo])}</h4>
+        <div class="flex items-baseline mt-2 mb-1">
+          <span class="text-sm font-bold text-gray-900 mr-1">Kz</span>
+          <span class="text-3xl font-black tracking-tight">${esc(preco)}</span>
+          <span class="text-sm text-gray-500 ml-1">/${anual ? "ano" : "mês"}</span>
+        </div>
+        <p class="text-sm text-gray-500">${anual ? "Cobrado uma vez por ano." : "Cobrado todos os meses."}</p>
+        <button data-ciclo="${ciclo}" class="w-full mt-6 text-center font-bold rounded-xl py-3 text-sm transition-opacity ${anual ? "text-white hover:opacity-95" : "bg-gray-100 text-gray-900 hover:bg-gray-200"}" ${anual ? `style="background:${ACCENT}"` : ""}>${ativa ? "Renovar" : "Ativar"} ${esc(PERIOD_LABEL[ciclo].toLowerCase())}</button>
       </div>`;
+    }).join("");
 
-    const cards = listPlans().map((p) => planCard(p, plan)).join("");
+    const incluido = `<ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-6">${PLAN_HIGHLIGHTS.map((h) =>
+      `<li class="flex items-start gap-2 text-sm text-gray-700"><span class="material-symbols-outlined text-[18px] shrink-0" style="color:${ACCENT}">check_circle</span> ${esc(h)}</li>`).join("")}</ul>`;
 
     render(shell(`
       <section class="mb-6">
-        <h3 class="text-2xl font-black tracking-tight">O seu plano</h3>
-        <p class="text-gray-500 mt-1">Plano atual: <span class="font-semibold" style="color:${ACCENT}">${esc(plan.name)}</span>. Faça upgrade ou downgrade a qualquer momento.</p>
+        <h3 class="text-2xl font-black tracking-tight">A sua subscrição</h3>
+        <p class="text-gray-500 mt-1">${ativa
+          ? `Ativa${billing.daysRemaining != null ? ` — renova em ${billing.daysRemaining} dia(s)` : ""}. Pagar de novo acrescenta tempo ao que já tem.`
+          : "Sem subscrição ativa. A sua loja fica visível só para si até a ativar."}</p>
       </section>
-      ${usage}
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">${cards}</div>`));
+      ${planStatusCard(billing)}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">${cartoes}</div>
+      <section class="mt-8 rounded-2xl border border-gray-200 bg-white p-6">
+        <h4 class="font-black text-gray-900">Incluído, sem escalões</h4>
+        <p class="text-sm text-gray-500 mt-1">Um preço só. Tudo o que a plataforma faz está cá dentro.</p>
+        ${incluido}
+      </section>`));
     bindShell();
 
-    document.querySelectorAll<HTMLElement>("[data-plan]").forEach((b) =>
+    document.querySelectorAll<HTMLElement>("[data-ciclo]").forEach((b) =>
       b.addEventListener("click", () => {
-        const id = b.dataset.plan;
-        if (!isPlanId(id) || id === plan.id) return;
-        openPlanCheckout({ ownerId, plan: getPlan(id), onPaid: () => { void renderDashboard(); } });
+        const ciclo = b.dataset.ciclo;
+        if (ciclo !== "mensal" && ciclo !== "anual") return;
+        openPlanCheckout({ ownerId, period: ciclo as BillingPeriod, onPaid: () => { void renderDashboard(); } });
       }));
   }
+
 }
 
 function productCardAdmin(p: Product): string {
@@ -1419,84 +1446,42 @@ function withdrawalRow(w: WithdrawalRow): string {
   </div>`;
 }
 
-function usageCard(icon: string, label: string, value: string, ratio: number): string {
-  const pct = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
-  return `<div class="bg-white border border-gray-200 rounded-2xl p-5">
-    <div class="flex items-center gap-3 mb-3">
-      <div class="w-9 h-9 rounded-full flex items-center justify-center" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined text-[20px]">${icon}</span></div>
-      <div class="flex-1"><p class="text-sm text-gray-500">${label}</p><p class="text-lg font-black text-gray-900">${esc(value)}</p></div>
-    </div>
-    <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden"><div class="h-full rounded-full" style="width:${pct}%;background:${ACCENT}"></div></div>
-  </div>`;
-}
 
-function planCard(p: Plan, current: Plan): string {
-  const isCurrent = p.id === current.id;
-  const isUpgrade = planRank(p.id) > planRank(current.id);
-  const featured = p.id === "profissional";
-  const border = isCurrent ? `border-color:${ACCENT}` : "border-color:#e5e7eb";
-  const ring = isCurrent ? `box-shadow:0 0 0 2px ${ACCENT}` : "";
-  const btn = isCurrent
-    ? `<div class="w-full mt-6 text-center font-bold rounded-xl py-3 text-sm" style="background:${ACCENT_TINT};color:${ACCENT}">Plano atual</div>`
-    : `<button data-plan="${esc(p.id)}" class="w-full mt-6 text-center font-bold rounded-xl py-3 text-sm transition-opacity ${isUpgrade ? "text-white hover:opacity-95" : "bg-gray-100 text-gray-900 hover:bg-gray-200"}" ${isUpgrade ? `style="background:${ACCENT}"` : ""}>${isUpgrade ? "Fazer upgrade" : "Mudar para este"}</button>`;
-  return `<div class="relative rounded-2xl border-2 bg-white p-6 flex flex-col text-left" style="${border};${ring}">
-    ${featured && !isCurrent ? `<div class="absolute top-0 right-0 text-[11px] font-bold text-white px-3 py-1 rounded-bl-xl" style="background:${ACCENT}">POPULAR</div>` : ""}
-    <h4 class="text-lg font-black text-gray-900">${esc(p.name)}</h4>
-    <div class="flex items-baseline mt-2 mb-1">
-      <span class="text-sm font-bold text-gray-900 mr-1">Kz</span>
-      <span class="text-3xl font-black tracking-tight">${esc(p.priceKz.toLocaleString("pt-PT"))}</span>
-      <span class="text-gray-400 ml-1 text-sm">/mês</span>
-    </div>
-    <ul class="mt-4 space-y-2.5 flex-grow">
-      ${p.highlights.map((h) => `<li class="flex items-start gap-2 text-gray-700 text-sm"><span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">check_circle</span> ${esc(h)}</li>`).join("")}
-    </ul>
-    ${btn}
-  </div>`;
-}
 
-/** Placar do estado do plano (teste / suspensão / renovação / agendamento). */
-function planStatusCard(b: BillingState, planName: string): string {
-  // Conta suspensa: teste terminou e sem plano pago → loja offline.
+/**
+ * Placar do estado da subscrição.
+ *
+ * Três estados, não cinco: sem subscrição, ativa a renovar, ou nada a dizer
+ * (administrador). Deixaram de existir teste grátis e plano agendado.
+ */
+function planStatusCard(b: BillingState): string {
   if (b.suspended) {
+    // Distingue quem nunca pagou de quem deixou caducar: a primeira frase é um
+    // convite, a segunda é um aviso.
+    const titulo = b.expired ? "A sua subscrição terminou" : "A sua loja ainda não está online";
+    const texto = b.expired
+      ? "A loja saiu da web. Renove a subscrição para a pôr outra vez online."
+      : "Pode criar, ver e personalizar à vontade. Para a publicar, ative a subscrição.";
     return `<section class="rounded-2xl border border-red-200 bg-red-50 p-5 mb-6 flex items-center justify-between gap-3 flex-wrap">
       <div class="flex items-center gap-3 min-w-0">
         <span class="material-symbols-outlined text-red-500 shrink-0">cloud_off</span>
-        <div class="min-w-0"><p class="font-black text-red-700">A sua loja está offline</p><p class="text-sm text-red-600/80">O período de teste terminou. Subscreva um plano para a sua loja voltar a ficar online.</p></div>
+        <div class="min-w-0"><p class="font-black text-red-700">${titulo}</p><p class="text-sm text-red-600/80">${texto}</p></div>
       </div>
-      <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Subscrever plano</a>
+      <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Ativar subscrição</a>
     </section>`;
   }
-  // Em teste grátis.
-  if (b.inTrial) {
-    const d = b.trialDaysRemaining ?? 0;
-    return `<section class="rounded-2xl border border-gray-200 bg-white p-5 mb-6">
-      <div class="flex items-center justify-between gap-3 flex-wrap">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">schedule</span></div>
-          <div class="min-w-0">
-            <p class="font-black text-gray-900">Teste grátis — ${d} dia(s) restante(s)</p>
-            <p class="text-sm text-gray-500">Subscreva um plano para manter a loja online quando o teste terminar.</p>
-          </div>
-        </div>
-        <a href="#/painel/plano" class="text-sm font-bold text-white px-4 py-2 rounded-xl shrink-0" style="background:${ACCENT}">Ver planos</a>
-      </div>
-      <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div class="h-full rounded-full" style="width:${Math.max(0, Math.min(100, Math.round((d / 7) * 100)))}%;background:${ACCENT}"></div></div>
-    </section>`;
-  }
-  // Plano pago ativo: placar de renovação.
   if (b.daysRemaining != null) {
-    const pct = Math.max(0, Math.min(100, Math.round((b.daysRemaining / PLAN_PERIOD_DAYS) * 100)));
-    const sched = b.nextPlan ? getPlan(b.nextPlan).name : null;
+    const pct = Math.max(0, Math.min(100, Math.round((b.daysRemaining / 30) * 100)));
     return `<section class="rounded-2xl border border-gray-200 bg-white p-5 mb-6">
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">event_repeat</span></div>
           <div class="min-w-0">
-            <p class="font-black text-gray-900">Renovação do plano em ${b.daysRemaining} dia(s)</p>
-            <p class="text-sm text-gray-500">${esc(planName)}${sched ? ` · muda para <b style="color:${ACCENT}">${esc(sched)}</b> quando terminar` : ""}</p>
+            <p class="font-black text-gray-900">Renova em ${b.daysRemaining} dia(s)</p>
+            <p class="text-sm text-gray-500">A loja está online.</p>
           </div>
         </div>
-        <a href="#/painel/plano" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors shrink-0">Gerir plano</a>
+        <a href="#/painel/plano" class="text-sm font-semibold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors shrink-0">Gerir subscrição</a>
       </div>
       <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div class="h-full rounded-full" style="width:${pct}%;background:${ACCENT}"></div></div>
     </section>`;

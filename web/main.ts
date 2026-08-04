@@ -28,6 +28,7 @@ const lazy = {
   directory: () => import("./views/directory.js").then((m) => m.renderDirectory()),
   presetGallery: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery()),
   presetGalleryTest: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery(true)),
+  storePreview: (id: string) => import("./views/storePreview.js").then((m) => m.renderStorePreview(id)),
 };
 
 const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
@@ -106,6 +107,12 @@ function route(): void {
     resetBranding();
     applyNoindexSeo("Administração — MôBisno");
     void lazy.adminPanel();
+  } else if (path.startsWith("/previsualizar/")) {
+    // Pré-visualização privada da loja por publicar. Fica no domínio da
+    // plataforma (não no subdomínio da loja) porque a loja em rascunho não é
+    // servida em subdomínio nenhum — é essa a definição de «por publicar».
+    resetBranding();
+    void lazy.storePreview(decodeURIComponent(path.slice("/previsualizar/".length)));
   } else if (path.startsWith("/painel")) {
     resetBranding();
     applyNoindexSeo("Painel — MôBisno");

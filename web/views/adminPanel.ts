@@ -8,14 +8,13 @@ import { render, $, go, esc, toast, withBusy, formatKz } from "../lib/dom.js";
 import { appState, logout, publicStoreUrl, currentOwnerId, STORE_APEX } from "../composition.js";
 import {
   isCurrentUserAdmin, adminOverview, listAccounts, listStores, listAllWithdrawals,
-  adminSetStoreState, adminDeleteStore, adminSetAccountPlan, adminDeleteAccount, adminProcessWithdrawal,
+  adminSetStoreState, adminDeleteStore, adminSetSubscription, adminDeleteAccount, adminProcessWithdrawal,
   listServiceTransactions, adminDeleteServiceTransaction, adminStoresUsingTemplate,
   adminStoreProductCounts,
   type AdminStore, type AdminAccount, type AdminWithdrawal, type AdminServiceTx,
   type AdminTemplateUsage, type AdminTemplateUser, type TemplateMatch,
 } from "../supabase/admin.js";
 import { listTemplateModels, createTemplateModel, deleteTemplateModel, seedDefaultModels, defaultFactoryModels, factoryModelNameKeys, type TemplateModel } from "../supabase/models.js";
-import { getPlan, isPlanId, PLAN_ORDER, type PlanId } from "../../src/services/plans.js";
 import {
   businessHealth, monthlyEvolution, attentionLists, ADMIN_HREFS, ATTENTION_WINDOW_DAYS, MONTHS_IN_EVOLUTION,
   type AdminMetricsInput, type AttentionItem, type MonthPoint,
@@ -41,8 +40,9 @@ function stateBadge(state: string): string {
     : badge("Rascunho", "#f3f4f6", "#6b7280");
 }
 
-function planBadge(plan: string): string {
-  return badge(getPlan(plan).name, ACCENT_TINT, ACCENT);
+/** Selo da subscrição. Deixou de haver escalões: ou está ativa, ou não está. */
+function planBadge(active: boolean): string {
+  return active ? badge("Subscrição ativa", "#ecfdf5", "#047857") : badge("Sem subscrição", "#f3f4f6", "#6b7280");
 }
 
 function activeBadge(active: boolean): string {
@@ -586,7 +586,11 @@ export async function renderAdminPanel(): Promise<void> {
     // Distribuição por plano das contas de cliente (contas de Administrador fora,
     // pelo mesmo critério do R7.8 aplicado por `adminMetrics`).
     const clientAccounts = accounts.filter((a) => !a.isAdmin);
-    const planDist = PLAN_ORDER.map((id) => ({ id, n: clientAccounts.filter((a) => a.plan === id).length }));
+    const ativas = clientAccounts.filter((a) => a.planExpiresAt != null && Date.parse(a.planExpiresAt) > Date.now()).length;
+    const planDist = [
+      { id: "ativa", rotulo: "Com subscrição", n: ativas },
+      { id: "inativa", rotulo: "Sem subscrição", n: clientAccounts.length - ativas },
+    ];
     const planMax = Math.max(1, ...planDist.map((p) => p.n));
 
     const pct = (v: number): string => `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
@@ -594,9 +598,9 @@ export async function renderAdminPanel(): Promise<void> {
     /* --- Secção 1: saúde do negócio (R7.2, R7.3) --- */
     const healthGrid = `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
       ${healthCard("payments", "Receita da Plataforma (este mês)", formatKz(health.monthRevenue), "Transações de serviço pagas: planos, SMS e logótipos.", true)}
-      ${healthCard("workspace_premium", "Assinaturas ativas", String(health.activeSubscriptions), "Contas com plano pago em vigor.")}
-      ${healthCard("hourglass_bottom", "Contas em teste a expirar", String(health.trialsExpiring), `Teste a terminar nos próximos ${ATTENTION_WINDOW_DAYS} dias.`)}
-      ${healthCard("trending_up", "Conversão de teste para pago", pct(health.trialConversion), "Contas que já pagaram um plano, sobre o total de contas.")}
+      ${healthCard("workspace_premium", "Subscrições ativas", String(health.activeSubscriptions), "Contas que podem publicar e vender agora.")}
+      ${healthCard("hourglass_bottom", "Subscrições a expirar", String(health.subscriptionsExpiring), `A terminar nos próximos ${ATTENTION_WINDOW_DAYS} dias.`)}
+      ${healthCard("trending_up", "Contas que já pagaram", pct(health.payingRate), "Contas com pelo menos um pagamento, sobre o total de contas.")}
       ${healthCard("public", "Lojas publicadas", String(health.publishedStores), "Lojas de cliente visíveis ao público.")}
       ${healthCard("block", "Lojas suspensas", String(health.suspendedStores), "Lojas cujo dono está sem acesso ativo.")}
     </div>`;
@@ -612,13 +616,13 @@ export async function renderAdminPanel(): Promise<void> {
     </div>`;
 
     const planCard = `<div class="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 min-w-0">
-      <h4 class="font-black text-gray-900 break-words">Distribuição por plano</h4>
+      <h4 class="font-black text-gray-900 break-words">Contas com subscrição</h4>
       <p class="text-xs text-gray-400 mt-0.5 mb-3 break-words">${clientAccounts.length} conta(s) de cliente.</p>
       <div class="space-y-3 min-w-0">
         ${planDist.map((p) => `
           <div class="min-w-0">
             <div class="flex items-center justify-between gap-2 text-sm mb-1 min-w-0">
-              <span class="font-semibold text-gray-700 break-words min-w-0">${esc(getPlan(p.id).name)}</span>
+              <span class="font-semibold text-gray-700 break-words min-w-0">${esc(p.rotulo)}</span>
               <span class="text-gray-400 shrink-0">${p.n}</span>
             </div>
             <div class="h-2 rounded-full bg-gray-100 overflow-hidden"><div class="h-full rounded-full" style="width:${Math.round((p.n / planMax) * 100)}%;background:${ACCENT}"></div></div>
@@ -701,7 +705,7 @@ export async function renderAdminPanel(): Promise<void> {
         <p class="font-semibold text-gray-900 break-words">${esc(a.name || a.email || "—")}</p>
         <p class="text-xs text-gray-400 break-words">${esc(a.email)} · criada a ${esc(fmtDate(a.createdAt))}</p>
       </div>
-      <span class="shrink-0">${planBadge(a.plan)}</span>
+      <span class="shrink-0">${planBadge(a.planExpiresAt != null && Date.parse(a.planExpiresAt) > Date.now())}</span>
     </a>`;
 
     const recentTx = transactions.slice(0, HISTORY_ROWS);
@@ -948,8 +952,9 @@ export async function renderAdminPanel(): Promise<void> {
           <button data-fil="admin" class="px-3 py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap">Admins</button>
         </div>
         <select id="acc-plan" class="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901] sm:w-44 shrink-0">
-          <option value="">Todos os planos</option>
-          ${PLAN_ORDER.map((id) => `<option value="${id}">${esc(getPlan(id).name)}</option>`).join("")}
+          <option value="">Subscrição: todas</option>
+          <option value="ativa">Com subscrição</option>
+          <option value="inativa">Sem subscrição</option>
         </select>
         <select id="acc-sort" class="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#F95901] sm:w-44 shrink-0">
           <option value="recent">Mais recentes</option>
@@ -982,7 +987,11 @@ export async function renderAdminPanel(): Promise<void> {
         if (fil === "active" && !a.active) return false;
         if (fil === "inactive" && a.active) return false;
         if (fil === "admin" && !a.isAdmin) return false;
-        if (planF && a.plan !== planF) return false;
+        if (planF) {
+          const ativa = a.planExpiresAt != null && Date.parse(a.planExpiresAt) > Date.now();
+          if (planF === "ativa" && !ativa) return false;
+          if (planF === "inativa" && ativa) return false;
+        }
         if (ql && !`${a.name} ${a.email}`.toLowerCase().includes(ql)) return false;
         return true;
       });
@@ -1015,7 +1024,10 @@ export async function renderAdminPanel(): Promise<void> {
       b.addEventListener("click", () => { fil = b.dataset.fil as typeof fil; applyFil(); draw(); }));
 
     function accountRow(a: AccountVM): string {
-      const planOptions = PLAN_ORDER.map((id) => `<option value="${id}" ${a.plan === id ? "selected" : ""}>${esc(getPlan(id).name)}</option>`).join("");
+      const subAtiva = a.planExpiresAt != null && Date.parse(a.planExpiresAt) > Date.now();
+      // Com um preço único, a única coisa que o Administrador decide é se a
+      // conta tem subscrição ou não.
+      const planOptions = `<option value="ativa" ${subAtiva ? "selected" : ""}>Com subscrição</option><option value="inativa" ${subAtiva ? "" : "selected"}>Sem subscrição</option>`;
       const storesList = a.stores.length
         ? a.stores.map((s) => `
             <div class="flex items-center gap-2 py-2 flex-wrap">
@@ -1040,7 +1052,7 @@ export async function renderAdminPanel(): Promise<void> {
               <p class="text-xs text-gray-400 truncate">${esc(a.email)} · desde ${esc(fmtDate(a.createdAt))}</p>
             </div>
           </div>
-          <div class="hidden md:block">${a.isAdmin ? planBadge(a.plan) : `<select data-plan-for="${esc(a.id)}" title="Alterar plano" class="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#F95901]">${planOptions}</select>`}</div>
+          <div class="hidden md:block">${a.isAdmin ? planBadge(true) : `<select data-plan-for="${esc(a.id)}" title="Ligar ou desligar a subscrição" class="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#F95901]">${planOptions}</select>`}</div>
           <div class="hidden md:block text-sm text-gray-600">${a.stores.length} ${a.publishedCount ? `<span class="text-gray-400">(${a.publishedCount} pub.)</span>` : ""}</div>
           <div class="hidden md:block">${activeBadge(a.active)}</div>
           <div class="flex md:justify-end items-center gap-1 mt-2 md:mt-0 w-full md:w-auto">
@@ -1074,12 +1086,15 @@ export async function renderAdminPanel(): Promise<void> {
       scope.querySelectorAll<HTMLSelectElement>("[data-plan-for]").forEach((sel) =>
         sel.addEventListener("change", async () => {
           const id = sel.dataset.planFor!;
-          if (!isPlanId(sel.value)) return;
-          const ok = await withBusy(() => adminSetAccountPlan(id, sel.value as PlanId), "A atualizar plano…");
+          const ativar = sel.value === "ativa";
+          const ok = await withBusy(() => adminSetSubscription(id, ativar), "A atualizar subscrição…");
           if (ok) {
             const vm = vms.find((v) => v.id === id);
-            if (vm) (vm as AccountVM).plan = sel.value;
-            toast("Plano atualizado.");
+            // Espelha a concessão feita no servidor: validade longa, ou nenhuma.
+            if (vm) (vm as AccountVM).planExpiresAt = ativar
+              ? new Date(Date.now() + 100 * 365 * 24 * 3600 * 1000).toISOString()
+              : null;
+            toast(ativar ? "Subscrição ativada." : "Subscrição removida.");
             draw();
           } else toast("Não foi possível atualizar.", "error");
         }));
@@ -1211,7 +1226,7 @@ export async function renderAdminPanel(): Promise<void> {
           <p class="text-xs text-gray-400 mt-1 truncate">${esc(s.ownerName || "—")} · ${esc(s.ownerEmail)}</p>
           <p class="text-xs text-gray-300 mt-0.5">Criada ${esc(fmtDate(s.createdAt))}</p>
         </div>
-        <div class="flex flex-col items-end gap-1.5 shrink-0">${stateBadge(s.state)}${planBadge(s.plan)}</div>
+        <div class="flex flex-col items-end gap-1.5 shrink-0">${stateBadge(s.state)}${planBadge(s.subscriptionActive)}</div>
       </div>
       <div class="mt-3 pt-3 border-t border-gray-100">
         <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Funcionalidades</p>

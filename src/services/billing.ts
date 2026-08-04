@@ -1,79 +1,53 @@
 /**
- * Faturação de planos (módulo de domínio puro e testável).
+ * Subscrição de uma conta (módulo de domínio puro e testável).
  *
- * Resolve o **plano efetivo** de uma conta a partir do plano guardado, da data
- * de expiração e de um eventual plano agendado (`nextPlan`). Regras:
+ * A regra é uma só: **a conta está ativa enquanto `planExpiresAt` for futuro,
+ * ou sempre, se for de administrador.** Não há escalões, não há teste grátis e
+ * não há plano agendado.
  *
- *  - O plano `basico` é a linha de base gratuita: nunca expira.
- *  - Um plano pago (profissional/empresarial) **com** `planExpiresAt** é uma
- *    subscrição temporizada de 30 dias. Quando expira, cai para `basico`,
- *    a menos que exista um `nextPlan` agendado (ver abaixo).
- *  - Um plano pago **sem** `planExpiresAt` é uma atribuição permanente (ex.:
- *    concedida pelo administrador) e não expira.
- *  - Mudança de plano com tempo restante: o tempo de sobra mantém-se no plano
- *    atual e o novo plano fica agendado em `nextPlan`; quando o atual termina,
- *    o novo arranca por mais um período (carry-over — Req. utilizador #9).
+ * PORQUÊ TÃO POUCO: a versão anterior tinha cinco ramos a interagir — plano pago
+ * dentro do prazo, plano agendado (carry-over), teste grátis, atribuição
+ * permanente e expirado — porque havia três planos entre os quais trocar e um
+ * teste que concedia o plano escolhido. Essa complexidade produziu uma avaria
+ * real: o painel lia «Profissional ativo» e o servidor lia «básico», e as lojas
+ * com pagamentos ligados recusavam cobrar aos clientes. Com um preço único não
+ * há troca de plano, logo não há carry-over; sem teste grátis não há esse ramo;
+ * e a atribuição permanente era um acidente que dava plano vitalício grátis a
+ * quem escolhesse um no assistente sem pagar.
  *
- * As funções não têm dependências de infraestrutura. A persistência (colunas
- * `plan`, `plan_expires_at`, `next_plan` em `profiles`) fica na composição e nas
- * funções serverless de pagamento.
+ * Sobra uma data e uma comparação — que o espelho em `api/_shared.js` consegue
+ * reproduzir sem margem para divergir.
+ *
+ * As funções não têm dependências de infraestrutura. A persistência (coluna
+ * `plan_expires_at` em `profiles`) fica na composição e nas funções serverless.
  */
 
-import { isPlanId, type PlanId } from "./plans.js";
+import { asBillingPeriod, daysOf, type BillingPeriod } from "./plans.js";
 
-/** Duração de um período de subscrição, em dias. */
-export const PLAN_PERIOD_DAYS = 30;
 const DAY_MS = 86_400_000;
-const PERIOD_MS = PLAN_PERIOD_DAYS * DAY_MS;
 
-/** Estado de faturação tal como está guardado na conta. */
+/** Estado da subscrição tal como está guardado na conta. */
 export interface BillingInput {
-  plan: string | null | undefined;
+  /** Fim do período pago (ISO). `null` = nunca pagou, ou já caducou. */
   planExpiresAt: string | null | undefined;
-  nextPlan: string | null | undefined;
-  /** Fim do teste grátis (ISO). */
-  trialEndsAt?: string | null | undefined;
-  /** Conta de administrador (acesso sempre ativo). */
+  /** Conta de administrador: acesso sempre ativo, sem pagar. */
   isAdmin?: boolean;
 }
 
-/** Transição a persistir quando um período termina. */
-export interface BillingTransition {
-  plan: PlanId;
-  planExpiresAt: string | null;
-  nextPlan: null;
-}
-
-/** Estado de faturação resolvido para o momento atual. */
+/** Estado da subscrição resolvido para o momento atual. */
 export interface BillingState {
-  /** Plano cujas funcionalidades estão ativas neste momento. */
-  effectivePlan: PlanId;
-  /** Plano guardado na conta (pode diferir do efetivo se expirou). */
-  storedPlan: PlanId;
-  /** Fim do período atual (ISO) ou `null` se for permanente/linha de base. */
+  /** A conta pode publicar e manter lojas online. */
+  accessActive: boolean;
+  /** Fim do período pago (ISO), ou `null` se não houver período. */
   expiresAt: string | null;
-  /** Plano agendado para o próximo período, ou `null`. */
-  nextPlan: PlanId | null;
   /** Dias até à renovação (>= 0), ou `null` quando não há período ativo. */
   daysRemaining: number | null;
-  /** Verdadeiro quando um plano pago temporizado expirou (caiu para básico). */
+  /** Já houve um período pago e terminou (distinto de nunca ter pago). */
   expired: boolean;
-  /** Atribuição permanente (plano pago sem data de expiração). */
-  permanent: boolean;
-  /** Conta dentro do período de teste grátis. */
-  inTrial: boolean;
-  /** Dias restantes do teste grátis (>= 0), ou null se não está em teste. */
-  trialDaysRemaining: number | null;
-  /** A loja pode estar online (teste ativo OU plano pago OU admin). */
-  accessActive: boolean;
-  /** Acesso terminou: precisa de pagar para a loja voltar a ficar online. */
+  /** Acesso ativo por ser administrador, e não por pagamento. */
+  byAdmin: boolean;
+  /** Precisa de pagar para publicar ou para a loja voltar a ficar online. */
   suspended: boolean;
-  /** Alteração a gravar no perfil (promoção/queda), ou `null`. */
-  transition: BillingTransition | null;
-}
-
-function asPlan(value: unknown): PlanId | null {
-  return isPlanId(value) ? value : null;
 }
 
 /** Dias (arredondados para cima, mínimo 0) entre `now` e `target`. */
@@ -82,93 +56,39 @@ function daysUntil(target: number, now: number): number {
 }
 
 /**
- * Resolve o estado de faturação efetivo. Função pura: recebe o relógio por
- * parâmetro para ser determinística nos testes.
+ * Resolve o estado da subscrição. Função pura: recebe o relógio por parâmetro
+ * para ser determinística nos testes.
  */
 export function resolveBilling(input: BillingInput, now: number = Date.now()): BillingState {
-  const stored: PlanId = asPlan(input.plan) ?? "basico";
-  const next = asPlan(input.nextPlan);
+  const byAdmin = input.isAdmin === true;
   const expMs = input.planExpiresAt ? Date.parse(input.planExpiresAt) : NaN;
-  const trialMs = input.trialEndsAt ? Date.parse(input.trialEndsAt) : NaN;
-  const isAdmin = input.isAdmin === true;
-
-  // Plano pago ativo (paguei e ainda dentro do período).
-  let paidPlan: PlanId | null = null;
-  let paidExpiresAt: string | null = null;
-  let transition: BillingTransition | null = null;
-
-  let permanent = false;
-
-  if (Number.isFinite(expMs) && expMs > now) {
-    paidPlan = stored;
-    paidExpiresAt = new Date(expMs).toISOString();
-  } else if (Number.isFinite(expMs) && next && next !== "basico") {
-    // Período terminou mas há plano agendado que ainda cobre (carry-over).
-    const newExp = expMs + PERIOD_MS;
-    if (newExp > now) {
-      paidPlan = next;
-      paidExpiresAt = new Date(newExp).toISOString();
-      transition = { plan: next, planExpiresAt: paidExpiresAt, nextPlan: null };
-    }
-  }
-
-  const timedActive = paidPlan !== null;
-  const inTrial = !timedActive && Number.isFinite(trialMs) && trialMs > now;
-
-  // Atribuição PERMANENTE: plano pago SEM data de expiração (ex.: concedido pelo
-  // administrador) e sem teste ativo → nunca expira. Mantém-se ativo.
-  if (!timedActive && !inTrial && stored !== "basico" && !Number.isFinite(expMs)) {
-    paidPlan = stored;
-    paidExpiresAt = null;
-    permanent = true;
-  }
-
-  const paidActive = paidPlan !== null;
-  const accessActive = isAdmin || paidActive || inTrial;
-
-  const trialDaysRemaining = inTrial ? daysUntil(trialMs, now) : null;
-  const effectivePlan: PlanId = paidActive ? (paidPlan as PlanId) : (inTrial ? stored : "basico");
-  const daysRemaining = paidActive && paidExpiresAt ? daysUntil(Date.parse(paidExpiresAt), now) : null;
+  const temData = Number.isFinite(expMs);
+  const pago = temData && expMs > now;
 
   return {
-    effectivePlan,
-    storedPlan: stored,
-    expiresAt: paidActive ? paidExpiresAt : null,
-    nextPlan: next,
-    daysRemaining,
-    expired: !paidActive && !inTrial && stored !== "basico",
-    permanent,
-    inTrial,
-    trialDaysRemaining,
-    accessActive,
-    suspended: !accessActive,
-    transition,
+    accessActive: byAdmin || pago,
+    expiresAt: pago ? new Date(expMs).toISOString() : null,
+    daysRemaining: pago ? daysUntil(expMs, now) : null,
+    // Caducou é diferente de nunca ter pago: só há caducidade se houve data.
+    expired: temData && !pago,
+    byAdmin,
+    suspended: !byAdmin && !pago,
   };
 }
 
 /**
- * Calcula a alteração a aplicar ao perfil quando um pagamento de plano é
- * confirmado. Espelha {@link resolveBilling}: renova o mesmo plano (estende o
- * período), agenda um plano diferente quando ainda há tempo, ou ativa já quando
- * não há período em curso.
+ * Alteração a aplicar ao perfil quando um pagamento é confirmado.
+ *
+ * Renovar acrescenta o período **ao fim do atual**, para quem paga adiantado não
+ * perder os dias que ainda tinha. Sem período em curso, conta a partir de agora.
  */
 export function planActivationPatch(
   current: BillingInput,
-  newPlan: PlanId,
+  period: unknown,
   now: number = Date.now(),
-): { plan?: PlanId; plan_expires_at?: string | null; next_plan?: PlanId | null } {
-  const cur: PlanId = asPlan(current.plan) ?? "basico";
+): { plan_expires_at: string } {
+  const ciclo: BillingPeriod = asBillingPeriod(period);
   const expMs = current.planExpiresAt ? Date.parse(current.planExpiresAt) : NaN;
-  const activeTimed = cur !== "basico" && Number.isFinite(expMs) && expMs > now;
-
-  if (activeTimed) {
-    if (newPlan === cur) {
-      // Renovação: estende a partir do fim do período atual.
-      return { plan_expires_at: new Date(expMs + PERIOD_MS).toISOString(), next_plan: null };
-    }
-    // Mudança com tempo restante: agenda para quando o atual terminar.
-    return { next_plan: newPlan };
-  }
-  // Sem período ativo → ativa já por um período completo.
-  return { plan: newPlan, plan_expires_at: new Date(now + PERIOD_MS).toISOString(), next_plan: null };
+  const base = Number.isFinite(expMs) && expMs > now ? expMs : now;
+  return { plan_expires_at: new Date(base + daysOf(ciclo) * DAY_MS).toISOString() };
 }

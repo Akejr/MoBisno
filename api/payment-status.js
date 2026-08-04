@@ -48,8 +48,8 @@ export default async function handler(req, res) {
       if (ownerId) {
         await db.from("plan_payments").update(patch).eq("operation_id", operationId);
         if (status === "paid") {
-          const { data: pp } = await db.from("plan_payments").select("owner_id, plan").eq("operation_id", operationId).maybeSingle();
-          if (pp?.owner_id && pp?.plan) await activatePlan(db, pp.owner_id, pp.plan);
+          const { data: pp } = await db.from("plan_payments").select("owner_id, period").eq("operation_id", operationId).maybeSingle();
+          if (pp?.owner_id) await activatePlan(db, pp.owner_id, pp.period);
         }
       } else {
         // Encomenda de loja OU compra de SMS (mesmo operationId).

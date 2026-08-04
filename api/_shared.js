@@ -159,40 +159,35 @@ export function send(res, code, obj) {
   res.status(code).json(obj);
 }
 
-/** Duração de um período de subscrição (30 dias), em ms. */
-const PLAN_PERIOD_MS = 30 * 24 * 3600 * 1000;
-const VALID_PLANS = ["basico", "profissional", "empresarial"];
+/** Duração de cada ciclo de pagamento, em ms. Espelha `PERIOD_DAYS` de `src/services/plans.ts`. */
+const PERIOD_MS = { mensal: 30 * 24 * 3600 * 1000, anual: 365 * 24 * 3600 * 1000 };
+
+/** Ciclo a partir de um valor de origem desconhecida. Recorre ao mais barato. */
+function asPeriod(value) {
+  return value === "anual" ? "anual" : "mensal";
+}
 
 /**
- * Ativa/renova/agenda um plano após pagamento confirmado. Espelha
- * `src/services/billing.ts:planActivationPatch`:
- *  - renova o mesmo plano (estende o período);
- *  - agenda um plano diferente quando ainda há tempo (carry-over);
- *  - ativa já quando não há período em curso.
+ * Ativa/renova a subscrição após pagamento confirmado. Espelha
+ * `src/services/billing.ts:planActivationPatch`: renovar acrescenta o ciclo AO
+ * FIM do período atual, para quem paga adiantado não perder os dias que tinha;
+ * sem período em curso, conta a partir de agora.
+ *
+ * Deixou de haver escalões, logo não há plano a trocar nem `next_plan` a
+ * agendar — só uma data a empurrar para a frente.
  */
-export async function activatePlan(db, ownerId, newPlan) {
-  if (!ownerId || !VALID_PLANS.includes(String(newPlan))) return;
+export async function activatePlan(db, ownerId, period) {
+  if (!ownerId) return;
   const now = Date.now();
   const { data: prof } = await db
     .from("profiles")
-    .select("plan, plan_expires_at, next_plan")
+    .select("plan_expires_at")
     .eq("id", ownerId)
     .maybeSingle();
-  const cur = prof?.plan || "basico";
   const expMs = prof?.plan_expires_at ? Date.parse(prof.plan_expires_at) : NaN;
-  const activeTimed = cur !== "basico" && Number.isFinite(expMs) && expMs > now;
-
-  let patch;
-  if (activeTimed) {
-    if (newPlan === cur) {
-      patch = { plan_expires_at: new Date(expMs + PLAN_PERIOD_MS).toISOString(), next_plan: null };
-    } else {
-      patch = { next_plan: newPlan };
-    }
-  } else {
-    patch = { plan: newPlan, plan_expires_at: new Date(now + PLAN_PERIOD_MS).toISOString(), next_plan: null };
-  }
-  await db.from("profiles").update(patch).eq("id", ownerId);
+  const base = Number.isFinite(expMs) && expMs > now ? expMs : now;
+  const fim = new Date(base + PERIOD_MS[asPeriod(period)]).toISOString();
+  await db.from("profiles").update({ plan: "pro", plan_expires_at: fim }).eq("id", ownerId);
 }
 
 /** Credita mensagens SMS no saldo de uma loja (idempotência gerida por quem chama). */
@@ -550,22 +545,23 @@ export async function decrementStock(db, products, storeId) {
   await db.from("stores").update({ customization: custom }).eq("id", String(storeId));
 }
 
-/** Plano efetivo de um perfil (espelha src/services/billing.ts). */
-export function effectivePlanId(profile, now = Date.now()) {
-  if (!profile) return "basico";
-  const plan = profile.plan || "basico";
+/**
+ * A conta tem subscrição ativa? Espelha `resolveBilling` de
+ * `src/services/billing.ts` — e agora consegue mesmo espelhá-lo, porque é uma
+ * data e uma comparação.
+ *
+ * A versão anterior (`effectivePlanId`) tinha de reproduzir quatro ramos e
+ * falhava num: um plano gravado sem data de expiração era permanente para o
+ * painel e «básico» para o servidor. O resultado era uma loja com pagamentos
+ * ligados a recusar cobrar aos clientes, com `PLAN_NOT_COVERED`.
+ *
+ * `profile` tem de trazer `is_admin` e `plan_expires_at`.
+ */
+export function accountActive(profile, now = Date.now()) {
+  if (!profile) return false;
+  if (profile.is_admin === true) return true;
   const expMs = profile.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
-  if (Number.isFinite(expMs) && expMs > now) return plan;            // plano pago ativo
-  const next = profile.next_plan;                                    // carry-over agendado
-  if (Number.isFinite(expMs) && next && next !== "basico" && (expMs + PLAN_PERIOD_MS) > now) return next;
-  const trialMs = profile.trial_ends_at ? Date.parse(profile.trial_ends_at) : NaN;
-  if (Number.isFinite(trialMs) && trialMs > now) return plan;        // em teste → plano escolhido
-  return "basico";
-}
-
-/** O plano permite pagamentos online (Multicaixa Express + Referência)? */
-export function planAllowsOnline(planId) {
-  return planId === "profissional" || planId === "empresarial";
+  return Number.isFinite(expMs) && expMs > now;
 }
 
 /** Chamada à API MoMenu. `body` ausente → GET. */

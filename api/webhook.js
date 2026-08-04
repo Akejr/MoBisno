@@ -47,8 +47,9 @@ export default async function handler(req, res) {
       // Pagamento de plano.
       await db.from("plan_payments").update(patch).eq("merchant_transaction_id", mtx);
       if (status === "paid") {
-        const { data: pp } = await db.from("plan_payments").select("owner_id, plan").eq("merchant_transaction_id", mtx).maybeSingle();
-        if (pp?.owner_id && pp?.plan) await activatePlan(db, pp.owner_id, pp.plan);
+        // O ciclo comprado (`period`) é o que decide 30 ou 365 dias.
+        const { data: pp } = await db.from("plan_payments").select("owner_id, period").eq("merchant_transaction_id", mtx).maybeSingle();
+        if (pp?.owner_id) await activatePlan(db, pp.owner_id, pp.period);
       }
     }
 

@@ -191,9 +191,9 @@ export interface BusinessHealth {
   readonly monthRevenue: number;
   readonly activeSubscriptions: number;
   /** Contas em teste que termina nos próximos {@link ATTENTION_WINDOW_DAYS} dias. */
-  readonly trialsExpiring: number;
+  readonly subscriptionsExpiring: number;
   /** Conversão de teste para pago, entre 0 e 1 inclusive. */
-  readonly trialConversion: number;
+  readonly payingRate: number;
   readonly publishedStores: number;
   readonly suspendedStores: number;
 }
@@ -409,13 +409,7 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     billing.set(
       account.id,
       resolveBilling(
-        {
-          plan: account.plan ?? null,
-          planExpiresAt: account.planExpiresAt ?? null,
-          nextPlan: account.nextPlan ?? null,
-          trialEndsAt: account.trialEndsAt ?? null,
-          isAdmin: false,
-        },
+        { planExpiresAt: account.planExpiresAt ?? null, isAdmin: false },
         nowMs,
       ),
     );
@@ -466,9 +460,15 @@ function billingOf(scope: Scope, accountId: unknown): BillingState | null {
   return scope.billing.get(accountId) ?? null;
 }
 
-/** A conta está em teste que termina dentro da janela de aviso (R7.2, R7.4). */
-function trialExpiringSoon(state: BillingState): boolean {
-  return state.inTrial && (state.trialDaysRemaining ?? 0) <= ATTENTION_WINDOW_DAYS;
+/**
+ * A subscrição termina dentro da janela de aviso (R7.2, R7.4).
+ *
+ * Substitui o critério do teste grátis, que deixou de existir. O que interessa
+ * agora ao Administrador é quem está prestes a deixar de pagar — é aí que se
+ * perde receita e é aí que uma chamada a tempo a salva.
+ */
+function subscriptionExpiringSoon(state: BillingState): boolean {
+  return state.accessActive && !state.byAdmin && (state.daysRemaining ?? Infinity) <= ATTENTION_WINDOW_DAYS;
 }
 
 /** Transação de serviço paga, com a data de pagamento em milissegundos. */
@@ -584,14 +584,14 @@ export function businessHealth(input: AdminMetricsInput, now?: Instant): Busines
 
   // Agregações 2, 3 e 4b — assinaturas ativas, testes a expirar, denominador.
   let activeSubscriptions = 0;
-  let trialsExpiring = 0;
+  let subscriptionsExpiring = 0;
   for (const account of scope.accounts) {
     const state = scope.billing.get(account.id);
     if (!state) continue;
-    if (!state.inTrial && state.effectivePlan !== "basico") activeSubscriptions += 1;
-    if (trialExpiringSoon(state)) trialsExpiring += 1;
+    if (state.accessActive) activeSubscriptions += 1;
+    if (subscriptionExpiringSoon(state)) subscriptionsExpiring += 1;
   }
-  const trialConversion = scope.accounts.length === 0 ? 0 : converted.size / scope.accounts.length;
+  const payingRate = scope.accounts.length === 0 ? 0 : converted.size / scope.accounts.length;
 
   // Agregações 5 e 6 — Lojas publicadas e Lojas suspensas.
   let publishedStores = 0;
@@ -601,7 +601,7 @@ export function businessHealth(input: AdminMetricsInput, now?: Instant): Busines
     if (billingOf(scope, store.ownerId)?.suspended === true) suspendedStores += 1;
   }
 
-  return { monthRevenue, activeSubscriptions, trialsExpiring, trialConversion, publishedStores, suspendedStores };
+  return { monthRevenue, activeSubscriptions, subscriptionsExpiring, payingRate, publishedStores, suspendedStores };
 }
 
 // ---------------------------------------------------------------------------
@@ -690,7 +690,7 @@ function stuckLabel(status: string): string {
  *  - agregação 10 — **pagamentos por resolver** (`open`, `failed`, `expired`);
  *  - agregação 11 — **contas a expirar** nos próximos
  *    {@link ATTENTION_WINDOW_DAYS} dias, as mais urgentes primeiro. A lista e a
- *    métrica `trialsExpiring` partilham o mesmo critério, por isso o número da
+ *    métrica `subscriptionsExpiring` partilham o mesmo critério, por isso o número da
  *    secção de saúde e o comprimento desta lista nunca divergem;
  *  - agregação 12 — **Lojas sem Produtos** (contagem ausente conta como zero);
  *  - agregação 13 — **Lojas não publicadas** (`state !== "Publicada"`).
@@ -735,13 +735,13 @@ export function attentionLists(input: AdminMetricsInput, now?: Instant): Attenti
   // Agregação 11 — contas a expirar nos próximos 7 dias.
   const accountsExpiring7d = scope.accounts
     .map((account) => ({ account, state: scope.billing.get(account.id) }))
-    .filter((row) => !!row.state && trialExpiringSoon(row.state))
+    .filter((row) => !!row.state && subscriptionExpiringSoon(row.state))
     .map(({ account, state }) => {
-      const days = state?.trialDaysRemaining ?? 0;
+      const days = state?.daysRemaining ?? 0;
       return {
         id: account.id,
         title: textOr(account.email, textOr(account.name, "Conta sem email")),
-        detail: days <= 0 ? "Teste termina hoje" : days === 1 ? "Teste termina amanhã" : `Teste termina em ${days} dias`,
+        detail: days <= 0 ? "Subscrição termina hoje" : days === 1 ? "Subscrição termina amanhã" : `Subscrição termina em ${days} dias`,
         href: ADMIN_HREFS.contas,
         sortAt: days,
       };

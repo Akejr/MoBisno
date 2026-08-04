@@ -3,6 +3,15 @@ import { render, $, go, esc } from "../lib/dom.js";
 import { currentOwnerId } from "../composition.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { applyPlatformSeo } from "../lib/seo.js";
+import { PRICE_KZ, PLAN_HIGHLIGHTS, yearlySavingKz } from "../../src/services/plans.js";
+
+/* Preços apresentados: vêm do catálogo, para a página nunca discordar do que é
+   realmente cobrado no checkout. */
+const kz = (n: number): string => n.toLocaleString("pt-PT");
+const PRECO_MENSAL = kz(PRICE_KZ.mensal);
+const PRECO_ANUAL = kz(PRICE_KZ.anual);
+const POUPANCA_ANUAL = `${kz(yearlySavingKz())} Kz`;
+const DESTAQUES = PLAN_HIGHLIGHTS;
 
 const ACCENT = "#F95901";
 
@@ -99,17 +108,21 @@ export async function renderLanding(): Promise<void> {
       <section class="w-full bg-white py-16 border-t border-gray-100">
         <div class="max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop">
           <div class="text-center max-w-2xl mx-auto">
-            <h2 class="text-3xl md:text-5xl font-black tracking-tight">Escolha o seu plano</h2>
-            <p class="text-gray-600 mt-3">Comece no Básico. Evolua quando a sua loja crescer.</p>
+            <h2 class="text-3xl md:text-5xl font-black tracking-tight">Um preço. Tudo incluído.</h2>
+            <p class="text-gray-600 mt-3">Sem escalões e sem funcionalidades reservadas. Criar a loja e vê-la é grátis — a subscrição serve para a pôr online.</p>
           </div>
-          <div class="flex items-center justify-center gap-3 mt-8 mb-12">
-            <button data-cycle="mensal" class="px-4 py-2 rounded-full text-sm font-bold transition-colors">Mensal</button>
-            <button data-cycle="anual" class="px-4 py-2 rounded-full text-sm font-bold transition-colors">Anual <span class="opacity-80">· poupe 20%</span></button>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-            ${priceCard({ plan: "basico", name: "Básico", desc: "Para começar a vender já.", monthly: "5.000", yearly: "48.000", cta: "Testar 1 semana grátis", features: ["1 loja publicada", "100 produtos registados", "Checkout via WhatsApp", "Endereço .sualoja.digital"] })}
-            ${priceCard({ plan: "profissional", name: "Profissional", desc: "Para vender a sério, sem limites.", featured: true, monthly: "11.000", yearly: "105.600", cta: "Testar 1 semana grátis", features: ["Tudo do plano Básico", "Produtos ilimitados", "Checkout Multicaixa Express e referência bancária", "3 lojas publicadas", "Domínio próprio (opcional)"] })}
-            ${priceCard({ plan: "empresarial", name: "Empresarial", desc: "Para operações maiores.", monthly: "25.000", yearly: "240.000", cta: "Testar 1 semana grátis", features: ["Tudo do plano Profissional", "Lojas ilimitadas", "Gestor dedicado", "Integrações à medida", "Suporte prioritário"] })}
+          <div class="mb-12"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch max-w-3xl mx-auto">
+            ${priceCard({
+              name: "Mensal", desc: "Pague mês a mês, cancele quando quiser.",
+              price: PRECO_MENSAL, period: "/mês",
+              cta: "Criar a minha loja", features: DESTAQUES,
+            })}
+            ${priceCard({
+              name: "Anual", desc: `Um pagamento por ano. Poupa ${POUPANCA_ANUAL}.`, featured: true,
+              price: PRECO_ANUAL, period: "/ano",
+              cta: "Criar a minha loja", features: DESTAQUES,
+            })}
           </div>
         </div>
       </section>
@@ -207,28 +220,25 @@ export async function renderLanding(): Promise<void> {
 
   mountBento();
   mountIntegrations();
-  mountPricing();
   mountAiAgent(document.getElementById("app"), { scope: "site" });
   applyPlatformSeo();
 }
 
 /** Cartão de preço. */
-function priceCard(o: { plan: string; name: string; desc: string; monthly: string; yearly: string; features: string[]; cta: string; featured?: boolean; free?: boolean }): string {
+function priceCard(o: { name: string; desc: string; price: string; period: string; features: readonly string[]; cta: string; featured?: boolean }): string {
   const border = o.featured ? `border-2` : "border border-gray-200";
   const style = o.featured ? `style="border-color:${ACCENT};box-shadow:0 24px 60px -24px rgba(249,89,1,.4)"` : "";
   const btn = o.featured
     ? `style="background:${ACCENT};color:#fff" class="w-full mt-8 text-center font-bold rounded-lg py-3 hover:opacity-90 transition-opacity"`
     : `class="w-full mt-8 text-center font-bold rounded-lg py-3 bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors"`;
-  const href = `#/criar?plano=${esc(o.plan)}`;
+  const href = "#/criar";
   const target = "";
-  return `<div data-card data-free="${o.free ? "1" : "0"}" data-monthly="${esc(o.monthly)}" data-yearly="${esc(o.yearly)}" class="relative rounded-2xl ${border} bg-white p-8 flex flex-col text-left overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl" ${style}>
+  return `<div data-card class="relative rounded-2xl ${border} bg-white p-8 flex flex-col text-left overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl" ${style}>
     ${o.featured ? `<div class="absolute top-0 right-0 text-[11px] font-bold text-white px-4 py-1.5 rounded-bl-xl" style="background:${ACCENT}">MAIS POPULAR</div>` : ""}
     <h3 class="text-2xl font-bold text-gray-900">${esc(o.name)}</h3>
     <p class="text-gray-500 mt-2 text-sm">${esc(o.desc)}</p>
     <div class="flex items-baseline mt-6">
-      ${o.free
-        ? `<span data-price class="text-4xl font-black text-gray-900">Grátis</span>`
-        : `<span class="text-2xl font-bold text-gray-900 mr-1">Kz</span><span data-price class="text-4xl font-black text-gray-900 tracking-tight">${esc(o.monthly)}</span><span data-period class="text-gray-400 ml-2">/mês</span>`}
+      <span class="text-2xl font-bold text-gray-900 mr-1">Kz</span><span data-price class="text-4xl font-black text-gray-900 tracking-tight">${esc(o.price)}</span><span data-period class="text-gray-400 ml-2">${esc(o.period)}</span>
     </div>
     <ul class="mt-7 space-y-3 flex-grow">
       ${o.features.map((f) => `<li class="flex items-start gap-2.5 text-gray-700 text-sm"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">check_circle</span> ${esc(f)}</li>`).join("")}
@@ -237,30 +247,6 @@ function priceCard(o: { plan: string; name: string; desc: string; monthly: strin
   </div>`;
 }
 
-/** Alternância Mensal/Anual dos preços. */
-function mountPricing(): void {
-  const buttons = Array.from(document.querySelectorAll<HTMLElement>("[data-cycle]"));
-  const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-card]"));
-  if (!buttons.length) return;
-  let cycle: "mensal" | "anual" = "mensal";
-
-  const apply = () => {
-    buttons.forEach((b) => {
-      const active = b.dataset.cycle === cycle;
-      b.style.background = active ? ACCENT : "#f3f4f6";
-      b.style.color = active ? "#fff" : "#4b5563";
-    });
-    cards.forEach((card) => {
-      if (card.dataset.free === "1") return;
-      const price = card.querySelector<HTMLElement>("[data-price]");
-      const period = card.querySelector<HTMLElement>("[data-period]");
-      if (price) price.textContent = cycle === "mensal" ? card.dataset.monthly! : card.dataset.yearly!;
-      if (period) period.textContent = cycle === "mensal" ? "/mês" : "/ano";
-    });
-  };
-  buttons.forEach((b) => b.addEventListener("click", () => { cycle = b.dataset.cycle === "anual" ? "anual" : "mensal"; apply(); }));
-  apply();
-}
 
 /** Secção de Integrações — logos em órbita semicircular sobre a loja. */
 function mountIntegrations(): void {

@@ -9,7 +9,8 @@ export interface InitPaymentInput {
   kind?: "store" | "plan" | "sms" | "logo";
   storeId?: string;
   ownerId?: string;
-  plan?: string;
+  /** Ciclo de pagamento da subscrição (`kind: "plan"`): "mensal" ou "anual". */
+  period?: string;
   /** Quantidade de mensagens, quando kind="sms". */
   smsQuantity?: number;
   /** URL do logótipo escolhido (já carregado), quando kind="logo". */

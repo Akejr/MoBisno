@@ -23,7 +23,7 @@ import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts, momenuProducts,
   mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, fulfillLogo, bumpDiscountUse,
-  effectivePlanId, planAllowsOnline, checkStock, decrementStock,
+  accountActive, checkStock, decrementStock,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
@@ -36,6 +36,9 @@ export default async function handler(req, res) {
   try { body = await readBody(req); } catch { return send(res, 400, { success: false, error: "Corpo inválido." }); }
 
   const kind = body.kind === "plan" ? "plan" : body.kind === "sms" ? "sms" : body.kind === "logo" ? "logo" : "store";
+  // Ciclo de pagamento (só usado em `kind: "plan"`). Recorre ao mensal: perante
+  // um valor que não se percebeu, nunca cobrar o ciclo mais caro.
+  const period = body.period === "anual" ? "anual" : "mensal";
   const method = body.method === "mcx" ? "mcx" : body.method === "reference" ? "reference" : null;
   if (!method) return send(res, 400, { success: false, error: "Método inválido.", code: "INVALID_METHOD" });
 
@@ -64,13 +67,14 @@ export default async function handler(req, res) {
     if (!cfg || !cfg.online_enabled) {
       return send(res, 400, { success: false, error: "Pagamentos online não ativados nesta loja.", code: "PAYMENTS_NOT_ENABLED" });
     }
-    // Os pagamentos online são uma funcionalidade paga: exigem plano ativo que a
-    // cubra. Se o plano da loja expirou (ou não cobre), recusa.
+    // Receber pagamentos exige subscrição ativa. Deixou de haver escalões: ou a
+    // conta está ativa e tem tudo, ou está suspensa e a loja nem devia estar no
+    // ar (`stores_public_read` trata disso).
     const { data: st } = await db.from("stores").select("owner_id").eq("id", storeId).maybeSingle();
     if (st?.owner_id) {
-      const { data: prof } = await db.from("profiles").select("plan, plan_expires_at, next_plan, trial_ends_at").eq("id", st.owner_id).maybeSingle();
-      if (!planAllowsOnline(effectivePlanId(prof))) {
-        return send(res, 400, { success: false, error: "Os pagamentos online não estão disponíveis no plano atual da loja.", code: "PLAN_NOT_COVERED" });
+      const { data: prof } = await db.from("profiles").select("is_admin, plan_expires_at").eq("id", st.owner_id).maybeSingle();
+      if (!accountActive(prof)) {
+        return send(res, 400, { success: false, error: "A subscrição desta loja não está ativa.", code: "PLAN_NOT_COVERED" });
       }
     }
     // Stock: recusa se algum item não tiver stock suficiente. As quantidades são
@@ -164,7 +168,10 @@ export default async function handler(req, res) {
     if (kind === "plan") {
       const ins = await db.from("plan_payments").insert({
         owner_id: String(body.ownerId || ""),
-        plan: String(body.plan || ""),
+        // Deixou de haver escalões: o que se compra é o CICLO, e é ele que
+        // decide se a subscrição recebe 30 ou 365 dias.
+        plan: "pro",
+        period,
         amount, method, status,
         merchant_transaction_id: d.transactionId || null,
         operation_id: d.operationId || null,
@@ -175,9 +182,9 @@ export default async function handler(req, res) {
         paid_at: status === "paid" ? nowIso : null,
       }).select("id").maybeSingle();
       orderId = ins.data?.id || null;
-      // MCX pago → ativar o plano imediatamente (com expiração/carry-over).
-      if (status === "paid" && body.ownerId && body.plan) {
-        await activatePlan(db, String(body.ownerId), String(body.plan));
+      // MCX é pago de imediato → ativa já a subscrição.
+      if (status === "paid" && body.ownerId) {
+        await activatePlan(db, String(body.ownerId), period);
       }
     } else if (kind === "sms") {
       const quantity = Math.max(0, parseInt(body.smsQuantity, 10) || 0);
