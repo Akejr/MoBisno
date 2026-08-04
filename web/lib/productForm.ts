@@ -97,7 +97,21 @@ export function openProductForm(opts: ProductFormOptions): void {
         <h3 class="text-lg font-black text-gray-900">${isEdit ? "Editar produto" : "Adicionar produto"}</h3>
         <button data-close class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">close</span></button>
       </div>
+      <nav data-tabs class="flex gap-1 px-4 border-b border-gray-100 shrink-0">
+        ${[
+          { id: "produto", icon: "inventory_2", label: "Produto" },
+          { id: "variacoes", icon: "tune", label: "Variações" },
+          { id: "opcoes", icon: "settings", label: "Opções" },
+        ].map((t, i) => `
+          <button type="button" data-tab="${t.id}" class="relative flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors ${i === 0 ? "" : "text-gray-500 hover:text-gray-800"}" ${i === 0 ? `style="color:${ACCENT}"` : ""}>
+            <span class="material-symbols-outlined text-[18px]">${t.icon}</span>
+            <span>${t.label}</span>
+            ${t.id === "variacoes" ? `<span data-var-badge class="hidden min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white items-center justify-center" style="background:${ACCENT}"></span>` : ""}
+            <span data-tab-underline class="absolute left-2 right-2 -bottom-px h-0.5 rounded-full ${i === 0 ? "" : "hidden"}" style="background:${ACCENT}"></span>
+          </button>`).join("")}
+      </nav>
       <form data-form class="p-6 flex flex-col gap-5 overflow-y-auto">
+        <div data-panel="produto" class="flex flex-col gap-5">
         <div class="flex gap-4">
           <div data-photo class="w-28 h-28 shrink-0 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#F95901] hover:bg-orange-50/40 transition-colors">
             ${imageUrl ? `<img src="${esc(imageUrl)}" class="w-full h-full object-cover" />` : `<span class="material-symbols-outlined text-gray-400 text-3xl">add_a_photo</span>`}
@@ -132,7 +146,9 @@ export function openProductForm(opts: ProductFormOptions): void {
           <div data-gallery class="flex flex-wrap gap-2"></div>
           <input data-gallery-input type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" />
         </div>
+        </div>
 
+        <div data-panel="opcoes" class="hidden flex-col gap-5">
         <div class="rounded-2xl border border-gray-100 divide-y divide-gray-100">
           <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
             <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">star</span> Destacar na loja</span>
@@ -161,15 +177,34 @@ export function openProductForm(opts: ProductFormOptions): void {
           </label>
         </div>
 
-        <div class="rounded-2xl border border-gray-100">
-          <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
-            <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">tune</span> Ativar variações <span class="text-gray-400 font-normal">(ex.: cor, tamanho)</span></span>
+        </div>
+
+        <div data-panel="variacoes" class="hidden flex-col gap-4">
+          <!--
+            Estado vazio com uma ação directa. Antes, as Variação viviam atrás de
+            um interruptor no fundo de um formulário longo: era preciso descer
+            até lá e descobrir a caixinha antes de sequer ver o que fazia. Agora
+            o separador abre já com a explicação e um botão que liga o
+            interruptor e cria a primeira variação de uma vez.
+          -->
+          <div data-var-empty class="${varOn ? "hidden" : ""} flex flex-col items-center text-center gap-3 py-8 px-4">
+            <span class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:${ACCENT}1a"><span class="material-symbols-outlined text-[26px]" style="color:${ACCENT}">tune</span></span>
+            <div>
+              <p class="text-sm font-bold text-gray-900">Este produto tem versões diferentes?</p>
+              <p class="text-[13px] text-gray-500 leading-snug mt-1 max-w-xs">Cada versão pode ter o seu preço e o seu stock — por exemplo, um tamanho ou uma cor.</p>
+            </div>
+            <button type="button" data-var-start class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white font-bold text-sm transition-opacity hover:opacity-95" style="background:${ACCENT}">
+              <span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação
+            </button>
+          </div>
+          <label data-var-head class="${varOn ? "" : "hidden"} items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer select-none">
+            <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">tune</span> Variações ativas</span>
             <span class="relative inline-flex items-center">
               <input data-var-on type="checkbox" ${varOn ? "checked" : ""} class="peer sr-only" />
               <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
             </span>
           </label>
-          <div data-var-body class="${varOn ? "" : "hidden"} border-t border-gray-100 px-4 py-4 flex flex-col gap-4"></div>
+          <div data-var-body class="${varOn ? "" : "hidden"} flex flex-col gap-4"></div>
         </div>
         <div data-errs class="empty:hidden"></div>
         <div class="flex justify-end gap-2 pt-1">
@@ -183,6 +218,37 @@ export function openProductForm(opts: ProductFormOptions): void {
   const close = (): void => host.remove();
   host.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", close));
   host.addEventListener("click", (e) => { if (e.target === host) close(); });
+
+  /*
+   * Separadores. Os painéis escondidos continuam no formulário — só saem do
+   * ecrã —, por isso o "Guardar" lê todos os campos, esteja qual estiver à
+   * vista. Isso é o que permite dividir sem tocar na gravação.
+   */
+  function showTab(id: string): void {
+    host.querySelectorAll<HTMLElement>("[data-panel]").forEach((p) => {
+      const on = p.dataset.panel === id;
+      p.classList.toggle("hidden", !on);
+      p.classList.toggle("flex", on);
+    });
+    host.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => {
+      const on = b.dataset.tab === id;
+      b.style.color = on ? ACCENT : "";
+      b.classList.toggle("text-gray-500", !on);
+      b.classList.toggle("hover:text-gray-800", !on);
+      b.querySelector<HTMLElement>("[data-tab-underline]")?.classList.toggle("hidden", !on);
+    });
+  }
+  host.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) =>
+    b.addEventListener("click", () => showTab(b.dataset.tab ?? "produto")));
+
+  /** Contador de combinações no separador — diz que há ali algo sem lá entrar. */
+  const varBadge = host.querySelector<HTMLElement>("[data-var-badge]")!;
+  function drawVarBadge(): void {
+    const n = varOn ? combinations.length : 0;
+    varBadge.textContent = String(n);
+    varBadge.classList.toggle("hidden", n === 0);
+    varBadge.classList.toggle("inline-flex", n > 0);
+  }
 
   const photoBox = host.querySelector<HTMLElement>("[data-photo]")!;
   const photoInput = host.querySelector<HTMLInputElement>("[data-photo-input]")!;
@@ -250,6 +316,18 @@ export function openProductForm(opts: ProductFormOptions): void {
 
   const varOnInput = host.querySelector<HTMLInputElement>("[data-var-on]")!;
   const varBody = host.querySelector<HTMLElement>("[data-var-body]")!;
+  const varEmpty = host.querySelector<HTMLElement>("[data-var-empty]")!;
+  const varHead = host.querySelector<HTMLElement>("[data-var-head]")!;
+
+  // Estado vazio → liga o interruptor e cria já a primeira variação, para o
+  // Dono não ter de descobrir dois passos separados.
+  host.querySelector<HTMLElement>("[data-var-start]")?.addEventListener("click", () => {
+    varOn = true;
+    varOnInput.checked = true;
+    if (axes.length === 0) axes.push({ name: "", values: [] });
+    drawVariations();
+    varBody.querySelector<HTMLInputElement>('[data-axis-name="0"]')?.focus();
+  });
   const smallInput = "w-full min-w-0 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-[#F95901]";
 
   /** Lê um campo numérico opcional: vazio (ou inválido) = ausente, `0` = zero. */
@@ -261,8 +339,12 @@ export function openProductForm(opts: ProductFormOptions): void {
 
   function drawVariations(): void {
     varBody.classList.toggle("hidden", !varOn);
-    if (!varOn) { varBody.innerHTML = ""; return; }
+    varEmpty.classList.toggle("hidden", varOn);
+    varHead.classList.toggle("hidden", !varOn);
+    varHead.classList.toggle("flex", varOn);
+    if (!varOn) { varBody.innerHTML = ""; drawVarBadge(); return; }
     resyncVariations();
+    drawVarBadge();
 
     const modeHtml = `
       <div class="flex flex-col gap-2">
@@ -285,7 +367,7 @@ export function openProductForm(opts: ProductFormOptions): void {
           </div>
           ${chips ? `<div class="flex flex-wrap gap-1.5">${chips}</div>` : `<p class="text-[11px] text-gray-400">Sem valores. Acrescente pelo menos um.</p>`}
           <div class="flex gap-2">
-            <input data-val-input="${i}" placeholder="Novo valor (ex.: Azul)" class="${smallInput}" />
+            <input data-val-input="${i}" placeholder="Valores separados por vírgula (ex.: Azul, Preto)" class="${smallInput}" />
             <button type="button" data-add-val="${i}" class="shrink-0 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">Juntar</button>
           </div>
         </div>`;
@@ -337,14 +419,31 @@ export function openProductForm(opts: ProductFormOptions): void {
       varBody.querySelector<HTMLInputElement>(`[data-axis-name="${axes.length - 1}"]`)?.focus();
     });
 
+    /**
+     * Acrescenta os valores escritos no campo. Aceita VÁRIOS de uma vez,
+     * separados por vírgula: escrever «S, M, L, XL» e carregar em Enter põe os
+     * quatro. Antes era um de cada vez, com um clique por valor — a parte mais
+     * aborrecida de definir variações.
+     */
     const addValue = (i: number): void => {
       const field = varBody.querySelector<HTMLInputElement>(`[data-val-input="${i}"]`);
       const axis = axes[i];
       if (!field || !axis) return;
-      const value = field.value.trim();
-      if (value === "") return;
-      if (axis.values.includes(value)) { toast("Esse valor já existe nesta variação.", "error"); return; }
-      axis.values.push(value);
+
+      const escritos = field.value.split(",").map((v) => v.trim()).filter((v) => v !== "");
+      if (escritos.length === 0) return;
+
+      const novos: string[] = [];
+      let repetidos = 0;
+      for (const value of escritos) {
+        // Repetido no que já existe, ou repetido dentro do que se escreveu agora.
+        if (axis.values.includes(value) || novos.includes(value)) { repetidos++; continue; }
+        novos.push(value);
+      }
+      if (novos.length === 0) { toast("Esse valor já existe nesta variação.", "error"); return; }
+      if (repetidos > 0) toast(`${repetidos} ${repetidos === 1 ? "valor repetido foi ignorado" : "valores repetidos foram ignorados"}.`);
+
+      axis.values.push(...novos);
       drawVariations();
       varBody.querySelector<HTMLInputElement>(`[data-val-input="${i}"]`)?.focus();
     };
@@ -492,6 +591,10 @@ export function openProductForm(opts: ProductFormOptions): void {
       close();
       await onDone();
     } else {
+      // O que falha na validação é sempre um campo do separador «Produto»
+      // (nome e preço). Sem isto, o Dono podia estar nas Variação e ler um erro
+      // sobre um campo que não tem à vista.
+      showTab("produto");
       host.querySelector("[data-errs]")!.innerHTML =
         `<div class="bg-red-50 text-red-700 border border-red-100 rounded-xl px-3.5 py-2.5 text-sm">${esc(res.message)}</div>`;
     }
