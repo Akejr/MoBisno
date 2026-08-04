@@ -171,9 +171,17 @@ export function createStorefrontResolver(
       }
 
       // Loja existente e Publicada: reunir os recursos a renderizar (Requisito 9.1).
-      const logo = await assetRepository.findLogo(store.id);
-      const banners = await bannerRepository.listByStore(store.id);
-      const allProducts = await productRepository.listByStore(store.id);
+      //
+      // Em PARALELO, de propósito: as três consultas dependem apenas de
+      // `store.id` e não umas das outras. Encadeadas, somavam três idas ao
+      // servidor à espera umas das outras — em Angola, mais de meio segundo de
+      // cascata que o visitante passava a olhar para a página pré-renderizada
+      // antes de a loja aparecer.
+      const [logo, banners, allProducts] = await Promise.all([
+        assetRepository.findLogo(store.id),
+        bannerRepository.listByStore(store.id),
+        productRepository.listByStore(store.id),
+      ]);
       const products = allProducts.filter((product) => product.available === true);
 
       return {
