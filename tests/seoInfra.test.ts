@@ -269,16 +269,35 @@ describe("SEO — conteudo presente no HTML mas invisivel ao visitante", () => {
     expect(html.match(/href="\/produto\//g) ?? []).toHaveLength(2);
   });
 
-  it("o visitante ve o ecra de carregamento, nao a pagina de texto", () => {
-    expect(html).toContain('class="mb-boot"');
-    // Recorte em vez de display:none — conteudo escondido com display:none e
-    // desvalorizado pelo Google.
-    expect(html).toMatch(/\.mb-ssr\{position:absolute;width:1px/);
+  it("o conteudo pre-renderizado esta VISIVEL para quem visita", () => {
+    // A avaria que este exemplo guarda: o `.mb-ssr` esteve recortado para 1x1
+    // pixel (`clip-path`), com um ecra de carregamento por cima. O Google via
+    // uma pagina sem conteudo, classificava o URL como sem valor e nao o
+    // indexava — em TODAS as lojas, porque o bloco e o mesmo.
+    //
+    // Nao ha meio-termo aqui: qualquer tecnica que esconda o bloco do ecra
+    // (recorte, 1x1 pixel, display:none, visibility, opacidade) devolve o
+    // problema. O Google trata-as todas como texto escondido.
+    expect(html).not.toMatch(/\.mb-ssr\{[^}]*clip/);
+    expect(html).not.toMatch(/\.mb-ssr\{[^}]*width:1px/);
     expect(html).not.toMatch(/\.mb-ssr\{[^}]*display:none/);
+    expect(html).not.toMatch(/\.mb-ssr\{[^}]*visibility:hidden/);
+    expect(html).not.toMatch(/\.mb-ssr\{[^}]*opacity:0/);
   });
 
-  it("o ecra de carregamento nao entra na arvore de acessibilidade", () => {
-    expect(html).toContain('class="mb-boot" aria-hidden="true"');
+  it("nao ha ecra de carregamento a tapar o conteudo", () => {
+    // O `.mb-boot` ocupava 78vh e era tudo o que o visitante — e o Google —
+    // viam. O conteudo passou a ser a propria pagina, por isso desapareceu.
+    expect(html).not.toContain("mb-boot");
+  });
+
+  it("o conteudo vem com estilo proprio, para nao parecer uma pagina em bruto", () => {
+    // O esconderijo existia por um motivo legitimo: sem estilo, o bloco parecia
+    // outro site a abrir antes da loja. A resposta e esta folha de estilo — se
+    // ela desaparecer, a tentacao de voltar a esconder o conteudo regressa.
+    expect(html).toContain('<style id="mb-ssr-style">');
+    expect(html).toMatch(/\.mb-ssr-grid\{[^}]*grid-template-columns/);
+    expect(html).toMatch(/\.mb-ssr-top\{[^}]*display:flex/);
   });
 });
 
@@ -516,7 +535,10 @@ describe("SEO — paridade das Variação entre api/_seo.js e src/services/varia
       storeName: "Sport AO", product, description: "Ténis leve.",
       logoUrl: null, base: "", brand: "#F95901",
     });
-    expect(semVariacoes).not.toContain("mb-ssr-vars");
+    // O ELEMENTO, não o nome da classe: desde que o conteúdo passou a ser
+    // visível, a folha de estilo traz sempre a regra `.mb-ssr-vars`, e procurar
+    // o nome solto dava um falso positivo.
+    expect(semVariacoes).not.toContain('class="mb-ssr-vars"');
     expect(apiSeo.productHtml({
       storeName: "Sport AO", product, description: "Ténis leve.",
       logoUrl: null, base: "", brand: "#F95901", custom: de({ enabled: false, axes: [{ name: "Cor", values: ["Preto"] }] }),

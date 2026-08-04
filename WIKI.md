@@ -738,8 +738,10 @@ títulos, descrições, formatação de preços, localizações (`src/services/l
 ou no texto das Variação (`src/services/variations.ts`), alterar nos dois sítios;
 há testes de paridade em `tests/seoInfra.test.ts`. Ver [SEO.md §5.2](SEO.md).
 
-O conteúdo fica no HTML mas recortado do ecrã; o visitante vê um ecrã de
-carregamento com a marca da loja. Ver [SEO.md §3.3](SEO.md).
+O conteúdo pré-renderizado é **visível**, com folha de estilo própria: é a
+página que o visitante vê até a SPA arrancar. Esconder este bloco (por recorte
+ou por qualquer outra técnica) faz o Google ler uma página vazia e deixar de
+indexar as lojas — já aconteceu. Ver [SEO.md §3.3](SEO.md).
 
 ### Camada 2 — Cliente (`web/lib/seo.ts` + `src/services/seo.ts`)
 

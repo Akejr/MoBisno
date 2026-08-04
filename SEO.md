@@ -164,22 +164,37 @@ Sem ficheiro em `/`, o pedido falha no sistema de ficheiros e o rewrite
 aplica-se (ver §2.4). O `prerender.js` lê o shell de `/app.html`, e o
 `robots.txt` bloqueia esse caminho para o shell vazio não ser indexado.
 
-### 3.3 Conteúdo presente no HTML, invisível no ecrã
+### 3.3 Conteúdo visível, com estilo próprio
 
-O bloco `.mb-ssr` está no HTML mas é **recortado do ecrã** (`clip-path`). No
-lugar dele, o visitante vê `.mb-boot` — o logótipo e a cor da loja com uma barra
-de progresso.
+O bloco `.mb-ssr` **é a página** que o visitante vê até a SPA arrancar. Tem
+folha de estilo própria (cabeçalho com logótipo, grelha de produtos com fotos e
+preços, rodapé), inlined pelo `ssrStyle()` de `api/_seo.js`.
 
-Isto não custa SEO:
+**Isto esteve ao contrário e custou a indexação de todas as lojas.** Entre 31 de
+julho e 4 de agosto de 2026, o `.mb-ssr` era recortado para 1×1 píxel
+(`clip-path`) e no lugar dele aparecia um ecrã de carregamento (`.mb-boot`, 78vh
+de logótipo e barra de progresso). O registo desta secção justificava-o com duas
+premissas, **ambas falsas**:
 
-- os rastreadores que não executam JavaScript leem o **HTML em bruto**, onde o
-  CSS nem sequer é aplicado — o texto está lá todo;
-- o Google, ao executar o JavaScript, vê a loja renderizada pela SPA, com a
-  mesma informação.
+1. *«os rastreadores leem o HTML em bruto, onde o CSS nem sequer é aplicado»* —
+   o Googlebot **aplica CSS** e faz layout. Isso vale para rastreadores
+   primitivos, não para quem decide a indexação.
+2. *«usa-se recorte e não `display:none` porque `display:none` é
+   desvalorizado»* — a distinção não existe do lado do Google. Recorte, 1×1
+   píxel com `overflow:hidden`, `visibility:hidden` e `display:none` são todos
+   **texto escondido** e levam o mesmo desconto.
 
-**Não é cloaking**: o conteúdo é o mesmo, muda apenas a apresentação. É por isso
-que se usa recorte e **não `display:none`** — conteúdo com `display:none` é
-desvalorizado pelo Google.
+O efeito era o pior possível: na primeira passagem o Google via uma página de
+carregamento sem conteúdo, classificava o URL como sem valor e não o indexava —
+em **todas** as lojas, porque o bloco é o mesmo. O sintoma em produção era
+«o URL entra na fila e nunca indexa». Depender da segunda passagem (a que
+executa JavaScript) é exatamente aquilo que a pré-renderização existe para
+evitar.
+
+O custo que o esconderijo evitava era real — por instantes vê-se uma versão mais
+simples da loja antes da SPA assumir. A resposta certa é a folha de estilo, não
+o esconderijo. **Nunca voltar a esconder este bloco**, por nenhuma técnica;
+`tests/seoInfra.test.ts` guarda-o.
 
 ### 3.4 Descoberta de lojas novas
 
@@ -335,13 +350,16 @@ Se voltar a existir, a Vercel serve-o em `/` e o prerender deixa de correr na
 página inicial de todas as lojas (§2.4). O `scripts/rename-shell.mjs` garante
 isto — não o remova do `web:build`.
 
-### 5.4 O bloco `.mb-ssr` tem de continuar no HTML, e escondido por recorte
+### 5.4 O bloco `.mb-ssr` tem de continuar no HTML, e VISÍVEL
 
-Se for removido, os rastreadores sem JavaScript deixam de ver conteúdo. Se
-passar a `display:none`, o Google desvaloriza-o.
+Se for removido, os rastreadores sem JavaScript deixam de ver conteúdo. Se for
+escondido — por recorte, 1×1 píxel, `display:none`, `visibility` ou opacidade —
+o Google trata-o como texto escondido, vê uma página vazia e não indexa. Foi o
+que aconteceu (§3.3).
 
-> Guardado por: *"o texto que posiciona a loja continua no HTML servido"* e *"o
-> visitante vê o ecrã de carregamento, não a página de texto"*.
+> Guardado por: *"o texto que posiciona a loja continua no HTML servido"*, *"o
+> conteudo pre-renderizado esta VISIVEL para quem visita"*, *"nao ha ecra de
+> carregamento a tapar o conteudo"* e *"o conteudo vem com estilo proprio"*.
 
 ### 5.5 Só declarar em JSON-LD o que existe de facto
 
@@ -444,4 +462,4 @@ descobre a ler a fonte dos dois lados.
 |---|---|
 | `1d4b436` | SSR real, ligações indexáveis, dados estruturados, diretório, sitemaps, fontes (37 ficheiros) |
 | `6110cc6` | A raiz `/` passa a ser pré-renderizada (`index.html` tapava o rewrite) |
-| `151f120` | Bloco pré-renderizado escondido do visitante; ecrã de carregamento com a marca |
+| `151f120` | Bloco pré-renderizado escondido do visitante; ecrã de carregamento com a marca. **Revertido** — foi o que impediu a indexação de todas as lojas (§3.3) |

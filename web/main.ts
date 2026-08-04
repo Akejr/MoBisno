@@ -32,12 +32,21 @@ const lazy = {
 
 const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
 
-/** Aplica o nome e o logótipo da loja à aba do navegador (título + favicon). */
+/**
+ * Aplica o logótipo da loja ao favicon da aba.
+ *
+ * NÃO toca no título. Isto corre em paralelo com a vista da loja, que chama
+ * `applySeo()` com o título bom (`Nome | Compras em Angola`, ou o que o dono
+ * definiu). Enquanto esta função também escrevia o título, ganhava a última a
+ * terminar — quase sempre esta, por ser mais leve — e o título acabava no nome
+ * cru da loja. O snapshot que o Google guarda ficava com o pior dos dois.
+ *
+ * A exceção é a loja que não existe: aí não há vista a definir título nenhum.
+ */
 async function applyStoreBranding(identifier: string): Promise<void> {
   try {
     const { result, view } = await loadStorefront(identifier);
     if (result.kind === "render" && view.kind === "render") {
-      setDocTitle(view.storeName);
       setFavicon(result.logo?.url || "/favicon.svg");
     } else {
       setDocTitle("Loja não encontrada — MôBisno");
