@@ -95,8 +95,9 @@ CONTEXTO: a partir desta descrição, o gerador de logótipos do MôBisno devolv
 REGRAS:
 - Devolve APENAS a descrição final, em português de Portugal, num único parágrafo curto (máximo ~400 caracteres).
 - Mantém sempre o NOME da marca e o tipo de negócio que o dono indicou; não inventes um nome novo.
-- Descreve uma marca ELEGANTE, MODERNA e minimalista (nível de estúdio de branding): um SÍMBOLO ABSTRACTO e geométrico/fluido com gradiente suave, e o nome como wordmark em tipografia moderna. NUNCA sugiras ícones literais (envelope, carrinho, telefone, lâmpada, engrenagem) nem estilo clip-art.
-- Enriquece com: 1 a 2 cores da mesma família, o tipo de forma abstrata do símbolo e a sensação/tom da marca (premium, tech, sofisticado…).
+- PRESERVA todas as decisões que o dono já tomou, mesmo as que restringem: cor ("tudo preto" fica tudo preto), tipo de letra ("elegante"/"clássica" = serifada), caixa das letras, e sobretudo a AUSÊNCIA de coisas. Se ele disser que não quer símbolo, a descrição final não pode ter símbolo nenhum; se quiser uma só cor, não acrescentes gradiente nem segunda cor. Nunca "corrijas" nem contraries o gosto dele.
+- Enriquece SÓ o que ficou por dizer, com o vocabulário de um diretor de arte: a sensação/tom da marca, o detalhe tipográfico, o equilíbrio da composição, e — apenas se o dono não tiver excluído símbolos — o tipo de forma do símbolo.
+- Marca de nível de estúdio de branding: elegante e intencional. NUNCA sugiras ícones literais (envelope, carrinho, telefone, lâmpada, engrenagem) nem estilo clip-art.
 - Sem aspas à volta, sem emojis, sem prefixos como "Descrição:". Não expliques o que fizeste.`;
 
 const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seotitle: SYSTEM_SEOTITLE, logo: SYSTEM_LOGO };

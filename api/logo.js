@@ -5,9 +5,14 @@
  * em PNG com fundo transparente (base64), prontas a mostrar em grelha no
  * painel. A escolha final é guardada pelo frontend na área "Meus logótipos".
  *
- * Gera as cinco variações com direções de arte DIFERENTES (monograma,
- * símbolo abstrato, combinação, emblema e wordmark), procurando um resultado
- * moderno e premium (nível de agência), não "clip-art".
+ * Gera as cinco variações com direções de arte DIFERENTES (wordmark, lockup
+ * horizontal, monograma, empilhado com descritor e emblema contido), que
+ * variam em tipografia e composição e não apenas no arranjo das peças.
+ *
+ * REGRA CENTRAL: o briefing do cliente ganha sempre às predefinições de estilo
+ * da casa — ver `PRECEDENCE`. As predefinições só preenchem o que o cliente
+ * não especificou, e cada variação sabe degradar para um tratamento
+ * tipográfico quando o cliente recusa símbolos.
  *
  * A chave da OpenAI fica APENAS aqui, no servidor, via variável de ambiente
  * `OPENAI_API_KEY` (nunca no frontend).
@@ -15,51 +20,120 @@
  * Configuração:
  *  - OPENAI_API_KEY        (obrigatória) — a chave secreta da OpenAI.
  *  - OPENAI_IMAGE_MODEL    (opcional)    — por omissão "gpt-image-1".
- *  - OPENAI_IMAGE_QUALITY  (opcional)    — "low" | "medium" | "high" (por omissão "high").
+ *  - OPENAI_IMAGE_QUALITY  (opcional)    — "low" | "medium" | "high" (por omissão "medium").
+ *    Define o refinamento do desenho e da tipografia; "high" custa mais por
+ *    imagem, e são cinco imagens por pedido.
  */
 
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 const IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
 
 /**
- * Direção de arte comum a todas as variações. Objetivo: logótipos de marca de
- * tecnologia/startup, elegantes, modernos e minimalistas — do nível do que se
- * vê em Dribbble/Behance ou de marcas como Stripe, Vercel, Notion. NUNCA
- * "ícone literal + texto" ao estilo clip-art.
+ * Requisitos TÉCNICOS do ficheiro — não negociáveis e independentes do gosto.
+ *
+ * Ficam separados da estética de propósito: são o formato que a Plataforma
+ * precisa (PNG recortado, escalável, nome bem escrito), não uma opinião de
+ * design, por isso o pedido do cliente não os pode contradizer.
  */
-const ART_DIRECTION = [
-  "Cria um logótipo de marca elegante, moderno e minimalista, de nível de estúdio de branding profissional (qualidade Dribbble/Behance).",
-  "O SÍMBOLO deve ser uma MARCA ABSTRACTA e geométrica/fluida — uma forma única, distinta e memorável (ex.: fita curva, forma orgânica, marca geométrica com espaço negativo). NÃO uses ícones literais nem pictogramas (nada de envelopes, carrinhos, telefones, lâmpadas, casas, engrenagens, balões de fala).",
-  "Usa um GRADIENTE suave e sofisticado no símbolo (transições limpas entre 2 tons da mesma família de cor), com acabamento premium e cantos suaves/arredondados. Nada de contornos duros de clip-art.",
-  "Se houver nome, apresenta-o como WORDMARK ao lado do símbolo (lockup), em tipografia sans-serif moderna, geométrica e limpa, minúsculas, kerning perfeito, cor sólida escura (quase preto) ou a cor da marca. O nome tem de estar escrito CORRETAMENTE.",
-  "Marca vetorial simples e escalável (tem de ficar bem como favicon). Composição equilibrada, muito espaço em branco, isolada e centrada.",
-  "Fundo TOTALMENTE transparente — sem fundo, sem moldura, sem cartão, sem sombras, sem mockups, sem cenário, sem texto extra além do nome da marca.",
-  "PROIBIDO: clip-art, ícones de stock, ilustrações realistas ou detalhadas, 3D pesado, muitas cores, texturas, efeitos baratos, um ícone literal com uma etiqueta por baixo.",
-].join(" ");
+const TECHNICAL = [
+  "REQUISITOS DE FICHEIRO (obrigatórios, valem sempre):",
+  "- Fundo TOTALMENTE transparente. Sem fundo, moldura, cartão, sombra projetada, mockup, cenário nem reflexo.",
+  "- Um único logótipo, isolado e centrado, com margem folgada. Nada de grelhas de variantes, paletas de cor, folhas de estilo de marca ou texto explicativo à volta.",
+  "- Marca simples e escalável, ainda legível a 32px (favicon). Sem detalhe fotográfico nem 3D pesado.",
+  "- Se o logótipo tiver texto, o nome da marca tem de estar escrito CORRETAMENTE, letra por letra. Nenhum texto além do nome da marca e, quando faça sentido, um descritor curto do setor.",
+].join("\n");
 
-/** Cinco direções distintas — todas elegantes e modernas (nunca clip-art). */
+/**
+ * Regra de precedência — a correção central deste gerador.
+ *
+ * PORQUÊ: a versão anterior juntava uma direção de arte fixa («o símbolo DEVE
+ * ser abstrato», «usa um GRADIENTE», «tipografia sans-serif, minúsculas») e só
+ * DEPOIS colava a descrição do cliente, rotulada como «descrição do negócio».
+ * O modelo lia a direção de arte como o briefing e o texto do cliente como
+ * contexto de fundo, e resolvia os conflitos a favor da direção de arte: quem
+ * escrevia «todo preto, sem símbolo, só o nome» recebia símbolos com gradiente
+ * colorido. O briefing do cliente passa a vir primeiro e a mandar.
+ */
+const PRECEDENCE = [
+  "PRECEDÊNCIA — lê com atenção:",
+  "O briefing acima é VINCULATIVO e ganha sempre. Tudo o que se segue são predefinições da casa, que existem apenas para preencher aquilo que o cliente NÃO especificou.",
+  "Se o cliente pedir algo que contrarie uma predefinição — a cor, o tipo de letra, não querer símbolo, não querer gradiente, querer maiúsculas —, segue o cliente e ignora a predefinição, sem exceção e sem meio-termo.",
+  "Em particular: se o cliente disser que NÃO quer símbolo/ícone, não desenhes nenhuma forma gráfica além das próprias letras. Se disser que quer uma só cor, não uses gradiente nem segunda cor. Se pedir letra elegante, clássica ou de luxo, usa serifada, não sans-serif.",
+].join("\n");
+
+/**
+ * Predefinições estéticas. Subordinadas ao briefing pela regra acima — daí não
+ * imporem já cor, gradiente, caixa da letra nem a presença de símbolo, que era
+ * o que uniformizava as cinco propostas.
+ */
+const DEFAULTS = [
+  "PREDEFINIÇÕES DA CASA (só onde o cliente nada disse):",
+  "- Nível de estúdio de branding profissional: elegante, intencional, bem desenhado. Nunca clip-art, ícones de stock, efeitos baratos nem ilustração literal (envelope, carrinho, telefone, lâmpada, casa, engrenagem, balão de fala).",
+  "- Paleta contida, 1 a 2 cores. Composição equilibrada, espaço em branco generoso, kerning cuidado.",
+  "- Se desenhares um símbolo e o cliente não o descreveu, faz uma marca ABSTRATA e distinta — geométrica ou fluida, com espaço negativo inteligente —, não um pictograma.",
+].join("\n");
+
+/**
+ * Cinco direções de arte. Cada uma varia num eixo próprio (tipografia,
+ * composição, contenção, escala do símbolo) e não só no arranjo das peças,
+ * porque cinco layouts sob a mesma tipografia e a mesma cor davam cinco
+ * imagens quase iguais.
+ *
+ * Cada direção traz a sua própria alternativa sem símbolo: quando o cliente
+ * proíbe símbolos, a variação degrada para um tratamento tipográfico
+ * equivalente em vez de desobedecer ou de colapsar sobre as outras.
+ */
 const VARIATIONS = [
-  // A — lockup símbolo abstrato + wordmark (estilo do exemplo "lumi").
-  "Estilo: SÍMBOLO ABSTRACTO + WORDMARK (lockup horizontal). Um símbolo abstrato fluido com gradiente à esquerda e o nome da marca em minúsculas à direita, tipografia geométrica moderna. Elegante, tech, premium (pensa Stripe/Notion).",
-  // B — só símbolo abstrato com gradiente.
-  "Estilo: APENAS SÍMBOLO ABSTRACTO. Uma marca abstrata e distinta com gradiente suave e espaço negativo criativo, sem qualquer texto. Forma única e memorável, moderna e sofisticada.",
-  // C — monograma geométrico.
-  "Estilo: MONOGRAMA. Constrói uma marca a partir da(s) inicial(is) do nome, de forma geométrica e abstrata (não uma letra de fonte comum), com gradiente subtil e espaço negativo inteligente. Sofisticado e premium.",
-  // D — wordmark tipográfico puro.
-  "Estilo: WORDMARK puro. Só o nome da marca, em minúsculas, com tipografia personalizada moderna e um detalhe subtil e distinto numa letra (ligadura, corte, ponto). Sem símbolo. Cor sólida elegante.",
-  // E — lockup vertical símbolo + nome.
-  "Estilo: SÍMBOLO ABSTRACTO + NOME (empilhado na vertical). Símbolo abstrato com gradiente em cima e o nome centrado por baixo, tipografia sans-serif moderna e limpa. Composição equilibrada e premium.",
+  // A — a letra é o logótipo.
+  [
+    "VARIAÇÃO A — WORDMARK TIPOGRÁFICO. Só o nome da marca, sem símbolo nenhum.",
+    "Todo o interesse vem da própria letra: proporções cuidadas, espacejamento trabalhado e UM detalhe distinto e subtil (uma ligadura, um terminal cortado, uma contra-forma aberta, um ponto substituído).",
+  ].join(" "),
+  // B — lockup horizontal clássico.
+  [
+    "VARIAÇÃO B — LOCKUP HORIZONTAL. Marca à esquerda e nome à direita, alinhados pelo eixo ótico, separados por um intervalo generoso.",
+    "Sem símbolo permitido: substitui a marca da esquerda pela inicial do nome tratada como peça gráfica autónoma, no mesmo lugar e com o mesmo peso visual.",
+  ].join(" "),
+  // C — a inicial como marca.
+  [
+    "VARIAÇÃO C — MONOGRAMA. Constrói a marca a partir da inicial (ou das duas iniciais) do nome, trabalhada como forma e não como letra tirada de uma fonte, com espaço negativo inteligente. O nome completo entra pequeno por baixo, ou fica de fora.",
+    "Sem símbolo permitido: mantém o monograma estritamente tipográfico — a letra desenhada, sem forma abstrata à volta nem dentro.",
+  ].join(" "),
+  // D — composição vertical com descritor.
+  [
+    "VARIAÇÃO D — EMPILHADO COM DESCRITOR. Composição vertical e centrada: o nome em destaque e, por baixo, o setor do negócio em letras muito espaçadas e bem mais pequenas.",
+    "Se houver símbolo, entra pequeno e centrado por cima do nome. Sem símbolo permitido: fica só o par nome + descritor, e o contraste de escala entre os dois é que sustenta a composição.",
+  ].join(" "),
+  // E — contenção: selo/moldura.
+  [
+    "VARIAÇÃO E — EMBLEMA CONTIDO. O conjunto vive dentro de uma contenção geométrica simples — um círculo, um arco, um retângulo ou um par de linhas —, com o nome centrado lá dentro.",
+    "A contenção é uma linha fina, não uma mancha cheia. Sem símbolo permitido: a moldura e as linhas são geometria, não símbolo, por isso mantêm-se; lá dentro fica apenas o nome.",
+  ].join(" "),
 ];
 
-/** Constrói o prompt final combinando descrição + direção de arte + variação. */
-function buildPrompt(description, variationIndex) {
+/**
+ * Constrói o prompt de UMA variação.
+ *
+ * Ordem deliberada: briefing do cliente → precedência → direção da variação →
+ * predefinições → requisitos de ficheiro. O que o cliente escreveu abre o
+ * prompt e é apresentado como instrução, não como contexto de negócio.
+ *
+ * Exportada para os testes poderem fixar a regra de precedência (o pedido do
+ * cliente aparece antes de qualquer predefinição, em todas as variações).
+ */
+export function buildPrompt(description, variationIndex) {
   return [
-    ART_DIRECTION,
-    VARIATIONS[variationIndex] || VARIATIONS[0],
-    "Descrição do negócio dada pelo cliente:",
+    "Desenha o logótipo encomendado por este cliente. O briefing dele é o seguinte, e é para cumprir:",
     `"""${description}"""`,
+    PRECEDENCE,
+    VARIATIONS[variationIndex] || VARIATIONS[0],
+    DEFAULTS,
+    TECHNICAL,
   ].join("\n\n");
 }
+
+/** Nº de direções de arte geradas por pedido (uma imagem cada). */
+export const VARIATION_COUNT = VARIATIONS.length;
 
 /** Gera UMA imagem para a variação pedida. Devolve o b64 ou null em falha. */
 async function generateOne(key, description, variationIndex) {
