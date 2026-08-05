@@ -250,7 +250,7 @@ export async function renderLanding(): Promise<void> {
   const pending = consumePendingSection();
   if (pending) requestAnimationFrame(() => scrollToSection(pending));
   mountIntegrations();
-  mountAiAgent(document.getElementById("app"), { scope: "site" });
+  mountAiAgent(document.getElementById("app"), { screen: "site" });
   applyPlatformSeo();
 }
 

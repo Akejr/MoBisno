@@ -14,6 +14,7 @@ import { storePreviewDoc } from "../lib/storePreviewDoc.js";
 import { getTemplate } from "../templates/registry.js";
 import { DEFAULT_LOGO, type StoreRenderView, type StoreProductView } from "../../src/storefront/storeRenderer.js";
 import type { StoreCustomization } from "../templates/types.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 
 const ACCENT = "#F95901";
 const PRESET_ICONS = ["storefront", "diamond", "eco", "palette", "local_mall", "auto_awesome"];
@@ -275,6 +276,8 @@ export async function renderPresetGallery(testMode = false): Promise<void> {
       </div>
     </main>
   </div>`);
+
+  mountAiAgent(document.getElementById("app"), { screen: "modelos" });
 
   items = await loadItems();
 

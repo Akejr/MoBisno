@@ -1728,7 +1728,7 @@ ${fieldCss}
 
   await rebuild();
   updateScreenTabs();
-  mountAiAgent($("#preview")?.parentElement);
+  mountAiAgent($("#preview")?.parentElement, { screen: "editor" });
 
   // Painel de pré-visualização (Abrir / esconder + alternar Computador/Telemóvel).
   $("#open-preview")?.addEventListener("click", () => openPreview());

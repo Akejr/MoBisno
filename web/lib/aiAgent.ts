@@ -7,6 +7,8 @@
  * editor, por isso é removido automaticamente ao mudar de ecrã.
  */
 
+import { assistantContextFor, scopeFor, type AssistantScreen } from "./assistantContext.js";
+
 const ACCENT = "#F95901";
 const WIDGET_ID = "mb-ai-agent";
 
@@ -47,9 +49,25 @@ function makeEye(): { eye: HTMLElement; pupil: HTMLElement } {
  * Monta o mascote no contentor indicado (ou no #app). Remove qualquer instância
  * anterior. Devolve uma função para o desmontar.
  */
-export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor" | "site" }): () => void {
+export function mountAiAgent(
+  host?: HTMLElement | null,
+  opts?: { scope?: "editor" | "site"; screen?: AssistantScreen; bottom?: number },
+): () => void {
   document.getElementById(WIDGET_ID)?.remove();
-  const scope = opts?.scope ?? "editor";
+  // `screen` é a forma preferida: diz em que ecrã o utilizador está e traz a
+  // orientação desse ecrã. O `scope` continua aceite para quem ainda não passa
+  // `screen`, e é derivado dele quando ambos existem.
+  const screen: AssistantScreen = opts?.screen ?? (opts?.scope === "site" ? "site" : "editor");
+  const scope = opts?.scope ?? scopeFor(screen);
+  // Distância ao fundo. O canto inferior direito costuma estar livre, mas no
+  // assistente de criação vive lá o botão de enviar da conversa — sem desvio, o
+  // mascote tapava-o.
+  const bottom = opts?.bottom ?? 20;
+  // Legenda do painel. Dizia sempre «sobre o editor», o que era falso em todos os
+  // outros ecrãs onde o assistente passou a estar.
+  const subtitle = screen === "editor"
+    ? "Tira dúvidas sobre o editor"
+    : scope === "site" ? "Tira dúvidas sobre o MôBisno" : "Tira dúvidas sobre a plataforma";
 
   const root = host ?? document.getElementById("app") ?? document.body;
 
@@ -59,7 +77,7 @@ export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor
   widget.style.cssText = [
     "position:fixed",
     "right:20px",
-    "bottom:20px",
+    `bottom:${bottom}px`,
     "z-index:80",
     "display:flex",
     "align-items:center",
@@ -217,7 +235,15 @@ export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor
       const r = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, history: priorHistory, scope }),
+        // `context` traz os factos da plataforma (derivados de
+        // `src/services/plans.ts`, nunca escritos à mão) e a orientação deste
+        // ecrã. É o que impede o assistente de responder com informação velha.
+        body: JSON.stringify({
+          question: q,
+          history: priorHistory,
+          scope,
+          context: assistantContextFor(screen),
+        }),
       });
       typing.remove();
       if (!r.ok) { addMsg("assistant", "Não consegui responder agora. Tenta novamente daqui a pouco."); return; }
@@ -241,8 +267,8 @@ export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor
     }
     panel = document.createElement("div");
     panel.style.cssText = [
-      "position:fixed", "right:20px", "bottom:84px", "z-index:90",
-      "width:min(340px,calc(100vw - 32px))", "height:min(460px,calc(100vh - 140px))",
+      "position:fixed", "right:20px", `bottom:${bottom + 64}px`, "z-index:90",
+      "width:min(340px,calc(100vw - 32px))", `height:min(460px,calc(100vh - ${bottom + 120}px))`,
       "display:flex", "flex-direction:column", "background:#fff",
       "border:1px solid rgba(0,0,0,.08)", "border-radius:18px",
       "box-shadow:0 18px 50px -12px rgba(0,0,0,.4)", "overflow:hidden",
@@ -253,7 +279,7 @@ export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor
         <div style="width:34px;height:34px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:#fff;background:${ACCENT}"><span class="material-symbols-outlined" style="font-size:20px">smart_toy</span></div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:14px;color:#111827;line-height:1.1">Assistente MôBisno</div>
-          <div style="font-size:11px;color:#9ca3af">Tira dúvidas sobre o editor</div>
+          <div style="font-size:11px;color:#9ca3af">${subtitle}</div>
         </div>
         <button data-close type="button" style="width:30px;height:30px;border-radius:9999px;border:none;background:#f3f4f6;color:#6b7280;cursor:pointer;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:18px">close</span></button>
       </div>
@@ -269,7 +295,9 @@ export function mountAiAgent(host?: HTMLElement | null, opts?: { scope?: "editor
     if (!chatHistory.length) {
       addMsg("assistant", scope === "site"
         ? "Olá! Sou o assistente do MôBisno. Aqui escolhes um modelo pronto de site — uma loja completa, já montada — e personalizas os textos, as fotografias e as cores. Pergunta-me o que quiseres: como começar a tua loja, os planos, ou o que dá (ou não) para fazer."
-        : "Olá! Pergunta-me o que quiseres sobre o editor — por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d");
+        : screen === "editor"
+          ? "Olá! Pergunta-me o que quiseres sobre o editor — por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d"
+          : "Olá! Pergunta-me o que quiseres sobre este ecrã ou sobre a plataforma — por exemplo: \u201cquantas lojas posso criar?\u201d");
     } else {
       for (const m of chatHistory) addMsg(m.role, m.content);
     }

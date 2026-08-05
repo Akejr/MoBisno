@@ -19,6 +19,7 @@ import {
   businessHealth, monthlyEvolution, attentionLists, ADMIN_HREFS, ATTENTION_WINDOW_DAYS, MONTHS_IN_EVOLUTION,
   type AdminMetricsInput, type AttentionItem, type MonthPoint,
 } from "../../src/services/adminMetrics.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 
 const ACCENT = "#F95901";
 const ACCENT_TINT = "rgba(249,89,1,.1)";
@@ -536,12 +537,16 @@ export async function renderAdminPanel(): Promise<void> {
     go("#/personalizar");
   }
 
-  if (tab === "contas") { await renderContas(); return; }
-  if (tab === "lojas") { await renderLojas(); return; }
-  if (tab === "modelos") { await renderModelos(); return; }
-  if (tab === "transacoes") { await renderTransacoes(); return; }
-  if (tab === "levantamentos") { await renderLevantamentos(); return; }
-  await renderOverview();
+  // O assistente é montado depois da secção: cada secção chama `render()`, que
+  // substitui o `#app` inteiro.
+  if (tab === "contas") await renderContas();
+  else if (tab === "lojas") await renderLojas();
+  else if (tab === "modelos") await renderModelos();
+  else if (tab === "transacoes") await renderTransacoes();
+  else if (tab === "levantamentos") await renderLevantamentos();
+  else await renderOverview();
+  mountAiAgent(document.getElementById("app"), { screen: "admin" });
+  return;
 
   /* ------------------------------- Visão geral ------------------------------ */
   /**

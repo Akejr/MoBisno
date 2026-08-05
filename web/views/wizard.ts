@@ -16,6 +16,7 @@ import { LOGO_POLICY } from "../../src/services/fileService.js";
 import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { generateSeoDescription, generateSeoTitle } from "../lib/seoGen.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 import type { Session } from "../../src/services/authService.js";
 
 const ACCENT = "#F95901";
@@ -229,6 +230,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function renderWizard(): void {
   wiz.data = { [WIZARD_FIELDS.templateId]: defaultTemplateId() };
   renderShell();
+  // O robô da criação segue um guião: pergunta e espera resposta. Quem quer saber
+  // o preço ou se pode criar mais do que uma loja não tem onde perguntar — é o
+  // assistente que responde a isso. Desviado do fundo para não tapar o botão de
+  // enviar da conversa.
+  mountAiAgent(document.getElementById("app"), { screen: "criar", bottom: 96 });
   void start();
 }
 

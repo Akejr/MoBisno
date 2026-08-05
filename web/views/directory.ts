@@ -43,6 +43,7 @@ import { mountGlowCards, ensureGlowCardStyle } from "../lib/glowCards.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { getTemplate } from "../templates/registry.js";
 import { storePreviewDoc } from "../lib/storePreviewDoc.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 
 /** Largura do desenho pedido ao modelo. Encolhido depois para caber no cartão. */
 const PREVIEW_WIDTH = 1280;
@@ -345,6 +346,7 @@ export async function renderDirectory(): Promise<void> {
   // «Funcionalidades», «Integrações» e «Preços» vivem na home: navegam para lá e
   // rolam ao chegar.
   mountSectionNav(app);
+  mountAiAgent(app, { screen: "lojas" });
 
   applySeo({
     title: "Lojas Online em Angola — Diretório MôBisno",

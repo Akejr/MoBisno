@@ -1,6 +1,7 @@
 /** Página de início de sessão — cartão dividido com a identidade MôBisno. */
 import { render, $, go, esc, toast } from "../lib/dom.js";
 import { authService, appState } from "../composition.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 
 const ACCENT = "#F95901";
 
@@ -63,6 +64,7 @@ export function renderLogin(): void {
 
   mountDotMap();
   mountInputFocus();
+  mountAiAgent(document.getElementById("app"), { screen: "registo" });
 
   $("#toggle-pass")?.addEventListener("click", () => {
     const input = $("#pass") as HTMLInputElement;

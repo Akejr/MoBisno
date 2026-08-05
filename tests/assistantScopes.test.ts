@@ -78,8 +78,14 @@ describe("Assistente_IA — os cinco âmbitos estão registados (R8.8)", () => {
     expect(ASSISTANT).toMatch(/body\.scope === "logo" \? "logo" : "editor"/);
   });
 
-  it("os cinco prompts são passados como mensagem de sistema", () => {
-    expect(ASSISTANT).toContain('{ role: "system", content: PROMPTS[scope] }');
+  it("o prompt do âmbito chega ao modelo como primeira mensagem de sistema", () => {
+    // Esta asserção era o literal `{ role: "system", content: PROMPTS[scope] }` e
+    // quebrou quando o contexto do ecrã passou a ser anexado ao prompt — sem que
+    // a propriedade protegida (o prompt do âmbito é a mensagem de sistema, antes
+    // de tudo) tenha deixado de ser verdadeira. Afirma-se agora a propriedade:
+    // `system` deriva de `PROMPTS[scope]`, e é `system` que vai na mensagem.
+    expect(ASSISTANT).toMatch(/const system = context[\s\S]{0,400}PROMPTS\[scope\]/);
+    expect(ASSISTANT).toMatch(/messages = \[\s*\{ role: "system", content: system \}/);
   });
 });
 
@@ -205,7 +211,7 @@ describe("Regras de estilo comuns — recusa fora de âmbito (R8.9, R8.10)", () 
 describe("Saudação da página inicial — âmbito site (R8.5)", () => {
   // Única guarda automatizada possível do texto que o utilizador reportou como
   // desatualizado na página inicial: a saudação vive em `web/lib/aiAgent.ts` e
-  // é escolhida por `mountAiAgent(..., { scope: "site" })` em
+  // é escolhida por `mountAiAgent(..., { screen: "site" })` em
   // `web/views/landing.ts`. `web/` não é verificado por tipos, por isso a
   // asserção é sobre a fonte.
   const saudacao = AI_AGENT.split("\n").find((l) => l.includes("Sou o assistente do MôBisno")) ?? "";
@@ -218,5 +224,183 @@ describe("Saudação da página inicial — âmbito site (R8.5)", () => {
   it("fala de um modelo pronto de site e de personalizar textos, fotografias e cores", () => {
     expect(saudacao).toContain("modelo pronto de site");
     expect(saudacao).toContain("personalizas os textos, as fotografias e as cores");
+  });
+});
+
+/* ========================================================================== *
+ * Contexto por ecrã — a regra de `.kiro/steering/assistente.md`
+ *
+ * O defeito que originou estas guardas: o prompt do âmbito `site` dizia «Há
+ * planos diferentes (ver secção de preços na página)» e «No plano Básico, a
+ * venda é por WhatsApp» meses depois de os escalões terem sido removidos. Um
+ * Dono perguntou se com 11.000 Kz podia criar 10 lojas e o assistente mandou-o
+ * consultar uma tabela que já não existe.
+ *
+ * A correcção tem três partes, e cada uma tem guarda aqui: os FACTOS saem do
+ * domínio (nunca escritos à mão), a orientação vive ao lado das vistas
+ * (`web/lib/assistantContext.ts`) e todos os ecrãs com assistente montam-no com
+ * o ecrã certo.
+ * ========================================================================== */
+
+const CONTEXT_SRC = readFileSync(join(ROOT, "web/lib/assistantContext.ts"), "utf8");
+
+/** Corpo do template literal devolvido por `platformFacts()`. */
+function factsLiteral(): string {
+  const fn = CONTEXT_SRC.indexOf("export function platformFacts()");
+  expect(fn, "platformFacts() não encontrada").toBeGreaterThanOrEqual(0);
+  const start = CONTEXT_SRC.indexOf("return `", fn);
+  const end = CONTEXT_SRC.indexOf("`;", start);
+  expect(end).toBeGreaterThan(start);
+  return CONTEXT_SRC.slice(start + "return `".length, end);
+}
+
+/** Ecrãs declarados em `SCREEN_GUIDES` (a fonte de verdade da cobertura). */
+function declaredScreens(): string[] {
+  return [...CONTEXT_SRC.matchAll(/^ {2}(\w+): `ECRÃ/gm)].map((m) => m[1]!);
+}
+
+describe("Factos da plataforma — derivados do domínio, nunca escritos à mão", () => {
+  it("platformFacts() não tem um único número no texto: todos vêm de interpolação", () => {
+    // Um preço escrito à mão fica errado no dia em que o preço mudar, e ninguém
+    // repara — foi exactamente assim que o assistente passou a mentir.
+    const semInterpolacoes = factsLiteral().replace(/\$\{[^}]*\}/g, "");
+    expect(semInterpolacoes).not.toMatch(/\d/);
+  });
+
+  it("os valores vêm de plans.ts e de payments.ts", () => {
+    expect(CONTEXT_SRC).toMatch(/import \{[\s\S]*?\} from "\.\.\/\.\.\/src\/services\/plans\.js"/);
+    expect(CONTEXT_SRC).toMatch(/import \{ FEE_RATE, MIN_PAYMENT_KZ \} from "\.\.\/\.\.\/src\/services\/payments\.js"/);
+    for (const nome of ["PLAN_NAME", "PRICE_KZ", "PERIOD_DAYS", "PLAN_HIGHLIGHTS", "FEE_RATE", "MIN_PAYMENT_KZ"]) {
+      expect(factsLiteral(), `${nome} não é interpolado nos factos`).toContain(nome);
+    }
+    // A poupança anual é calculada, não escrita: sai de `yearlySavingKz()`.
+    expect(CONTEXT_SRC).toContain("yearlySavingKz()");
+    expect(CONTEXT_SRC).toContain("yearlyFreeMonths()");
+  });
+
+  it("responde ao caso concreto: lojas e produtos ilimitados, sem mandar consultar tabela", () => {
+    const facts = factsLiteral();
+    expect(facts).toContain("LOJAS E PRODUTOS SÃO ILIMITADOS");
+    expect(facts).toContain("um só plano");
+    expect(facts).toContain("NÃO existe teste grátis");
+    // Os escalões removidos são nomeados de propósito: é a pergunta que os
+    // utilizadores fazem, e sem isto o modelo inventa-os de volta.
+    expect(facts).toContain("Não existe Básico, Profissional nem Empresarial");
+  });
+});
+
+describe("Prompt do servidor — os factos velhos saíram (o defeito original)", () => {
+  const dois = `${SITE}\n${EDITOR}`;
+
+  it("nenhum âmbito volta a falar de escalões, de teste grátis ou de percentagens à mão", () => {
+    expect(dois).not.toMatch(/plano Básico|Profissional|Empresarial/);
+    expect(dois).not.toMatch(/teste grátis/i);
+    expect(dois).not.toMatch(/planos pagos/);
+    expect(dois).not.toMatch(/\d+\s*%/); // a comissão vem do contexto (FEE_RATE)
+  });
+
+  it("nenhum âmbito manda o utilizador ver a secção de preços", () => {
+    expect(dois).not.toMatch(/secção de preços na página/);
+    expect(dois).not.toMatch(/ver secção de preços/);
+  });
+
+  it("nenhum âmbito tem domínios nem preços escritos à mão", () => {
+    // O apex das lojas é `sualoja.digital` (ver `web/lib/routing.ts`); o prompt
+    // ainda dizia `aloja.mobisno.store`. Os endereços vêm do contexto.
+    expect(dois).not.toContain("aloja.mobisno.store");
+    expect(dois).not.toMatch(/\d[\d .]*Kz/);
+  });
+
+  it("os dois âmbitos de conversa remetem os números para o CONTEXTO", () => {
+    expect(SITE).toContain("ESTÃO NO CONTEXTO");
+    expect(EDITOR).toContain("ESTÃO NO CONTEXTO");
+  });
+
+  it("a regra dura de não mandar procurar está nas regras de estilo", () => {
+    expect(STYLE).toContain("RESPONDE, NÃO MANDES PROCURAR (REGRA DURA)");
+    expect(STYLE).toContain("ILIMITADO");
+    // A excepção legítima: dados da CONTA do utilizador, que o contexto não tem.
+    expect(STYLE).toContain("informação é da CONTA dele");
+  });
+});
+
+describe("Contexto no pedido — só nos âmbitos de conversa e tratado como dados", () => {
+  it("apenas editor e site aceitam contexto; os geradores não", () => {
+    // `seo`, `seotitle` e `logo` devolvem texto com formato fechado: contexto
+    // extra só os desviaria do formato.
+    expect(ASSISTANT).toContain('const chatScope = scope === "editor" || scope === "site"');
+    expect(ASSISTANT).toMatch(/const context = chatScope \? String\(body\.context \|\| ""\)\.slice\(0, \d+\) : "";/);
+  });
+
+  it("as regras vêm primeiro e o contexto depois, rotulado como contexto", () => {
+    const sys = ASSISTANT.slice(ASSISTANT.indexOf("const system = context"));
+    const prompt = sys.indexOf("PROMPTS[scope]");
+    const ctx = sys.indexOf("CONTEXTO (");
+    expect(prompt).toBeGreaterThanOrEqual(0);
+    expect(ctx).toBeGreaterThan(prompt);
+  });
+
+  it("o cliente envia o contexto do ecrã onde está", () => {
+    expect(AI_AGENT).toContain("context: assistantContextFor(screen)");
+    expect(AI_AGENT).toMatch(/import \{[\s\S]*?assistantContextFor[\s\S]*?\} from "\.\/assistantContext\.js"/);
+  });
+});
+
+describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu ecrã", () => {
+  /**
+   * Ecrã → ficheiro da vista que o monta. É esta tabela que faz falhar o
+   * acrescento de um ecrã à orientação sem o montar em lado nenhum (e o
+   * contrário: montar um ecrã que não tem orientação).
+   */
+  const MOUNTED: Record<string, string> = {
+    site: "landing.ts",
+    registo: "login.ts",
+    criar: "wizard.ts",
+    painel: "dashboard.ts",
+    produtos: "dashboard.ts",
+    pagamentos: "dashboard.ts",
+    plano: "dashboard.ts",
+    config: "dashboard.ts",
+    analises: "dashboard.ts",
+    logotipo: "dashboard.ts",
+    editor: "editor.ts",
+    modelos: "presetGallery.ts",
+    lojas: "directory.ts",
+    legal: "legal.ts",
+    admin: "adminPanel.ts",
+  };
+
+  const view = (f: string): string => readFileSync(join(ROOT, "web/views", f), "utf8");
+
+  it("os ecrãs com orientação são exactamente os ecrãs montados", () => {
+    expect(declaredScreens().slice().sort()).toEqual(Object.keys(MOUNTED).sort());
+  });
+
+  it("cada vista monta o assistente e nomeia o seu ecrã", () => {
+    for (const [screen, file] of Object.entries(MOUNTED)) {
+      const src = view(file);
+      expect(src, `${file} não monta o assistente`).toContain("mountAiAgent");
+      expect(src, `${file} não nomeia o ecrã ${screen}`).toContain(`"${screen}"`);
+    }
+  });
+
+  it("os separadores do painel mapeiam para os ecrãs próprios", () => {
+    const dash = view("dashboard.ts");
+    expect(dash).toContain("const DASH_SCREEN: Record<string, AssistantScreen>");
+    for (const [tab, screen] of [
+      ["inicio", "painel"], ["produtos", "produtos"], ["logotipo", "logotipo"],
+      ["analises", "analises"], ["pagamentos", "pagamentos"], ["plano", "plano"],
+      ["config", "config"],
+    ] as const) {
+      expect(dash).toContain(`${tab}: "${screen}"`);
+    }
+  });
+
+  it("as lojas publicadas NÃO têm assistente", () => {
+    // São o site do Dono, vistas pelos clientes dele: um mascote da plataforma
+    // ali é publicidade dentro da loja de outra pessoa.
+    for (const f of ["storefront.ts", "product.ts", "category.ts", "cart.ts", "checkout.ts"]) {
+      expect(view(f), `${f} não devia montar o assistente`).not.toContain("mountAiAgent");
+    }
   });
 });

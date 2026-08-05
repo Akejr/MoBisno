@@ -24,6 +24,8 @@ import { isCurrentUserAdmin } from "../supabase/admin.js";
 import { listStoreReviews, setReviewApproved, deleteReview, type Review } from "../supabase/reviews.js";
 import { getStoreAnalytics } from "../supabase/analytics.js";
 import { LUANDA_AREAS } from "../lib/areas.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
+import type { AssistantScreen } from "../lib/assistantContext.js";
 
 const ACCENT = "#F95901";
 const ACCENT_TINT = "rgba(249,89,1,.1)";
@@ -87,6 +89,21 @@ function navItem(href: string, icon: string, label: string, active: boolean): st
   const cls = active ? "" : "text-gray-500 hover:bg-gray-100 hover:text-gray-900";
   return `<a href="${href}" class="${base} ${cls}" ${style}><span class="material-symbols-outlined">${icon}</span> ${label}</a>`;
 }
+
+/**
+ * Separador do painel → ecrã do assistente. Cada separador tem orientação
+ * própria em `web/lib/assistantContext.ts`; ao acrescentar um separador,
+ * acrescentar aqui e lá (ver `.kiro/steering/assistente.md`).
+ */
+const DASH_SCREEN: Record<string, AssistantScreen> = {
+  inicio: "painel",
+  produtos: "produtos",
+  logotipo: "logotipo",
+  analises: "analises",
+  pagamentos: "pagamentos",
+  plano: "plano",
+  config: "config",
+};
 
 function currentTab(): string {
   const m = location.pathname.match(/^\/painel\/?([a-z]*)/i);
@@ -231,16 +248,22 @@ export async function renderDashboard(): Promise<void> {
     bindShell();
   }
 
-  if (tab === "produtos") { await renderProdutos(); return; }
-  if (tab === "logotipo") { await renderLogotipo(); return; }
-  if (tab === "analises") { await renderAnalises(); return; }
-  if (tab === "plano") { await renderPlano(); return; }
-  if (tab === "pagamentos") { await renderPagamentos(); return; }
-  if (tab === "config") { await renderConfig(); return; }
-
-  // --- Início ---
-  await renderInicio();
+  // O assistente é montado DEPOIS da secção: cada secção chama `render()`, que
+  // substitui o `#app` inteiro e levaria o widget com ele.
+  await renderTab();
+  mountAiAgent(document.getElementById("app"), { screen: DASH_SCREEN[tab] ?? "painel" });
   return;
+
+  /** Despacho do separador. O separador activo já vem realçado do `shell`. */
+  async function renderTab(): Promise<void> {
+    if (tab === "produtos") return renderProdutos();
+    if (tab === "logotipo") return renderLogotipo();
+    if (tab === "analises") return renderAnalises();
+    if (tab === "plano") return renderPlano();
+    if (tab === "pagamentos") return renderPagamentos();
+    if (tab === "config") return renderConfig();
+    return renderInicio();
+  }
 
   async function renderInicio(): Promise<void> {
     showSectionLoading();

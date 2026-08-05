@@ -10,6 +10,7 @@ import { render, esc } from "../lib/dom.js";
 import { applySeo } from "../lib/seo.js";
 import { platformHomeUrl } from "../lib/routing.js";
 import { platformNavHtml, platformFooterHtml, mountSectionNav } from "../templates/platformChrome.js";
+import { mountAiAgent } from "../lib/aiAgent.js";
 
 const ACCENT = "#F95901";
 const UPDATED = "Junho de 2026";
@@ -143,4 +144,5 @@ export function renderLegal(page: LegalPage): void {
   // As ligações de secção do cabeçalho («Preços», etc.) navegam para a home e
   // rolam lá — aqui não existe nenhuma dessas secções.
   mountSectionNav(app);
+  mountAiAgent(app, { screen: "legal" });
 }
