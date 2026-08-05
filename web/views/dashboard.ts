@@ -267,7 +267,7 @@ export async function renderDashboard(): Promise<void> {
     if (!online) {
       render(shell(`${greeting}
         <section class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          ${metric("inventory_2", "Produtos", `${products.length}${Number.isFinite(prodLimit) ? ` / ${prodLimit}` : ""}`)}
+          ${metric("inventory_2", "Produtos", String(products.length))}
           ${metric("storefront", "Estado", published ? "Publicada" : "Não publicada")}
         </section>
         <div class="rounded-3xl border border-gray-200 bg-white p-8 text-center">
@@ -300,7 +300,7 @@ export async function renderDashboard(): Promise<void> {
 
       <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         ${metric("savings", "Recebido (líquido)", formatKz(stats!.netReceived))}
-        ${metric("inventory_2", "Produtos", `${products.length}${Number.isFinite(prodLimit) ? ` / ${prodLimit}` : ""}`)}
+        ${metric("inventory_2", "Produtos", String(products.length))}
         ${metric("schedule", "Referências pendentes", String(stats!.pendingCount))}
       </section>
 
@@ -355,7 +355,7 @@ export async function renderDashboard(): Promise<void> {
   async function renderProdutos(): Promise<void> {
     const list = await productRepository.listByStore(store!.id);
     const atLimit = false; // sem escalões, não há limite de produtos
-    const usage = Number.isFinite(limit) ? `${list.length} / ${limit}` : `${list.length}`;
+    const usage = `${list.length}`;
     const cats = [...new Set(list.map((p) => p.category).filter((c): c is string => !!c))];
 
     const addBtn = atLimit
@@ -835,7 +835,7 @@ export async function renderDashboard(): Promise<void> {
         ? `<div class="rounded-2xl border p-4 mb-4 flex items-start gap-3" style="border-color:${ACCENT_TINT};background:${ACCENT_TINT}">
              <span class="material-symbols-outlined shrink-0" style="color:${ACCENT}">info</span>
              <div class="min-w-0">
-               <p class="text-sm font-bold text-gray-900 mb-0.5">${dataUrls.length} de ${LOGO_PROPOSALS} propostas</p>
+               <p class="text-sm font-bold text-gray-900 mb-0.5">${clean.length} de ${LOGO_PROPOSALS} propostas</p>
                <p class="text-sm text-gray-600">${missing === 1 ? "Uma proposta ficou em falta" : `${missing} propostas ficaram em falta`}. Pode escolher uma das que chegaram ou tentar de novo para ver outras.</p>
                <button id="logo-retry" class="mt-2.5 px-4 py-2 rounded-xl text-sm font-bold inline-flex items-center gap-1.5 border bg-white transition-colors hover:bg-gray-50" style="border-color:${ACCENT};color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">refresh</span> Tentar de novo</button>
              </div>

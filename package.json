@@ -4,11 +4,12 @@
   "description": "Plataforma SaaS multi-inquilino de criação de lojas online (MôBisno)",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsc --noEmit && node scripts/check-web.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "vite --config vite.config.web.ts",
-    "web:build": "vite build --config vite.config.web.ts && node scripts/rename-shell.mjs"
+    "web:build": "vite build --config vite.config.web.ts && node scripts/rename-shell.mjs",
+    "check:web": "node scripts/check-web.mjs"
   },
   "license": "UNLICENSED",
   "private": true,

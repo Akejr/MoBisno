@@ -42,6 +42,8 @@ export interface AdminStore {
   subdomain: string;
   identifier: string;
   templateId: string;
+  /** O dono tem subscrição ativa? Substituiu o escalão do plano. */
+  subscriptionActive: boolean;
   createdAt: string;
   features: StoreFeatures;
 }
