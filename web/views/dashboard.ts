@@ -4,10 +4,10 @@
  * vivem no ecrã "Personalizar".
  */
 import { render, $, go, esc, toast, formatKz, withBusy, withButton, fadeInImages } from "../lib/dom.js";
-import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerBilling, countPublishedStores, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
+import { appState, currentOwnerId, logout, storeRepository, productRepository, adminPanelFor, getOwnerBilling, publicStoreUrl, deleteStore, setStoreState, getOwnerName } from "../composition.js";
 import { openProductForm } from "../lib/productForm.js";
 import { PRICE_KZ, BILLING_PERIODS, PERIOD_LABEL, PLAN_HIGHLIGHTS, yearlySavingKz, type BillingPeriod } from "../../src/services/plans.js";
-import { PLAN_PERIOD_DAYS, type BillingState } from "../../src/services/billing.js";
+import type { BillingState } from "../../src/services/billing.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { getPaymentConfig, savePaymentConfig, getOrderStats, listOrders, orderEffectiveStatus, type PaymentConfig, type OrderRow } from "../supabase/payments.js";
 import { listWithdrawals, committedWithdrawals, requestWithdrawal, type WithdrawalRow } from "../supabase/withdrawals.js";

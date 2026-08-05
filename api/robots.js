@@ -27,6 +27,8 @@ export default function handler(req, res) {
     "Disallow: /carrinho",
     "Disallow: /checkout",
     "Disallow: /preview",
+    // Pré-visualização privada da loja por publicar: nunca deve ser rastreada.
+    "Disallow: /previsualizar",
     "Disallow: /teste-modelos",
     "Disallow: /api/",
     // Shell da SPA (sem conteúdo). Servido em /app.html para que a raiz "/"

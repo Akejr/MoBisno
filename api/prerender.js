@@ -379,10 +379,11 @@ const PLATFORM_PAGES = {
         "Endereço próprio em nomedaloja.sualoja.digital, ou domínio próprio",
         "SEO otimizado, códigos de desconto, gestão de stock e avaliações",
       ] },
-      { title: "Planos", items: [
-        "Básico — 5.000 Kz/mês: 1 loja publicada, 100 produtos, checkout por WhatsApp",
-        "Profissional — 11.000 Kz/mês: 3 lojas, produtos ilimitados, Multicaixa Express e referência bancária, domínio próprio",
-        "Empresarial — 25.000 Kz/mês: lojas ilimitadas, gestor dedicado, integrações à medida",
+      { title: "Preço", items: [
+        "11.000 Kz por mês, ou 120.000 Kz por ano (poupa 12.000 Kz)",
+        "Um preço único, sem escalões: lojas e produtos ilimitados",
+        "Multicaixa Express, Referência Bancária e WhatsApp incluídos",
+        "Criar a loja e vê-la é grátis; a subscrição serve para a publicar",
       ] },
       { title: "Perguntas frequentes", text: PLATFORM_FAQ.map((f) => `${f.question} ${f.answer}`).join(" ") },
     ],
@@ -418,8 +419,25 @@ const PLATFORM_PAGES = {
   },
 };
 
+/**
+ * Caminhos da aplicação que existem mas não são para indexar: painel, login,
+ * assistente, editor, administração e pré-visualização privada.
+ *
+ * Existem para o estado da resposta ser honesto. Sem isto devolviam **404**,
+ * porque só as páginas públicas estavam na lista — o dono abria a
+ * pré-visualização da sua loja e recebia um «não encontrado» com a página lá
+ * dentro. O `noindex` continua a ser posto por `renderPlatform`, por isso não
+ * há risco de passarem a ser indexadas.
+ */
+const PLATFORM_APP_PREFIXES = [
+  "/login", "/criar", "/painel", "/personalizar", "/adminpainel",
+  "/previsualizar", "/modelos", "/teste-modelos", "/preview",
+];
+
 function isKnownPlatformPath(path) {
-  return Object.prototype.hasOwnProperty.call(PLATFORM_PAGES, path) || path === "/lojas";
+  if (Object.prototype.hasOwnProperty.call(PLATFORM_PAGES, path) || path === "/lojas") return true;
+  const p = path.toLowerCase();
+  return PLATFORM_APP_PREFIXES.some((prefixo) => p === prefixo || p.startsWith(`${prefixo}/`));
 }
 
 /** HTML de uma página da plataforma (`mobisno.store`). */

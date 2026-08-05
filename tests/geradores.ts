@@ -522,8 +522,8 @@ const nomePlausivelArb: fc.Arbitrary<string | null> = fc.oneof(
   { arbitrary: fc.constantFrom<(string | null)[]>(null, "", "  "), weight: 2 },
 );
 
-/** A parte da conta que decide plano, teste e exclusão do R7.8. */
-type PerfilDeConta = Pick<AccountLike, "isAdmin" | "plan" | "planExpiresAt" | "nextPlan" | "trialEndsAt">;
+/** A parte da conta que decide a subscrição e a exclusão do R7.8. */
+type PerfilDeConta = Pick<AccountLike, "isAdmin" | "planExpiresAt">;
 
 /**
  * Perfis de conta, um por estado que `resolveBilling` distingue, para que as
@@ -531,14 +531,17 @@ type PerfilDeConta = Pick<AccountLike, "isAdmin" | "plan" | "planExpiresAt" | "n
  *
  *  - **Administrador** — a exclusão do R7.8. Sem contas destas não se testa
  *    nada: é a fração de amostras em que a Propriedade 5 tem trabalho a fazer;
- *  - **assinatura em vigor** e **atribuição permanente** — as duas formas de
- *    contar em «assinaturas ativas»;
- *  - **teste a expirar** — `trialEndsAt` dentro da janela de
+ *  - **subscrição em vigor** — conta em «subscrições ativas»;
+ *  - **subscrição a expirar** — dentro da janela de
  *    {@link ATTENTION_WINDOW_DAYS} dias; alimenta a métrica e a lista, que
  *    partilham critério;
- *  - **teste longo** — fora da janela: conta como teste, não como aviso;
- *  - **expirada** e **básica** — `suspended`, que é a sexta métrica;
- *  - **dados sujos** — plano que não existe no catálogo e datas ilegíveis.
+ *  - **subscrição com folga** — fora da janela: ativa, mas sem aviso;
+ *  - **caducada** e **nunca pagou** — `suspended`;
+ *  - **dados sujos** — datas ilegíveis.
+ *
+ * Os escalões e o teste grátis saíram destes geradores com a mudança para preço
+ * único: gerar `plan`, `nextPlan` ou `trialEndsAt` produziria estados que
+ * nenhuma parte do sistema volta a escrever.
  */
 function perfilDeContaArb(nowMs: number): fc.Arbitrary<PerfilDeConta> {
   const futuro = (dias: number): string => iso(nowMs + dias * DIA_MS);
@@ -550,89 +553,49 @@ function perfilDeContaArb(nowMs: number): fc.Arbitrary<PerfilDeConta> {
       // Administrador: excluído de todas as agregações (R7.8).
       arbitrary: fc.record<PerfilDeConta>({
         isAdmin: fc.constant(true),
-        plan: fc.constantFrom("empresarial", "basico"),
-        planExpiresAt: fc.constant(null),
-        nextPlan: fc.constant(null),
-        trialEndsAt: fc.oneof(fc.constant(null), fc.integer({ min: 1, max: 5 }).map(futuro)),
+        planExpiresAt: fc.oneof(fc.constant(null), fc.integer({ min: 1, max: 5 }).map(futuro)),
       }),
       weight: 4,
     },
     {
-      // Assinatura paga em vigor (plano temporizado com data no futuro).
+      // Subscrição em vigor, com folga: ativa, sem entrar no aviso.
       arbitrary: fc.record<PerfilDeConta>({
         isAdmin: semAdmin,
-        plan: fc.constantFrom("profissional", "empresarial"),
-        planExpiresAt: fc.integer({ min: 1, max: 60 }).map(futuro),
-        nextPlan: fc.constantFrom<(string | null)[]>(null, "empresarial", "profissional"),
-        trialEndsAt: fc.constant(null),
+        planExpiresAt: fc.integer({ min: ATTENTION_WINDOW_DAYS + 1, max: 60 }).map(futuro),
       }),
       weight: 4,
     },
     {
-      // Atribuição permanente: plano pago sem data de expiração.
+      // Subscrição a terminar dentro da janela de aviso.
       arbitrary: fc.record<PerfilDeConta>({
         isAdmin: semAdmin,
-        plan: fc.constantFrom("profissional", "empresarial"),
-        planExpiresAt: fc.constant(null),
-        nextPlan: fc.constant(null),
-        trialEndsAt: fc.constant(null),
-      }),
-      weight: 2,
-    },
-    {
-      // Teste grátis a terminar dentro da janela de aviso.
-      arbitrary: fc.record<PerfilDeConta>({
-        isAdmin: semAdmin,
-        plan: fc.constantFrom("basico", "profissional"),
-        planExpiresAt: fc.constant(null),
-        nextPlan: fc.constant(null),
-        trialEndsAt: fc
+        planExpiresAt: fc
           .integer({ min: 1, max: ATTENTION_WINDOW_DAYS * 24 })
           .map((horas) => iso(nowMs + horas * HORA_MS)),
       }),
       weight: 4,
     },
     {
-      // Teste grátis com folga: conta como teste, não como aviso.
+      // Subscrição caducada: Loja suspensa.
       arbitrary: fc.record<PerfilDeConta>({
         isAdmin: semAdmin,
-        plan: fc.constant("basico"),
-        planExpiresAt: fc.constant(null),
-        nextPlan: fc.constant(null),
-        trialEndsAt: fc.integer({ min: ATTENTION_WINDOW_DAYS + 1, max: 60 }).map(futuro),
-      }),
-      weight: 2,
-    },
-    {
-      // Assinatura expirada, sem teste ativo: Loja suspensa.
-      arbitrary: fc.record<PerfilDeConta>({
-        isAdmin: semAdmin,
-        plan: fc.constantFrom("profissional", "empresarial"),
         planExpiresAt: fc.integer({ min: 1, max: 120 }).map(passado),
-        nextPlan: fc.constant(null),
-        trialEndsAt: fc.oneof(fc.constant(null), fc.integer({ min: 1, max: 120 }).map(passado)),
       }),
       weight: 3,
     },
     {
-      // Conta básica sem teste: também suspensa (sem acesso ativo).
+      // Nunca pagou: também suspensa, mas não «caducada».
       arbitrary: fc.record<PerfilDeConta>({
         isAdmin: semAdmin,
-        plan: fc.constant("basico"),
         planExpiresAt: fc.constant(null),
-        nextPlan: fc.constant(null),
-        trialEndsAt: fc.constant(null),
       }),
       weight: 2,
     },
     {
-      // Dados sujos: plano fora do catálogo e datas ilegíveis.
+      // Dados sujos: datas ilegíveis.
       arbitrary: fc.record<PerfilDeConta>({
         isAdmin: semAdmin,
-        plan: fc.constantFrom<(string | null)[]>("premium", "", null, "PROFISSIONAL"),
         planExpiresAt: fc.oneof(dataInvalidaArb, fc.constant(null)),
-        nextPlan: fc.constantFrom<(string | null)[]>(null, "premium"),
-        trialEndsAt: fc.oneof(dataInvalidaArb, fc.constant(null)),
       }),
       weight: 2,
     },

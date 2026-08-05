@@ -157,7 +157,6 @@ describe("attentionLists — nada por resolver dá cinco listas vazias (R7.6)", 
       {
         id: "conta-paga",
         email: "dina@exemplo.ao",
-        plan: "profissional",
         planExpiresAt: "2025-03-01T00:00:00.000Z",
         createdAt: "2024-11-01T00:00:00.000Z",
       },
@@ -386,7 +385,7 @@ describe("exclusão de contas de Administrador e de Loja_Modelo (R7.8)", () => {
   it("nenhuma das duas entra em lista nenhuma", () => {
     const listas = attentionLists({
       now: AGORA,
-      accounts: [{ id: "admin-1", email: "admin@mobisno.ao", isAdmin: true, trialEndsAt: "2025-01-17T12:00:00.000Z" }],
+      accounts: [{ id: "admin-1", email: "admin@mobisno.ao", isAdmin: true, planExpiresAt: "2025-01-17T12:00:00.000Z" }],
       stores: [
         { id: "modelo-1", name: "Ekolo Sports (modelo)", state: "Rascunho", customization: { __template: { name: "Ekolo Sports" } } },
       ],
@@ -461,7 +460,7 @@ describe("overviewCounts — totais globais sem Loja_Modelo e sem contas de Admi
   const instantaneo: AdminMetricsInput = {
     now: AGORA,
     accounts: [
-      { id: "conta-cliente", email: "ivo@exemplo.ao", plan: "basico", createdAt: "2024-12-01T00:00:00.000Z" },
+      { id: "conta-cliente", email: "ivo@exemplo.ao", createdAt: "2024-12-01T00:00:00.000Z" },
       // Conta de Administrador: não é cliente e não entra em `accounts`.
       { id: "admin-1", email: "admin@mobisno.ao", isAdmin: true, createdAt: "2024-01-01T00:00:00.000Z" },
     ],

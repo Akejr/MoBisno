@@ -103,13 +103,6 @@ export async function logout(): Promise<void> {
   appState.templateId = null;
 }
 
-/** Marca uma Loja como Publicada (ao finalizar o assistente). */
-export async function publishStore(ownerId: string, storeId: string): Promise<boolean> {
-  const owned = await storeRepository.findByIdForOwner(ownerId, storeId);
-  if (owned === null) return false;
-  const res = await storeRepository.update(ownerId, { ...owned, state: "Publicada" });
-  return res.ok;
-}
 
 /** Define o estado de uma Loja ("Publicada" ou "Rascunho"). */
 export async function setStoreState(
@@ -157,11 +150,6 @@ export async function ownerCanPublish(ownerId?: string | null): Promise<boolean>
   return (await getOwnerBilling(ownerId)).accessActive;
 }
 
-/** Conta as lojas do Dono que estão no estado "Publicada". */
-export async function countPublishedStores(ownerId: string): Promise<number> {
-  const stores = await storeRepository.listByOwner(ownerId);
-  return stores.filter((s) => s.state === "Publicada").length;
-}
 
 /**
  * Apaga uma Loja do Dono autenticado, permanentemente. A remoção da linha em

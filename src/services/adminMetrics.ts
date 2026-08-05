@@ -77,23 +77,23 @@ export const ADMIN_HREFS = {
 export type Instant = number | string | Date | null | undefined;
 
 /**
- * Conta da Plataforma. Forma mínima de `AdminAccount` de `web/supabase/admin.ts`,
- * incluindo `trialEndsAt` (coluna `profiles.trial_ends_at`, acrescentada ao
- * `select` de `listAccounts()` pela tarefa 12.2): sem ela não há «contas em teste
- * a expirar» nem conversão de teste para pago.
+ * Conta da Plataforma. Forma mínima de `AdminAccount` de `web/supabase/admin.ts`.
+ *
+ * `planExpiresAt` é o único campo de subscrição que existe: é dele que sai
+ * «subscrições ativas» e «a expirar». Os campos `plan`, `nextPlan` e
+ * `trialEndsAt` foram removidos com os escalões e o teste grátis — mantê-los
+ * declarados convidava a apoiar-se em dados que já ninguém escreve, que foi
+ * exactamente a origem da avaria do plano vitalício.
  */
 export interface AccountLike {
   readonly id: string;
   readonly email?: string | null | undefined;
   readonly name?: string | null | undefined;
-  readonly plan?: string | null | undefined;
   /** Conta de Administrador: excluída de todas as agregações (R7.8). */
   readonly isAdmin?: boolean | undefined;
   readonly createdAt?: string | null | undefined;
+  /** Fim da subscrição paga (ISO) ou `null`. */
   readonly planExpiresAt?: string | null | undefined;
-  readonly nextPlan?: string | null | undefined;
-  /** Fim do teste grátis (ISO) ou `null`. */
-  readonly trialEndsAt?: string | null | undefined;
   readonly storeCount?: number | undefined;
 }
 
