@@ -9,6 +9,7 @@
 import { render, esc } from "../lib/dom.js";
 import { applySeo } from "../lib/seo.js";
 import { platformHomeUrl } from "../lib/routing.js";
+import { platformNavHtml, platformFooterHtml, mountSectionNav } from "../templates/platformChrome.js";
 
 const ACCENT = "#F95901";
 const UPDATED = "Junho de 2026";
@@ -119,21 +120,27 @@ export function renderLegal(page: LegalPage): void {
   const links = (["termos", "privacidade", "politica"] as LegalPage[]).map((p) =>
     `<a href="/${p}" class="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors" style="${p === page ? `background:rgba(249,89,1,.1);color:${ACCENT}` : "color:#6b7280"}">${esc(PAGES[p].title)}</a>`).join("");
 
-  render(`
-  <div class="min-h-screen bg-gray-50 font-sans text-gray-900">
-    <header class="bg-white border-b border-gray-100 sticky top-0 z-40">
-      <div class="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
-        <a href="${esc(home)}" class="flex items-center gap-2"><img src="/logo-header.png" alt="MôBisno" style="height:24px" class="w-auto object-contain" /></a>
-        <a href="${esc(home)}" class="text-sm font-semibold text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">arrow_back</span> Voltar</a>
+  // Cabeçalho e rodapé da plataforma, os mesmos de todas as outras páginas.
+  // Antes estas três páginas tinham um cabeçalho mínimo próprio e rodapé nenhum:
+  // quem chegava a partir do Google aterrava num texto solto, sem saída nem
+  // sinal de onde estava.
+  const app = render(`
+  <div class="min-h-screen flex flex-col font-sans text-gray-900" style="background:linear-gradient(180deg,#ffffff 0%,#ffffff 60%,#f7f7f8 100%)">
+    ${platformNavHtml()}
+    <main class="flex-grow">
+      <div class="max-w-3xl mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-16">
+        <a href="${esc(home)}" class="text-sm font-semibold text-gray-500 hover:text-gray-900 inline-flex items-center gap-1 mb-6"><span class="material-symbols-outlined text-[18px]">arrow_back</span> Voltar ao início</a>
+        <h1 class="text-3xl md:text-5xl font-black tracking-tight leading-[1.08]">${esc(data.title)}</h1>
+        <p class="text-lg text-gray-600 mt-4">${esc(data.intro)}</p>
+        <p class="text-xs text-gray-400 mt-2">Última atualização: ${esc(UPDATED)}</p>
+        <div class="flex flex-wrap gap-1.5 mt-6 mb-9 border-b border-gray-100 pb-5">${links}</div>
+        ${body}
+        <p class="text-xs text-gray-400 mt-10 border-t border-gray-100 pt-5">Este documento é um modelo informativo e não constitui aconselhamento jurídico. Recomenda-se revisão por um profissional de direito.</p>
       </div>
-    </header>
-    <main class="max-w-3xl mx-auto px-5 py-10">
-      <h1 class="text-3xl md:text-4xl font-black tracking-tight">${esc(data.title)}</h1>
-      <p class="text-gray-500 mt-2">${esc(data.intro)}</p>
-      <p class="text-xs text-gray-400 mt-1">Última atualização: ${esc(UPDATED)}</p>
-      <div class="flex flex-wrap gap-1.5 mt-5 mb-8 border-b border-gray-100 pb-5">${links}</div>
-      ${body}
-      <p class="text-xs text-gray-400 mt-10 border-t border-gray-100 pt-5">Este documento é um modelo informativo e não constitui aconselhamento jurídico. Recomenda-se revisão por um profissional de direito.</p>
     </main>
+    ${platformFooterHtml()}
   </div>`);
+  // As ligações de secção do cabeçalho («Preços», etc.) navegam para a home e
+  // rolam lá — aqui não existe nenhuma dessas secções.
+  mountSectionNav(app);
 }

@@ -491,10 +491,15 @@ async function renderDirectory(shell, db) {
   const canonical = `${baseUrl}/lojas`;
   let stores = [];
   if (db) {
+    // `tpl` é `customization.__template`, extraído na consulta: presente ⇒
+    // Loja_Modelo. As demonstrações dos modelos ficam **fora** do diretório —
+    // são conteúdo fino e quase duplicado entre si, e diluíam a página que
+    // existe para dar autoridade às lojas dos clientes (`SEO.md` §7.2). Extrair
+    // só a chave evita trazer a Personalização inteira de até 500 lojas.
     const { data } = await db
-      .from("stores").select("name, identifier, store_type, state")
+      .from("stores").select("name, identifier, store_type, state, tpl:customization->__template")
       .eq("state", "Publicada").order("created_at", { ascending: false }).limit(500);
-    stores = data || [];
+    stores = (data || []).filter((s) => s.tpl === undefined || s.tpl === null || s.tpl === false);
   }
 
   const title = "Lojas Online em Angola — Diretório MôBisno";

@@ -1,4 +1,6 @@
 /** Página inicial — hero com "image accordion" interativo + CTAs dinâmicos. */
+import { platformNavHtml, mountSectionNav, consumePendingSection, scrollToSection } from "../templates/platformChrome.js";
+import { mountGlowCards } from "../lib/glowCards.js";
 import { render, $, go, esc } from "../lib/dom.js";
 import { currentOwnerId } from "../composition.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
@@ -30,14 +32,20 @@ const CAP_BASE = "absolute text-white text-base font-semibold whitespace-nowrap 
 export async function renderLanding(): Promise<void> {
   const loggedIn = (await currentOwnerId()) !== null;
 
+  // `whitespace-nowrap` e `shrink-0` são o que impede o rótulo de partir em duas
+  // linhas no telemóvel — sem eles «Abrir Painel» virava um quadrado alto. O
+  // rótulo encurta abaixo de `sm` em vez de a caixa encolher.
   const navActions = loggedIn
-    ? `<button id="cta-painel" class="text-white px-5 py-2 rounded-lg text-label-md font-bold transition-all active:scale-95 flex items-center gap-1" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">dashboard</span> Abrir Painel</button>`
-    : `<button id="cta-login" class="text-gray-700 hover:text-gray-900 px-4 py-2 rounded-lg text-label-md transition-colors">Login</button>
-       <button id="cta-nav" class="text-white px-5 py-2 rounded-lg text-label-md font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar minha loja</button>`;
+    ? `<button id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">dashboard</span><span class="hidden sm:inline">Abrir </span>Painel</button>`
+    : `<button id="cta-login" class="hidden sm:inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg text-sm transition-colors">Login</button>
+       <button id="cta-nav" class="inline-flex items-center whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline"> minha</span> loja</button>`;
 
+  // `justify-center` em cada botão: no telemóvel a coluna já não os estica à
+  // largura toda, mas o `inline-flex` sem alinhamento deixava o rótulo encostado
+  // à esquerda assim que a caixa fosse maior do que o conteúdo.
   const heroActions = loggedIn
-    ? `<button id="cta-hero-painel" class="inline-flex items-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">dashboard</span> Abrir Painel</button>`
-    : `<button id="cta-hero" class="inline-flex items-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
+    ? `<button id="cta-hero-painel" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">dashboard</span> Abrir Painel</button>`
+    : `<button id="cta-hero" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
        <button id="cta-hero-login" class="inline-flex items-center justify-center border border-gray-300 text-gray-800 font-semibold px-8 py-3 rounded-lg hover:bg-gray-50 transition-colors">Já tenho conta</button>`;
 
   const accordion = accordionItems.map((it, idx) => `
@@ -49,23 +57,32 @@ export async function renderLanding(): Promise<void> {
 
   render(`
   <div class="min-h-screen flex flex-col bg-white font-sans text-gray-900">
-    <nav class="bg-white/90 backdrop-blur sticky top-0 border-b border-gray-100 z-50">
-      <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
-        <div class="flex items-center gap-2 cursor-pointer" id="brand">
+    ${platformNavHtml({
+      // A marca da landing tem manipulador próprio (`#brand`), por isso não é a
+      // ligação `<a href="/">` que as outras páginas usam.
+      brandHtml: `<div class="flex items-center gap-2 cursor-pointer" id="brand">
           <img id="brand-logo" src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:24px" />
-        </div>
-        <div class="flex items-center gap-2 sm:gap-3">${navActions}</div>
-      </div>
-    </nav>
+        </div>`,
+      actionsHtml: navActions,
+    })}
 
     <main class="flex-grow flex flex-col">
       <!-- Hero com image accordion -->
       <section class="max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 md:py-20">
         <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
           <div class="w-full lg:w-1/2 text-center lg:text-left">
-            <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Crie a sua loja<br/>online em minutos</h1>
+            <!-- O texto completo fica no HTML de propósito: e o que o Google le e
+                 o que aparece se o JavaScript nao correr. A maquina de escrever
+                 apaga-o e reescreve-o, e por isso um enriquecimento e nao a
+                 fonte. Sem acentos graves neste comentario: vive dentro de um
+                 template literal. -->
+            <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
             <p class="mt-6 text-lg text-gray-600 max-w-xl lg:w-[30rem] mx-auto lg:mx-0">Escolha um modelo, adicione os seus produtos e personalize tudo ao seu gosto. Tenha uma loja profissional, com endereço próprio, pronta a receber clientes e a vender.</p>
-            <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">${heroActions}</div>
+            <!-- items-center evita que a coluna do telemovel estique os botoes a
+                 largura toda: em flex-col o alinhamento por omissao e stretch. Em
+                 linha, no computador, passa a centrar na vertical, que e o que se
+                 quer de qualquer forma. -->
+            <div class="mt-8 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">${heroActions}</div>
           </div>
 
           <div class="w-full lg:w-1/2">
@@ -77,7 +94,12 @@ export async function renderLanding(): Promise<void> {
       </section>
 
       <!-- Funcionalidades (bento grid com brilho que segue o rato) -->
-      <section class="w-full bg-gray-100 py-14 border-t border-gray-100">
+      <!-- Os identificadores das secções são o destino das ligações do
+           cabeçalho (HOME_SECTIONS em templates/platformChrome.ts). Ao renomear
+           um, renomear lá também. O scroll-mt-20 impede a barra fixa de tapar o
+           título. Sem acentos graves aqui: este comentário vive dentro de um
+           template literal e fechá-lo-iam. -->
+      <section id="funcionalidades" class="scroll-mt-20 w-full bg-gray-100 py-14 border-t border-gray-100">
         <div class="max-w-5xl mx-auto px-margin-mobile md:px-margin-desktop">
           <div class="text-center max-w-2xl mx-auto mb-8">
             <h2 class="text-3xl md:text-4xl font-black tracking-tight">Tudo o que precisa para vender</h2>
@@ -96,7 +118,7 @@ export async function renderLanding(): Promise<void> {
       </section>
 
       <!-- Integrações (órbita semicircular) -->
-      <section class="w-full bg-white py-16 border-t border-gray-100 overflow-hidden">
+      <section id="integracoes" class="scroll-mt-20 w-full bg-white py-16 border-t border-gray-100 overflow-hidden">
         <div class="max-w-5xl mx-auto px-margin-mobile md:px-margin-desktop text-center">
           <h2 class="text-3xl md:text-4xl font-black tracking-tight">Integrações</h2>
           <p class="text-gray-600 mt-3 max-w-2xl mx-auto">A sua loja conectada a vários serviços de forma automática.</p>
@@ -105,7 +127,7 @@ export async function renderLanding(): Promise<void> {
       </section>
 
       <!-- Preços -->
-      <section class="w-full bg-white py-16 border-t border-gray-100">
+      <section id="precos" class="scroll-mt-20 w-full bg-white py-16 border-t border-gray-100">
         <div class="max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop">
           <div class="text-center max-w-2xl mx-auto">
             <h2 class="text-3xl md:text-5xl font-black tracking-tight">Um preço. Tudo incluído.</h2>
@@ -219,6 +241,14 @@ export async function renderLanding(): Promise<void> {
   $("#cta-hero-painel")?.addEventListener("click", () => go("#/painel"));
 
   mountBento();
+  mountTypewriter();
+  mountSectionNav();
+  // Chegámos aqui por um clique numa secção feito noutra página: o destino ficou
+  // guardado e é agora que existe algo para onde rolar. `requestAnimationFrame`
+  // dá um frame ao layout — sem isso a posição é calculada antes de as secções
+  // terem altura, e a página fica a meio.
+  const pending = consumePendingSection();
+  if (pending) requestAnimationFrame(() => scrollToSection(pending));
   mountIntegrations();
   mountAiAgent(document.getElementById("app"), { scope: "site" });
   applyPlatformSeo();
@@ -313,27 +343,91 @@ function bento(o: { span?: string; icon?: string; title: string; body: string; b
   </div>`;
 }
 
-/** Estilos + brilho que segue o rato nos cartões do bento. */
+/**
+ * Estilos + brilho que segue o rato nos cartões do bento.
+ *
+ * A implementação saiu para `web/lib/glowCards.ts` quando o diretório de lojas
+ * passou a usar o mesmo efeito — duas cópias do CSS com o mesmo `id` de folha
+ * faziam a segunda ser ignorada sem nada falhar.
+ */
 function mountBento(): void {
-  if (!document.getElementById("mb-bento-style")) {
+  mountGlowCards();
+}
+
+/**
+ * Milissegundos por carácter.
+ *
+ * A 55 ms as dez letras entravam em pouco mais de meio segundo e o efeito passava
+ * despercebido — dava a sensação de o texto aparecer de repente, não de estar a
+ * ser escrito. A 130 ms a frase leva cerca de 1,3 s, que é o ritmo a que se lê
+ * alguém a escrever.
+ */
+const TYPE_SPEED_MS = 130;
+
+/**
+ * Escreve `[data-typed]` letra a letra, como se estivesse a ser digitado.
+ *
+ * ## O texto verdadeiro está no HTML
+ *
+ * O elemento chega com o texto completo, e é essa a versão que o Google lê, que
+ * um leitor de ecrã anuncia e que aparece se o JavaScript não correr. Esta função
+ * guarda-o, esvazia o elemento e reescreve-o — é enriquecimento, nunca a fonte.
+ * Foi o mesmo princípio que a página pré-renderizada nos ensinou: conteúdo que só
+ * existe depois do JavaScript é conteúdo que o motor de busca pode não ver.
+ *
+ * ## Porque é que o texto cresce sem empurrar nada
+ *
+ * «em minutos» é o **último** elemento do título, por isso pode crescer com as
+ * letras sem reposicionar mais nada. Se algum dia deixar de ser o último, é
+ * preciso reservar a largura final à partida — senão o resto da linha salta a
+ * cada carácter.
+ *
+ * A segunda linha inteira («online em minutos») está envolvida num
+ * `whitespace-nowrap` para o navegador não a poder partir a meio enquanto o texto
+ * é escrito.
+ *
+ * O cursor herda a cor do elemento (`currentColor`), por isso acompanha o laranja
+ * do texto sem precisar de ser configurado à parte.
+ */
+function mountTypewriter(): void {
+  if (!document.getElementById("mb-type-style")) {
     const st = document.createElement("style");
-    st.id = "mb-bento-style";
+    st.id = "mb-type-style";
+    // Cursor rectangular com piscar em degraus (`steps`), não uma pulsação suave:
+    // um cursor de texto acende e apaga, não desvanece.
     st.textContent =
-      ".mb-bento{display:grid;grid-template-columns:repeat(1,1fr);gap:1rem}" +
-      "@media(min-width:768px){.mb-bento{grid-template-columns:repeat(3,1fr);grid-auto-rows:minmax(112px,auto)}}" +
-      ".bento-item{position:relative;background:#f9fafb;border:1px solid #e9e9e9;border-radius:1rem;padding:1.25rem 1.35rem;overflow:hidden;transition:border-color .3s ease,box-shadow .3s ease}" +
-      ".bento-item::before{content:'';position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity .3s ease;background:radial-gradient(450px circle at var(--mouse-x,50%) var(--mouse-y,50%),rgba(249,89,1,.12),transparent 42%);pointer-events:none;z-index:0}" +
-      ".bento-item:hover{border-color:rgba(249,89,1,.45);box-shadow:0 16px 40px -18px rgba(249,89,1,.35)}" +
-      ".bento-item:hover::before{opacity:1}" +
-      ".bento-item>*{position:relative;z-index:1}" +
-      "@media(min-width:768px){.bento-col-2{grid-column:span 2}.bento-row-2{grid-row:span 2}}";
+      ".mb-caret{display:inline-block;width:.5ch;height:.86em;vertical-align:-.06em;margin-left:.06em;background:currentColor}"
+      + "@media(prefers-reduced-motion:no-preference){.mb-caret{animation:mb-blink 1s steps(1,end) infinite}"
+      + "@keyframes mb-blink{0%,50%{opacity:1}50.01%,100%{opacity:0}}}";
     document.head.appendChild(st);
   }
-  document.querySelectorAll<HTMLElement>(".bento-item").forEach((item) => {
-    item.addEventListener("mousemove", (e) => {
-      const r = item.getBoundingClientRect();
-      item.style.setProperty("--mouse-x", `${(e as MouseEvent).clientX - r.left}px`);
-      item.style.setProperty("--mouse-y", `${(e as MouseEvent).clientY - r.top}px`);
-    });
-  });
+
+  const el = $("[data-typed]");
+  if (!el) return;
+  const full = el.textContent ?? "";
+  if (!full) return;
+
+  // Quem pediu menos movimento fica com o texto completo, sem cursor.
+  if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const caret = document.createElement("span");
+  caret.className = "mb-caret";
+  caret.setAttribute("aria-hidden", "true");
+
+  // `aria-label` mantém o nome acessível completo enquanto o conteúdo visível
+  // está a ser construído; sem isso um leitor de ecrã leria texto a meio.
+  el.setAttribute("aria-label", full);
+  el.textContent = "";
+  el.appendChild(caret);
+
+  let i = 0;
+  const step = (): void => {
+    // A vista pode ter sido substituída a meio (navegação): sem isto o temporizador
+    // continuava a escrever num nó que já não está na página.
+    if (!el.isConnected) return;
+    i += 1;
+    caret.before(document.createTextNode(full.charAt(i - 1)));
+    if (i < full.length) window.setTimeout(step, TYPE_SPEED_MS);
+  };
+  window.setTimeout(step, 320); // deixa o hero assentar antes de começar
 }

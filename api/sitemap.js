@@ -123,8 +123,16 @@ export default async function handler(req, res) {
     if (isStoreApex(host)) {
       const locs = [];
       if (db) {
-        const { data: stores } = await db.from("stores").select("identifier, state").eq("state", "Publicada");
-        for (const s of stores || []) locs.push(`https://${s.identifier}.${STORE_APEX}/sitemap.xml`);
+        // Mesma exclusão do diretório `/lojas`: `tpl` é `customization.__template`,
+        // presente ⇒ Loja_Modelo. Anunciar as demonstrações dos modelos ao Google
+        // é o mesmo defeito por outra porta (`SEO.md` §7.2).
+        const { data: stores } = await db
+          .from("stores").select("identifier, state, tpl:customization->__template")
+          .eq("state", "Publicada");
+        for (const s of stores || []) {
+          if (!(s.tpl === undefined || s.tpl === null || s.tpl === false)) continue;
+          locs.push(`https://${s.identifier}.${STORE_APEX}/sitemap.xml`);
+        }
       }
       res.statusCode = 200;
       return res.end(locs.length ? sitemapIndex(locs) : urlset([{ loc: `https://${STORE_APEX}/` }]));

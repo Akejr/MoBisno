@@ -101,9 +101,28 @@ function emptyState(icon: string, message: string, actions: string): string {
   </div>`;
 }
 
+/** Indicador de espera, usado no arranque do painel e em cada secção. */
+const SPINNER = `<div class="flex items-center justify-center py-20"><span class="material-symbols-outlined animate-spin text-gray-300" style="font-size:40px">progress_activity</span></div>`;
+
+/**
+ * Primeiro pixel do painel, pintado **antes** de qualquer consulta.
+ *
+ * O painel é um pedaço separado do pacote (`import()` em `web/main.ts`), por isso
+ * entre o clique em «Painel» e o primeiro render há o download desse pedaço mais
+ * as consultas ao Supabase. Sem isto o ecrã fica na página anterior e o Dono
+ * conclui que o clique não funcionou — e clica outra vez.
+ */
+function bootPanel(): string {
+  return `<div class="min-h-screen w-full flex items-center justify-center bg-gray-50">${SPINNER}</div>`;
+}
+
 export async function renderDashboard(): Promise<void> {
   appState.editOwnerId = null;
   appState.editorReturn = null; // o dono volta sempre ao seu painel ao sair do editor
+  // Só na primeira entrada no painel: ao trocar de separador o painel já está no
+  // ecrã, e substituí-lo por um indicador nu seria pior do que deixar a secção
+  // anterior visível até a nova estar pronta.
+  if (!document.querySelector("[data-panel-shell]")) render(bootPanel());
   const ownerId = appState.ownerId ?? (await currentOwnerId());
   if (!ownerId) {
     render(emptyState("lock", "Inicie sessão para aceder ao painel.",
@@ -111,7 +130,14 @@ export async function renderDashboard(): Promise<void> {
        <a href="#/criar" class="border border-gray-200 text-gray-800 px-6 py-3 rounded-xl font-semibold hover:bg-gray-50">Criar loja</a>`));
     return;
   }
-  const allStores = await storeRepository.listByOwner(ownerId);
+  // As três só dependem do `ownerId` e não umas das outras. Em fila eram três
+  // idas ao servidor antes do primeiro pixel; juntas custam o tempo da mais
+  // lenta. É o caminho que corre outra vez a cada troca de separador.
+  const [allStores, billing, isAdmin] = await Promise.all([
+    storeRepository.listByOwner(ownerId),
+    getOwnerBilling(ownerId),
+    isCurrentUserAdmin(),
+  ]);
   // Esconde as lojas-modelo (secção Modelos do admin) do painel pessoal.
   const stores = allStores.filter((s) => !s.identifier.startsWith("modelo-"));
   let store: Store | null = appState.storeId ? (stores.find((s) => s.id === appState.storeId) ?? null) : null;
@@ -126,15 +152,12 @@ export async function renderDashboard(): Promise<void> {
   appState.ownerId = ownerId; appState.storeId = store.id;
 
   const panel = adminPanelFor(store.id);
-  const billing = await getOwnerBilling(ownerId);
-
-  const isAdmin = await isCurrentUserAdmin();
   const tab = currentTab();
   const storeUrl = publicStoreUrl(store.identifier);
 
   function shell(content: string): string {
     return `
-    <div class="flex min-h-screen w-full overflow-x-hidden bg-gray-50 font-sans text-gray-900">
+    <div data-panel-shell class="flex min-h-screen w-full overflow-x-hidden bg-gray-50 font-sans text-gray-900">
       <aside class="hidden md:flex flex-col py-6 bg-white border-r border-gray-100 w-64 shrink-0 sticky top-0 h-screen">
         <div class="px-6 mb-6">
           <img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:26px" />
@@ -195,6 +218,19 @@ export async function renderDashboard(): Promise<void> {
     });
   }
 
+  /**
+   * Esqueleto da secção: o painel inteiro, com o separador certo **já
+   * realçado**, e um indicador no lugar do conteúdo. Chamado no início de cada
+   * secção que consulta dados, antes de esperar por eles.
+   *
+   * É isto que faz o clique parecer instantâneo, e é também a razão de não ser
+   * preciso marcar o separador activo à parte: o realce vem do `shell`.
+   */
+  function showSectionLoading(): void {
+    render(shell(SPINNER));
+    bindShell();
+  }
+
   if (tab === "produtos") { await renderProdutos(); return; }
   if (tab === "logotipo") { await renderLogotipo(); return; }
   if (tab === "analises") { await renderAnalises(); return; }
@@ -207,14 +243,30 @@ export async function renderDashboard(): Promise<void> {
   return;
 
   async function renderInicio(): Promise<void> {
-    const products = await productRepository.listByStore(store!.id);
-    const payCfg = await getPaymentConfig(store!.id);
+    showSectionLoading();
+    // Eram oito idas ao servidor em fila, cada uma à espera da anterior sem
+    // precisar. Ficam duas ondas: primeiro o que só depende da Loja, depois o
+    // que depende de os pagamentos online estarem ativos. Dentro de cada onda
+    // nada depende de nada.
+    const [products, payCfg, ownerNameRaw] = await Promise.all([
+      productRepository.listByStore(store!.id),
+      getPaymentConfig(store!.id),
+      getOwnerName(ownerId),
+    ]);
     const online = payCfg.onlineEnabled;
-    const ownerName = (await getOwnerName(ownerId)) || store!.name;
-    const stats = online ? await getOrderStats(store!.id) : null;
-    const orders = online ? await listOrders(store!.id, 100) : [];
-    const withdrawals = online ? await listWithdrawals(store!.id) : [];
-    const committed = online ? await committedWithdrawals(store!.id) : 0;
+    const ownerName = ownerNameRaw || store!.name;
+    let stats: Awaited<ReturnType<typeof getOrderStats>> | null = null;
+    let orders: Awaited<ReturnType<typeof listOrders>> = [];
+    let withdrawals: Awaited<ReturnType<typeof listWithdrawals>> = [];
+    let committed = 0;
+    if (online) {
+      [stats, orders, withdrawals, committed] = await Promise.all([
+        getOrderStats(store!.id),
+        listOrders(store!.id, 100),
+        listWithdrawals(store!.id),
+        committedWithdrawals(store!.id),
+      ]);
+    }
     const available = stats ? Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100) : 0;
     const published = store!.state === "Publicada";
     const suspended = billing.suspended;
@@ -353,6 +405,7 @@ export async function renderDashboard(): Promise<void> {
   }
 
   async function renderProdutos(): Promise<void> {
+    showSectionLoading();
     const list = await productRepository.listByStore(store!.id);
     const atLimit = false; // sem escalões, não há limite de produtos
     const usage = `${list.length}`;
@@ -473,8 +526,7 @@ export async function renderDashboard(): Promise<void> {
   }
 
   async function renderAnalises(): Promise<void> {
-    render(shell(`<div class="flex items-center justify-center py-20"><span class="material-symbols-outlined animate-spin text-gray-300" style="font-size:40px">progress_activity</span></div>`));
-    bindShell();
+    showSectionLoading();
 
     const [a, products] = await Promise.all([
       getStoreAnalytics(store!.id),
@@ -522,8 +574,12 @@ export async function renderDashboard(): Promise<void> {
   }
 
   async function renderPagamentos(): Promise<void> {
-    const cfg = await getPaymentConfig(store!.id);
-    let custom = await getCustomization(store!.id);
+    showSectionLoading();
+    const [cfg, customLoaded] = await Promise.all([
+      getPaymentConfig(store!.id),
+      getCustomization(store!.id),
+    ]);
+    let custom = customLoaded;
 
     // Auto-reparação do espelho público de pagamentos.
     //
@@ -647,6 +703,7 @@ export async function renderDashboard(): Promise<void> {
   }
 
   async function renderLogotipo(): Promise<void> {
+    showSectionLoading();
     const custom = await getCustomization(store!.id);
     const logos = Array.isArray(custom.logos) ? custom.logos : [];
     // Fundo axadrezado para evidenciar a transparência do PNG.
@@ -986,11 +1043,15 @@ export async function renderDashboard(): Promise<void> {
   }
 
   async function renderConfig(): Promise<void> {
-    const c = await getCustomization(store!.id);
+    showSectionLoading();
+    // Quatro consultas independentes: eram quatro esperas em fila.
+    const [c, smsCredits, discounts, reviews] = await Promise.all([
+      getCustomization(store!.id),
+      getSmsCredits(store!.id),
+      listDiscounts(store!.id),
+      listStoreReviews(store!.id),
+    ]);
     const canDomain = billing.accessActive;
-    const smsCredits = await getSmsCredits(store!.id);
-    const discounts = await listDiscounts(store!.id);
-    const reviews = await listStoreReviews(store!.id);
     const productNames = new Map((await productRepository.listByStore(store!.id)).map((p) => [p.id, p.name]));
     const fees = c.delivery?.fees ?? {};
     const inp = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#F95901]";

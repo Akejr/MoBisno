@@ -146,7 +146,12 @@ describe("Porta 3 — auto-reparação do espelho divergente ao abrir «Pagament
   });
 
   it("adota a correção em memória, para o ecrã desenhar o estado corrigido", () => {
-    expect(BLOCO).toMatch(/let custom = await getCustomization/);
+    // O que importa é o `custom` ser **mutável**: sem isso a correção não pode
+    // ser adotada e o ecrã desenhava o espelho velho. De onde vem o valor é
+    // indiferente — hoje chega do `Promise.all` que carrega a verdade e o
+    // espelho de uma vez (antes era um `await` próprio, em fila). A leitura de
+    // `getCustomization` é afirmada em «lê a verdade e o espelho antes de decidir».
+    expect(BLOCO).toMatch(/let custom = /);
     expect(BLOCO).toMatch(/if \(okRepair\) custom = repaired;/);
   });
 

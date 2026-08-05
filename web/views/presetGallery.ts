@@ -10,6 +10,7 @@ import { render, $, go, esc, toast } from "../lib/dom.js";
 import { appState, currentOwnerId } from "../composition.js";
 import { listTemplateModels, applyModelToStore, applyRawToStore, defaultFactoryModels, factoryModelNameKeys, type TemplateModel } from "../supabase/models.js";
 import { loadStorefront } from "../lib/storeCache.js";
+import { storePreviewDoc } from "../lib/storePreviewDoc.js";
 import { getTemplate } from "../templates/registry.js";
 import { DEFAULT_LOGO, type StoreRenderView, type StoreProductView } from "../../src/storefront/storeRenderer.js";
 import type { StoreCustomization } from "../templates/types.js";
@@ -167,22 +168,19 @@ const THEME_VARS: Record<string, { radius: string; head: string }> = {
 };
 
 /**
- * Documento HTML completo (para iframe) com o preview. Copia os estilos da
- * página (Tailwind, fontes, ink/theme) para que os breakpoints respondam à
- * LARGURA DO IFRAME (viewport próprio) — preview mobile verdadeiro.
+ * Documento HTML completo (para iframe) com o preview.
+ *
+ * A construção saiu para `web/lib/storePreviewDoc.ts` quando o diretório de
+ * lojas passou a mostrar a loja real pelo mesmo mecanismo — duas cópias do
+ * documento divergiam na primeira vez que uma delas ganhasse um estilo novo.
+ * O texto de «sem conteúdo» fica aqui porque aqui é um **modelo**, não uma loja.
  */
 function buildStoreDoc(item: GalleryItem): string {
-  const heads = Array.from(document.querySelectorAll('link[rel="stylesheet"], link[rel="preconnect"], style'))
-    .map((el) => el.outerHTML).join("\n");
-  const c = item.customization;
-  const primary = c.colors?.primary ?? ACCENT;
-  const ink = c.colors?.text ?? "";
-  const style = c.theme?.style;
-  const tv = style ? THEME_VARS[style] : undefined;
-  const vars = `--brand:${primary};` + (ink ? `--ink:${ink};` : "") + (tv ? `--mb-radius:${tv.radius};--mb-head-font:${tv.head};` : "");
-  const attrs = `${ink ? " data-ink" : ""}${style ? ` data-theme="${style}"` : ""}`;
-  const body = item.html || `<div style="padding:3rem;text-align:center;color:#9ca3af;font-family:sans-serif">Este modelo ainda não tem conteúdo.</div>`;
-  return `<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${heads}<style>html,body{margin:0;padding:0;background:#fff}</style></head><body><div${attrs} style="${vars}">${body}</div></body></html>`;
+  return storePreviewDoc(
+    item.html,
+    item.customization,
+    `<div style="padding:3rem;text-align:center;color:#9ca3af;font-family:sans-serif">Este modelo ainda não tem conteúdo.</div>`,
+  );
 }
 
 function storeIframe(item: GalleryItem, cssText: string): HTMLIFrameElement {
