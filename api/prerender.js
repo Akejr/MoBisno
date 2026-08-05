@@ -522,12 +522,14 @@ async function renderDirectory(shell, db) {
   });
 
   const list = stores.length
-    ? `<ul class="mb-ssr-grid">${stores.map((s) => {
-      const url = `https://${esc(s.identifier)}.${STORE_APEX}/`;
-      const tipo = s.store_type ? `<span class="p">${esc(s.store_type)}</span>` : "";
-      return `<li><a href="${url}"><span class="n">${esc(s.name)}</span>${tipo}</a></li>`;
-    }).join("")}</ul>`
-    : `<p>Ainda não há lojas publicadas.</p>`;
+    ? `<section class="w-full border-t border-gray-100 py-14"><div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+        <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${stores.map((s) => {
+          const url = `https://${esc(s.identifier)}.${STORE_APEX}/`;
+          const tipo = s.store_type ? `<span class="block text-sm text-gray-500 mt-1">${esc(s.store_type)}</span>` : "";
+          return `<li><a href="${url}" class="block rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-lg hover:-translate-y-1 transition-all"><span class="block font-bold text-gray-900">${esc(s.name)}</span>${tipo}</a></li>`;
+        }).join("")}</ul>
+      </div></section>`
+    : `<section class="w-full border-t border-gray-100 py-14"><div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center"><p class="text-gray-600">Ainda não há lojas publicadas.</p></div></section>`;
 
   const body = platformHtml({
     heading: "Lojas online em Angola",
@@ -577,11 +579,13 @@ function notFoundHtml(shell, heading, canonical) {
     siteName: PLATFORM_NAME,
     noindex: true,
   });
-  const addressHtml = address ? `<p><strong>${esc(address)}</strong></p>` : "";
-  const actionsHtml = `<nav class="mb-ssr-nav">`
-    + `<a href="${platform}/criar">${esc(STORE_NOT_FOUND_PRIMARY_LABEL)}</a>`
-    + `<a href="${platform}/lojas">${esc(STORE_NOT_FOUND_SECONDARY_LABEL)}</a>`
-    + `</nav>`;
+  const addressHtml = address
+    ? `<p class="text-gray-900 font-bold break-all">${esc(address)}</p>`
+    : "";
+  const actionsHtml = `<div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">`
+    + `<a href="${platform}/criar" class="inline-flex items-center justify-center text-white font-semibold px-8 py-3 rounded-lg transition-colors" style="background:#F95901">${esc(STORE_NOT_FOUND_PRIMARY_LABEL)}</a>`
+    + `<a href="${platform}/lojas" class="inline-flex items-center justify-center border border-gray-300 text-gray-800 font-semibold px-8 py-3 rounded-lg hover:bg-gray-50 transition-colors">${esc(STORE_NOT_FOUND_SECONDARY_LABEL)}</a>`
+    + `</div>`;
   return inject(shell, {
     title,
     tags,
@@ -590,7 +594,9 @@ function notFoundHtml(shell, heading, canonical) {
       heading,
       intro: STORE_NOT_FOUND_MESSAGE,
       // Ordem igual à da SPA: mensagem, endereço pedido, convite, duas ações.
-      extraHtml: `${addressHtml}<p>${esc(STORE_NOT_FOUND_INVITE)}</p>${actionsHtml}`,
+      extraHtml: `<section class="w-full py-4"><div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center">
+        ${addressHtml}<p class="text-gray-600 mt-2">${esc(STORE_NOT_FOUND_INVITE)}</p>${actionsHtml}
+      </div></section>`,
     }),
   });
 }

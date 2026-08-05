@@ -20,6 +20,8 @@ export const LOCALE = "pt_AO";
 export const LANGUAGE = "pt-AO";
 export const COUNTRY = "Angola";
 export const PLATFORM_NAME = "MôBisno";
+/** Cor da plataforma. As páginas da plataforma usam-na; as lojas usam a sua. */
+const ACCENT_KZ = "#F95901";
 
 /* ------------------------------- Utilitários ------------------------------ */
 
@@ -761,20 +763,49 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
  * pelo diretório de lojas para a grelha de ligações.
  */
 export function platformHtml({ heading, intro, sections = [], links = [], extraHtml = "" }) {
-  const body = sections.map((s) => `<h2>${esc(s.title)}</h2>${s.items
-    ? `<ul>${s.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`
-    : `<p>${esc(s.text ?? "")}</p>`}`).join("");
+  const secoes = sections.map((s) => {
+    const corpo = s.items
+      ? `<ul class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-3xl mx-auto text-left">${s.items.map((i) =>
+          `<li class="flex items-start gap-2.5 text-gray-700 text-sm"><span class="material-symbols-outlined text-[20px] shrink-0" style="color:${ACCENT_KZ}">check_circle</span> ${esc(i)}</li>`).join("")}</ul>`
+      : `<p class="mt-4 text-gray-600 max-w-3xl mx-auto">${esc(s.text ?? "")}</p>`;
+    return `<section class="w-full border-t border-gray-100 py-14">
+      <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center">
+        <h2 class="text-2xl md:text-3xl font-black tracking-tight">${esc(s.title)}</h2>
+        ${corpo}
+      </div>
+    </section>`;
+  }).join("");
+
   const nav = links.length
-    ? `<nav class="mb-ssr-nav">${links.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join("")}</nav>`
+    ? `<div class="mt-8 flex flex-wrap gap-3 justify-center lg:justify-start">${links.map((l) =>
+        `<a href="${esc(l.href)}" class="inline-flex items-center justify-center border border-gray-300 text-gray-800 font-semibold px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors">${esc(l.label)}</a>`).join("")}</div>`
     : "";
-  return `${ssrStyle("#F95901", null)}<div class="mb-ssr">
-    <div class="mb-ssr-top"><a href="/"><img src="/logo-header.png" alt="MôBisno" width="40" height="40" /><strong>MôBisno</strong></a></div>
-    <h1>${esc(heading)}</h1>
-    <p>${esc(intro)}</p>
-    ${nav}
-    ${body}
-    ${extraHtml}
-    <div class="mb-ssr-foot">MôBisno · Plataforma angolana para criar lojas online · <a href="/termos">Termos</a> · <a href="/privacidade">Privacidade</a></div>
+
+  return `<div class="min-h-screen flex flex-col bg-white font-sans text-gray-900">
+    <nav class="bg-white/90 backdrop-blur sticky top-0 border-b border-gray-100 z-50">
+      <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+        <a href="/" class="flex items-center gap-2"><img src="/logo-header.png" alt="${esc(PLATFORM_NAME)}" class="w-auto object-contain" style="height:24px" /></a>
+        <a href="/criar" class="inline-flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors" style="background:${ACCENT_KZ}">Criar minha loja</a>
+      </div>
+    </nav>
+    <main class="flex-grow flex flex-col">
+      <section class="max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 md:py-20">
+        <div class="w-full lg:w-2/3 text-center lg:text-left">
+          <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">${esc(heading)}</h1>
+          <p class="mt-6 text-lg text-gray-600 max-w-xl mx-auto lg:mx-0">${esc(intro)}</p>
+          ${nav}
+        </div>
+      </section>
+      ${secoes}
+      ${extraHtml}
+    </main>
+    <footer class="bg-white border-t border-gray-100">
+      <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-10 text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-2 items-center">
+        <span>${esc(PLATFORM_NAME)} · Plataforma angolana para criar lojas online</span>
+        <a href="/termos" class="hover:text-gray-900 transition-colors">Termos</a>
+        <a href="/privacidade" class="hover:text-gray-900 transition-colors">Privacidade</a>
+      </div>
+    </footer>
   </div>`;
 }
 
