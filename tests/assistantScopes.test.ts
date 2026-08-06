@@ -404,3 +404,45 @@ describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu e
     }
   });
 });
+
+describe("Assistente no telemóvel — folha inferior, sem zoom e sem a página a fugir", () => {
+  /**
+   * O que o utilizador reportou: tocar no mascote dava «um zoom enorme», a página
+   * fazia scroll e a vista ficava torta.
+   *
+   * Duas causas, ambas com guarda aqui. O Safari do iOS dá **zoom automático** a
+   * qualquer campo de texto com letra menor do que 16px — a caixa de escrever
+   * tinha 14px. E o painel era uma caixa de 340px a 84px do fundo: no telemóvel
+   * uma janela minúscula sobre uma página que continuava a rolar por baixo,
+   * empurrada pelo teclado.
+   */
+  it("o campo de escrever tem 16px na folha do telemóvel", () => {
+    expect(AI_AGENT).toMatch(/font-size:\$\{sheet \? 16 : 14\}px/);
+  });
+
+  it("no telemóvel o painel encosta às margens e usa dvh, não vh", () => {
+    // `vh` conta a barra do navegador que se esconde: a folha ficava mais alta do
+    // que o ecrã.
+    expect(AI_AGENT).toMatch(/const sheet = isNarrow\(\)/);
+    expect(AI_AGENT).toContain("height:min(86dvh,640px)");
+    expect(AI_AGENT).toContain("border-radius:20px 20px 0 0");
+  });
+
+  it("não rouba o foco no telemóvel", () => {
+    // Dar foco ao abrir puxava o teclado antes de a pessoa ler a saudação.
+    expect(AI_AGENT).toMatch(/if \(!sheet\) \(panel\.querySelector\("\[data-input\]"\)/);
+  });
+
+  it("bloqueia o scroll da página enquanto a folha está aberta, e repõe-no ao fechar", () => {
+    expect(AI_AGENT).toMatch(/bodyOverflow = document\.body\.style\.overflow/);
+    expect(AI_AGENT).toMatch(/document\.body\.style\.overflow = "hidden"/);
+    expect(AI_AGENT).toMatch(/document\.body\.style\.overflow = bodyOverflow/);
+  });
+
+  it("tem véu que fecha ao toque fora, e o Escape também fecha", () => {
+    expect(AI_AGENT).toMatch(/backdrop\.addEventListener\("click", closeChat\)/);
+    expect(AI_AGENT).toMatch(/e\.key === "Escape" && panel/);
+    // O ouvinte de teclado sai no desmonte, senão fica preso à vista anterior.
+    expect(AI_AGENT).toMatch(/removeEventListener\("keydown", onKey\)/);
+  });
+});

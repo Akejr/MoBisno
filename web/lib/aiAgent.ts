@@ -193,8 +193,26 @@ export function mountAiAgent(
   }
   const chatHistory: { role: "user" | "assistant"; content: string }[] = [];
   let panel: HTMLElement | null = null;
+  let backdrop: HTMLElement | null = null;
+  /** `overflow` que o `body` tinha antes de a folha o bloquear. */
+  let bodyOverflow = "";
 
-  function closeChat(): void { panel?.remove(); panel = null; }
+  /**
+   * Ecrã estreito — telemóvel na prática. Decidido no momento de abrir, e não por
+   * media query, porque o painel é construído com estilos em linha.
+   */
+  const isNarrow = (): boolean =>
+    typeof matchMedia === "function" ? matchMedia("(max-width: 640px)").matches : window.innerWidth <= 640;
+
+  function closeChat(): void {
+    panel?.remove();
+    panel = null;
+    backdrop?.remove();
+    backdrop = null;
+    // Devolve o scroll à página e o mascote ao canto.
+    document.body.style.overflow = bodyOverflow;
+    widget.style.display = "";
+  }
 
   function msgsEl(): HTMLElement { return panel!.querySelector("[data-msgs]") as HTMLElement; }
   function scrollMsgs(): void { const m = msgsEl(); m.scrollTop = m.scrollHeight; }
@@ -262,18 +280,45 @@ export function mountAiAgent(
     if (!document.getElementById("mb-ai-dot-style")) {
       const st = document.createElement("style");
       st.id = "mb-ai-dot-style";
-      st.textContent = "@keyframes mbAiDot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}.mb-ai-dot{width:6px;height:6px;border-radius:9999px;background:#9ca3af;display:inline-block;animation:mbAiDot 1.2s infinite}";
+      st.textContent = "@keyframes mbAiDot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}"
+        + ".mb-ai-dot{width:6px;height:6px;border-radius:9999px;background:#9ca3af;display:inline-block;animation:mbAiDot 1.2s infinite}"
+        // A folha inferior do telemóvel entra a subir, não a crescer de um canto.
+        + "@keyframes mbSheetIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}";
       document.head.appendChild(st);
     }
     panel = document.createElement("div");
-    panel.style.cssText = [
-      "position:fixed", "right:20px", `bottom:${bottom + 64}px`, "z-index:90",
-      "width:min(340px,calc(100vw - 32px))", `height:min(460px,calc(100vh - ${bottom + 120}px))`,
-      "display:flex", "flex-direction:column", "background:#fff",
-      "border:1px solid rgba(0,0,0,.08)", "border-radius:18px",
-      "box-shadow:0 18px 50px -12px rgba(0,0,0,.4)", "overflow:hidden",
-      "animation:mbBubbleIn .25s ease both",
-    ].join(";");
+    /**
+     * No telemóvel o painel é uma **folha inferior** encostada às três margens,
+     * não uma caixinha flutuante.
+     *
+     * A caixa de 340 px posicionada a 84 px do fundo dava, num ecrã de telemóvel,
+     * uma janela minúscula sobre a página, e ao aparecer o teclado o resultado era
+     * o que se viu: a página atrás a saltar e a vista a ficar torta. Encostada às
+     * margens, a folha ocupa o espaço que existe e o teclado empurra-a de baixo,
+     * que é o comportamento normal de uma conversa no telemóvel.
+     *
+     * `dvh` e não `vh`: `vh` no telemóvel conta a barra do navegador que se
+     * esconde, e a folha ficava mais alta do que o ecrã.
+     */
+    const sheet = isNarrow();
+    panel.style.cssText = sheet
+      ? [
+        "position:fixed", "left:0", "right:0", "bottom:0", "z-index:90",
+        "width:100%", "height:min(86dvh,640px)", "max-height:calc(100dvh - 24px)",
+        "display:flex", "flex-direction:column", "background:#fff",
+        "border-top:1px solid rgba(0,0,0,.08)", "border-radius:20px 20px 0 0",
+        "box-shadow:0 -12px 40px -12px rgba(0,0,0,.45)", "overflow:hidden",
+        "animation:mbSheetIn .28s cubic-bezier(.16,1,.3,1) both",
+        "padding-bottom:env(safe-area-inset-bottom)",
+      ].join(";")
+      : [
+        "position:fixed", "right:20px", `bottom:${bottom + 64}px`, "z-index:90",
+        "width:min(340px,calc(100vw - 32px))", `height:min(460px,calc(100vh - ${bottom + 120}px))`,
+        "display:flex", "flex-direction:column", "background:#fff",
+        "border:1px solid rgba(0,0,0,.08)", "border-radius:18px",
+        "box-shadow:0 18px 50px -12px rgba(0,0,0,.4)", "overflow:hidden",
+        "animation:mbBubbleIn .25s ease both",
+      ].join(";");
     panel.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #f0f1f2">
         <div style="width:34px;height:34px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:#fff;background:${ACCENT}"><span class="material-symbols-outlined" style="font-size:20px">smart_toy</span></div>
@@ -281,13 +326,32 @@ export function mountAiAgent(
           <div style="font-weight:700;font-size:14px;color:#111827;line-height:1.1">Assistente MôBisno</div>
           <div style="font-size:11px;color:#9ca3af">${subtitle}</div>
         </div>
-        <button data-close type="button" style="width:30px;height:30px;border-radius:9999px;border:none;background:#f3f4f6;color:#6b7280;cursor:pointer;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:18px">close</span></button>
+        <!-- Alvo de toque maior no telemóvel: 30px é pequeno para um dedo. -->
+        <button data-close type="button" aria-label="Fechar o assistente" style="flex:none;width:${sheet ? 40 : 30}px;height:${sheet ? 40 : 30}px;border-radius:9999px;border:none;background:#f3f4f6;color:#6b7280;cursor:pointer;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:${sheet ? 22 : 18}px">close</span></button>
       </div>
       <div data-msgs style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f9fafb"></div>
       <form data-form style="display:flex;gap:8px;padding:10px;border-top:1px solid #f0f1f2;background:#fff">
-        <input data-input type="text" placeholder="Escreve a tua pergunta…" autocomplete="off" style="flex:1;min-width:0;border:1px solid #e5e7eb;border-radius:9999px;padding:9px 14px;outline:none;font-size:14px;color:#111827" />
+        <!-- font-size 16px no telemóvel NÃO é estética: o Safari do iOS dá zoom
+             automático a qualquer campo com letra menor do que 16px, e era isso
+             que fazia a página inteira crescer ao tocar na caixa de escrever. -->
+        <input data-input type="text" placeholder="Escreve a tua pergunta…" autocomplete="off" enterkeyhint="send" style="flex:1;min-width:0;border:1px solid #e5e7eb;border-radius:9999px;padding:10px 14px;outline:none;font-size:${sheet ? 16 : 14}px;color:#111827" />
         <button type="submit" style="flex:none;width:40px;height:40px;border-radius:9999px;border:none;color:#fff;background:${ACCENT};cursor:pointer;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:20px">arrow_upward</span></button>
       </form>`;
+    if (sheet) {
+      // Véu atrás da folha: escurece a página, fecha ao toque fora, e impede que
+      // um toque a passar ao lado acerte num botão da página que está por baixo.
+      backdrop = document.createElement("div");
+      backdrop.style.cssText = "position:fixed;inset:0;z-index:89;background:rgba(0,0,0,.45);animation:mbBubbleIn .2s ease both";
+      backdrop.addEventListener("click", closeChat);
+      root.appendChild(backdrop);
+      // A página atrás deixa de rolar. Era isto que fazia a vista «fugir» quando o
+      // teclado aparecia e o dedo arrastava sobre a conversa.
+      bodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      // O mascote fica debaixo da folha; escondê-lo evita os olhos a espreitar.
+      widget.style.display = "none";
+    }
+
     root.appendChild(panel);
     panel.querySelector("[data-close]")!.addEventListener("click", closeChat);
     panel.querySelector("[data-form]")!.addEventListener("submit", (e) => { e.preventDefault(); void send(); });
@@ -301,13 +365,21 @@ export function mountAiAgent(
     } else {
       for (const m of chatHistory) addMsg(m.role, m.content);
     }
-    (panel.querySelector("[data-input]") as HTMLInputElement).focus();
+    // Foco automático **só no computador**. No telemóvel, dar foco ao abrir puxa o
+    // teclado de imediato, rouba metade do ecrã e desloca a página antes de a
+    // pessoa ter lido a saudação. Ela toca na caixa quando quiser escrever.
+    if (!sheet) (panel.querySelector("[data-input]") as HTMLInputElement).focus();
   }
 
   widget.addEventListener("click", openChat);
 
+  // Escape fecha, como qualquer painel sobreposto.
+  const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape" && panel) closeChat(); };
+  document.addEventListener("keydown", onKey);
+
   return () => {
     document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("keydown", onKey);
     window.clearInterval(bubbleInterval);
     window.clearTimeout(hideTimer);
     closeChat();
