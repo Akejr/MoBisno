@@ -39,7 +39,7 @@ const TERMOS: Section[] = [
     "O Dono da Loja mantém a titularidade dos conteúdos que carrega (textos, imagens, logótipos) e concede à MôBisno uma licença limitada para os alojar e apresentar com o fim de operar a Loja. O Dono garante que detém os direitos sobre esses conteúdos.",
   ] },
   { h: "6. Suspensão e cancelamento", p: [
-    "A MôBisno pode suspender ou encerrar contas que violem estes Termos, a lei, ou que coloquem em risco a plataforma ou terceiros. O Dono pode encerrar a sua Loja a qualquer momento a partir do painel.",
+    "A MôBisno pode suspender ou encerrar contas que violem estes Termos, a lei, ou que coloquem em risco a plataforma ou terceiros. O Dono pode encerrar a sua Loja a qualquer momento a partir do Dashboard.",
   ] },
   { h: "7. Limitação de responsabilidade", p: [
     "A plataforma é fornecida \"tal como está\". Na máxima medida permitida por lei, a MôBisno não se responsabiliza por lucros cessantes, perda de dados, indisponibilidades de serviços terceiros (pagamentos, alojamento, redes), nem por litígios entre Lojas e os seus clientes.",
@@ -66,7 +66,7 @@ const PRIVACIDADE: Section[] = [
     "Aplicamos medidas técnicas e organizativas razoáveis para proteger os dados, incluindo isolamento por loja e controlo de acessos. Nenhum sistema é 100% imune; em caso de incidente relevante atuamos para mitigar o impacto.",
   ] },
   { h: "6. Os seus direitos", p: [
-    "Pode aceder, corrigir ou eliminar os seus dados de conta a partir do painel ou contactando-nos. O encerramento da conta remove os dados associados, salvo retenção exigida por lei.",
+    "Pode aceder, corrigir ou eliminar os seus dados de conta a partir do Dashboard ou contactando-nos. O encerramento da conta remove os dados associados, salvo retenção exigida por lei.",
   ] },
   { h: "7. Cookies", p: [
     "Usamos armazenamento local e cookies estritamente necessários para autenticação e funcionamento do serviço.",

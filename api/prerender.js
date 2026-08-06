@@ -432,6 +432,9 @@ const PLATFORM_PAGES = {
 const PLATFORM_APP_PREFIXES = [
   "/login", "/criar", "/painel", "/personalizar", "/adminpainel",
   "/previsualizar", "/modelos", "/teste-modelos", "/preview",
+  // `/start` é o ensaio do hero novo: existe (responde 200) e não é para
+  // indexar, porque repete a proposta da homepage.
+  "/start",
 ];
 
 function isKnownPlatformPath(path) {
@@ -502,17 +505,43 @@ async function renderDirectory(shell, db) {
     stores = (data || []).filter((s) => s.tpl === undefined || s.tpl === null || s.tpl === false);
   }
 
+  // Lojas feitas com a MôBisno que têm **domínio próprio**, por isso não estão em
+  // `stores`. Espelho manual de `FEATURED_STORES` em `web/views/directory.ts`:
+  // `api/` não pode importar de `web/` (a mesma parede de `api/_seo.js` —
+  // `SEO.md` §5.2). Ao acrescentar uma loja lá, acrescentar aqui: sem isto, quem
+  // rastreia a página sem JavaScript não vê a ligação, que é metade da razão de a
+  // página existir.
+  const featured = [
+    { name: "DOT Angola", type: "Gift cards e subscrições", host: "www.dotangola.com", url: "https://www.dotangola.com/" },
+  ];
+
+  // Ordem da vitrina, espelho de `PRIORITY_HOSTS` em `web/views/directory.ts`. A
+  // primeira entrada é a loja que a página põe à frente; aqui, sem JavaScript, é a
+  // primeira da grelha e a primeira do `ItemList` que o Google lê.
+  const PRIORITY_HOSTS = [`juddycosmetics.${STORE_APEX}`, "www.dotangola.com"];
+  const rank = (host) => {
+    const i = PRIORITY_HOSTS.indexOf(host);
+    return i === -1 ? PRIORITY_HOSTS.length : i;
+  };
+
+  const all = [
+    ...stores.map((s) => ({
+      name: s.name,
+      type: s.store_type,
+      host: `${s.identifier}.${STORE_APEX}`,
+      url: `https://${s.identifier}.${STORE_APEX}/`,
+    })),
+    ...featured,
+  ].sort((a, b) => rank(a.host) - rank(b.host));
+  const total = all.length;
+
   const title = "Lojas Online em Angola — Diretório MôBisno";
   const description = truncate(
-    `${stores.length} lojas online angolanas criadas com a MôBisno. Compre em Kwanzas com Multicaixa Express, Referência Bancária ou WhatsApp, com entrega em Luanda e em todo o país.`,
+    `${total} lojas online angolanas criadas com a MôBisno. Compre em Kwanzas com Multicaixa Express, Referência Bancária ou WhatsApp, com entrega em Luanda e em todo o país.`,
     160,
   );
 
-  const items = stores.map((s) => ({
-    name: s.name,
-    url: `https://${s.identifier}.${STORE_APEX}/`,
-    image: null,
-  }));
+  const items = all.map((s) => ({ name: s.name, url: s.url, image: null }));
 
   const tags = metaTags({
     title, description, canonical,
@@ -526,13 +555,16 @@ async function renderDirectory(shell, db) {
     ],
   });
 
-  const list = stores.length
+  const cardHtml = (name, type, url) => {
+    const tipo = type ? `<span class="block text-sm text-gray-500 mt-1">${esc(type)}</span>` : "";
+    return `<li><a href="${esc(url)}" class="block rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-lg hover:-translate-y-1 transition-all"><span class="block font-bold text-gray-900">${esc(name)}</span>${tipo}</a></li>`;
+  };
+
+  const list = total
     ? `<section class="w-full border-t border-gray-100 py-14"><div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-        <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${stores.map((s) => {
-          const url = `https://${esc(s.identifier)}.${STORE_APEX}/`;
-          const tipo = s.store_type ? `<span class="block text-sm text-gray-500 mt-1">${esc(s.store_type)}</span>` : "";
-          return `<li><a href="${url}" class="block rounded-2xl border border-gray-200 bg-white p-5 hover:shadow-lg hover:-translate-y-1 transition-all"><span class="block font-bold text-gray-900">${esc(s.name)}</span>${tipo}</a></li>`;
-        }).join("")}</ul>
+        <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${
+          all.map((s) => cardHtml(s.name, s.type, s.url)).join("")
+        }</ul>
       </div></section>`
     : `<section class="w-full border-t border-gray-100 py-14"><div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center"><p class="text-gray-600">Ainda não há lojas publicadas.</p></div></section>`;
 

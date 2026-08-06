@@ -31,7 +31,7 @@ export function renderLogin(): void {
           <img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:24px" />
         </a>
         <h1 class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 mb-1">Bem-vindo de volta</h1>
-        <p class="text-gray-500 mb-8">Aceda ao painel da sua loja.</p>
+        <p class="text-gray-500 mb-8">Aceda ao Dashboard da sua loja.</p>
 
         <div id="errs"></div>
         <form id="f" class="space-y-5">

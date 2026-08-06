@@ -1,5 +1,5 @@
 /** Página inicial — hero com "image accordion" interativo + CTAs dinâmicos. */
-import { platformNavHtml, mountSectionNav, consumePendingSection, scrollToSection } from "../templates/platformChrome.js";
+import { platformNavHtml, platformFooterHtml, mountSectionNav, consumePendingSection, scrollToSection } from "../templates/platformChrome.js";
 import { mountGlowCards } from "../lib/glowCards.js";
 import { render, $, go, esc } from "../lib/dom.js";
 import { currentOwnerId } from "../composition.js";
@@ -33,18 +33,23 @@ export async function renderLanding(): Promise<void> {
   const loggedIn = (await currentOwnerId()) !== null;
 
   // `whitespace-nowrap` e `shrink-0` são o que impede o rótulo de partir em duas
-  // linhas no telemóvel — sem eles «Abrir Painel» virava um quadrado alto. O
+  // linhas no telemóvel — sem eles «Abrir Dashboard» virava um quadrado alto. O
   // rótulo encurta abaixo de `sm` em vez de a caixa encolher.
+  //
+  // O `gap` não é estética: num contentor `inline-flex` cada nó de texto vira um
+  // item de flex, e o espaço no início e no fim de cada item é **descartado**. Era
+  // por isso que se lia «Criarminhaloja» — o espaço estava escrito no HTML, e o
+  // flex comia-o. O espaçamento tem de vir do `gap`.
   const navActions = loggedIn
-    ? `<button id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">dashboard</span><span class="hidden sm:inline">Abrir </span>Painel</button>`
+    ? `<button id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">dashboard</span><span class="hidden sm:inline">Abrir</span>Dashboard</button>`
     : `<button id="cta-login" class="hidden sm:inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg text-sm transition-colors">Login</button>
-       <button id="cta-nav" class="inline-flex items-center whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline"> minha</span> loja</button>`;
+       <button id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</button>`;
 
   // `justify-center` em cada botão: no telemóvel a coluna já não os estica à
   // largura toda, mas o `inline-flex` sem alinhamento deixava o rótulo encostado
   // à esquerda assim que a caixa fosse maior do que o conteúdo.
   const heroActions = loggedIn
-    ? `<button id="cta-hero-painel" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">dashboard</span> Abrir Painel</button>`
+    ? `<button id="cta-hero-painel" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">dashboard</span> Abrir Dashboard</button>`
     : `<button id="cta-hero" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
        <button id="cta-hero-login" class="inline-flex items-center justify-center border border-gray-300 text-gray-800 font-semibold px-8 py-3 rounded-lg hover:bg-gray-50 transition-colors">Já tenho conta</button>`;
 
@@ -77,7 +82,7 @@ export async function renderLanding(): Promise<void> {
                  fonte. Sem acentos graves neste comentario: vive dentro de um
                  template literal. -->
             <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
-            <p class="mt-6 text-lg text-gray-600 max-w-xl lg:w-[30rem] mx-auto lg:mx-0">Escolha um modelo, adicione os seus produtos e personalize tudo ao seu gosto. Tenha uma loja profissional, com endereço próprio, pronta a receber clientes e a vender.</p>
+            <p class="mt-6 text-lg text-gray-600 max-w-xl lg:w-[30rem] mx-auto lg:mx-0">Escolhe um modelo, adiciona os teus produtos e personaliza a loja ao teu gosto. Recebe encomendas pelo WhatsApp e pagamentos por Multicaixa Express ou Referência Bancária, sem precisares de saber programar.</p>
             <!-- items-center evita que a coluna do telemovel estique os botoes a
                  largura toda: em flex-col o alinhamento por omissao e stretch. Em
                  linha, no computador, passa a centrar na vertical, que e o que se
@@ -150,65 +155,11 @@ export async function renderLanding(): Promise<void> {
       </section>
     </main>
 
-    <footer class="bg-white border-t border-gray-100">
-      <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-14">
-        <div class="grid grid-cols-2 md:grid-cols-12 gap-10">
-          <!-- Marca -->
-          <div class="col-span-2 md:col-span-4 flex flex-col gap-4">
-            <img src="/logo-header.png" alt="MôBisno" style="height:26px" class="w-auto object-contain self-start" />
-            <p class="text-sm text-gray-500 max-w-xs leading-relaxed">A forma mais simples de criar a sua loja online em Angola. Modelos prontos, pagamentos locais e venda pelo WhatsApp.</p>
-            <div class="flex items-center gap-2 mt-1">
-              <a href="https://wa.me/244900000000" target="_blank" rel="noopener" aria-label="WhatsApp" class="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:text-white transition-colors" onmouseover="this.style.background='${ACCENT}';this.style.borderColor='${ACCENT}'" onmouseout="this.style.background='';this.style.borderColor=''"><span class="material-symbols-outlined text-[18px]">chat</span></a>
-              <a href="mailto:geral@mobisno.store" aria-label="Email" class="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:text-white transition-colors" onmouseover="this.style.background='${ACCENT}';this.style.borderColor='${ACCENT}'" onmouseout="this.style.background='';this.style.borderColor=''"><span class="material-symbols-outlined text-[18px]">mail</span></a>
-              <a href="#" aria-label="Instagram" class="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:text-white transition-colors" onmouseover="this.style.background='${ACCENT}';this.style.borderColor='${ACCENT}'" onmouseout="this.style.background='';this.style.borderColor=''"><span class="material-symbols-outlined text-[18px]">photo_camera</span></a>
-            </div>
-          </div>
-
-          <!-- Plataforma -->
-          <div class="md:col-span-3">
-            <h4 class="text-sm font-bold text-gray-900 mb-4">Plataforma</h4>
-            <ul class="space-y-3 text-sm">
-              <li><a href="#/criar" class="text-gray-500 hover:text-gray-900 transition-colors">Criar loja</a></li>
-              <li><a href="#/login" class="text-gray-500 hover:text-gray-900 transition-colors">Entrar</a></li>
-              <li><a href="#/painel" class="text-gray-500 hover:text-gray-900 transition-colors">Painel</a></li>
-              <li><a href="#" class="text-gray-500 hover:text-gray-900 transition-colors">Preços</a></li>
-            </ul>
-          </div>
-
-          <!-- Recursos -->
-          <div class="md:col-span-3">
-            <h4 class="text-sm font-bold text-gray-900 mb-4">Recursos</h4>
-            <ul class="space-y-3 text-sm">
-              <li><a href="/lojas" class="text-gray-500 hover:text-gray-900 transition-colors">Lojas criadas na MôBisno</a></li>
-              <li><a href="/criar" class="text-gray-500 hover:text-gray-900 transition-colors">Criar loja online</a></li>
-              <li><a href="#" class="text-gray-500 hover:text-gray-900 transition-colors">Integrações</a></li>
-              <li><a href="#" class="text-gray-500 hover:text-gray-900 transition-colors">Centro de ajuda</a></li>
-              <li><a href="https://wa.me/244900000000" target="_blank" rel="noopener" class="text-gray-500 hover:text-gray-900 transition-colors">Contacto</a></li>
-            </ul>
-          </div>
-
-          <!-- Legal -->
-          <div class="md:col-span-2">
-            <h4 class="text-sm font-bold text-gray-900 mb-4">Legal</h4>
-            <ul class="space-y-3 text-sm">
-              <li><a href="/termos" class="text-gray-500 hover:text-gray-900 transition-colors">Termos</a></li>
-              <li><a href="/privacidade" class="text-gray-500 hover:text-gray-900 transition-colors">Privacidade</a></li>
-              <li><a href="/politica" class="text-gray-500 hover:text-gray-900 transition-colors">Política Geral</a></li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Barra inferior -->
-        <div class="mt-12 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p class="text-sm text-gray-500">© 2026 MôBisno</p>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400 uppercase tracking-wider">Pagamentos</span>
-            <img src="/integrations/Express.png" alt="Multicaixa Express" class="h-6 w-auto object-contain" />
-            <img src="/integrations/ATM.png" alt="Multicaixa" class="h-6 w-auto object-contain" />
-          </div>
-        </div>
-      </div>
-    </footer>
+    <!-- Rodapé partilhado. Era uma cópia escrita à mão aqui, igual à de
+         platformChrome.ts até ao dia em que uma das duas mudasse — e nenhuma
+         verificação apanharia a divergência. Sem acentos graves neste
+         comentário: vive dentro de um template literal. -->
+    ${platformFooterHtml()}
   </div>`);
 
   // --- Image accordion (hover no desktop, toque no telemóvel) ---

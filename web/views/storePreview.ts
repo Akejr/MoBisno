@@ -40,7 +40,7 @@ function previewBar(publicada: boolean): string {
       <span style="font-size:13px;opacity:.75;flex:1;min-width:180px">${publicada
         ? "Esta loja está publicada. Está a ver a versão atual."
         : "Só você vê esta página. Para a pôr online, ative a subscrição."}</span>
-      <a href="#/painel" style="font-size:13px;font-weight:700;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:9px;padding:6px 12px">Voltar ao painel</a>
+      <a href="#/painel" style="font-size:13px;font-weight:700;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:9px;padding:6px 12px">Voltar ao Dashboard</a>
       ${publicada ? "" : `<a href="#/painel/plano" style="font-size:13px;font-weight:700;color:#fff;text-decoration:none;background:${ACCENT};border-radius:9px;padding:6px 12px">Ativar subscrição</a>`}
     </div>
   </div>`;
@@ -53,7 +53,7 @@ function denied(mensagem: string): string {
       <span class="material-symbols-outlined" style="font-size:40px;color:#9ca3af">lock</span>
       <h1 style="font-size:20px;font-weight:800;margin:12px 0 6px;color:#111827">Pré-visualização indisponível</h1>
       <p style="font-size:14px;color:#6b7280;line-height:1.6">${esc(mensagem)}</p>
-      <a href="#/painel" style="display:inline-block;margin-top:18px;background:${ACCENT};color:#fff;font-weight:700;font-size:14px;border-radius:11px;padding:10px 18px;text-decoration:none">Ir para o painel</a>
+      <a href="#/painel" style="display:inline-block;margin-top:18px;background:${ACCENT};color:#fff;font-weight:700;font-size:14px;border-radius:11px;padding:10px 18px;text-decoration:none">Ir para o Dashboard</a>
     </div>
   </div>`;
 }

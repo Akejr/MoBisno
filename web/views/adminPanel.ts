@@ -1,5 +1,5 @@
 /**
- * Painel de Administração da plataforma (/adminPainel). Apenas para contas com
+ * Dashboard de Administração da plataforma (/adminPainel). Apenas para contas com
  * `is_admin`. O admin vê e gere contas, lojas, levantamentos e pode abrir o
  * editor de qualquer loja. O acesso aos dados é garantido pelas políticas RLS
  * de admin (migração 0011).
@@ -466,7 +466,7 @@ export async function renderAdminPanel(): Promise<void> {
       <span class="material-symbols-outlined text-gray-400" style="font-size:56px;">shield_lock</span>
       <h1 class="text-2xl font-black text-gray-900">Acesso restrito</h1>
       <p class="text-gray-500">Esta área é exclusiva para administradores da plataforma.</p>
-      <a href="#/painel" class="text-white px-6 py-3 rounded-xl font-semibold" style="background:${ACCENT}">Ir para o meu painel</a>
+      <a href="#/painel" class="text-white px-6 py-3 rounded-xl font-semibold" style="background:${ACCENT}">Ir para o meu Dashboard</a>
     </div>`);
     return;
   }
@@ -498,7 +498,7 @@ export async function renderAdminPanel(): Promise<void> {
           ${navItem("#/adminPainel/levantamentos", "account_balance_wallet", "Levantamentos", tab === "levantamentos")}
         </nav>
         <div class="mt-auto px-2 flex flex-col gap-1">
-          <a href="#/painel" class="rounded-xl px-4 py-3 mx-0 flex items-center gap-3 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined">dashboard</span> O meu painel</a>
+          <a href="#/painel" class="rounded-xl px-4 py-3 mx-0 flex items-center gap-3 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined">dashboard</span> O meu Dashboard</a>
           <button id="logout" class="rounded-xl px-4 py-3 flex items-center gap-3 text-sm font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined">logout</span> Terminar sessão</button>
         </div>
       </aside>

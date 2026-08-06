@@ -1,5 +1,5 @@
 /**
- * Painel de Administração — Início, Produtos, Pagamentos, Configurações.
+ * Dashboard do Dono — Início, Produtos, Pagamentos, Configurações.
  * Identidade visual MôBisno (branco + #F95901). Logótipo, banners e aparência
  * vivem no ecrã "Personalizar".
  */
@@ -142,7 +142,7 @@ export async function renderDashboard(): Promise<void> {
   if (!document.querySelector("[data-panel-shell]")) render(bootPanel());
   const ownerId = appState.ownerId ?? (await currentOwnerId());
   if (!ownerId) {
-    render(emptyState("lock", "Inicie sessão para aceder ao painel.",
+    render(emptyState("lock", "Inicie sessão para aceder ao Dashboard.",
       `<a href="#/login" class="text-white px-6 py-3 rounded-xl font-semibold" style="background:${ACCENT}">Iniciar sessão</a>
        <a href="#/criar" class="border border-gray-200 text-gray-800 px-6 py-3 rounded-xl font-semibold hover:bg-gray-50">Criar loja</a>`));
     return;
@@ -204,7 +204,7 @@ export async function renderDashboard(): Promise<void> {
           ${navItem("#/painel/config", "settings", "Configurações", tab === "config")}
         </nav>
         <div class="mt-auto px-4 space-y-1">
-          ${isAdmin ? `<a href="#/adminPainel" class="w-full inline-flex items-center gap-2 text-sm font-bold px-2 py-2 rounded-lg transition-colors" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">shield_person</span> Painel de Administração</a>` : ""}
+          ${isAdmin ? `<a href="#/adminPainel" class="w-full inline-flex items-center gap-2 text-sm font-bold px-2 py-2 rounded-lg transition-colors" style="background:${ACCENT_TINT};color:${ACCENT}"><span class="material-symbols-outlined">shield_person</span> Dashboard de Administração</a>` : ""}
           <button id="logout" class="w-full text-gray-500 hover:text-gray-900 flex items-center gap-2 text-sm font-semibold px-2 py-2 transition-colors"><span class="material-symbols-outlined">logout</span> Terminar sessão</button>
         </div>
       </aside>

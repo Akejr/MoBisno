@@ -29,6 +29,9 @@ const lazy = {
   presetGallery: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery()),
   presetGalleryTest: () => import("./views/presetGallery.js").then((m) => m.renderPresetGallery(true)),
   storePreview: (id: string) => import("./views/storePreview.js").then((m) => m.renderStorePreview(id)),
+  // Ensaio do hero novo (`/start`). Pedaço separado: leva um sombreador WebGL que
+  // não tem de pesar no pacote de quem só quer comprar numa loja.
+  start: () => import("./views/start.js").then((m) => m.renderStart()),
 };
 
 const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
@@ -100,6 +103,13 @@ function route(): void {
   } else if (path === "/lojas") {
     resetBranding();
     void lazy.directory();
+  } else if (path === "/start") {
+    // Página de entrada para anúncios. `noindex` de propósito: o tráfego é pago e
+    // a mensagem repete a da homepage — indexá-la punha-a a competir com a home
+    // nos resultados de pesquisa.
+    resetBranding();
+    applyNoindexSeo("MôBisno — Cria a tua loja online em minutos");
+    void lazy.start();
   } else if (path === "/termos" || path === "/privacidade" || path === "/politica") {
     resetBranding();
     void lazy.legal(path.slice(1) as "termos" | "privacidade" | "politica");
@@ -115,7 +125,7 @@ function route(): void {
     void lazy.storePreview(decodeURIComponent(path.slice("/previsualizar/".length)));
   } else if (path.startsWith("/painel")) {
     resetBranding();
-    applyNoindexSeo("Painel — MôBisno");
+    applyNoindexSeo("Dashboard — MôBisno");
     void lazy.dashboard();
   } else if (path.startsWith("/personalizar")) {
     resetBranding();

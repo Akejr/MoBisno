@@ -763,6 +763,18 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
  * pelo diretório de lojas para a grelha de ligações.
  */
 export function platformHtml({ heading, intro, sections = [], links = [], extraHtml = "" }) {
+  /**
+   * O cromo desta página aponta para o apex **em absoluto**, e não com caminhos
+   * relativos.
+   *
+   * Não é preferência: esta função também desenha a página de «loja não
+   * encontrada», que é servida a partir do subdomínio pedido
+   * (`naoexiste.sualoja.digital`). Ali um `/criar` resolvia para
+   * `naoexiste.sualoja.digital/criar`, que não existe — quem tentava sair da
+   * página de erro aterrava noutro erro. É o mesmo raciocínio de
+   * `platformHomeUrl()` na SPA.
+   */
+  const platform = `https://${PLATFORM_APEX}`;
   const secoes = sections.map((s) => {
     const corpo = s.items
       ? `<ul class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-3xl mx-auto text-left">${s.items.map((i) =>
@@ -784,8 +796,8 @@ export function platformHtml({ heading, intro, sections = [], links = [], extraH
   return `<div class="min-h-screen flex flex-col bg-white font-sans text-gray-900">
     <nav class="bg-white/90 backdrop-blur sticky top-0 border-b border-gray-100 z-50">
       <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
-        <a href="/" class="flex items-center gap-2"><img src="/logo-header.png" alt="${esc(PLATFORM_NAME)}" class="w-auto object-contain" style="height:24px" /></a>
-        <a href="/criar" class="inline-flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors" style="background:${ACCENT_KZ}">Criar minha loja</a>
+        <a href="${platform}/" class="flex items-center gap-2"><img src="/logo-header.png" alt="${esc(PLATFORM_NAME)}" class="w-auto object-contain" style="height:24px" /></a>
+        <a href="${platform}/criar" class="inline-flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors" style="background:${ACCENT_KZ}">Criar minha loja</a>
       </div>
     </nav>
     <main class="flex-grow flex flex-col">
@@ -802,8 +814,8 @@ export function platformHtml({ heading, intro, sections = [], links = [], extraH
     <footer class="bg-white border-t border-gray-100">
       <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-10 text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-2 items-center">
         <span>${esc(PLATFORM_NAME)} · Plataforma angolana para criar lojas online</span>
-        <a href="/termos" class="hover:text-gray-900 transition-colors">Termos</a>
-        <a href="/privacidade" class="hover:text-gray-900 transition-colors">Privacidade</a>
+        <a href="${platform}/termos" class="hover:text-gray-900 transition-colors">Termos</a>
+        <a href="${platform}/privacidade" class="hover:text-gray-900 transition-colors">Privacidade</a>
       </div>
     </footer>
   </div>`;

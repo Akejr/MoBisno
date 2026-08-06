@@ -69,6 +69,114 @@ function brandOf(value: unknown): string {
 }
 
 /**
+ * Loja feita com a MôBisno que **não vive num subdomínio da plataforma** — tem
+ * domínio próprio e por isso não aparece na consulta a `stores`.
+ *
+ * É uma lista curada, escrita à mão de propósito: são poucas e cada entrada é
+ * uma decisão editorial (quem abre a página vê primeiro uma marca que já
+ * reconhece). Aparecem antes das restantes.
+ */
+interface FeaturedStore {
+  name: string;
+  type: string;
+  /** Endereço apresentado, sem esquema. */
+  host: string;
+  /** Endereço a abrir, com esquema. */
+  url: string;
+  brand: string;
+  /**
+   * Fotografia da loja, servida por nós (`web/public/previews/`).
+   *
+   * **Não é o site embutido, e é de propósito.** Embutir a página verdadeira
+   * custava carregá-la inteira — JavaScript, tipos de letra, o carrossel do topo
+   * a animar — a cada visita, e duas vezes quando a loja também aparece na janela
+   * do hero. A fotografia é um pedido de ~100 kB que o navegador guarda em cache e
+   * partilha entre o cartão e o hero.
+   *
+   * Refazer com `node scripts/preview-shot.mjs --url <endereço> --out <ficheiro>`
+   * quando o site mudar de aspeto. Sem fotografia, fica a capa com a inicial.
+   */
+  image?: string;
+}
+
+const FEATURED_STORES: readonly FeaturedStore[] = [
+  {
+    name: "DOT Angola",
+    type: "Gift cards e subscrições",
+    host: "www.dotangola.com",
+    url: "https://www.dotangola.com/",
+    // `theme-color` do próprio site.
+    brand: "#01042D",
+    image: "/previews/dotangola.jpg",
+  },
+];
+
+/**
+ * O que um cartão precisa de saber, venha a loja da base de dados ou da lista
+ * curada. `preview` diz **como** se desenha a pré-visualização: as lojas da
+ * plataforma são renderizadas por nós a partir dos dados; as de domínio próprio
+ * são a própria página, embutida.
+ */
+interface CardVM {
+  name: string;
+  type: string;
+  host: string;
+  url: string;
+  brand: string;
+  preview:
+    | { kind: "store"; identifier: string }
+    | { kind: "image"; src: string }
+    | { kind: "none" };
+}
+
+function cardOfStore(s: DirectoryStore): CardVM {
+  return {
+    name: s.name,
+    type: s.store_type ?? "",
+    host: `${s.identifier}.${STORE_APEX}`,
+    url: `https://${encodeURIComponent(s.identifier)}.${STORE_APEX}/`,
+    brand: brandOf(s.brand),
+    preview: { kind: "store", identifier: s.identifier },
+  };
+}
+
+function cardOfFeatured(f: FeaturedStore): CardVM {
+  return {
+    name: f.name, type: f.type, host: f.host, url: f.url, brand: f.brand,
+    preview: f.image ? { kind: "image", src: f.image } : { kind: "none" },
+  };
+}
+
+/**
+ * Ordem editorial da página: estes endereços vêm primeiro, nesta ordem, e o
+ * **primeiro deles ocupa a janela da frente do hero**.
+ *
+ * É uma decisão de vitrina, não de dados — a loja escolhida é a que representa
+ * melhor a plataforma neste momento. Mudar a vitrina é reordenar esta lista.
+ *
+ * Uma loja da plataforma que esteja aqui não custa nada a mostrar: temos os dados
+ * e desenhamos o modelo. Uma loja de domínio próprio custa a fotografia estática
+ * de `FEATURED_STORES` — razão a mais para a janela da frente ser de uma loja
+ * nossa.
+ *
+ * Um endereço que não exista (loja não publicada, por exemplo) é ignorado sem
+ * ruído: a lista continua na ordem que sobra.
+ */
+const PRIORITY_HOSTS: readonly string[] = [
+  `juddycosmetics.${STORE_APEX}`,
+  "www.dotangola.com",
+];
+
+/** Ordena pela vitrina. Estável: quem não está na lista mantém a ordem que trazia. */
+function byPriority(a: CardVM, b: CardVM): number {
+  const rank = (c: CardVM): number => {
+    const i = PRIORITY_HOSTS.indexOf(c.host);
+    return i === -1 ? PRIORITY_HOSTS.length : i;
+  };
+  return rank(a) - rank(b);
+}
+
+/**
  * Lojas de cliente publicadas e com conta ativa (a RLS já filtra as suspensas).
  *
  * Extrai `__template` e a cor de marca **na consulta**, em vez de trazer a
@@ -98,12 +206,22 @@ async function listPublishedStores(): Promise<DirectoryStore[]> {
  * estado de espera **e** o recurso final: se a loja não abrir, fica isto em vez
  * de um retângulo cinzento.
  */
-function previewSlotHtml(s: DirectoryStore, brand: string): string {
-  const initial = esc(s.name.trim().charAt(0).toUpperCase() || "M");
-  return `<div data-preview-store="${esc(s.identifier)}" class="absolute inset-0 overflow-hidden bg-white">
-    <div data-preview-fallback class="absolute inset-0 flex items-center justify-center" style="background:${esc(brand)}">
+function previewSlotHtml(c: CardVM): string {
+  const initial = esc(c.name.trim().charAt(0).toUpperCase() || "M");
+  const attr = c.preview.kind === "store" ? `data-preview-store="${esc(c.preview.identifier)}"` : "";
+  // A fotografia vem no HTML, não por JavaScript: é um `<img>` normal, com
+  // `loading="lazy"` a cargo do navegador. `onerror` remove-a se faltar, e a capa
+  // com a inicial — que está por baixo — volta a aparecer em vez de um espaço
+  // branco. `object-top` mostra o topo da página, que é a parte que interessa.
+  const img = c.preview.kind === "image"
+    ? `<img src="${esc(c.preview.src)}" alt="Pré-visualização da loja ${esc(c.name)}" loading="lazy" decoding="async"
+           class="absolute inset-0 w-full h-full object-cover object-top" onerror="this.remove()" />`
+    : "";
+  return `<div ${attr} class="absolute inset-0 overflow-hidden bg-white">
+    <div data-preview-fallback class="absolute inset-0 flex items-center justify-center" style="background:${esc(c.brand)}">
       <span class="text-white/90 font-black" style="font-size:clamp(36px,6vw,56px);line-height:1">${initial}</span>
     </div>
+    ${img}
   </div>`;
 }
 
@@ -123,9 +241,33 @@ function mountStorePreviews(root: ParentNode): void {
     if (k > 0) frame.style.transform = `scale(${k})`;
   };
 
+  /** Quadro vazio, com a geometria e as protecções comuns às duas variantes. */
+  const makeFrame = (title: string): HTMLIFrameElement => {
+    const frame = document.createElement("iframe");
+    frame.title = title;
+    frame.setAttribute("tabindex", "-1");
+    frame.setAttribute("aria-hidden", "true");
+    frame.setAttribute("scrolling", "no");
+    frame.style.cssText = `border:0;background:#fff;width:${PREVIEW_WIDTH}px;height:${PREVIEW_HEIGHT}px;`
+      + "transform-origin:top left;pointer-events:none;position:absolute;top:0;left:0";
+    return frame;
+  };
+
+  const attach = (slot: HTMLElement, frame: HTMLIFrameElement): void => {
+    slot.appendChild(frame);
+    fit(slot, frame);
+    // A capa de recurso sai só depois de o quadro existir, para não haver um
+    // instante de branco entre as duas.
+    slot.querySelector<HTMLElement>("[data-preview-fallback]")?.remove();
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => fit(slot, frame)).observe(slot);
+    }
+  };
+
   const fill = async (slot: HTMLElement): Promise<void> => {
     if (slot.dataset.previewDone === "1") return;
     slot.dataset.previewDone = "1";
+
     const identifier = slot.dataset.previewStore;
     if (!identifier) return;
     try {
@@ -133,22 +275,9 @@ function mountStorePreviews(root: ParentNode): void {
       if (view.kind !== "render") return; // fica o recurso
       const html = getTemplate(view.templateId).render(view, custom);
       if (!html) return;
-      const frame = document.createElement("iframe");
-      frame.title = `Pré-visualização da loja ${view.storeName}`;
-      frame.setAttribute("tabindex", "-1");
-      frame.setAttribute("aria-hidden", "true");
-      frame.setAttribute("scrolling", "no");
-      frame.style.cssText = `border:0;background:#fff;width:${PREVIEW_WIDTH}px;height:${PREVIEW_HEIGHT}px;`
-        + "transform-origin:top left;pointer-events:none;position:absolute;top:0;left:0";
+      const frame = makeFrame(`Pré-visualização da loja ${view.storeName}`);
       frame.srcdoc = storePreviewDoc(html, custom);
-      slot.appendChild(frame);
-      fit(slot, frame);
-      // A capa de recurso sai só depois de o quadro existir, para não haver um
-      // instante de branco entre as duas.
-      slot.querySelector<HTMLElement>("[data-preview-fallback]")?.remove();
-      if (typeof ResizeObserver !== "undefined") {
-        new ResizeObserver(() => fit(slot, frame)).observe(slot);
-      }
+      attach(slot, frame);
     } catch {
       /* a capa com a inicial fica — nunca um espaço vazio */
     }
@@ -172,26 +301,24 @@ function mountStorePreviews(root: ParentNode): void {
  * Cartão de uma loja. `bento-item` dá-lhe o brilho da casa; o `--i` escalona a
  * entrada, para a grelha aparecer em cascata em vez de num bloco.
  */
-function storeCard(s: DirectoryStore, index: number): string {
-  const url = `https://${encodeURIComponent(s.identifier)}.${STORE_APEX}/`;
-  const brand = brandOf(s.brand);
+function storeCard(c: CardVM, index: number): string {
   return `
     <li class="mb-rise" style="--i:${index}">
-      <a href="${esc(url)}" target="_blank" rel="noopener"
+      <a href="${esc(c.url)}" target="_blank" rel="noopener"
          class="bento-item group block !p-0 h-full"
-         aria-label="Abrir a loja ${esc(s.name)} num novo separador">
+         aria-label="Abrir a loja ${esc(c.name)} num novo separador">
         <div class="relative aspect-[4/3] overflow-hidden rounded-t-[calc(1rem-1px)] bg-white">
-          ${previewSlotHtml(s, brand)}
-          <span class="absolute top-0 inset-x-0 h-1.5 z-10" style="background:${esc(brand)}"></span>
+          ${previewSlotHtml(c)}
+          <span class="absolute top-0 inset-x-0 h-1.5 z-10" style="background:${esc(c.brand)}"></span>
           <span class="absolute inset-0 z-10 bg-black/0 group-hover:bg-black/10 transition-colors duration-300"></span>
           <span class="absolute bottom-3 left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur px-3 py-1.5 text-xs font-bold text-gray-900 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
             <span class="material-symbols-outlined text-[15px]">open_in_new</span> Visitar loja
           </span>
         </div>
         <div class="p-4">
-          <span class="block font-bold text-gray-900 break-words">${esc(s.name)}</span>
-          ${s.store_type ? `<span class="block text-sm text-gray-500 mt-0.5">${esc(s.store_type)}</span>` : ""}
-          <span class="block text-xs text-gray-400 mt-2 truncate">${esc(s.identifier)}.${STORE_APEX}</span>
+          <span class="block font-bold text-gray-900 break-words">${esc(c.name)}</span>
+          ${c.type ? `<span class="block text-sm text-gray-500 mt-0.5">${esc(c.type)}</span>` : ""}
+          <span class="block text-xs text-gray-400 mt-2 truncate">${esc(c.host)}</span>
         </div>
       </a>
     </li>`;
@@ -215,10 +342,9 @@ function skeletonCard(_: unknown, index: number): string {
  * segunda atrás, inclinada. Antes exigia três lojas e, com duas, o hero ficava
  * com metade direita vazia — era o que estava feio.
  */
-function heroPreviewHtml(stores: DirectoryStore[]): string {
-  if (stores.length === 0) return "";
-  const chrome = (s: DirectoryStore, front: boolean): string => {
-    const brand = brandOf(s.brand);
+function heroPreviewHtml(cards: CardVM[]): string {
+  if (cards.length === 0) return "";
+  const chrome = (c: CardVM, front: boolean): string => {
     const pos = front
       ? "relative z-20"
       : "absolute inset-0 z-10 translate-x-6 translate-y-6 rotate-3 opacity-70 hidden sm:block";
@@ -227,30 +353,28 @@ function heroPreviewHtml(stores: DirectoryStore[]): string {
         <span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>
         <span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>
         <span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>
-        <span class="ml-2 truncate text-[11px] text-gray-500">${esc(s.identifier)}.${STORE_APEX}</span>
+        <span class="ml-2 truncate text-[11px] text-gray-500">${esc(c.host)}</span>
       </div>
-      <div class="relative aspect-[4/3] bg-white">${previewSlotHtml(s, brand)}</div>
+      <div class="relative aspect-[4/3] bg-white">${previewSlotHtml(c)}</div>
     </div>`;
   };
-  const back = stores[1] ? chrome(stores[1], false) : "";
+  const back = cards[1] ? chrome(cards[1], false) : "";
   return `
     <div class="w-full lg:w-[46%] mt-10 lg:mt-0">
       <div class="relative mx-auto w-full max-w-[520px]">
         ${back}
-        ${chrome(stores[0]!, true)}
+        ${chrome(cards[0]!, true)}
       </div>
     </div>`;
 }
 
-/** Chip com a contagem, no topo do hero. */
-function countChip(n: number): string {
-  const label = n === 1 ? "1 loja publicada" : `${n} lojas publicadas`;
-  return `<span class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-gray-700 shadow-sm">
-    <span class="w-2 h-2 rounded-full" style="background:${PLATFORM_ACCENT}"></span> ${esc(label)}
-  </span>`;
-}
-
-/** Texto de leitura do hero. Nunca a descrição de SEO, que vai cortada aos 160. */
+/**
+ * Texto de leitura do hero. Nunca a descrição de SEO, que vai cortada aos 160.
+ *
+ * A contagem («2 lojas publicadas») saiu do topo do hero: com poucas lojas, um
+ * número pequeno em destaque diz «isto ainda não pegou», que é o contrário do
+ * que a página existe para mostrar.
+ */
 function leadFor(n: number): string {
   if (n === 0) return "Ainda não há lojas publicadas. A sua pode ser a primeira — escolha um modelo, adicione os produtos e publique no mesmo dia.";
   if (n === 1) return "A primeira loja já está online. Veja como fica, e crie a sua com endereço próprio, pagamentos em Kwanzas e encomendas pelo WhatsApp.";
@@ -267,7 +391,7 @@ const GRID_CLS = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-str
  * grelha só se distingue por um cabeçalho e pelo espaço — as secções encaixam em
  * vez de se separarem.
  */
-function page(o: { lead: string; chip: string; preview: string; grid: string; heading: string }): string {
+function page(o: { lead: string; preview: string; grid: string; heading: string }): string {
   return `
   <div class="min-h-screen flex flex-col font-sans text-gray-900" style="background:linear-gradient(180deg,#ffffff 0%,#ffffff 42%,#f7f7f8 78%,#f4f4f5 100%)">
     ${platformNavHtml()}
@@ -277,8 +401,7 @@ function page(o: { lead: string; chip: string; preview: string; grid: string; he
         <div class="relative max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop pt-12 md:pt-16 pb-10 md:pb-14">
           <div class="flex flex-col lg:flex-row items-center justify-between gap-10 lg:gap-14">
             <div class="w-full lg:w-1/2 text-center lg:text-left">
-              ${o.chip}
-              <h1 class="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Lojas criadas<br class="hidden sm:block"/> na MôBisno</h1>
+              <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Lojas criadas<br class="hidden sm:block"/> na MôBisno</h1>
               <p class="mt-6 text-lg text-gray-600 max-w-xl mx-auto lg:mx-0">${esc(o.lead)}</p>
               <!-- items-center: sem isto a coluna do telemovel estica os botoes a
                    largura toda (em flex-col o alinhamento por omissao e stretch). -->
@@ -312,22 +435,27 @@ export async function renderDirectory(): Promise<void> {
   ensureGlowCardStyle();
   render(page({
     lead: "A carregar as lojas publicadas na plataforma…",
-    chip: "",
     preview: "",
     heading: "Todas as lojas",
     grid: `<ul class="${GRID_CLS}">${Array.from({ length: 6 }, skeletonCard).join("")}</ul>`,
   }));
 
-  const stores = await listPublishedStores();
+  // As lojas da base de dados e as de domínio próprio entram no mesmo saco, e a
+  // ordem é a da vitrina (`PRIORITY_HOSTS`): a primeira é a que ocupa a janela da
+  // frente do hero.
+  const cards = [
+    ...(await listPublishedStores()).map(cardOfStore),
+    ...FEATURED_STORES.map(cardOfFeatured),
+  ].sort(byPriority);
 
   const canonical = `https://${PLATFORM_APEX}/lojas`;
   const description = truncate(
-    `${stores.length} lojas online angolanas criadas com a MôBisno. Compre em Kwanzas com Multicaixa Express, Referência Bancária ou WhatsApp, com entrega em Luanda e em todo o país.`,
+    `${cards.length} lojas online angolanas criadas com a MôBisno. Compre em Kwanzas com Multicaixa Express, Referência Bancária ou WhatsApp, com entrega em Luanda e em todo o país.`,
     160,
   );
 
-  const grid = stores.length
-    ? `<ul class="${GRID_CLS}">${stores.map(storeCard).join("")}</ul>`
+  const grid = cards.length
+    ? `<ul class="${GRID_CLS}">${cards.map(storeCard).join("")}</ul>`
     : `<div class="text-center py-12 rounded-2xl border border-dashed border-gray-300 bg-white/60">
          <span class="material-symbols-outlined text-gray-300" style="font-size:56px">storefront</span>
          <p class="text-gray-700 font-bold mt-3">Ainda não há lojas publicadas</p>
@@ -335,10 +463,9 @@ export async function renderDirectory(): Promise<void> {
        </div>`;
 
   const app = render(page({
-    lead: leadFor(stores.length),
-    chip: countChip(stores.length),
-    preview: heroPreviewHtml(stores),
-    heading: stores.length === 1 ? "A loja" : "Todas as lojas",
+    lead: leadFor(cards.length),
+    preview: heroPreviewHtml(cards),
+    heading: cards.length === 1 ? "A loja" : "Todas as lojas",
     grid,
   }));
   mountGlowCards(app);
@@ -359,10 +486,7 @@ export async function renderDirectory(): Promise<void> {
         name: "Lojas online em Angola",
         url: canonical,
         description,
-        items: stores.map((s) => ({
-          name: s.name,
-          url: `https://${s.identifier}.${STORE_APEX}/`,
-        })),
+        items: cards.map((c) => ({ name: c.name, url: c.url })),
       }),
       breadcrumbJsonLd([
         { name: PLATFORM_NAME, url: `https://${PLATFORM_APEX}/` },

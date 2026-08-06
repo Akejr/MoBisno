@@ -99,7 +99,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
   registo: `ECRÃ: entrar ou criar conta.
 - Conta por email e palavra-passe. Se a pessoa já tem conta, entra; se não, cria.
 - Esquecer a palavra-passe: recuperação por email.
-- Depois de entrar, o destino é o painel; sem loja criada, o painel convida a criar a primeira.`,
+- Depois de entrar, o destino é o Dashboard; sem loja criada, o Dashboard convida a criar a primeira.`,
 
   criar: `ECRÃ: assistente de criação de loja (por conversa).
 - Pede, por esta ordem: nome, email, palavra-passe, nome da loja, tipo de negócio e o endereço (subdomínio).
@@ -107,21 +107,21 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - No fim pergunta se a pessoa já tem logótipo; quem não tem pode gerar um por IA (pago à parte, cinco propostas).
 - A loja nasce como rascunho: fica online quando for publicada, e publicar exige subscrição ativa.`,
 
-  painel: `ECRÃ: painel do Dono, separador «Início».
+  painel: `ECRÃ: Dashboard do Dono, separador «Início».
 - Mostra o estado da loja (publicada ou não), o endereço, o botão de publicar/despublicar e o estado da subscrição.
 - Com pagamentos online ativos mostra o total vendido, o valor líquido recebido, as vendas, os levantamentos e o botão «Solicitar levantamento».
 - Separadores à esquerda: Início, Produtos, Criar logótipo, Análises, Pagamentos, Plano, Configurações.
 - «Personalizar loja» abre o editor visual. «Ver loja» abre a loja publicada; sem publicação, abre a pré-visualização privada.
 - Quem tem mais de uma loja troca no seletor no topo da barra lateral.`,
 
-  produtos: `ECRÃ: painel → «Produtos».
+  produtos: `ECRÃ: Dashboard → «Produtos».
 - «Adicionar produto» abre o formulário: foto principal, nome, preço, categoria, descrição, fotos extra, destacar na loja, produto físico, controlar stock e variações.
 - Não há limite de produtos.
 - STOCK: o interruptor «Controlar stock» liga a quantidade. Sem controlo, nunca esgota; a zero, o produto aparece «Esgotado» e a compra é recusada.
 - VARIAÇÕES (ex.: cor, tamanho): activam-se no formulário do produto. Cada variação tem nome e valores; as combinações resultantes podem ter preço e stock próprios. O preço da combinação ou substitui o preço base ou acresce a ele. Stock vazio na combinação não é controlado; zero marca essa combinação como esgotada.
 - Produto físico pede morada de entrega no checkout; produto digital não.`,
 
-  pagamentos: `ECRÃ: painel → «Pagamentos».
+  pagamentos: `ECRÃ: Dashboard → «Pagamentos».
 - «Pagamentos online» activa Multicaixa Express e Referência Bancária no checkout da loja. Exige subscrição ativa.
 - É preciso vincular a conta bancária onde o Dono recebe: Banco, Beneficiário e IBAN. A conta tem de estar **verificada na MoMenu**, senão a API recusa o pagamento.
 - A comissão é ${pct(FEE_RATE)}; o resto é transferido automaticamente (levantamento instantâneo).
@@ -129,12 +129,12 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Com pagamentos online desligados, a loja vende por WhatsApp: o botão do produto abre a conversa com a encomenda escrita.
 - Com pagamentos online ligados, o botão passa a «Comprar agora» e abre o checkout com Multicaixa Express, Referência Bancária e WhatsApp.`,
 
-  plano: `ECRÃ: painel → «Plano».
+  plano: `ECRÃ: Dashboard → «Plano».
 - Mostra o estado da subscrição e permite pagar mensal ou anual. Um só plano; a escolha é só do ciclo.
 - Pagamento por Multicaixa Express (imediato) ou Referência Bancária (confirma quando for paga; há o botão «Já paguei — verificar»).
 - Sem subscrição ativa não se publica, e as lojas publicadas saem da web até o pagamento ser feito. Os dados ficam.`,
 
-  config: `ECRÃ: painel → «Configurações».
+  config: `ECRÃ: Dashboard → «Configurações».
 - ENTREGAS: modo de entrega e taxas por zona de Luanda, somadas automaticamente no checkout.
 - CÓDIGOS DE DESCONTO: criar por percentagem ou valor fixo, com limite de usos e validade; mostra quantas vezes cada um foi usado.
 - AVALIAÇÕES: moderação — aprovar ou rejeitar as avaliações que os clientes deixam nos produtos.
@@ -142,12 +142,12 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - DOMÍNIO PRÓPRIO: **«Em breve»**, bloqueado. Não é possível guardar um domínio.
 - APAGAR A LOJA: irreversível, apaga a loja e o que lhe pertence.`,
 
-  analises: `ECRÃ: painel → «Análises».
+  analises: `ECRÃ: Dashboard → «Análises».
 - Visitas dos últimos 7 e 30 dias, visualizações de produtos e gráfico de visitas dos últimos 14 dias.
 - Lista dos produtos mais vistos em 30 dias.
 - Os dados vêm dos eventos da própria loja; não é o Google Analytics. O Dono pode ligar o pixel da Meta e o GA4 dele nas configurações de marketing.`,
 
-  logotipo: `ECRÃ: painel → «Criar logótipo».
+  logotipo: `ECRÃ: Dashboard → «Criar logótipo».
 - O Dono descreve o logótipo que quer e são geradas **cinco propostas**, em PNG com fundo transparente.
 - É pago à parte da subscrição, por Multicaixa Express ou Referência Bancária.
 - Se saírem menos de cinco propostas, o ecrã diz quantas faltaram, e há «Tentar de novo» com a mesma descrição.
@@ -166,7 +166,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - No topo alterna-se entre «Início», «Página de produto» e «Checkout».
 - LOCALIZAÇÃO: quando o modelo tem bloco de mapa, dá para acrescentar várias localizações e escolher cada uma no mapa, com o pin arrastável.
 - «Guardar» publica as alterações. «Desfazer» reverte. «Abrir preview» mostra computador e telemóvel. «Ver loja» abre a loja. «Tutorial» inicia a visita guiada.
-- Pagamentos e WhatsApp não se configuram aqui: é no painel, separador «Pagamentos».`,
+- Pagamentos e WhatsApp não se configuram aqui: é no Dashboard, separador «Pagamentos».`,
 
   modelos: `ECRÃ: galeria de modelos prontos.
 - Cada modelo é uma loja completa, com pré-visualização real em computador e telemóvel.
@@ -175,6 +175,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 
   lojas: `ECRÃ: diretório público de lojas (${PLATFORM_APEX}/lojas).
 - Lista as lojas publicadas na plataforma, cada uma com pré-visualização real e ligação que abre a loja noutro separador.
+- A ordem é escolhida por nós (vitrina): a loja em destaque aparece primeiro e ocupa a janela grande no topo. Também aparecem lojas feitas com a MôBisno que já têm domínio próprio, como a DOT Angola (www.dotangola.com).
 - As lojas-modelo (demonstrações) não aparecem aqui.
 - Serve também para as lojas serem encontradas pelo Google: cada uma recebe uma ligação a partir de um domínio já indexado.`,
 
@@ -183,7 +184,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Os pagamentos são processados por fornecedores licenciados; a plataforma não retém os fundos das vendas.
 - Estes documentos são um modelo informativo e não substituem aconselhamento jurídico.`,
 
-  admin: `ECRÃ: Painel de Administração (só para administradores da MôBisno).
+  admin: `ECRÃ: Dashboard de Administração (só para administradores da MôBisno).
 - Separadores: Visão geral, Contas, Lojas, Modelos, Transações, Levantamentos.
 - A Visão geral tem a saúde do negócio, «A precisar de atenção» e o histórico recente. As métricas excluem lojas-modelo e contas de administrador.
 - Atenção à distinção: «volume de vendas das lojas» é dinheiro dos clientes dos Donos; «receita da plataforma» são as subscrições, SMS e logótipos. São grandezas diferentes.

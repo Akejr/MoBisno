@@ -104,8 +104,14 @@ export function platformNavHtml(opts: { brandHtml?: string; actionsHtml?: string
   // `whitespace-nowrap` e `shrink-0` não são decoração: sem eles o rótulo parte
   // em duas linhas no telemóvel e o botão vira um quadrado alto. O rótulo encurta
   // abaixo de `sm` em vez de encolher a caixa.
+  //
+  // O `gap-1` é obrigatório, não estético: num contentor `inline-flex` cada nó de
+  // texto vira um item de flex e o espaço no início e no fim de cada item é
+  // **descartado**. O botão lia-se «Criarminhaloja» — o espaço estava escrito no
+  // HTML e o flex comia-o. Daí o espaçamento vir do `gap` e os rótulos não terem
+  // espaços à volta.
   const actions = opts.actionsHtml
-    ?? `<a href="/criar" class="inline-flex items-center whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}">Criar<span class="hidden sm:inline"> minha</span> loja</a>`;
+    ?? `<a href="/criar" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
   // Escondidas abaixo de `md`: ao lado da marca e das ações não cabem num
   // telemóvel, e um menu sanduíche é outra conversa.
   const sections = HOME_SECTIONS.map((s) =>
@@ -121,9 +127,10 @@ export function platformNavHtml(opts: { brandHtml?: string; actionsHtml?: string
 }
 
 /**
- * Rodapé da plataforma, em quatro colunas.
+ * Rodapé da plataforma, em quatro colunas. **Uma só definição** — a página
+ * inicial também usa esta, depois de ter tido uma cópia escrita à mão.
  *
- * As ligações de painel usam o esquema `#/` da aplicação **privada**, que é
+ * As ligações do Dashboard usam o esquema `#/` da aplicação **privada**, que é
  * legítimo e não é indexado; as páginas públicas (`/lojas`, `/criar`, legais)
  * usam caminhos reais, como o `SEO.md` §5.1 exige.
  */
@@ -152,7 +159,7 @@ export function platformFooterHtml(): string {
             <ul class="space-y-3 text-sm">
               ${link("#/criar", "Criar loja")}
               ${link("#/login", "Entrar")}
-              ${link("#/painel", "Painel")}
+              ${link("#/painel", "Dashboard")}
               ${link("#", "Preços")}
             </ul>
           </div>

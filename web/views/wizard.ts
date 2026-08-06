@@ -536,7 +536,7 @@ function createStore(): void {
       } catch { /* SEO é opcional; não bloquear a criação */ }
     }
 
-    await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade — para a pôres online, ativas a subscrição no painel.");
+    await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade — para a pôres online, ativas a subscrição no Dashboard.");
     askLogo(result.store.ownerId, result.store.id);
   })();
 }
@@ -604,7 +604,7 @@ function offerLogo(ownerId: string, storeId: string): void {
         clearInput();
         if (value === "sim") generateWizardLogos(ownerId, storeId);
         else {
-          await botSay("Sem problema! Podes criá-lo mais tarde no painel, em \"Criar logótipo\". 🙂");
+          await botSay("Sem problema! Podes criá-lo mais tarde no Dashboard, em \"Criar logótipo\". 🙂");
           goToModels();
         }
       },
@@ -699,7 +699,7 @@ function showLogoFailure(msg: { text: string; detail?: string }, ownerId: string
         await runLogoGeneration(logoGen.description, ownerId, storeId);
         return;
       }
-      await botSay("Sem problema! Podes criá-lo mais tarde no painel, em \"Criar logótipo\". 🙂");
+      await botSay("Sem problema! Podes criá-lo mais tarde no Dashboard, em \"Criar logótipo\". 🙂");
       goToModels();
     },
   );
@@ -768,7 +768,7 @@ async function pickWizardLogo(dataUrl: string, ownerId: string, storeId: string)
     const validation = fileService.validate({ content, fileName: "logotipo.png" }, LOGO_POLICY);
     if (!validation.ok) {
       clearInput();
-      await botSay("Não consegui preparar esse logótipo. Podes tentar outro mais tarde no painel.");
+      await botSay("Não consegui preparar esse logótipo. Podes tentar outro mais tarde no Dashboard.");
       goToModels();
       return;
     }
@@ -783,7 +783,7 @@ async function pickWizardLogo(dataUrl: string, ownerId: string, storeId: string)
     } catch { /* o ficheiro já está guardado; não bloquear o fluxo */ }
   } catch {
     clearInput();
-    await botSay("Houve um problema a preparar o logótipo. Podes tentar mais tarde no painel.");
+    await botSay("Houve um problema a preparar o logótipo. Podes tentar mais tarde no Dashboard.");
     goToModels();
     return;
   }
