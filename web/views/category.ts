@@ -1,5 +1,5 @@
 /** Página de categoria — resolve a loja e mostra só os produtos dessa categoria. */
-import { render, fadeInImages, esc, formatKz } from "../lib/dom.js";
+import { render, fadeInImages, formatKz } from "../lib/dom.js";
 import { getTemplate } from "../templates/registry.js";
 import { headerCategories, allProductsHref, filterForCategoryPage, ALL_LABEL, FEATURED_LABEL } from "../templates/sectionsModel.js";
 import type { StoreRenderView } from "../templates/types.js";
@@ -50,7 +50,8 @@ export async function renderCategoryPage(identifier: string, slugOrLabel: string
   applyIconColor(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
-  mountListingToolbar(app, view, identifier, category);
+  mountCategoryFilter(app, view, identifier, category);
+  mountListingSort(app, view);
 
   // SEO da listagem: descrição ÚNICA por categoria (nunca a da loja repetida),
   // trilho de navegação e a coleção de produtos em dados estruturados.
@@ -93,62 +94,121 @@ export async function renderCategoryPage(identifier: string, slugOrLabel: string
   });
 }
 
+/** Um rótulo que significa «todos os produtos» (o do menu ou o das ligações antigas). */
+function isAllLabel(label: string): boolean {
+  return label === ALL_LABEL || label === "Todos";
+}
+
 /**
- * Barra de filtros/ordenação injetada acima da grelha de produtos, em qualquer
- * modelo. Herda a tipografia do modelo (é inserida no DOM da loja) e usa a cor
- * de marca (`var(--brand)`) nos elementos ativos. Os filtros por categoria são
- * ligações (navegação); a ordenação é feita no cliente, reordenando os cartões.
+ * Liga a barra de filtros do modelo (`categoryFilterHtml`): trocar de categoria
+ * passa a acontecer **nesta página**.
+ *
+ * O menu «Categorias» do cabeçalho navega para outra vista — o ecrã é
+ * substituído, salta para o topo e, nas palavras do Dono, «somem todos os
+ * botões». Aqui os cartões de **todos** os produtos já vieram no HTML do modelo
+ * (`listingProducts`), pelo que filtrar é esconder e mostrar: não há pedido ao
+ * servidor, não há vista nova.
+ *
+ * O endereço acompanha a escolha com `history.replaceState` e nunca com
+ * `navigate()`: `navigate()` é o que dispara o router e recarrega a vista, ou
+ * seja, o defeito que esta barra existe para corrigir.
  */
-function mountListingToolbar(
+function mountCategoryFilter(
   app: HTMLElement,
   view: StoreRenderView,
   identifier: string,
   activeLabel: string,
 ): void {
+  const bar = app.querySelector<HTMLElement>("[data-cat-filter-bar]");
+  if (!bar) return;
+
+  const chips = Array.from(bar.querySelectorAll<HTMLElement>("[data-cat-filter]"));
+  const cards = Array.from(app.querySelectorAll<HTMLElement>("[data-product-category]"));
+  const activeStyle = bar.dataset.catActiveStyle ?? "";
+  const titleEl = app.querySelector<HTMLElement>("[data-cat-title]");
+  const countEl = app.querySelector<HTMLElement>("[data-cat-count]");
+
+  /**
+   * @param label Categoria escolhida (o primeiro chip mostra tudo).
+   * @param inicial À entrada, o título, a contagem e o endereço já são os certos
+   *   — só os cartões de fora da categoria precisam de ser escondidos.
+   */
+  function apply(label: string, inicial: boolean): void {
+    const todos = isAllLabel(label);
+    let visiveis = 0;
+    for (const card of cards) {
+      const match = todos || (card.dataset.productCategory ?? "") === label;
+      card.style.display = match ? "" : "none";
+      if (match) visiveis += 1;
+    }
+
+    for (const chip of chips) {
+      const on = chip.dataset.catFilter === label || (todos && isAllLabel(chip.dataset.catFilter ?? ""));
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+      chip.setAttribute("style", on ? activeStyle : (chip.dataset.catBase ?? ""));
+    }
+    if (inicial) return;
+
+    const titulo = todos ? ALL_LABEL : label;
+    if (titleEl) titleEl.textContent = titulo;
+    if (countEl) countEl.textContent = `${visiveis} produto(s)`;
+    document.title = categoryTitle(titulo, view.storeName);
+
+    // Endereço partilhável sem tocar no router: o caminho da categoria escolhida.
+    const href = todos
+      ? allProductsHref(view)
+      : `${storeBasePath(identifier)}/categoria/${categorySlug(label)}`;
+    history.replaceState(history.state, "", href + location.search);
+  }
+
+  apply(activeLabel, true);
+  bar.addEventListener("click", (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-cat-filter]");
+    if (!chip) return;
+    apply(chip.dataset.catFilter ?? ALL_LABEL, false);
+  });
+}
+
+/**
+ * Ordenação da listagem, injetada em qualquer modelo: reordena os cartões que já
+ * estão no ecrã, sem voltar ao servidor. Entra dentro da barra de filtros do
+ * modelo quando existe (uma linha só, à direita), senão fica acima da grelha.
+ */
+function mountListingSort(app: HTMLElement, view: StoreRenderView): void {
   const cards = Array.from(app.querySelectorAll<HTMLElement>("[data-edit-product]"));
-  if (cards.length < 2) return; // sem produtos suficientes para filtrar/ordenar
+  if (cards.length < 2) return; // sem produtos suficientes para ordenar
   const grid = cards[0].parentElement;
   if (!grid) return;
 
-  const catHref = (label: string): string => `${storeBasePath(identifier)}/categoria/${categorySlug(label)}`;
-  const cats = headerCategories(view);
-  const isAll = activeLabel === ALL_LABEL || activeLabel === "Todos";
+  const box = document.createElement("div");
+  box.className = "ml-auto relative";
+  box.innerHTML = `
+    <select data-listing-sort class="text-sm rounded-full pl-4 pr-9 py-2 appearance-none cursor-pointer outline-none" style="border:1px solid rgba(128,128,128,.32);background:transparent;color:inherit">
+      <option value="rel">Ordenar: Relevância</option>
+      <option value="preco-asc">Preço: mais baixo</option>
+      <option value="preco-desc">Preço: mais alto</option>
+      <option value="nome">Nome (A–Z)</option>
+    </select>
+    <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[18px]" style="opacity:.6">expand_more</span>`;
 
-  const chip = (label: string, href: string, active: boolean): string =>
-    `<a href="${esc(href)}" class="text-sm px-4 py-2 rounded-full whitespace-nowrap transition-colors" ` +
-    (active
-      ? `style="background:var(--brand);color:#fff;border:1px solid var(--brand)"`
-      : `style="border:1px solid rgba(128,128,128,.32);color:inherit;opacity:.8"`) +
-    `>${esc(label)}</a>`;
-
-  const chips = [
-    chip("Todos", allProductsHref(view), isAll),
-    ...cats.map((c) => chip(c, catHref(c), !isAll && c === activeLabel)),
-  ].join("");
-
-  const bar = document.createElement("div");
-  bar.className = "flex flex-wrap items-center gap-2 mb-8";
-  bar.innerHTML = `
-    <div class="flex flex-wrap items-center gap-2 min-w-0">${chips}</div>
-    <div class="ml-auto flex items-center gap-2">
-      <span class="text-sm" style="opacity:.6">${cards.length} produto(s)</span>
-      <div class="relative">
-        <select data-listing-sort class="text-sm rounded-full pl-4 pr-9 py-2 appearance-none cursor-pointer outline-none" style="border:1px solid rgba(128,128,128,.32);background:transparent;color:inherit">
-          <option value="rel">Ordenar: Relevância</option>
-          <option value="preco-asc">Preço: mais baixo</option>
-          <option value="preco-desc">Preço: mais alto</option>
-          <option value="nome">Nome (A–Z)</option>
-        </select>
-        <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[18px]" style="opacity:.6">expand_more</span>
-      </div>
-    </div>`;
-  grid.parentElement?.insertBefore(bar, grid);
+  const bar = app.querySelector<HTMLElement>("[data-cat-filter-bar]");
+  if (bar) {
+    bar.appendChild(box);
+  } else {
+    // Sem barra (listagem de Destaques, loja sem categorias): linha própria, à
+    // direita, para não ficar um selecionador solto encostado ao título.
+    box.className = "relative";
+    const row = document.createElement("div");
+    row.className = "flex justify-end mb-6";
+    row.appendChild(box);
+    grid.parentElement?.insertBefore(row, grid);
+  }
 
   const priceById = new Map(view.products.map((p) => [p.id, p.price]));
   const nameById = new Map(view.products.map((p) => [p.id, (p.name ?? "").toLowerCase()]));
   const original = cards.map((el, i) => ({ el, i }));
 
-  const sortSel = bar.querySelector<HTMLSelectElement>("[data-listing-sort]");
+  const sortSel = box.querySelector<HTMLSelectElement>("[data-listing-sort]");
   sortSel?.addEventListener("change", () => {
     const mode = sortSel.value;
     const arr = [...original];

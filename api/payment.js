@@ -23,7 +23,7 @@ import {
   admin, momenu, readBody, send,
   productsTotal, computeFee, computeNet, isValidProduct, cleanProducts, momenuProducts,
   mapMomenuStatus, MIN_PAYMENT_KZ, PLATFORM_API_KEY, missingEnvMessage, activatePlan, creditSms, fulfillLogo, bumpDiscountUse,
-  accountActive, checkStock, decrementStock,
+  accountActive, checkStock, decrementStock, countPublishedStores, PLAN_PRICE_KZ,
 } from "./_shared.js";
 
 export default async function handler(req, res) {
@@ -42,9 +42,33 @@ export default async function handler(req, res) {
   const method = body.method === "mcx" ? "mcx" : body.method === "reference" ? "reference" : null;
   if (!method) return send(res, 400, { success: false, error: "Método inválido.", code: "INVALID_METHOD" });
 
-  const products = cleanProducts(body.products);
+  let products = cleanProducts(body.products);
   if (!products.length) return send(res, 400, { success: false, error: "Produtos em falta.", code: "MISSING_PRODUCTS" });
   if (!products.every(isValidProduct)) return send(res, 400, { success: false, error: "Produto inválido.", code: "INVALID_PRODUCT" });
+
+  /**
+   * PREÇO DO PLANO É CALCULADO AQUI, NÃO ACEITO DO CLIENTE.
+   *
+   * O montante de um pagamento de plano é o preço do ciclo **multiplicado pelas
+   * Lojas publicadas do Dono**, contadas na base de dados neste momento. Aceitar o
+   * preço que o navegador enviasse era deixar qualquer pessoa subscrever por 1 Kz
+   * — e com o preço por Loja seria também o navegador a decidir quantas Lojas
+   * paga. É a mesma razão por que o stock e o total das encomendas são
+   * recalculados no servidor.
+   *
+   * O contador é o mesmo que o painel mostra (exclui lojas-modelo). Zero conta
+   * como uma: uma falha de leitura não pode inflacionar nem anular a fatura.
+   */
+  let planStores = 0;
+  if (kind === "plan") {
+    planStores = Math.max(1, await countPublishedStores(db, String(body.ownerId || "")));
+    const unit = PLAN_PRICE_KZ[period];
+    products = [{
+      productName: `Subscrição ${period === "anual" ? "anual" : "mensal"} MôBisno — ${planStores} ${planStores === 1 ? "loja" : "lojas"}`,
+      productPrice: unit,
+      productQuantity: planStores,
+    }];
+  }
 
   const amount = productsTotal(products);
   if (body.amount !== undefined && Math.abs(Number(body.amount) - amount) > 0.001) {
@@ -166,7 +190,7 @@ export default async function handler(req, res) {
   let orderId = null;
   try {
     if (kind === "plan") {
-      const ins = await db.from("plan_payments").insert({
+      const linha = {
         owner_id: String(body.ownerId || ""),
         // Deixou de haver escalões: o que se compra é o CICLO, e é ele que
         // decide se a subscrição recebe 30 ou 365 dias.
@@ -180,11 +204,23 @@ export default async function handler(req, res) {
         reference_due_date: d.dueDate || null,
         invoice_url: d.invoiceUrl || null,
         paid_at: status === "paid" ? nowIso : null,
-      }).select("id").maybeSingle();
+      };
+      /*
+       * `stores` — lojas que este pagamento cobre — fica gravado na transação
+       * porque uma referência bancária pode ser paga dias depois, e o que se ativa
+       * então é o que foi cobrado agora, não o número de Lojas desse dia.
+       *
+       * A coluna nasceu na migração 0020 e pode ainda não existir. Um `insert` com
+       * coluna inexistente falha, e **o pagamento já foi iniciado na MoMenu**:
+       * ficaria dinheiro cobrado sem registo nenhum. Daí a segunda tentativa sem
+       * a coluna — perde-se o número de lojas, não a transação.
+       */
+      let ins = await db.from("plan_payments").insert({ ...linha, stores: planStores }).select("id").maybeSingle();
+      if (ins.error) ins = await db.from("plan_payments").insert(linha).select("id").maybeSingle();
       orderId = ins.data?.id || null;
       // MCX é pago de imediato → ativa já a subscrição.
       if (status === "paid" && body.ownerId) {
-        await activatePlan(db, String(body.ownerId), period);
+        await activatePlan(db, String(body.ownerId), period, planStores);
       }
     } else if (kind === "sms") {
       const quantity = Math.max(0, parseInt(body.smsQuantity, 10) || 0);

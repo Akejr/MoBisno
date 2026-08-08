@@ -27,10 +27,12 @@ import {
   normalizeVariations,
   combinationsOf,
   syncCombinations,
+  variationImages,
   variantKeyOf,
   variantLabelOf,
   findCombination,
   combinationAvailable,
+  effectivePrice,
   missingAxes,
   variationsPlainText,
 } from "../src/services/variations.js";
@@ -518,5 +520,75 @@ describe("normalizeVariations — leitura utilizável", () => {
     );
 
     expect(v!.priceMode).toBe("substitui");
+  });
+});
+
+describe("Foto por variação — leitura, preservação e apresentação", () => {
+  /** Personalização com um grupo de duas variações, a segunda com foto. */
+  const custom = {
+    productVariations: {
+      p1: {
+        enabled: true,
+        axes: [{ name: "Cor", values: ["Azul", "Preto"] }],
+        combinations: [
+          { values: ["Azul"], image: "https://cdn/azul.jpg" },
+          { values: ["Preto"] },
+        ],
+      },
+    },
+  };
+
+  it("a foto é lida da Combinação e sobrevive à normalização", () => {
+    const v = normalizeVariations(custom, "p1");
+    expect(v).not.toBeNull();
+    expect(v!.combinations[0]!.image).toBe("https://cdn/azul.jpg");
+    // Ausente é ausente: não vira cadeia vazia, senão a loja tentava mostrar "".
+    expect(v!.combinations[1]!.image).toBeUndefined();
+  });
+
+  it("uma foto de tipo errado ou vazia conta como ausente, sem lançar", () => {
+    for (const image of [0, {}, [], null, "", "   ", true]) {
+      const v = normalizeVariations({
+        productVariations: { p: { enabled: true, axes: [{ name: "C", values: ["A"] }], combinations: [{ values: ["A"], image }] } },
+      }, "p");
+      expect(v!.combinations[0]!.image, `image=${JSON.stringify(image)}`).toBeUndefined();
+    }
+  });
+
+  it("syncCombinations preserva a foto das variações que sobrevivem", () => {
+    // Acrescentar um valor não pode fazer perder a foto dos outros (R4.20).
+    const v = normalizeVariations(custom, "p1")!;
+    const alargado = syncCombinations({
+      ...v,
+      axes: [{ name: "Cor", values: ["Azul", "Preto", "Branco"] }],
+    });
+    const azul = alargado.combinations.find((c) => c.values[0] === "Azul");
+    const branco = alargado.combinations.find((c) => c.values[0] === "Branco");
+    expect(azul?.image).toBe("https://cdn/azul.jpg");
+    expect(branco?.image).toBeUndefined();
+  });
+
+  it("variationImages devolve as fotos sem repetições, e vazio quando não há", () => {
+    expect(variationImages(normalizeVariations(custom, "p1"))).toEqual(["https://cdn/azul.jpg"]);
+    expect(variationImages(null)).toEqual([]);
+    const repetida = normalizeVariations({
+      productVariations: {
+        p: {
+          enabled: true,
+          axes: [{ name: "C", values: ["A", "B"] }],
+          combinations: [{ values: ["A"], image: "u" }, { values: ["B"], image: "u" }],
+        },
+      },
+    }, "p");
+    expect(variationImages(repetida)).toEqual(["u"]);
+  });
+
+  it("a foto não entra na identidade nem no preço da variação", () => {
+    // Duas versões com fotos diferentes e o mesmo nome continuam a ser a mesma
+    // linha de carrinho; a foto é apresentação.
+    const v = normalizeVariations(custom, "p1")!;
+    expect(variantKeyOf(v.combinations[0]!.values)).toBe("Azul");
+    expect(effectivePrice(1000, v.combinations[0]!, v.priceMode)).toBe(1000);
+    expect(combinationAvailable(v.combinations[0]!)).toBe(true);
   });
 });

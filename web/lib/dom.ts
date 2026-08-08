@@ -36,6 +36,96 @@ export function setFavicon(href: string): void {
   link.href = href;
 }
 
+/* ------------------------------ Favicon quadrado ----------------------------- */
+
+/**
+ * Lado do quadrado desenhado. 64 e não 32: o navegador escolhe entre 16, 32 e
+ * mais para a lista de favoritos, e reduzir é sempre melhor do que ampliar.
+ */
+const FAVICON_SIZE = 64;
+
+/**
+ * Quadrados já desenhados, por URL. `null` fica registado à mesma: uma imagem
+ * que falhou (CORS, 404) falha outra vez, e sem isto cada navegação dentro da
+ * loja repetia o pedido e o desenho.
+ */
+const squareFavicons = new Map<string, string | null>();
+
+/** Último logótipo pedido. Evita que um pedido lento pise a loja seguinte. */
+let faviconPedido = "";
+
+/**
+ * Desenha o logótipo da loja num quadrado e usa-o como favicon.
+ *
+ * O logótipo tem a proporção que o dono lhe deu — muitas vezes largo. Passado
+ * direto ao `<link rel="icon">`, o navegador esmaga-o num quadrado de 16×16 e o
+ * resultado é o logótipo esticado que se via no separador. Aqui o desenho encaixa
+ * pelo lado maior, centrado, e o resto do quadrado fica transparente.
+ *
+ * O URL cru é aplicado primeiro: enquanto o quadrado não estiver pronto (ou se
+ * nunca ficar) a aba tem ícone. É também a razão de não haver caminho de erro —
+ * qualquer falha deixa o comportamento anterior no lugar.
+ */
+export function setSquareFavicon(href: string): void {
+  faviconPedido = href;
+  setFavicon(href);
+
+  const emCache = squareFavicons.get(href);
+  if (emCache !== undefined) {
+    if (emCache) setFavicon(emCache);
+    return;
+  }
+
+  void squareFaviconDataUrl(href).then((data) => {
+    squareFavicons.set(href, data);
+    if (data && faviconPedido === href) setFavicon(data);
+  });
+}
+
+/**
+ * Carrega a imagem pedindo CORS.
+ *
+ * Os logótipos vêm do Storage do Supabase, ou seja, de outro domínio. Sem
+ * `crossOrigin` a imagem carrega mas o canvas fica «tainted» e o `toDataURL()`
+ * lança; com `crossOrigin`, se o servidor não autorizar, é o carregamento que
+ * falha. Nos dois casos a resposta é a mesma: `null`, e fica o URL cru.
+ */
+function loadFaviconImage(href: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = href;
+  });
+}
+
+/** PNG quadrado do logótipo em `data:`, ou `null` se não for possível fazê-lo. */
+async function squareFaviconDataUrl(href: string): Promise<string | null> {
+  const img = await loadFaviconImage(href);
+  if (!img) return null;
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (!w || !h) return null;
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = FAVICON_SIZE;
+    canvas.height = FAVICON_SIZE;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    // Encaixa pelo lado maior: a mesma escala nos dois eixos é o que mantém a
+    // proporção. O canvas nasce transparente, por isso não se pinta fundo.
+    const escala = Math.min(FAVICON_SIZE / w, FAVICON_SIZE / h);
+    const dw = Math.max(1, Math.round(w * escala));
+    const dh = Math.max(1, Math.round(h * escala));
+    ctx.drawImage(img, Math.round((FAVICON_SIZE - dw) / 2), Math.round((FAVICON_SIZE - dh) / 2), dw, dh);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
 /** Escapa texto para inserção segura em HTML. */
 export function esc(value: unknown): string {
   return String(value ?? "")

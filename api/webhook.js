@@ -12,7 +12,7 @@
  * Entrega fire-and-forget: respondemos sempre 200.
  */
 
-import { admin, readBody, send, mapMomenuStatus, activatePlan, creditSms, fulfillLogo, decrementStock } from "./_shared.js";
+import { admin, readBody, send, mapMomenuStatus, activatePlan, planPaymentStores, creditSms, fulfillLogo, decrementStock } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { received: false });
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       if (status === "paid") {
         // O ciclo comprado (`period`) é o que decide 30 ou 365 dias.
         const { data: pp } = await db.from("plan_payments").select("owner_id, period").eq("merchant_transaction_id", mtx).maybeSingle();
-        if (pp?.owner_id) await activatePlan(db, pp.owner_id, pp.period);
+        if (pp?.owner_id) await activatePlan(db, pp.owner_id, pp.period, await planPaymentStores(db, mtx));
       }
     }
 

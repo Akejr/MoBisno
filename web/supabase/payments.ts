@@ -5,10 +5,21 @@
  * bancários. O RLS garante que só o dono lê/escreve a configuração da sua loja
  * (não há leitura pública: a chave nunca é exposta a visitantes).
  *
- * `orders` é só de leitura para o dono (a criação/atualização é feita pelas
- * funções serverless com a service role).
+ * `orders` é de leitura para o dono, mais a eliminação das referências
+ * expiradas (`orders_owner_delete`, migração `0021_orders_owner_delete.sql`). A
+ * criação e a atualização continuam a ser feitas pelas funções serverless com a
+ * service role.
  */
 import { supabase } from "./client.js";
+import { canDeleteOrder, isReferenceExpired, orderEffectiveStatus, type OrderLifecycle } from "../../src/services/payments.js";
+
+/*
+ * As regras de ciclo de vida (expirada / apagável) vivem em
+ * `src/services/payments.ts`: são puras, não precisam do Supabase e assim podem
+ * ser testadas com exemplos — este módulo não pode ser importado num teste
+ * porque `./client.js` exige as variáveis de ambiente do browser.
+ */
+export { canDeleteOrder, isReferenceExpired, orderEffectiveStatus, type OrderLifecycle };
 
 export interface PaymentConfig {
   onlineEnabled: boolean;
@@ -39,21 +50,6 @@ export interface OrderRow {
   customer: { name?: string; nif?: string; phone?: string } | null;
   createdAt: string;
   paidAt: string | null;
-}
-
-/**
- * Uma referência bancária por pagar (`open`) cuja data-limite já passou é
- * considerada **expirada** — deixa de ficar "pendente" para sempre.
- */
-export function isReferenceExpired(row: { status: string; method: string; dueDate: string | null }): boolean {
-  if (row.status !== "open" || row.method !== "reference" || !row.dueDate) return false;
-  const t = Date.parse(row.dueDate);
-  return Number.isFinite(t) && t < Date.now();
-}
-
-/** Estado efetivo de uma encomenda (com "expired" derivado da data-limite). */
-export function orderEffectiveStatus(row: { status: string; method: string; dueDate: string | null }): string {
-  return isReferenceExpired(row) ? "expired" : row.status;
 }
 
 export interface OrderStats {
@@ -118,6 +114,23 @@ export async function listOrders(storeId: string, limit = 50): Promise<OrderRow[
     createdAt: r.created_at,
     paidAt: r.paid_at,
   }));
+}
+
+/**
+ * Apaga uma encomenda e diz se a linha **desapareceu mesmo**.
+ *
+ * O `.select("id")` não é enfeite: sem política de `delete` que cubra a linha, o
+ * Supabase devolve zero linhas afetadas e **nenhum erro**. Devolver `!error`
+ * dizia "apagado" a um `delete` que não apagou nada — que era exatamente o que
+ * acontecia antes da migração `0021_orders_owner_delete.sql`.
+ *
+ * A política é a guarda: aceita só referências expiradas e por pagar. Uma
+ * encomenda paga devolve `false` aqui, aconteça o que acontecer no navegador.
+ */
+export async function deleteOrder(orderId: string): Promise<boolean> {
+  const { data, error } = await supabase.from("orders").delete().eq("id", orderId).select("id");
+  if (error) { console.error("deleteOrder", error); return false; }
+  return (data ?? []).length > 0;
 }
 
 /** Resumo financeiro de uma loja (calculado a partir das encomendas). */

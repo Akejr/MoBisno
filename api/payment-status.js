@@ -7,7 +7,7 @@
  *   (para planos use ownerId em vez de storeId)
  */
 
-import { admin, momenu, send, mapStatusString, PLATFORM_API_KEY, activatePlan, creditSms, fulfillLogo, decrementStock } from "./_shared.js";
+import { admin, momenu, send, mapStatusString, PLATFORM_API_KEY, activatePlan, planPaymentStores, creditSms, fulfillLogo, decrementStock } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return send(res, 405, { success: false, error: "Método não permitido." });
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
         await db.from("plan_payments").update(patch).eq("operation_id", operationId);
         if (status === "paid") {
           const { data: pp } = await db.from("plan_payments").select("owner_id, period").eq("operation_id", operationId).maybeSingle();
-          if (pp?.owner_id) await activatePlan(db, pp.owner_id, pp.period);
+          if (pp?.owner_id) await activatePlan(db, pp.owner_id, pp.period, await planPaymentStores(db, operationId));
         }
       } else {
         // Encomenda de loja OU compra de SMS (mesmo operationId).

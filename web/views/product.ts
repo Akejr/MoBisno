@@ -49,6 +49,11 @@ interface VariantChoice {
   variantLabel: string;
   /** Preço efetivo da Combinação, de `effectivePrice` (R4.6 a R4.8). */
   price: number;
+  /**
+   * Foto da versão escolhida, quando existe. Vai para a linha de Carrinho: o
+   * Cliente que escolheu o azul vê o azul no carrinho, não a foto do Produto.
+   */
+  image?: string;
 }
 
 /**
@@ -80,6 +85,7 @@ function mountVariationPicker(
   root: HTMLElement,
   v: ProductVariations,
   basePrice: number,
+  baseImage: string,
 ): { resolve(): VariantChoice | null } {
   const axes = v.axes;
   const container = root.querySelector<HTMLElement>("[data-variations]");
@@ -92,6 +98,29 @@ function mountVariationPicker(
   const pickStyle = container.getAttribute("data-pick-style") ?? "";
   const buttons = Array.from(container.querySelectorAll<HTMLElement>("[data-variation-pick]"));
   const priceEls = Array.from(root.querySelectorAll<HTMLElement>("[data-product-price]"));
+
+  /**
+   * Mostra a fotografia de uma versão do Produto.
+   *
+   * Duas vias, porque os modelos desenham a imagem de duas maneiras:
+   *
+   *  - com **galeria** (2+ fotos), a foto da variação já é um slide — `productImages`
+   *    inclui-a — e basta marcar o rádio cujo `data-img-src` é essa foto: a troca
+   *    fica com o CSS da galeria, com a transição que ele já faz, e a miniatura
+   *    correspondente acende sozinha;
+   *  - **sem galeria** (variante «imersivo», ou Produto com uma foto só), troca-se
+   *    o `src` do `[data-product-image]`.
+   *
+   * Sem nenhum dos dois, não faz nada — um modelo que não desenhe imagem não pode
+   * quebrar a escolha da variação.
+   */
+  const showImage = (url: string): void => {
+    if (!url) return;
+    const slide = root.querySelector<HTMLInputElement>(`input[data-img-src="${CSS.escape(url)}"]`);
+    if (slide) { slide.checked = true; return; }
+    const img = root.querySelector<HTMLImageElement>("[data-product-image]");
+    if (img && img.getAttribute("src") !== url) img.setAttribute("src", url);
+  };
 
   const showNote = (message: string): void => {
     if (!note) return;
@@ -153,6 +182,17 @@ function mountVariationPicker(
     priceEls.forEach((el) => { el.textContent = formatKz(price); });
     if (complete && !combinationAvailable(comb)) showNote("Esta combinação está esgotada.");
     else clearNote();
+
+    /*
+     * Foto da versão escolhida. A da Combinação ganha à do valor: com dois eixos,
+     * «Azul + M» pode ter foto própria e é essa a versão que o Cliente está a
+     * ver. Sem nenhuma escolha, volta a foto do Produto — senão ficava a foto de
+     * uma versão que o Cliente já desmarcou.
+     */
+    const picked = buttons.find((el) => el.getAttribute("aria-pressed") === "true" && el.hasAttribute("data-variation-image"));
+    const image = comb?.image || picked?.getAttribute("data-variation-image") || "";
+    if (image) showImage(image);
+    else if (selection.every((s) => s === null)) showImage(baseImage);
   };
 
   buttons.forEach((el) => el.addEventListener("click", () => {
@@ -183,11 +223,16 @@ function mountVariationPicker(
         return null;
       }
       clearNote();
-      return {
+      const choice: VariantChoice = {
         variantKey: variantKeyOf(values),
         variantLabel: variantLabelOf(axes, values),
         price: effectivePrice(basePrice, comb, v.priceMode),
       };
+      const image = comb?.image
+        || buttons.find((el) => el.getAttribute("aria-pressed") === "true" && el.hasAttribute("data-variation-image"))?.getAttribute("data-variation-image")
+        || "";
+      if (image) choice.image = image;
+      return choice;
     },
   };
 }
@@ -235,7 +280,9 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   // Variação do Produto (R4.9 a R4.12). `null` = Produto sem Variação: daqui em
   // diante corre exactamente o código de hoje (R4.16).
   const variations = normalizeVariations(custom, product.id);
-  const picker = variations ? mountVariationPicker(app, variations, product.price) : null;
+  const picker = variations
+    ? mountVariationPicker(app, variations, product.price, product.imageUrl ?? "")
+    : null;
 
   // Avaliações (estrelas) — carrega e calcula o resumo para o JSON-LD.
   let reviews: Review[] = [];
@@ -312,7 +359,9 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
         productId: product.id,
         name: product.name,
         price: choice.price,
-        imageUrl: product.imageUrl ?? undefined,
+        // A foto da versão escolhida, quando existe: quem escolheu o azul vê o
+        // azul na linha do carrinho.
+        imageUrl: choice.image ?? product.imageUrl ?? undefined,
         variantKey: choice.variantKey,
         variantLabel: choice.variantLabel,
       }, qty);
@@ -351,7 +400,7 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
             productId: product.id,
             name: product.name,
             price: choice.price,
-            imageUrl: product.imageUrl ?? undefined,
+            imageUrl: choice.image ?? product.imageUrl ?? undefined,
             variantKey: choice.variantKey,
             variantLabel: choice.variantLabel,
           }, readQty());

@@ -24,20 +24,60 @@ describe("Formulario_De_Produto — interruptor e definição das Variação (R4
     expect(FORM).toMatch(/varOn = varOnInput\.checked/);
   });
 
-  it("o nome do eixo é escrito pelo Dono, sem lista fixa de nomes", () => {
+  it("os nomes são escritos pelo Dono, sem lista fixa de nomes", () => {
     // «Cor» e «Tamanho» só podem aparecer como exemplo num `placeholder`.
-    expect(FORM).toContain("data-axis-name");
+    expect(FORM).toContain("data-item-name");
+    expect(FORM).toContain("data-group-name");
     const nomesFixos = FORM.split("\n").filter(
       (linha) => /"(Cor|Tamanho)"/.test(linha) && !linha.includes("placeholder"),
     );
     expect(nomesFixos).toEqual([]);
   });
 
-  it("o modo de preço tem exactamente as duas opções do domínio", () => {
-    expect(FORM).toContain('data-var-mode="substitui"');
-    expect(FORM).toContain('data-var-mode="acresce"');
-    expect(FORM).toContain("Substitui o preço base");
-    expect(FORM).toContain("Acresce ao preço base");
+  it("o preço de uma variação é absoluto: o formulário grava sempre «substitui»", () => {
+    // O modo «acresce» saiu do formulário — obrigava o Dono a pensar em somas — e
+    // o que estivesse gravado assim é convertido para absoluto ao carregar. Sem
+    // essa conversão, um `+2000` passaria a valer `2000` e a Loja vendia barato.
+    expect(FORM).toContain('priceMode: "substitui"');
+    expect(FORM).not.toContain('data-var-mode="acresce"');
+    expect(FORM).toMatch(/priceMode === "acresce" \? base \+ comb\.price : comb\.price/);
+  });
+
+  it("a caixa «preço original» é o que dispensa escrever um preço", () => {
+    expect(FORM).toContain("data-item-base");
+    expect(FORM).toContain("Preço original");
+    // Marcar apaga o preço próprio: «vale o preço do produto» não é «vale zero».
+    expect(FORM).toMatch(/if \(el\.checked\) delete item\.price;/);
+  });
+
+  it("uma variação pode ter fotografia, e a foto é opcional", () => {
+    expect(FORM).toContain("data-var-photo");
+    expect(FORM).toContain("data-rm-var-photo");
+    // A foto passa pelo mesmo caminho das outras: compressão, validação de
+    // política e `fileService.store` — nunca gravada em base64 na Personalização.
+    const i = FORM.indexOf("varImageInput.addEventListener");
+    expect(i).toBeGreaterThan(-1);
+    const bloco = FORM.slice(i, i + 700);
+    expect(bloco).toContain("compressImageFile(raw)");
+    expect(bloco).toContain("PRODUCT_POLICY");
+    expect(bloco).toContain('fileService.store(storeId, "product"');
+    expect(bloco).toMatch(/item\.image = stored\.url/);
+  });
+
+  it("é um ecrã único: já não há separadores", () => {
+    // Estavam em `data-tab`/`data-panel`, e o Dono tinha de descobrir que existia
+    // um separador «Variações» antes de ver o que fazia.
+    expect(FORM).not.toContain("data-tab");
+    expect(FORM).not.toContain("data-panel=");
+    expect(FORM).not.toContain("function showTab");
+  });
+
+  it("avisa quando a Personalização tinha mais do que um grupo", () => {
+    // O formulário edita um grupo. Guardar deixa a Loja com o primeiro, e isso
+    // tem de ser dito antes, não descoberto depois.
+    expect(FORM).toMatch(/droppedGroups = Math\.max\(0, synced\.axes\.length - 1\)/);
+    expect(FORM).toMatch(/droppedGroups > 0/);
+    expect(FORM).toContain("grupos</strong> de variações");
   });
 });
 
@@ -48,29 +88,65 @@ describe("Formulario_De_Produto — Combinação vindas de syncCombinations (R4.
     expect(FORM).not.toMatch(/for \(const value of axis\.values\)/);
   });
 
-  it("remover uma Variação e remover um valor voltam a sincronizar", () => {
-    expect(FORM).toContain("data-rm-axis");
-    expect(FORM).toContain("data-rm-val");
-    for (const bloco of ["axes.splice(", "values.splice("]) {
-      const i = FORM.indexOf(bloco);
-      expect(i, `remoção não encontrada: ${bloco}`).toBeGreaterThan(-1);
-      expect(FORM.slice(i, i + 200)).toContain("drawVariations()");
-    }
-    expect(FORM).toMatch(/function drawVariations\(\)[\s\S]{0,400}resyncVariations\(\)/);
+  it("remover uma variação redesenha a lista", () => {
+    expect(FORM).toContain("data-rm-item");
+    const i = FORM.indexOf("items.splice(");
+    expect(i, "remoção não encontrada").toBeGreaterThan(-1);
+    expect(FORM.slice(i, i + 200)).toContain("drawVariations()");
+  });
+
+  it("a gravação passa pelo syncCombinations, com um eixo e uma Combinação por nome", () => {
+    // É `syncCombinations` que descarta nomes vazios, ignora repetidos e alinha as
+    // Combinação com os valores que sobram (R4.19, R4.20). Montar a lista à mão
+    // aqui era o caminho para a invariante posicional deixar de valer.
+    const i = FORM.indexOf("function variationsToSave()");
+    expect(i).toBeGreaterThan(-1);
+    const bloco = FORM.slice(i, i + 1400);
+    expect(bloco).toContain("syncCombinations({ enabled: true, priceMode: \"substitui\", axes, combinations })");
+    expect(bloco).toMatch(/values: \[name\]/);
+    // Nomes repetidos dariam dois botões indistinguíveis na loja.
+    expect(bloco).toContain("values.includes(name)");
   });
 });
 
-describe("Formulario_De_Produto — preço e stock por Combinação (R4.5, R4.11, R4.12)", () => {
-  it("cada Combinação tem campo de preço e campo de stock", () => {
-    expect(FORM).toContain("data-comb-price");
-    expect(FORM).toContain("data-comb-stock");
+describe("Formulario_De_Produto — preço, stock e foto por variação (R4.5, R4.11, R4.12)", () => {
+  it("cada variação tem campo de preço, de stock e botão de foto", () => {
+    expect(FORM).toContain("data-item-price");
+    expect(FORM).toContain("data-item-stock");
+    expect(FORM).toContain("data-var-photo");
   });
 
   it("stock vazio é ausente e não `0`", () => {
-    expect(FORM).toMatch(/delete comb\.stock/);
-    expect(FORM).toMatch(/delete comb\.price/);
+    expect(FORM).toMatch(/delete item\.stock/);
+    expect(FORM).toMatch(/delete item\.price/);
     // O campo vazio nunca passa a zero por coerção.
-    expect(FORM).not.toMatch(/Number\(stockRaw\) \|\| 0[\s\S]{0,40}comb/);
+    expect(FORM).not.toMatch(/Number\(stockRaw\) \|\| 0[\s\S]{0,40}item/);
+  });
+
+  it("preço e stock só entram na Combinação quando existem", () => {
+    // Escrever `price: undefined` gravaria a chave e «sem preço» deixaria de se
+    // distinguir de «preço zero» na leitura (R4.8).
+    const i = FORM.indexOf("function variationsToSave()");
+    const bloco = FORM.slice(i, i + 1400);
+    expect(bloco).toMatch(/if \(item\.price !== undefined\) comb\.price = item\.price;/);
+    expect(bloco).toMatch(/if \(controlaStock && item\.stock !== undefined\) comb\.stock = item\.stock;/);
+    expect(bloco).toMatch(/if \(item\.image !== undefined\) comb\.image = item\.image;/);
+  });
+
+  it("o stock por variação segue o interruptor «Controlar stock» do Produto", () => {
+    // Com o controlo desligado o Produto nunca esgota: um campo de stock activo
+    // por variação prometia um controlo que não ia acontecer — o Dono escrevia `0`
+    // e a variação continuava a vender.
+    expect(FORM).toMatch(/const stockOn = host\.querySelector<HTMLInputElement>\("\[data-stock-on\]"\)\?\.checked === true;/);
+    expect(FORM).toMatch(/\$\{stockOn \? "" : "disabled"\}/);
+    // E mudar o interruptor redesenha a lista, senão os campos ficavam ao contrário.
+    expect(FORM).toMatch(/stockOn\.addEventListener\("change"[\s\S]{0,400}if \(varOn\) drawVariations\(\);/);
+  });
+
+  it("o formulário é largo e em duas colunas: não obriga a percorrer tudo", () => {
+    expect(FORM).toContain("max-w-4xl");
+    expect(FORM).toContain("lg:grid-cols-2");
+    expect(FORM).not.toContain("max-w-lg rounded-2xl");
   });
 });
 

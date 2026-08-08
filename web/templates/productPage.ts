@@ -33,8 +33,10 @@ function categoryHref(view: StoreRenderView, c: string): string { return `${stor
 function productHref(view: StoreRenderView, p: StoreProductView): string { return `${storeBase(view)}/produto/${productSlugPath(p)}`; }
 
 function imgHtml(p: StoreProductView, cls: string): string {
+  // `data-product-image`: a variante «imersivo» não usa a galeria, por isso a
+  // troca de foto ao escolher uma variação faz-se aqui pelo `src`.
   return p.imageUrl
-    ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.name)}" class="${cls}" />`
+    ? `<img data-product-image src="${esc(p.imageUrl)}" alt="${esc(p.name)}" class="${cls}" />`
     : `<div class="absolute inset-0 flex items-center justify-center bg-gray-100"><span class="material-symbols-outlined text-gray-300 text-6xl">image</span></div>`;
 }
 

@@ -187,6 +187,19 @@ export interface ProductCombination {
    * opcional em vez de ser normalizado para `0`.
    */
   stock?: number;
+  /**
+   * Fotografia desta Combinação. **Ausente** = a Combinação não tem foto própria
+   * e a Pagina_De_Produto mostra a do Produto.
+   *
+   * É o que permite ao Cliente ver a versão que escolheu: escolher «Azul» troca
+   * a imagem principal pela do azul. A foto é uma URL de um ficheiro já guardado
+   * (o mesmo `fileService` das fotos do Produto), e não o ficheiro em si.
+   *
+   * Puramente apresentação: não entra na chave da Combinação, no preço nem na
+   * disponibilidade. Uma foto que falhe a carregar não impede a venda — o
+   * elemento é removido e fica a foto do Produto.
+   */
+  image?: string;
 }
 
 /**

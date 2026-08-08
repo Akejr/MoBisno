@@ -8,12 +8,23 @@
  * pré-renderizado (sem JavaScript), mantendo a consistência de UI.
  */
 import { esc } from "../lib/dom.js";
+import { normalizeVariations, variationImages } from "../../src/services/variations.js";
 import type { StoreCustomization, StoreProductView } from "./types.js";
 
-/** Lista de fotos do produto: foto principal + extras (sem duplicados/vazios). */
+/**
+ * Lista de fotos do produto: foto principal + extras + **as fotos das
+ * variações** (sem duplicados nem vazios).
+ *
+ * As fotos das variações entram aqui de propósito, e não num mecanismo à parte:
+ * ficam no documento como slides e como miniaturas, por isso escolher «Azul» na
+ * Pagina_De_Produto **revela** a imagem que já está carregada em vez de ir
+ * buscar uma nova. Também é o que faz o HTML pré-renderizado — que não tem
+ * seletores, porque são montados pela SPA — mostrar todas as versões do Produto.
+ */
 export function productImages(product: StoreProductView, custom?: StoreCustomization): string[] {
   const extra = custom?.productImages?.[product.id] ?? [];
-  const all = [product.imageUrl ?? "", ...extra].map((u) => (u ?? "").trim()).filter(Boolean);
+  const variants = variationImages(normalizeVariations(custom, product.id));
+  const all = [product.imageUrl ?? "", ...extra, ...variants].map((u) => (u ?? "").trim()).filter(Boolean);
   return [...new Set(all)];
 }
 
@@ -54,7 +65,7 @@ export function productGalleryHtml(product: StoreProductView, custom: StoreCusto
   // 0 ou 1 foto — palco simples (mostra só uma imagem, como antes).
   if (imgs.length <= 1) {
     const inner = imgs[0]
-      ? `<img src="${esc(imgs[0])}" alt="${esc(product.name)}" class="${imgCls}" />`
+      ? `<img data-product-image src="${esc(imgs[0])}" alt="${esc(product.name)}" class="${imgCls}" />`
       : placeholder();
     return `<div class="relative ${opts.stageClass}"${editAttr}${style}>${inner}</div>`;
   }
@@ -62,7 +73,11 @@ export function productGalleryHtml(product: StoreProductView, custom: StoreCusto
   // 2+ fotos — galeria CSS (sem JS).
   const uid = galleryUid(product.id);
   const brand = opts.brand ?? "#1c1b1b";
-  const radios = imgs.map((_, i) => `<input type="radio" name="${uid}" id="${uid}-${i}" class="${uid}-r"${i === 0 ? " checked" : ""} aria-hidden="true" />`).join("");
+  // `data-img-src` é o que permite escolher um slide **pelo endereço da imagem**:
+  // ao escolher uma variação, `web/views/product.ts` marca o rádio cuja foto é a
+  // dessa variação e o CSS faz o resto. Sem este atributo, a única forma de
+  // encontrar o slide seria contar índices em dois sítios diferentes.
+  const radios = imgs.map((src, i) => `<input type="radio" name="${uid}" id="${uid}-${i}" class="${uid}-r" data-img-src="${esc(src)}"${i === 0 ? " checked" : ""} aria-hidden="true" />`).join("");
   const slides = imgs.map((src, i) =>
     `<img src="${esc(src)}" alt="${esc(product.name)}" class="${uid}-img ${uid}-img-${i} absolute inset-0 ${imgCls}" style="opacity:${i === 0 ? 1 : 0};transition:opacity .35s ease" />`).join("");
   const thumbs = imgs.map((src, i) =>

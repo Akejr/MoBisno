@@ -467,6 +467,116 @@ export function createAuthStepController(deps: {
 }
 
 /* ========================================================================== */
+/*  Passo 4b — Palavra-passe: comprimento e confirmação                       */
+/* ========================================================================== */
+
+/**
+ * Comprimento mínimo da palavra-passe, **declarado uma única vez**.
+ *
+ * O `AuthService` (e o adaptador do Supabase) só exigem palavra-passe não
+ * vazia; o mínimo de 6 é a regra que o Assistente aplica antes de chegar ao
+ * servidor, para não deixar o Dono escrever duas vezes uma palavra-passe que
+ * ia ser recusada. O número vive aqui e é lido pelo texto e pela validação —
+ * escrevê-lo à mão no ecrã faria com que mudar a regra deixasse a frase errada.
+ */
+export const PASSWORD_MIN_LENGTH = 6;
+
+/**
+ * Resultado de uma verificação de palavra-passe. `invalid` traz o campo e a
+ * mensagem em português, no mesmo formato dos restantes passos (Req. 10.2).
+ */
+export type PasswordCheck =
+  | { readonly status: "valid" }
+  | { readonly status: "invalid"; readonly field: string; readonly message: string };
+
+/**
+ * Verifica o comprimento da palavra-passe. Corre **antes** de pedir a
+ * confirmação: uma palavra-passe curta é recusada de imediato, sem obrigar o
+ * Dono a escrevê-la duas vezes.
+ */
+export function validatePasswordLength(password: string): PasswordCheck {
+  const value = typeof password === "string" ? password : "";
+  if (value.length < PASSWORD_MIN_LENGTH) {
+    return {
+      status: "invalid",
+      field: WIZARD_FIELDS.password,
+      message: `A palavra-passe tem de ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres. Escreve outra.`,
+    };
+  }
+  return { status: "valid" };
+}
+
+/**
+ * Compara a palavra-passe com a sua confirmação. Só há conta criada quando as
+ * duas coincidem exatamente; quando não coincidem, as **duas** são pedidas de
+ * novo, para o Dono não ter de adivinhar qual delas estava errada.
+ */
+export function validatePasswordConfirmation(password: string, confirmation: string): PasswordCheck {
+  const first = typeof password === "string" ? password : "";
+  const second = typeof confirmation === "string" ? confirmation : "";
+  if (first !== second) {
+    return {
+      status: "invalid",
+      field: WIZARD_FIELDS.password,
+      message: "As duas palavras-passe não são iguais. Vamos escrever as duas de novo.",
+    };
+  }
+  return { status: "valid" };
+}
+
+/* ========================================================================== */
+/*  Passo 4c — Correção depois de uma falha de registo                        */
+/* ========================================================================== */
+
+/** Caminho de correção oferecido ao Dono depois de o registo falhar. */
+export type RegisterFixValue = "email" | "nome" | "password" | "entrar";
+
+/** Opção de correção apresentada como botão no Assistente. */
+export interface RegisterFixOption {
+  readonly value: RegisterFixValue;
+  readonly label: string;
+}
+
+/** Rótulos dos botões de correção, curtos e com o nome do campo. */
+export const REGISTER_FIX_LABELS: Readonly<Record<RegisterFixValue, string>> = {
+  email: "Corrigir o email",
+  nome: "Corrigir o nome",
+  password: "Outra palavra-passe",
+  entrar: "Entrar na conta que já tenho",
+};
+
+/**
+ * Constrói as escolhas de correção a partir do **erro estruturado** do
+ * `AuthService` — o `code` e o `fields`, nunca uma procura de texto na
+ * mensagem. Adivinhar o passo pelo conteúdo da frase mandava o Dono ao passo
+ * errado assim que a frase mudasse.
+ *
+ * A opção sugerida pelo erro aparece em primeiro lugar; as restantes vêm
+ * sempre atrás, porque o erro pode estar num campo que o serviço não assinala.
+ * Quando o email já está registado, o primeiro caminho é entrar na conta
+ * existente — corrigir o email é a alternativa.
+ */
+export function buildRegisterFixOptions(error: AuthError): readonly RegisterFixOption[] {
+  const ordem: RegisterFixValue[] = [];
+  if (error.code === "EMAIL_JA_REGISTADO") ordem.push("entrar");
+  for (const field of error.fields ?? []) {
+    if (field === WIZARD_FIELDS.email) ordem.push("email");
+    else if (field === "name" || field === WIZARD_FIELDS.ownerName) ordem.push("nome");
+    else if (field === WIZARD_FIELDS.password) ordem.push("password");
+  }
+  ordem.push("email", "nome", "password");
+
+  const vistos = new Set<RegisterFixValue>();
+  const opcoes: RegisterFixOption[] = [];
+  for (const value of ordem) {
+    if (vistos.has(value)) continue;
+    vistos.add(value);
+    opcoes.push({ value, label: REGISTER_FIX_LABELS[value] });
+  }
+  return opcoes;
+}
+
+/* ========================================================================== */
 /*  Passo 5 — Confirmação (Req. 5.1, 5.3, 5.6, 10.6)                          */
 /* ========================================================================== */
 

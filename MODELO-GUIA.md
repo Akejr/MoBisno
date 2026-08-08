@@ -181,10 +181,10 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
   `/loja/<id>/categoria/produtos` no domínio principal) — nunca `#/`, ver
   `SEO.md` §5.1. Não usar `#produtos` (isso só faz scroll na home).
   `filterForCategoryPage` trata `"Produtos"`/`"Todos"` como todos.
-- A página de categoria/listagem ganha automaticamente uma **barra de filtros**
-  (chips de categoria + ordenação) injetada por `category.ts` (`mountListingToolbar`).
-  Funciona em qualquer modelo desde que os cartões tenham **`data-edit-product`**
-  (hook padrão) e estejam numa grelha comum. Não é preciso código por modelo.
+- A página de categoria/listagem tem uma **barra de filtros por categoria** que
+  filtra **na mesma página** — ver §9.2. A **ordenação** continua a ser injetada
+  por `category.ts` (`mountListingSort`) e funciona em qualquer modelo desde que
+  os cartões tenham **`data-edit-product`** e estejam numa grelha comum.
 
 **Página de produto**
 - Imagem/galeria: usar **`productGalleryHtml`** de `gallery.ts` (ver §9).
@@ -467,6 +467,38 @@ Na apresentação, `CartItem.price` é o preço **efetivo** da linha (já resolv
 por `effectivePrice`) e `variantLabel` é a etiqueta legível («Cor: Azul ·
 Tamanho: M», de `variantLabelOf`) mostrada na linha do carrinho e na mensagem de
 WhatsApp. A etiqueta **nunca** identifica a linha.
+
+---
+
+## 9.2 Barra de filtros da listagem (`categoryFilter.ts`)
+
+O cliente trocava de categoria pelo menu «Categorias» do cabeçalho, que **navega**
+para outra vista: o ecrã é substituído e salta para o topo («somem todos os
+botões»). A barra de filtros da página de listagem filtra **na própria página**.
+
+Pelo mesmo precedente da §9.1, a estrutura e os ganchos vivem no módulo
+partilhado **`web/templates/categoryFilter.ts`** e o **desenho chega por
+parâmetro** (`CategoryFilterStyle`: `chipClass` — onde vivem os cantos —,
+`chipStyle`, `activeStyle`, `rootClass`). `categoryFilterHtml(labels, active,
+style)` devolve **cadeia vazia** com menos de dois rótulos.
+
+- **Rótulos:** `categoryFilterLabels(view, active)` (`sectionsModel.ts`) —
+  `ALL_LABEL` seguido das categorias **com produtos**. Devolve lista vazia na
+  listagem «Destaques» (não é uma categoria) e quando não há cartões no ecrã.
+- **Cartões:** a grelha da listagem leva **todos** os produtos
+  (`listingProducts(view, category)`) e cada cartão declara
+  `data-product-category="<categoria>"` no elemento de topo. É isso que permite
+  filtrar sem voltar ao servidor: filtrar é esconder e mostrar.
+- **Ganchos:** contentor `data-cat-filter-bar` + `data-cat-active-style`; chips
+  `data-cat-filter="<rótulo>"` + `data-cat-base`; título `data-cat-title` e
+  contagem `data-cat-count` (actualizados a cada filtro).
+- **Comportamento:** `mountCategoryFilter` em `web/views/category.ts`. O endereço
+  acompanha a escolha com **`history.replaceState`** — `navigate()` dispara o
+  router e recarrega a vista, que é o defeito a evitar.
+- Os chips são **`<button type="button">`**: `web/main.ts` interceta o clique em
+  qualquer `<a href="/...">` e navegava.
+
+Guarda: `tests/categoryFilter.test.ts`.
 
 ---
 

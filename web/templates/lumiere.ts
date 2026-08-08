@@ -18,7 +18,8 @@ import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
+import { categoryFilterHtml } from "./categoryFilter.js";
 import { mobileMenuParts } from "./headers.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
@@ -170,7 +171,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { hidden?
     ? `<div class="absolute top-4 left-4 z-10 px-3 py-1 lx-body lx-track uppercase text-[11px]" style="background:#E5D3C0;color:#1c1b1b">Destaque</div>`
     : "";
   const hide = opts.hidden ? ` data-extra style="display:none"` : "";
-  return `<a href="${esc(productHref(view, p))}" class="group block" data-edit-product="${esc(p.id)}"${hide}>
+  return `<a href="${esc(productHref(view, p))}" class="group block" data-edit-product="${esc(p.id)}" data-product-category="${esc(p.category ?? "")}"${hide}>
     <div class="relative ${cardAspect()} overflow-hidden mb-5" style="background:#f9f7f2;border-radius:2px">${img}${badge}</div>
     <div class="text-center">
       <h3 class="lx-serif text-xl mb-1" style="color:#1c1b1b">${esc(p.name)}</h3>
@@ -455,9 +456,16 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
 function renderCategory(view: StoreRenderView, category: string, custom?: StoreCustomization): string {
   const labels = menuFor(view, custom);
   const items = filterForCategoryPage(view, category);
-  const grid = items.length
-    ? `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">${items.map((p) => productCard(view, p)).join("")}</div>`
+  const cards = listingProducts(view, category);
+  const grid = cards.length
+    ? `<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">${cards.map((p) => productCard(view, p)).join("")}</div>`
     : `<div class="py-16 text-center lx-body" style="color:#777871"><span class="material-symbols-outlined" style="font-size:48px">category</span><p class="mt-2">Ainda não há produtos nesta categoria.</p></div>`;
+  // Cantos RETOS: no Lumière nem os chips fogem à regra (nenhuma classe rounded).
+  const filters = categoryFilterHtml(categoryFilterLabels(view, category), category, {
+    chipClass: "lx-body lx-track uppercase text-[11px] px-4 py-2.5 whitespace-nowrap transition-colors",
+    chipStyle: "border:1px solid #e2e0d8;color:#464742;background:transparent",
+    rootClass: "flex flex-wrap items-center gap-2 mb-10 min-w-0",
+  });
   return `${STYLE}
   <div class="lx-root min-h-screen flex flex-col">
     ${headerHtml(view)}
@@ -468,9 +476,10 @@ function renderCategory(view: StoreRenderView, category: string, custom?: StoreC
         <span style="color:#1c1b1b">${esc(category)}</span>
       </nav>
       <div class="flex items-end gap-3 mb-10">
-        <h1 class="lx-serif text-4xl md:text-5xl" style="color:#1c1b1b">${esc(category)}</h1>
-        <span class="lx-body text-sm" style="color:#777871">${items.length} produto(s)</span>
+        <h1 data-cat-title class="lx-serif text-4xl md:text-5xl" style="color:#1c1b1b">${esc(category)}</h1>
+        <span data-cat-count class="lx-body text-sm" style="color:#777871">${items.length} produto(s)</span>
       </div>
+      ${filters}
       ${grid}
     </main>
     ${footerHtml(view, custom, labels)}

@@ -131,17 +131,52 @@ export async function getOwnerName(ownerId: string): Promise<string> {
  * `plan_expires_at` no futuro». Também já não há transição a persistir — o
  * carry-over só existia para trocar entre planos.
  */
+/**
+ * A coluna `plan_stores` existe nesta base de dados?
+ *
+ * Começa em `true` e passa a `false` no primeiro pedido que falhe por causa dela.
+ * Vive no módulo, e não por chamada, para o painel não repetir um pedido
+ * condenado a cada troca de separador.
+ */
+let temColunaPlanStores = true;
+
 export async function getOwnerBilling(ownerId?: string | null): Promise<BillingState> {
   const id = ownerId ?? (await currentOwnerId());
   if (!id) return resolveBilling({ planExpiresAt: null });
-  const { data } = await supabase
+  /*
+   * `plan_stores` nasceu com o preço por Loja (migração 0020) e pode ainda não
+   * existir na base de dados.
+   *
+   * **Um `select` com uma coluna inexistente falha o pedido INTEIRO** — não
+   * devolve as outras colunas com aquela a `null`. Foi assim que um
+   * administrador com duas lojas online passou a ver «Sem subscrição ativa» e os
+   * cartões de preço: o pedido falhava, `is_admin` e `plan_expires_at` vinham
+   * vazios, e o estado resolvido era o de quem nunca pagou.
+   *
+   * Daí o recurso: perante a falha, repete-se sem a coluna nova e fica registado
+   * para os pedidos seguintes desta sessão não repetirem o erro. Ausência vale
+   * uma Loja, que é o que todas as contas anteriores pagaram.
+   */
+  const ler = (comLojas: boolean) => supabase
     .from("profiles")
-    .select("plan_expires_at, is_admin")
+    .select(comLojas ? "plan_expires_at, is_admin, plan_stores" : "plan_expires_at, is_admin")
     .eq("id", id)
     .maybeSingle();
+
+  let res = await ler(temColunaPlanStores);
+  if (res.error && temColunaPlanStores) {
+    temColunaPlanStores = false;
+    res = await ler(false);
+  }
+  const data = res.data as {
+    plan_expires_at?: string | null;
+    is_admin?: boolean | null;
+    plan_stores?: number | null;
+  } | null;
   return resolveBilling({
     planExpiresAt: data?.plan_expires_at,
     isAdmin: data?.is_admin === true,
+    planStores: data?.plan_stores ?? null,
   });
 }
 

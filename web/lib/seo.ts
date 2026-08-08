@@ -8,6 +8,7 @@
  */
 import {
   SEO_LOCALE, platformTitle, platformDescription, platformKeywords, platformJsonLd,
+  PLATFORM_SHARE_IMAGE, PLATFORM_SHARE_IMAGE_WIDTH, PLATFORM_SHARE_IMAGE_HEIGHT, PLATFORM_SHARE_IMAGE_TYPE,
   type SeoShipping, type SeoAddress,
 } from "../../src/services/seo.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
@@ -19,6 +20,15 @@ export interface SeoInput {
   canonical?: string;
   /** Imagem de partilha (Open Graph/Twitter). */
   image?: string | null;
+  /**
+   * Medidas da imagem de partilha, quando são conhecidas. Só a arte da
+   * plataforma as tem: do logótipo de uma loja e da fotografia de um produto não
+   * se sabem sem as descarregar, e medidas erradas fazem o WhatsApp reservar o
+   * cartão para uma imagem que não existe assim.
+   */
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+  imageType?: string | null;
   /** "website" | "product" | "article" … (Open Graph). */
   type?: string;
   /** Nome do site para Open Graph (a loja, ou MôBisno). */
@@ -30,7 +40,11 @@ export interface SeoInput {
   jsonLd?: object | object[];
 }
 
-const OG_DEFAULT_IMAGE = "/logo-header.png";
+/**
+ * Imagem de partilha usada quando a página não indica outra: a arte da
+ * plataforma. Era o `logo-header.png`, que o WhatsApp mostrava numa miniatura.
+ */
+const OG_DEFAULT_IMAGE = PLATFORM_SHARE_IMAGE;
 
 function abs(url: string): string {
   try { return new URL(url, location.origin).href; } catch { return url; }
@@ -46,6 +60,21 @@ function setMeta(attr: "name" | "property", key: string, content: string): void 
   el.setAttribute("content", content);
 }
 
+/**
+ * Escreve a meta ou remove-a quando não há valor.
+ *
+ * A remoção conta: numa SPA o `<head>` sobrevive à navegação, e as medidas da
+ * arte da plataforma ficariam coladas à página de loja seguinte, a descrever uma
+ * imagem que já não é aquela.
+ */
+function setOrRemoveMeta(attr: "name" | "property", key: string, content: string | null): void {
+  if (content === null) {
+    document.head.querySelector(`meta[${attr}="${key}"]`)?.remove();
+    return;
+  }
+  setMeta(attr, key, content);
+}
+
 function setLink(rel: string, href: string): void {
   let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
   if (!el) {
@@ -59,7 +88,13 @@ function setLink(rel: string, href: string): void {
 /** Aplica todos os metadados de SEO da página atual. */
 export function applySeo(input: SeoInput): void {
   const url = input.canonical ?? (location.origin + location.pathname);
+  const imagemPropria = Boolean(input.image);
   const image = abs(input.image || OG_DEFAULT_IMAGE);
+  // Sem imagem própria, a página está a usar a arte da plataforma — e dessa as
+  // medidas são conhecidas.
+  const width = input.imageWidth ?? (imagemPropria ? null : PLATFORM_SHARE_IMAGE_WIDTH);
+  const height = input.imageHeight ?? (imagemPropria ? null : PLATFORM_SHARE_IMAGE_HEIGHT);
+  const mime = input.imageType ?? (imagemPropria ? null : PLATFORM_SHARE_IMAGE_TYPE);
   const type = input.type ?? "website";
   const siteName = input.siteName ?? "MôBisno";
 
@@ -76,6 +111,9 @@ export function applySeo(input: SeoInput): void {
   setMeta("property", "og:url", url);
   setMeta("property", "og:image", image);
   setMeta("property", "og:image:alt", input.title);
+  setOrRemoveMeta("property", "og:image:width", width === null ? null : String(width));
+  setOrRemoveMeta("property", "og:image:height", height === null ? null : String(height));
+  setOrRemoveMeta("property", "og:image:type", mime);
   setMeta("property", "og:site_name", siteName);
   setMeta("property", "og:locale", SEO_LOCALE);
 

@@ -226,6 +226,8 @@ function normalizeCombinations(
     if (price !== undefined) combination.price = price;
     const stock = asStock(record["stock"]);
     if (stock !== undefined) combination.stock = stock;
+    const image = asLabel(record["image"]);
+    if (image !== undefined) combination.image = image;
     combinations.push(combination);
   }
   return combinations;
@@ -371,6 +373,7 @@ export function syncCombinations(v: ProductVariations): ProductVariations {
     const combination: ProductCombination = { values };
     if (kept?.price !== undefined) combination.price = kept.price;
     if (kept?.stock !== undefined) combination.stock = kept.stock;
+    if (kept?.image !== undefined) combination.image = kept.image;
     return combination;
   });
   return {
@@ -575,6 +578,31 @@ export function missingAxes(
     if (asLabel(chosen[index]) === undefined) missing.push(name);
   });
   return missing;
+}
+
+/**
+ * Fotografias definidas nas Combinação, sem repetições e na ordem em que estão
+ * gravadas.
+ *
+ * Serve para a galeria da Pagina_De_Produto as incluir como slides: quando o
+ * Cliente escolhe uma versão, a imagem dessa versão **já está no documento** e
+ * trocar é revelar a que existe, não carregar uma nova. É também isso que as põe
+ * como miniaturas navegáveis, e que faz o HTML pré-renderizado (sem JavaScript)
+ * mostrar todas as versões do Produto.
+ *
+ * Total: nunca lança, incluindo com `v` a `null`.
+ *
+ * @param v Variação do Produto, ou `null`.
+ * @returns URLs das fotos, sem repetições. Lista vazia quando não há nenhuma.
+ */
+export function variationImages(v: ProductVariations | null): string[] {
+  const out: string[] = [];
+  for (const entry of asList(asRecord(v)?.["combinations"])) {
+    const image = asLabel(asRecord(entry)?.["image"]);
+    if (image === undefined || out.includes(image)) continue;
+    out.push(image);
+  }
+  return out;
 }
 
 /**

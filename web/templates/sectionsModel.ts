@@ -73,3 +73,39 @@ export function headerCategories(view: StoreRenderView): string[] {
   const cats = [...new Set(view.products.map((p) => p.category).filter((c): c is string => !!c))];
   return view.products.some((p) => p.featured) ? [FEATURED_LABEL, ...cats] : cats;
 }
+
+/**
+ * Produtos a desenhar na grelha da página de listagem.
+ *
+ * A grelha leva **todos** os produtos da loja, não só os da categoria pedida,
+ * porque é isso que permite à barra de filtros trocar de categoria sem navegar
+ * nem voltar ao servidor: `web/views/category.ts` esconde os que não pertencem à
+ * categoria activa logo à entrada. Só a listagem "Destaques" continua a desenhar
+ * o seu próprio conjunto — «destacado» não é uma categoria, não se resolve pelo
+ * atributo `data-product-category` dos cartões.
+ *
+ * Com a categoria vazia (um endereço que já não corresponde a categoria alguma)
+ * devolve lista vazia, para o modelo mostrar o mesmo aviso de sempre.
+ */
+export function listingProducts(view: StoreRenderView, category: string): StoreProductView[] {
+  if (filterForCategoryPage(view, category).length === 0) return [];
+  if (category === FEATURED_LABEL) return view.products.filter((p) => p.featured);
+  return [...view.products];
+}
+
+/**
+ * Rótulos da barra de filtros da listagem: o rótulo de todos os produtos seguido
+ * das categorias que **têm** produtos (uma categoria vazia daria um chip que não
+ * mostra nada).
+ *
+ * Devolve lista vazia — logo, barra nenhuma — quando não há cartões no ecrã para
+ * filtrar, e na listagem "Destaques", que desenha só os destacados: filtrar por
+ * categoria ali daria uma contagem que não corresponde à da categoria.
+ */
+export function categoryFilterLabels(view: StoreRenderView, active: string): string[] {
+  if (active === FEATURED_LABEL || listingProducts(view, active).length === 0) return [];
+  const cats = headerCategories(view).filter(
+    (c) => c !== FEATURED_LABEL && filterForCategoryPage(view, c).length > 0,
+  );
+  return [ALL_LABEL, ...cats];
+}

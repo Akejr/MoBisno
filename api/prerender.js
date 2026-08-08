@@ -28,6 +28,7 @@
 import { admin, accountActive } from "./_shared.js";
 import {
   STORE_APEX, PLATFORM_APEX, LANGUAGE, PLATFORM_NAME,
+  PLATFORM_SHARE_IMAGE, PLATFORM_SHARE_IMAGE_WIDTH, PLATFORM_SHARE_IMAGE_HEIGHT, PLATFORM_SHARE_IMAGE_TYPE,
   esc, truncate, slugify, productSlugPath, categorySlug, formatKz, identifierFromHost,
   storeTitle, storeDescription, productTitle, productDescription,
   categoryTitle, categoryDescription,
@@ -443,6 +444,23 @@ function isKnownPlatformPath(path) {
   return PLATFORM_APP_PREFIXES.some((prefixo) => p === prefixo || p.startsWith(`${prefixo}/`));
 }
 
+/**
+ * Campos de imagem de `metaTags` para as páginas da plataforma.
+ *
+ * Numa função só porque as três páginas da plataforma têm de partilhar a MESMA
+ * arte: quando era escrita à mão em cada chamada, mudá-la significava lembrar-se
+ * de três sítios. As páginas de loja e de produto não passam por aqui — usam o
+ * logótipo do dono e a fotografia do produto.
+ */
+function platformShareImage(baseUrl) {
+  return {
+    image: `${baseUrl}${PLATFORM_SHARE_IMAGE}`,
+    imageWidth: PLATFORM_SHARE_IMAGE_WIDTH,
+    imageHeight: PLATFORM_SHARE_IMAGE_HEIGHT,
+    imageType: PLATFORM_SHARE_IMAGE_TYPE,
+  };
+}
+
 /** HTML de uma página da plataforma (`mobisno.store`). */
 function renderPlatform(shell, host, path) {
   const baseUrl = `https://${PLATFORM_APEX}`;
@@ -454,7 +472,7 @@ function renderPlatform(shell, host, path) {
     const title = `${PLATFORM_NAME}`;
     const tags = metaTags({
       title, description: PLATFORM_PAGES["/"].description,
-      canonical: `${baseUrl}${path}`, image: `${baseUrl}/logo-header.png`,
+      canonical: `${baseUrl}${path}`, ...platformShareImage(baseUrl),
       siteName: PLATFORM_NAME, noindex: true,
     });
     return inject(shell, { title, tags, lang: LANGUAGE });
@@ -472,7 +490,7 @@ function renderPlatform(shell, host, path) {
 
   const tags = metaTags({
     title: page.title, description: page.description, canonical,
-    image: `${baseUrl}/logo-header.png`, type: "website", siteName: PLATFORM_NAME, jsonLd,
+    ...platformShareImage(baseUrl), type: "website", siteName: PLATFORM_NAME, jsonLd,
   });
   return inject(shell, {
     title: page.title, tags, lang: LANGUAGE,
@@ -545,7 +563,7 @@ async function renderDirectory(shell, db) {
 
   const tags = metaTags({
     title, description, canonical,
-    image: `${baseUrl}/logo-header.png`, type: "website", siteName: PLATFORM_NAME,
+    ...platformShareImage(baseUrl), type: "website", siteName: PLATFORM_NAME,
     jsonLd: [
       collectionJsonLd({ name: "Lojas online em Angola", url: canonical, description, items }),
       breadcrumbJsonLd([

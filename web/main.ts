@@ -2,7 +2,7 @@
 import "./styles.css";
 import { seedDemoStore } from "./composition.js";
 import { storeSubdomain, isStoreApexRoot, navigate, cleanPath, ROUTE_EVENT, PLATFORM_APEX } from "./lib/routing.js";
-import { setDocTitle, setFavicon } from "./lib/dom.js";
+import { setDocTitle, setFavicon, setSquareFavicon } from "./lib/dom.js";
 import { applyNoindexSeo } from "./lib/seo.js";
 import { loadStorefront } from "./lib/storeCache.js";
 import { renderLanding } from "./views/landing.js";
@@ -51,7 +51,12 @@ async function applyStoreBranding(identifier: string): Promise<void> {
   try {
     const { result, view } = await loadStorefront(identifier);
     if (result.kind === "render" && view.kind === "render") {
-      setFavicon(result.logo?.url || "/favicon.svg");
+      const logo = result.logo?.url;
+      // O logótipo do dono tem a proporção que ele quis: passa por
+      // `setSquareFavicon`, que o encaixa num quadrado. O `favicon.svg` já é
+      // quadrado e não precisa.
+      if (logo) setSquareFavicon(logo);
+      else setFavicon("/favicon.svg");
     } else {
       setDocTitle("Loja não encontrada — MôBisno");
       setFavicon("/favicon.svg");

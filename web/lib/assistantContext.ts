@@ -34,6 +34,7 @@ import {
   PLAN_NAME, PRICE_KZ, PERIOD_DAYS, PLAN_HIGHLIGHTS, yearlySavingKz, yearlyFreeMonths,
 } from "../../src/services/plans.js";
 import { FEE_RATE, MIN_PAYMENT_KZ } from "../../src/services/payments.js";
+import { PASSWORD_MIN_LENGTH, REGISTER_FIX_LABELS } from "../../src/ui/wizardSteps.js";
 import { PLATFORM_APEX, STORE_APEX } from "./routing.js";
 
 /** Ecrãs com assistente. As lojas publicadas não têm — são o site do Dono. */
@@ -68,9 +69,14 @@ export function platformFacts(): string {
   const meses = yearlyFreeMonths();
   return `FACTOS DA PLATAFORMA (verdade actual — usa estes números, não outros):
 - Subscrição: há **um só plano**, chamado ${PLAN_NAME}. Não há escalões. Não existe Básico, Profissional nem Empresarial — foram removidos.
-- Preço: ${kz(PRICE_KZ.mensal)} por mês (${PERIOD_DAYS.mensal} dias) ou ${kz(PRICE_KZ.anual)} por ano (${PERIOD_DAYS.anual} dias). O ciclo anual poupa ${kz(poupanca)}, o equivalente a ${meses} ${meses === 1 ? "mês" : "meses"} grátis.
+- Preço: ${kz(PRICE_KZ.mensal)} por mês (${PERIOD_DAYS.mensal} dias) ou ${kz(PRICE_KZ.anual)} por ano (${PERIOD_DAYS.anual} dias), **por cada loja publicada**. O ciclo anual poupa ${kz(poupanca)} por loja, o equivalente a ${meses} ${meses === 1 ? "mês" : "meses"} grátis.
 - O que a subscrição inclui: ${PLAN_HIGHLIGHTS.join("; ")}.
-- LOJAS E PRODUTOS SÃO ILIMITADOS. A pergunta «quantas lojas posso criar com este plano?» responde-se com «quantas quiseres» — não há limite, nem número a consultar em tabela nenhuma.
+- O PREÇO É POR LOJA PUBLICADA. Criar lojas é livre e não custa nada: paga-se as que estão **online**. Duas lojas publicadas custam ${kz(PRICE_KZ.mensal * 2)} por mês; três, ${kz(PRICE_KZ.mensal * 3)}; e assim por diante. Uma loja em rascunho não é cobrada.
+- «Quantas lojas posso criar?» → quantas quiseres, sem limite. O que tem preço é publicá-las, uma a uma.
+- Para pagar menos, o Dono despublica lojas no Dashboard → «Plano»: a lista tem um interruptor por loja e o total muda ali mesmo, antes de pagar. Despublicar não apaga nada; a loja volta quando ele quiser (pagando o lugar).
+- Publicar uma loja a mais a meio de um ciclo já pago custa **só os dias que faltam** desse ciclo, não um ciclo inteiro.
+- PRODUTOS SÃO ILIMITADOS em qualquer loja.
+- Contas de ADMINISTRADOR da MôBisno não pagam e não têm limite de lojas. Isto não se aplica a Donos de loja.
 - NÃO existe teste grátis. Nunca houve neste modelo de preço; foi removido. Para publicar uma loja é preciso subscrição ativa.
 - Sem subscrição ativa a conta fica suspensa: as lojas saem da web e voltam quando o pagamento for feito. Nada é apagado.
 - Pagamento da subscrição: dentro da plataforma, por Multicaixa Express ou Referência Bancária.
@@ -96,23 +102,44 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - «Lojas criadas na MôBisno», no rodapé, abre o diretório público com pré-visualização real de cada loja.
 - Logótipo por IA é opcional e pago à parte: são geradas cinco propostas e o Dono fica com a que escolher.`,
 
-  registo: `ECRÃ: entrar ou criar conta.
-- Conta por email e palavra-passe. Se a pessoa já tem conta, entra; se não, cria.
-- Esquecer a palavra-passe: recuperação por email.
+  registo: `ECRÃ: início de sessão.
+- Conta por email e palavra-passe, com o botão «Entrar» e um olho para mostrar a palavra-passe escrita.
+- Quem ainda não tem conta segue «Criar a minha loja», que abre o assistente de criação — é lá que a conta é criada, junto com a primeira loja.
+- NÃO há recuperação de palavra-passe esquecida, nem confirmação de email por código ou por SMS: a palavra-passe não se muda depois de a conta existir. Não prometas um email de recuperação.
 - Depois de entrar, o destino é o Dashboard; sem loja criada, o Dashboard convida a criar a primeira.`,
 
-  criar: `ECRÃ: assistente de criação de loja (por conversa).
-- Pede, por esta ordem: nome, email, palavra-passe, nome da loja, tipo de negócio e o endereço (subdomínio).
+  criar: `ECRÃ: assistente de criação de loja (por conversa). Trata sempre por «tu».
+- CONTA, por esta ordem: o nome; o email; a palavra-passe (mínimo ${PASSWORD_MIN_LENGTH} caracteres); e a mesma palavra-passe outra vez, para confirmar.
+- Um email com formato inválido é recusado ali mesmo e é pedido de novo, sem perder o que já foi escrito.
+- Se as duas palavras-passe não coincidirem, o assistente diz «As duas palavras-passe não são iguais» e pede **as duas de novo** — não só a segunda, para o Dono não ter de adivinhar qual estava errada. A palavra-passe nunca aparece no chat: fica sempre «••••••••».
+- Antes de criar a conta aparece o cartão «Os teus dados», com «Nome» e «Email», e três botões: «Está tudo certo», «${REGISTER_FIX_LABELS.nome}» e «${REGISTER_FIX_LABELS.email}». Corrigir um campo pede só esse campo e volta ao mesmo cartão: os passos anteriores não se repetem.
+- Se a criação da conta falhar, o assistente mostra o motivo e pergunta o que corrigir, com «${REGISTER_FIX_LABELS.email}», «${REGISTER_FIX_LABELS.nome}» e «${REGISTER_FIX_LABELS.password}». Quando o email já tem conta, aparece primeiro «${REGISTER_FIX_LABELS.entrar}», que leva ao início de sessão (${PLATFORM_APEX}/#/login) — depois de entrar, volta-se aqui para criar a loja. A escolha de para onde voltar é do Dono: o assistente não decide sozinho.
+- O QUE NÃO EXISTE NESTE ECRÃ: não há recuperação de palavra-passe esquecida, não há confirmação de email por código nem por SMS, e não se muda a palavra-passe depois de a conta existir. Quem já tem conta entra em ${PLATFORM_APEX}/#/login.
+- Com sessão já iniciada, os passos da conta não aparecem: o assistente começa no nome da loja.
+- LOJA, a seguir à conta: nome da loja, tipo de negócio e o endereço (subdomínio).
 - O endereço só aceita letras minúsculas, números e hífen, e fica «nomedaloja.${STORE_APEX}». É pedido outro se já estiver ocupado.
 - No fim pergunta se a pessoa já tem logótipo; quem não tem pode gerar um por IA (pago à parte, cinco propostas).
 - A loja nasce como rascunho: fica online quando for publicada, e publicar exige subscrição ativa.`,
 
   painel: `ECRÃ: Dashboard do Dono, separador «Início».
-- Mostra o estado da loja (publicada ou não), o endereço, o botão de publicar/despublicar e o estado da subscrição.
-- Com pagamentos online ativos mostra o total vendido, o valor líquido recebido, as vendas, os levantamentos e o botão «Solicitar levantamento».
-- Separadores à esquerda: Início, Produtos, Criar logótipo, Análises, Pagamentos, Plano, Configurações.
+- Publicar exige subscrição ativa **e um lugar pago**: o preço é por loja publicada. Sem lugar livre, o botão de publicar manda o Dono ao separador «Plano».
+- ESTADO DA LOJA, com ponto colorido ao lado do rótulo: «Publicada» (verde, está no ar), «Não publicada» (cinzento, só o Dono a vê pela pré-visualização) ou «Fora do ar» (vermelho, a subscrição não está ativa e a loja saiu da web; os dados ficam). Debaixo da saudação há uma frase a explicar o que esse estado significa.
+- O endereço da loja é clicável: com a loja no ar abre a loja, fora do ar abre a pré-visualização privada. Ao lado há o botão «Copiar», que copia o endereço.
+- Botão de publicar/despublicar e atalho ao estado da subscrição («Subscrição ativa» ou «Sem subscrição»).
+- Com pagamentos online ativos, cada informação tem um cartão só seu: «Valor total vendido» (o destacado, soma das vendas pagas), «Recebido (líquido)», «Disponível para levantar», «Vendas pagas», «Produtos» e «Referências pendentes».
+- «Recebido (líquido)» traz a barra «Já pedido» / «Disponível» e a frase que diz sobre que valor é a proporção («… recebidos (líquido, já sem a taxa)»). «Já pedido» é o que já foi pedido em levantamentos, não dinheiro que já esteja no banco.
+- «Disponível para levantar» tem o botão «Solicitar levantamento» e a nota da conta bancária que vai receber; sem conta bancária vinculada, a nota manda vinculá-la em «Pagamentos».
+- «Vendas pagas por dia» é um cartão próprio, com o total e o número de dias ao lado do título. Conta só vendas pagas e continua fixo em 14 dias; tocar ou passar o rato num dia mostra a data, o valor e o número de vendas desse dia. Sem nenhuma venda paga não há gráfico vazio: o ecrã diz que ele aparece com a primeira venda paga.
+- Depois a lista «Vendas», paginada, cada linha com uma faixa colorida pelo estado (paga, pendente, expirada, falhou, cancelada) e abrindo para ver método, taxa, líquido, referência e fatura.
+- APAGAR REGISTOS: nas linhas com estado «Expirada» — referência bancária cuja data-limite passou — abrir a linha mostra o botão «Apagar registo» e a frase «A referência passou a data-limite e já não pode ser paga.» A confirmação avisa que é definitivo e não recuperável. **Só as expiradas se apagam**: pagas, pendentes dentro do prazo, falhadas e canceladas não podem ser apagadas, e é a base de dados que o impede, não só o ecrã.
+- Por fim, «Levantamentos», com o estado de cada pedido.
+- Loja sem nenhuma venda não mostra uma lista vazia: mostra «Ainda não há vendas» com os passos que faltam (pagamentos online ativos, ter produtos, publicar a loja, partilhar o endereço).
+- Sem pagamentos online, o Início mostra só «Produtos» e «Estado», e convida a ativar em «Pagamentos».
+- Não há filtro de datas nem exportação: o gráfico é fixo em 14 dias e conta apenas vendas pagas.
+- NAVEGAÇÃO, as mesmas sete secções nos dois tamanhos de ecrã: Início, Produtos, Criar logótipo, Análises, Pagamentos, Plano, Configurações. Em ecrã grande estão na barra lateral; em telemóvel estão numa faixa de atalhos deslizante logo abaixo do cabeçalho (a barra lateral não existe no telemóvel).
+- Em telemóvel há ainda uma barra com o seletor de loja (só para quem tem mais de uma), «Nova loja», o atalho «Dashboard de Administração» (só em contas de administrador) e «Terminar sessão».
 - «Personalizar loja» abre o editor visual. «Ver loja» abre a loja publicada; sem publicação, abre a pré-visualização privada.
-- Quem tem mais de uma loja troca no seletor no topo da barra lateral.`,
+- Quem tem mais de uma loja troca no seletor de loja: no topo da barra lateral em ecrã grande, na barra de topo em telemóvel.`,
 
   produtos: `ECRÃ: Dashboard → «Produtos».
 - «Adicionar produto» abre o formulário: foto principal, nome, preço, categoria, descrição, fotos extra, destacar na loja, produto físico, controlar stock e variações.
@@ -130,7 +157,11 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Com pagamentos online ligados, o botão passa a «Comprar agora» e abre o checkout com Multicaixa Express, Referência Bancária e WhatsApp.`,
 
   plano: `ECRÃ: Dashboard → «Plano».
-- Mostra o estado da subscrição e permite pagar mensal ou anual. Um só plano; a escolha é só do ciclo.
+- Mostra o estado da subscrição e permite pagar mensal ou anual. Um só plano; a escolha é do ciclo e do **número de lojas publicadas**.
+- Tem a lista «Lojas publicadas», com um interruptor por loja: desligar despublica e o total dos dois cartões de preço desce ali mesmo. É assim que se baixa a mensalidade antes de pagar.
+- Os cartões «Mensal» e «Anual» mostram o total já multiplicado pelas lojas publicadas, e debaixo do valor está a conta («2 loja(s) × 11.000 Kz»).
+- Publicar mais uma loja quando os lugares pagos estão todos ocupados é recusado, com o preço dos dias que faltam do ciclo.
+- Uma conta de administrador não vê preços aqui: não paga e não tem limite de lojas.
 - Pagamento por Multicaixa Express (imediato) ou Referência Bancária (confirma quando for paga; há o botão «Já paguei — verificar»).
 - Sem subscrição ativa não se publica, e as lojas publicadas saem da web até o pagamento ser feito. Os dados ficam.`,
 
@@ -143,8 +174,13 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - APAGAR A LOJA: irreversível, apaga a loja e o que lhe pertence.`,
 
   analises: `ECRÃ: Dashboard → «Análises».
-- Visitas dos últimos 7 e 30 dias, visualizações de produtos e gráfico de visitas dos últimos 14 dias.
-- Lista dos produtos mais vistos em 30 dias.
+- Quatro números no topo: «Visitas (7 dias)», «Visitas (30 dias)», «Produtos vistos (7 dias)» e «Produtos».
+- Só as visitas de 7 dias têm variação (seta verde/vermelha) face aos 7 dias anteriores, porque só as visitas têm série diária. As visualizações de produtos não têm comparação entre períodos — o ecrã mostra o total de 30 dias ao lado, e mais nada.
+- «Visitas (30 dias)» mostra a média por dia. «Produtos» mostra quantos estão disponíveis na loja.
+- Gráfico «Visitas — últimos 14 dias»: linha com área, com os valores do eixo à esquerda e as datas em baixo. O dia de maior tráfego fica com um ponto destacado e está escrito por palavras debaixo do gráfico. Passar o rato (ou tocar) num dia mostra a data e o número de visitas desse dia.
+- «Produtos mais vistos (30 dias)»: até 8 produtos, com fotografia, barra de proporção relativa ao mais visto e a contagem.
+- Loja sem nenhuma visita nem visualização em 30 dias não mostra zeros: mostra «Ainda não há visitas para mostrar», com os passos que faltam (ter produtos, publicar a loja, partilhar o endereço).
+- Não há filtro de datas, escolha de período nem exportação: os períodos são fixos (7, 14 e 30 dias).
 - Os dados vêm dos eventos da própria loja; não é o Google Analytics. O Dono pode ligar o pixel da Meta e o GA4 dele nas configurações de marketing.`,
 
   logotipo: `ECRÃ: Dashboard → «Criar logótipo».

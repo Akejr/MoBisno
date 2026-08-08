@@ -9,15 +9,30 @@
  */
 import { esc, formatKz, toast } from "./dom.js";
 import { initPayment, checkStatus } from "./paymentsApi.js";
-import { PRICE_KZ, PERIOD_LABEL, type BillingPeriod } from "../../src/services/plans.js";
+import { PERIOD_LABEL, priceFor, type BillingPeriod } from "../../src/services/plans.js";
 
 const ACCENT = "#F95901";
 
-export function openPlanCheckout(opts: { ownerId: string; period: BillingPeriod; onPaid: () => void }): void {
+export function openPlanCheckout(opts: {
+  ownerId: string;
+  period: BillingPeriod;
+  /** Lojas publicadas a cobrar. Só para **apresentar** o valor; ver abaixo. */
+  stores?: number;
+  onPaid: () => void;
+}): void {
   const { ownerId, period, onPaid } = opts;
-  // Deixou de haver escalões: o que se compra é o CICLO. É ele que viaja até
-  // ao servidor e decide se a subscrição recebe 30 ou 365 dias.
-  const preco = PRICE_KZ[period];
+  /*
+   * Deixou de haver escalões: o que se compra é o CICLO, e agora também o número
+   * de Lojas publicadas.
+   *
+   * **Este preço é só para o Dono ler.** O montante cobrado é recalculado em
+   * `api/payment.js`, que conta as Lojas publicadas na base de dados: com o preço
+   * por Loja, aceitar o valor que o navegador enviasse era deixá-lo escolher
+   * quanto paga e por quantas Lojas. Se os dois números divergirem, o que vale é o
+   * do servidor.
+   */
+  const lojas = Math.max(1, Math.floor(Number(opts.stores ?? 1)) || 1);
+  const preco = priceFor(period, lojas);
   const rotulo = PERIOD_LABEL[period];
   const qa = location.search.includes("qa=1");
   let method: "mcx" | "reference" = "mcx";
@@ -62,7 +77,7 @@ export function openPlanCheckout(opts: { ownerId: string; period: BillingPeriod;
         <h3 class="text-lg font-black text-gray-900">Subscrição ${esc(rotulo.toLowerCase())}</h3>
         <button data-close class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button>
       </div>
-      <p class="text-gray-500 text-sm mb-4">Pagamento ${period === "anual" ? "anual" : "mensal"} de <b style="color:${ACCENT}">${esc(formatKz(preco))}</b>.</p>
+      <p class="text-gray-500 text-sm mb-4">Pagamento ${period === "anual" ? "anual" : "mensal"} de <b style="color:${ACCENT}">${esc(formatKz(preco))}</b>${lojas > 1 ? ` — ${lojas} lojas publicadas` : ""}.</p>
       <div class="space-y-2 mb-4">
         ${methodCard("mcx", "smartphone", "Multicaixa Express", "Ativação imediata.")}
         ${methodCard("reference", "receipt_long", "Referência Bancária", "Pague no ATM / Internet Banking.")}
@@ -96,6 +111,8 @@ export function openPlanCheckout(opts: { ownerId: string; period: BillingPeriod;
       ownerId,
       period,
       method,
+      // O servidor substitui esta linha pela que calcula (preço × lojas
+      // publicadas). Vai preenchida porque a API exige produtos válidos.
       products: [{ productName: `Subscrição ${rotulo.toLowerCase()} (MôBisno)`, productPrice: preco, productQuantity: 1 }],
       phoneNumber: method === "mcx" ? phone : undefined,
       qa,

@@ -162,6 +162,20 @@ export function send(res, code, obj) {
 /** Duração de cada ciclo de pagamento, em ms. Espelha `PERIOD_DAYS` de `src/services/plans.ts`. */
 const PERIOD_MS = { mensal: 30 * 24 * 3600 * 1000, anual: 365 * 24 * 3600 * 1000 };
 
+/**
+ * Preço de **uma** Loja por ciclo, em Kwanzas. Espelho manual de `PRICE_KZ` de
+ * `src/services/plans.ts` — `api/` é JavaScript sem passo de compilação e não pode
+ * importar de `src/` (`SEO.md` §5.2).
+ *
+ * Está aqui, e não no cliente, porque é o servidor que calcula o montante de um
+ * pagamento de plano: com o preço por Loja, deixar o navegador dizer o valor era
+ * deixá-lo escolher quanto paga e por quantas Lojas.
+ *
+ * `tests/planParity.test.ts` compara este objeto com o do domínio: mudar o preço
+ * num sítio e esquecer o outro falha o portão.
+ */
+export const PLAN_PRICE_KZ = { mensal: 11000, anual: 120000 };
+
 /** Ciclo a partir de um valor de origem desconhecida. Recorre ao mais barato. */
 function asPeriod(value) {
   return value === "anual" ? "anual" : "mensal";
@@ -176,18 +190,99 @@ function asPeriod(value) {
  * Deixou de haver escalões, logo não há plano a trocar nem `next_plan` a
  * agendar — só uma data a empurrar para a frente.
  */
-export async function activatePlan(db, ownerId, period) {
+export async function activatePlan(db, ownerId, period, stores) {
   if (!ownerId) return;
   const now = Date.now();
-  const { data: prof } = await db
-    .from("profiles")
-    .select("plan_expires_at")
-    .eq("id", ownerId)
-    .maybeSingle();
+  /*
+   * `plan_stores` pode ainda não existir (migração 0020 não corrida), e um
+   * `select` com coluna inexistente **falha o pedido inteiro**. Aqui isso custava
+   * um pagamento: sem `plan_expires_at` a subscrição era activada a partir de
+   * agora em vez do fim do período atual, e o `update` com a coluna nova falhava
+   * em silêncio — dinheiro cobrado, plano não activado.
+   */
+  let prof = null;
+  let temColunaLojas = true;
+  {
+    const comLojas = await db.from("profiles").select("plan_expires_at, plan_stores").eq("id", ownerId).maybeSingle();
+    if (comLojas.error) {
+      temColunaLojas = false;
+      const semLojas = await db.from("profiles").select("plan_expires_at").eq("id", ownerId).maybeSingle();
+      prof = semLojas.data;
+    } else {
+      prof = comLojas.data;
+    }
+  }
   const expMs = prof?.plan_expires_at ? Date.parse(prof.plan_expires_at) : NaN;
   const base = Number.isFinite(expMs) && expMs > now ? expMs : now;
   const fim = new Date(base + PERIOD_MS[asPeriod(period)]).toISOString();
-  await db.from("profiles").update({ plan: "pro", plan_expires_at: fim }).eq("id", ownerId);
+  /*
+   * Lojas pagas neste ciclo. Espelha `billableStores` de
+   * `src/services/plans.ts`: nunca menos de uma, sempre inteiro.
+   *
+   * Quando o pagamento não diz quantas (uma referência antiga, gravada antes desta
+   * mudança), fica o que a conta já tinha — e ausência vale uma, que é o que todas
+   * as contas anteriores pagaram.
+   */
+  const pedidas = Number(stores);
+  const lojas = Number.isFinite(pedidas) && pedidas >= 1
+    ? Math.floor(pedidas)
+    : Math.max(1, Math.floor(Number(prof?.plan_stores ?? 1)) || 1);
+  // Sem a coluna, activa-se o essencial: a data. O número de lojas fica para
+  // quando a migração correr — nunca ao contrário, que seria deixar a subscrição
+  // sem activar por causa de uma coluna que ainda não existe.
+  const patch = temColunaLojas
+    ? { plan: "pro", plan_expires_at: fim, plan_stores: lojas }
+    : { plan: "pro", plan_expires_at: fim };
+  const escrita = await db.from("profiles").update(patch).eq("id", ownerId);
+  if (escrita.error && temColunaLojas) {
+    await db.from("profiles").update({ plan: "pro", plan_expires_at: fim }).eq("id", ownerId);
+  }
+}
+
+/**
+ * Lojas que um pagamento de plano cobre, ou `undefined`.
+ *
+ * Lido **à parte** da transação de propósito: `plan_payments.stores` nasceu na
+ * migração 0020 e um `select` com coluna inexistente falha o pedido inteiro. Se
+ * fosse pedido junto com `owner_id` e `period`, uma referência paga antes de a
+ * migração correr não activava subscrição nenhuma — o pior resultado possível,
+ * porque o dinheiro já entrou.
+ *
+ * `undefined` faz `activatePlan` cair no que a conta já tinha.
+ *
+ * @param ref Identificador da transação (`merchant_transaction_id` ou `operation_id`).
+ */
+export async function planPaymentStores(db, ref) {
+  if (!ref) return undefined;
+  const { data, error } = await db
+    .from("plan_payments")
+    .select("stores")
+    .or(`merchant_transaction_id.eq.${ref},operation_id.eq.${ref}`)
+    .maybeSingle();
+  if (error) return undefined;
+  const n = Number(data?.stores);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : undefined;
+}
+
+/**
+ * Lojas publicadas de um Dono, para o preço do plano.
+ *
+ * Exclui as **lojas-modelo** (identificador que começa por `modelo-`), pela mesma
+ * razão que o painel pessoal as esconde: são demonstrações da Plataforma, criadas
+ * pelo Administrador, e nenhum Dono as paga.
+ *
+ * Devolve `0` quando a consulta falha, e quem chama trata `0` como «uma» ao
+ * cobrar — uma falha de leitura não pode inflacionar a fatura de ninguém.
+ */
+export async function countPublishedStores(db, ownerId) {
+  if (!ownerId) return 0;
+  const { data, error } = await db
+    .from("stores")
+    .select("identifier, state")
+    .eq("owner_id", ownerId)
+    .eq("state", "Publicada");
+  if (error || !Array.isArray(data)) return 0;
+  return data.filter((s) => !String(s?.identifier ?? "").startsWith("modelo-")).length;
 }
 
 /** Credita mensagens SMS no saldo de uma loja (idempotência gerida por quem chama). */

@@ -16,11 +16,20 @@
     <meta property="og:url" content="https://mobisno.store/" />
     <meta property="og:site_name" content="MôBisno" />
     <meta property="og:locale" content="pt_AO" />
-    <meta property="og:image" content="https://mobisno.store/logo-header.png" />
+    <!--
+      Arte de partilha, não o logótipo: o `logo-header.png` é estreito e o
+      WhatsApp mostrava-o numa miniatura ao lado do texto. As medidas vão
+      declaradas porque é por elas que o WhatsApp escolhe o formato do cartão.
+      Fonte de verdade das medidas: `src/services/seo.ts` (`PLATFORM_SHARE_*`).
+    -->
+    <meta property="og:image" content="https://mobisno.store/images/share.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="1200" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MôBisno — Criar Loja Online em Angola" />
     <meta name="twitter:description" content="A forma mais fácil de criar a sua loja online em Angola." />
-    <meta name="twitter:image" content="https://mobisno.store/logo-header.png" />
+    <meta name="twitter:image" content="https://mobisno.store/images/share.jpg" />
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"Organization","name":"MôBisno","url":"https://mobisno.store","logo":"https://mobisno.store/logo-header.png","description":"Plataforma para criar lojas online em Angola.","areaServed":{"@type":"Country","name":"Angola"}}
     </script>

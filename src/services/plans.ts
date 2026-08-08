@@ -59,7 +59,10 @@ export const PERIOD_LABEL: Readonly<Record<BillingPeriod, string>> = {
 
 /** O que a subscrição inclui, para a página de preços e para o painel. */
 export const PLAN_HIGHLIGHTS: readonly string[] = [
-  "Lojas e produtos ilimitados",
+  // O preço é por Loja publicada (ver `priceFor`): dizer «lojas ilimitadas» aqui
+  // prometia de graça o que se paga por Loja. Criar é livre; publicar é que conta.
+  "Uma loja online publicada",
+  "Produtos ilimitados",
   "Checkout Multicaixa Express e referência bancária",
   "Checkout via WhatsApp",
   "Endereço próprio .sualoja.digital",
@@ -102,4 +105,67 @@ export function yearlySavingKz(): number {
 /** Quantos meses o desconto anual equivale a oferecer (arredondado para baixo). */
 export function yearlyFreeMonths(): number {
   return Math.floor(yearlySavingKz() / PRICE_KZ.mensal);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Preço por Loja publicada                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Lojas incluídas no preço de um ciclo.
+ *
+ * O preço é **por Loja publicada**: a subscrição paga uma, e cada Loja adicional
+ * que o Dono queira online custa outro ciclo completo. Não há desconto de volume,
+ * de propósito — «11.000 Kz por loja» explica-se numa frase, e uma tabela de
+ * escalões foi exactamente o que esta plataforma acabou de deixar para trás.
+ *
+ * Uma Loja em rascunho **não conta**: só se paga o que está na web. É isso que
+ * permite ao Dono despublicar uma Loja no ecrã de pagamento e ver a mensalidade
+ * descer antes de pagar.
+ */
+export const STORES_INCLUDED = 1;
+
+/**
+ * Número de Lojas a cobrar: nunca menos do que as incluídas, e sempre um inteiro.
+ *
+ * Entradas absurdas (negativas, fracionárias, `NaN`, tipos errados) caem no
+ * mínimo. A conta do que o Dono paga não pode depender de um valor que ninguém
+ * validou — e um `NaN` aqui chegaria ao montante enviado ao serviço de pagamento.
+ */
+export function billableStores(publishedStores: unknown): number {
+  const n = typeof publishedStores === "number" && Number.isFinite(publishedStores)
+    ? Math.floor(publishedStores)
+    : STORES_INCLUDED;
+  return Math.max(STORES_INCLUDED, n);
+}
+
+/**
+ * Preço de um ciclo para um número de Lojas publicadas.
+ *
+ * `priceFor("mensal", 3)` = três vezes a mensalidade. Com zero ou uma Loja é a
+ * mensalidade simples, que é o comportamento de sempre — quem tem uma Loja não
+ * nota diferença nenhuma nesta mudança.
+ */
+export function priceFor(period: BillingPeriod, publishedStores: unknown): number {
+  return priceOf(period) * billableStores(publishedStores);
+}
+
+/**
+ * Preço de **uma Loja adicional** durante o resto de um ciclo já pago
+ * (proporcional aos dias que faltam).
+ *
+ * Sem isto, publicar a segunda Loja a meio do mês obrigava a pagar um ciclo novo
+ * por tudo — a Loja que já estava paga incluída —, ou seja, a cobrar duas vezes
+ * o mesmo. Com proporcionalidade, o Dono paga os dias que vai usar.
+ *
+ * Nunca devolve menos do que zero nem mais do que um ciclo completo: com mais
+ * dias do que o ciclo (uma data de renovação empurrada para muito longe), paga um
+ * ciclo. O valor é arredondado para o Kwanza, porque é o que vai na fatura.
+ */
+export function proratedStorePrice(period: BillingPeriod, daysRemaining: unknown): number {
+  const total = daysOf(period);
+  const dias = typeof daysRemaining === "number" && Number.isFinite(daysRemaining)
+    ? Math.max(0, Math.min(total, Math.ceil(daysRemaining)))
+    : total;
+  return Math.round((priceOf(period) * dias) / total);
 }

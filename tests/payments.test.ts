@@ -12,7 +12,11 @@ import {
   normalizeAoPhone,
   mapMomenuStatus,
   mapStatusString,
+  isReferenceExpired,
+  orderEffectiveStatus,
+  canDeleteOrder,
   type PaymentProduct,
+  type OrderLifecycle,
 } from "../src/services/payments.js";
 
 const prod = (over: Partial<PaymentProduct> = {}): PaymentProduct => ({
@@ -112,5 +116,96 @@ describe("payments — telefone e estados", () => {
     expect(mapStatusString("pending")).toBe("open");
     expect(mapStatusString("expired")).toBe("cancelled");
     expect(mapStatusString("rejected")).toBe("failed");
+  });
+});
+
+/**
+ * Ciclo de vida de uma encomenda — quem pode ser apagado.
+ *
+ * A decisão vive aqui, em domínio puro, e não dentro da vista: é a mesma
+ * condição que a política de `delete` da base de dados impõe (migração
+ * `0021_orders_owner_delete.sql`). Uma encomenda paga apagada é dinheiro sem
+ * rasto e é irreversível, por isso a regra é testada com exemplos e não afirmada
+ * pela leitura do código-fonte.
+ *
+ * `AGORA` fixo: com `Date.now()`, um teste destes passa ou falha conforme o
+ * relógio da máquina.
+ */
+const AGORA = Date.parse("2026-07-01T12:00:00Z");
+const ONTEM = "2026-06-30T12:00:00Z";
+const AMANHA = "2026-07-02T12:00:00Z";
+
+const enc = (over: Partial<OrderLifecycle> = {}): OrderLifecycle => ({
+  status: "open",
+  method: "reference",
+  dueDate: AMANHA,
+  paidAt: null,
+  ...over,
+});
+
+describe("payments — referência expirada", () => {
+  it("uma referência por pagar com a data-limite no passado está expirada", () => {
+    expect(isReferenceExpired(enc({ dueDate: ONTEM }), AGORA)).toBe(true);
+    expect(orderEffectiveStatus(enc({ dueDate: ONTEM }), AGORA)).toBe("expired");
+  });
+
+  it("dentro do prazo continua pendente, e sem data-limite nunca expira", () => {
+    expect(isReferenceExpired(enc({ dueDate: AMANHA }), AGORA)).toBe(false);
+    expect(isReferenceExpired(enc({ dueDate: null }), AGORA)).toBe(false);
+    expect(orderEffectiveStatus(enc({ dueDate: AMANHA }), AGORA)).toBe("open");
+  });
+
+  it("só a referência bancária expira: o Multicaixa Express e o WhatsApp não", () => {
+    expect(isReferenceExpired(enc({ method: "mcx", dueDate: ONTEM }), AGORA)).toBe(false);
+    expect(isReferenceExpired(enc({ method: "whatsapp", dueDate: ONTEM }), AGORA)).toBe(false);
+  });
+
+  it("uma data-limite ilegível não inventa uma expiração", () => {
+    expect(isReferenceExpired(enc({ dueDate: "sem data" }), AGORA)).toBe(false);
+  });
+
+  it("os estados gravados passam intactos quando não há expiração", () => {
+    for (const status of ["paid", "failed", "cancelled"] as const) {
+      expect(orderEffectiveStatus(enc({ status, dueDate: ONTEM }), AGORA)).toBe(status);
+    }
+  });
+});
+
+describe("payments — canDeleteOrder", () => {
+  it("apaga-se uma referência expirada: já não pode ser paga", () => {
+    expect(canDeleteOrder(enc({ dueDate: ONTEM }), AGORA)).toBe(true);
+  });
+
+  it("uma encomenda paga NUNCA é apagável — pelo estado e pelo paidAt", () => {
+    // As duas condições em separado: uma encomenda com `paid_at` mas com o
+    // estado dessincronizado continua a ser dinheiro que aconteceu.
+    expect(canDeleteOrder(enc({ status: "paid", dueDate: ONTEM }), AGORA)).toBe(false);
+    expect(canDeleteOrder(enc({ status: "open", dueDate: ONTEM, paidAt: ONTEM }), AGORA)).toBe(false);
+  });
+
+  it("uma referência ainda dentro do prazo não se apaga: pode ser paga hoje", () => {
+    expect(canDeleteOrder(enc({ dueDate: AMANHA }), AGORA)).toBe(false);
+  });
+
+  it("as falhadas e as canceladas ficam de fora (decisão: só as expiradas)", () => {
+    expect(canDeleteOrder(enc({ status: "failed", dueDate: ONTEM }), AGORA)).toBe(false);
+    expect(canDeleteOrder(enc({ status: "cancelled", dueDate: ONTEM }), AGORA)).toBe(false);
+  });
+
+  it("o que é apagável é sempre expirado, e o que não expirou nunca é apagável", () => {
+    const casos: OrderLifecycle[] = [
+      enc({ dueDate: ONTEM }),
+      enc({ dueDate: AMANHA }),
+      enc({ dueDate: null }),
+      enc({ status: "paid", paidAt: ONTEM, dueDate: ONTEM }),
+      enc({ status: "failed", dueDate: ONTEM }),
+      enc({ status: "cancelled", dueDate: ONTEM }),
+      enc({ method: "mcx", dueDate: ONTEM }),
+      enc({ method: "whatsapp", dueDate: null }),
+    ];
+    for (const c of casos) {
+      if (canDeleteOrder(c, AGORA)) expect(orderEffectiveStatus(c, AGORA)).toBe("expired");
+      else expect(orderEffectiveStatus(c, AGORA) === "expired" && !c.paidAt).toBe(false);
+    }
   });
 });

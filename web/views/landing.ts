@@ -135,18 +135,18 @@ export async function renderLanding(): Promise<void> {
       <section id="precos" class="scroll-mt-20 w-full bg-white py-16 border-t border-gray-100">
         <div class="max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop">
           <div class="text-center max-w-2xl mx-auto">
-            <h2 class="text-3xl md:text-5xl font-black tracking-tight">Um preço. Tudo incluído.</h2>
-            <p class="text-gray-600 mt-3">Sem escalões e sem funcionalidades reservadas. Criar a loja e vê-la é grátis — a subscrição serve para a pôr online.</p>
+            <h2 class="text-3xl md:text-5xl font-black tracking-tight">Um preço por loja. Tudo incluído.</h2>
+            <p class="text-gray-600 mt-3">Sem escalões e sem funcionalidades reservadas. Criar a loja e vê-la é grátis — a subscrição serve para a pôr online. Tem mais do que uma loja? Paga o mesmo por cada uma que estiver publicada, e despublica quando quiser.</p>
           </div>
           <div class="mb-12"></div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch max-w-3xl mx-auto">
             ${priceCard({
-              name: "Mensal", desc: "Pague mês a mês, cancele quando quiser.",
+              name: "Mensal", desc: "Por loja publicada. Pague mês a mês, cancele quando quiser.",
               price: PRECO_MENSAL, period: "/mês",
               cta: "Criar a minha loja", features: DESTAQUES,
             })}
             ${priceCard({
-              name: "Anual", desc: `Um pagamento por ano. Poupa ${POUPANCA_ANUAL}.`, featured: true,
+              name: "Anual", desc: `Por loja publicada. Um pagamento por ano — poupa ${POUPANCA_ANUAL}.`, featured: true,
               price: PRECO_ANUAL, period: "/ano",
               cta: "Criar a minha loja", features: DESTAQUES,
             })}

@@ -23,6 +23,23 @@ export const PLATFORM_NAME = "MôBisno";
 /** Cor da plataforma. As páginas da plataforma usam-na; as lojas usam a sua. */
 const ACCENT_KZ = "#F95901";
 
+/**
+ * Arte de partilha das páginas da PLATAFORMA. Espelha `src/services/seo.ts`,
+ * que é a FONTE DE VERDADE — ao mudar lá, mudar aqui.
+ *
+ * É aqui que interessa: o WhatsApp e o Facebook não executam JavaScript, leem
+ * este HTML. A versão leve existe porque acima de poucas centenas de kB o
+ * WhatsApp desiste da imagem e o cartão sai sem ela (`scripts/share-image.mjs`).
+ *
+ * Só as páginas da plataforma. As de LOJA usam o logótipo do dono e as de
+ * PRODUTO a fotografia do produto — partilhar a nossa arte no lugar delas seria
+ * o mesmo defeito ao contrário.
+ */
+export const PLATFORM_SHARE_IMAGE = "/images/share.jpg";
+export const PLATFORM_SHARE_IMAGE_WIDTH = 1200;
+export const PLATFORM_SHARE_IMAGE_HEIGHT = 1200;
+export const PLATFORM_SHARE_IMAGE_TYPE = "image/jpeg";
+
 /* ------------------------------- Utilitários ------------------------------ */
 
 export function esc(v) {
@@ -138,7 +155,17 @@ function priceValidUntil() {
   return d.toISOString().slice(0, 10);
 }
 
-export function metaTags({ title, description, canonical, image, type, siteName, noindex, jsonLd }) {
+/**
+ * `imageWidth`/`imageHeight`/`imageType` são opcionais e só saem quando são
+ * conhecidos: valem para a arte da plataforma, que está no repositório com
+ * medidas fixas, e não para o logótipo de uma loja ou a fotografia de um
+ * produto, cujas medidas o servidor não conhece. Anunciar medidas erradas é pior
+ * do que não as anunciar — o WhatsApp reserva o espaço do cartão por elas.
+ */
+export function metaTags({
+  title, description, canonical, image, imageWidth, imageHeight, imageType,
+  type, siteName, noindex, jsonLd,
+}) {
   const t = esc(title);
   const d = esc(description);
   const img = image ? esc(image) : "";
@@ -154,6 +181,9 @@ export function metaTags({ title, description, canonical, image, type, siteName,
     `<meta property="og:locale" content="${LOCALE}" />`,
     img ? `<meta property="og:image" content="${img}" />` : "",
     img ? `<meta property="og:image:alt" content="${t}" />` : "",
+    img && imageWidth ? `<meta property="og:image:width" content="${esc(imageWidth)}" />` : "",
+    img && imageHeight ? `<meta property="og:image:height" content="${esc(imageHeight)}" />` : "",
+    img && imageType ? `<meta property="og:image:type" content="${esc(imageType)}" />` : "",
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${t}" />`,
     `<meta name="twitter:description" content="${d}" />`,

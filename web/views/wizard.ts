@@ -1,8 +1,13 @@
 /**
  * Assistente de Criação — formato de CHAT guiado pelo robô do MôBisno.
  * Identidade visual branco + #F95901, com animações. O assistente conduz o
- * utilizador: nome → email → palavra-passe (cria conta) → nome da loja →
+ * utilizador: nome → email → palavra-passe → confirmação da palavra-passe →
+ * resumo dos dados (confirmar ou corrigir) → cria conta → nome da loja →
  * tipo de negócio → subdomínio (recomenda/aprova) → cria e publica → painel.
+ *
+ * Qualquer passo pode ser repetido para corrigir um campo: `askName` e
+ * `askEmail` recebem o passo seguinte, e uma correção regressa ao resumo em vez
+ * de arrastar o utilizador pelos passos que já estavam bem.
  *
  * Reutiliza a validação e os serviços do fluxo original (wizardSteps,
  * authService, wizardFlow, identifierService).
@@ -13,11 +18,15 @@ import { generateLogos, dataUrlToUint8Array, LOGO_PROPOSALS, type LogoResult, ty
 import { composeLogo, PREVIEW_SIZE, FINAL_SIZE } from "../lib/logoCompose.js";
 import { openLogoCheckout, LOGO_PRICE_KZ } from "../lib/logoPurchase.js";
 import { LOGO_POLICY } from "../../src/services/fileService.js";
-import { validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS } from "../../src/ui/wizardSteps.js";
+import {
+  validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS,
+  PASSWORD_MIN_LENGTH, validatePasswordLength, validatePasswordConfirmation,
+  buildRegisterFixOptions, REGISTER_FIX_LABELS,
+} from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { generateSeoDescription, generateSeoTitle } from "../lib/seoGen.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
-import type { Session } from "../../src/services/authService.js";
+import type { AuthError, Session } from "../../src/services/authService.js";
 
 const ACCENT = "#F95901";
 
@@ -249,30 +258,42 @@ async function start(): Promise<void> {
     askStoreName();
     return;
   }
-  await botSay("Olá! Sou o assistente do MôBisno e vou te ajudar a criar a tua loja de forma rápida.");
+  await botSay("Olá! Sou o assistente do MôBisno e vou ajudar-te a criar a tua loja de forma rápida.");
   askName();
 }
 
-function askName(): void {
+/**
+ * Palavra-passe escolhida, guardada só entre a confirmação e a criação da conta.
+ * Nunca entra em `wiz.data` (a mala que segue para o resto do assistente) e é
+ * limpa assim que a conta existe.
+ */
+let pendingPassword = "";
+
+/**
+ * Pergunta o nome. `next` permite reaproveitar o passo como **correção**: quem
+ * vem do resumo volta ao resumo, sem repetir os passos seguintes.
+ */
+function askName(next: () => void = askEmail, intro?: string): void {
   void (async () => {
-    await botSay("Qual é o seu nome?");
+    await botSay(intro ?? "Qual é o teu nome?");
     inputText({
       placeholder: "Ex: João Silva",
       onSubmit: (v) => {
         userSay(v);
         wiz.data[WIZARD_FIELDS.ownerName] = v;
         clearInput();
-        askEmail();
+        next();
       },
     });
   })();
 }
 
-function askEmail(): void {
+/** Pergunta o email, com a mesma validação de formato de sempre (`EMAIL_RE`). */
+function askEmail(next: () => void = askPassword, intro?: string): void {
   void (async () => {
-    await botSay("E o teu email?");
+    await botSay(intro ?? "E o teu email?");
     inputText({
-      placeholder: "voce@exemplo.com",
+      placeholder: "tu@exemplo.com",
       type: "email",
       onSubmit: async (v) => {
         if (!EMAIL_RE.test(v)) {
@@ -283,40 +304,163 @@ function askEmail(): void {
         userSay(v);
         wiz.data[WIZARD_FIELDS.email] = v;
         clearInput();
-        askPassword();
+        next();
       },
     });
   })();
 }
 
-function askPassword(): void {
+/**
+ * Pede a palavra-passe e valida o comprimento **antes** da confirmação, para
+ * não obrigar a escrever duas vezes uma que ia ser recusada.
+ */
+function askPassword(intro?: string): void {
   void (async () => {
-    await botSay("Agora cria uma palavra-passe (mínimo 6 caracteres) — vai ser a tua conta.");
+    await botSay(intro ?? `Agora cria uma palavra-passe (mínimo ${PASSWORD_MIN_LENGTH} caracteres) — vai ser a tua conta.`);
+    inputText({
+      placeholder: "••••••••",
+      type: "password",
+      onSubmit: async (v) => {
+        userSay("••••••••");
+        const check = validatePasswordLength(v);
+        if (check.status === "invalid") {
+          await botSay(check.message);
+          return;
+        }
+        clearInput();
+        askPasswordConfirm(v);
+      },
+    });
+  })();
+}
+
+/**
+ * Pede a mesma palavra-passe outra vez. Se não coincidirem, pede as **duas** de
+ * novo — assim o Dono não fica a adivinhar qual delas estava errada.
+ */
+function askPasswordConfirm(password: string): void {
+  void (async () => {
+    await botSay("Escreve a mesma palavra-passe outra vez, para confirmar.");
     inputText({
       placeholder: "••••••••",
       type: "password",
       onSubmit: async (v) => {
         userSay("••••••••");
         clearInput();
-        inputBusy("A criar a tua conta…");
-        const email = String(wiz.data[WIZARD_FIELDS.email] ?? "");
-        const name = String(wiz.data[WIZARD_FIELDS.ownerName] ?? "");
-        const res = await authService.register({ email, password: v, name });
-        if (!res.ok) {
-          await botSay(res.error.reason);
-          // Se o problema é do email, volta a perguntar o email; senão a palavra-passe.
-          if (res.error.reason.toLowerCase().includes("email")) askEmail();
-          else askPassword();
+        const check = validatePasswordConfirmation(password, v);
+        if (check.status === "invalid") {
+          await botSay(check.message);
+          askPassword("Escreve a palavra-passe que queres para a tua conta.");
           return;
         }
-        wiz.session = res.value;
-        appState.session = res.value;
-        appState.ownerId = res.value.ownerId;
-        wiz.data[WIZARD_FIELDS.ownerId] = res.value.ownerId;
-        await botSay("Boa, conta criada! 🎉");
-        askStoreName();
+        pendingPassword = password;
+        askConfirmAccount();
       },
     });
+  })();
+}
+
+/** Cartão com os dados da conta que estão a valer neste momento. */
+function accountSummaryCard(): string {
+  const linha = (rotulo: string, valor: string): string =>
+    `<div class="flex items-baseline gap-2 py-1"><span class="text-[11px] font-bold uppercase tracking-wide text-gray-500 shrink-0" style="min-width:48px">${esc(rotulo)}</span><span class="text-sm text-gray-900 font-medium" style="word-break:break-word">${esc(valor)}</span></div>`;
+  return `<div class="text-left">
+    <div class="flex items-center gap-2 pb-2 mb-1.5 border-b border-gray-100">
+      <span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">badge</span>
+      <h4 class="font-black text-gray-900 text-sm">Os teus dados</h4>
+    </div>
+    ${linha("Nome", String(wiz.data[WIZARD_FIELDS.ownerName] ?? ""))}
+    ${linha("Email", String(wiz.data[WIZARD_FIELDS.email] ?? ""))}
+  </div>`;
+}
+
+/**
+ * Resumo antes de criar a conta: o Dono confirma ou corrige cada campo. É
+ * também o ponto de regresso das correções, por isso o cartão aparece sempre
+ * com os valores em vigor — o que ficou atrás no chat não se confunde com eles.
+ */
+function askConfirmAccount(): void {
+  void (async () => {
+    await botSay("Antes de criar a conta, confere o que tenho — é isto que vai ficar a valer:");
+    botCard(accountSummaryCard());
+    inputChips(
+      [
+        { value: "ok", label: "Está tudo certo" },
+        { value: "nome", label: REGISTER_FIX_LABELS.nome },
+        { value: "email", label: REGISTER_FIX_LABELS.email },
+      ],
+      (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "nome") { correctName(); return; }
+        if (value === "email") { correctEmail(); return; }
+        createAccount();
+      },
+    );
+  })();
+}
+
+/** Volta a pedir só o email e regressa ao resumo. */
+function correctEmail(): void {
+  const antigo = String(wiz.data[WIZARD_FIELDS.email] ?? "");
+  askEmail(askConfirmAccount, antigo
+    ? `Certo. Escreve o email correto — o anterior (${antigo}) deixa de valer.`
+    : "Certo. Qual é o teu email?");
+}
+
+/** Volta a pedir só o nome e regressa ao resumo. */
+function correctName(): void {
+  const antigo = String(wiz.data[WIZARD_FIELDS.ownerName] ?? "");
+  askName(askConfirmAccount, antigo
+    ? `Certo. Escreve o nome correto — o anterior (${antigo}) deixa de valer.`
+    : "Certo. Qual é o teu nome?");
+}
+
+function createAccount(): void {
+  void (async () => {
+    inputBusy("A criar a tua conta…");
+    const email = String(wiz.data[WIZARD_FIELDS.email] ?? "");
+    const name = String(wiz.data[WIZARD_FIELDS.ownerName] ?? "");
+    const res = await authService.register({ email, password: pendingPassword, name });
+    clearInput();
+    if (!res.ok) {
+      await botSay(res.error.reason);
+      offerRegisterFix(res.error);
+      return;
+    }
+    pendingPassword = "";
+    wiz.session = res.value;
+    appState.session = res.value;
+    appState.ownerId = res.value.ownerId;
+    wiz.data[WIZARD_FIELDS.ownerId] = res.value.ownerId;
+    await botSay("Boa, conta criada! 🎉");
+    askStoreName();
+  })();
+}
+
+/**
+ * O registo falhou: mostra a mensagem e deixa o Dono escolher o que corrigir.
+ * As escolhas vêm do erro estruturado (`code` e `fields`), não de procurar
+ * palavras na mensagem — a decisão de para onde voltar é dele, não uma adivinha.
+ */
+function offerRegisterFix(error: AuthError): void {
+  void (async () => {
+    await botSay("Não vou adivinhar onde está o problema. Diz-me o que queres corrigir:");
+    inputChips(
+      buildRegisterFixOptions(error).map((o) => ({ value: o.value, label: o.label })),
+      async (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "entrar") {
+          await botSay("Certo, levo-te ao início de sessão. Depois de entrares, voltas aqui para criar a loja.");
+          go("#/login");
+          return;
+        }
+        if (value === "email") { correctEmail(); return; }
+        if (value === "nome") { correctName(); return; }
+        askPassword("Certo, escolhe outra palavra-passe.");
+      },
+    );
   })();
 }
 

@@ -102,6 +102,24 @@ const DEFAULT_NOTE_CLASS = "text-sm";
  * A marcação que depende da seleção em curso é refinada em execução por
  * `web/views/product.ts`.
  */
+/**
+ * Foto associada a um valor de um eixo, ou `""`.
+ *
+ * A foto está gravada na **Combinação**, não no valor: com um só eixo — que é o
+ * caso normal, e o único que o Formulario_De_Produto edita — há uma Combinação
+ * por valor e a correspondência é directa. Com dois eixos, o mesmo valor aparece
+ * em várias Combinação; fica a **primeira** foto encontrada, que é a leitura
+ * previsível («a foto do azul») e nunca uma escolha que mude entre renderizações,
+ * porque a ordem das Combinação é determinista.
+ */
+function imageOfValue(v: ProductVariations, axisIndex: number, value: string): string {
+  for (const comb of v.combinations) {
+    if (comb.values[axisIndex] !== value) continue;
+    if (typeof comb.image === "string" && comb.image !== "") return comb.image;
+  }
+  return "";
+}
+
 function valueSoldOut(v: ProductVariations, axisIndex: number, value: string): boolean {
   const free = v.axes.filter((_, i) => i !== axisIndex);
   const tuples = free.length ? combinationsOf(free) : [[]];
@@ -141,8 +159,16 @@ export function variationPickerHtml(
   const axesHtml = v.axes.map((axis, i) => {
     const values = axis.values.map((value) => {
       const out = valueSoldOut(v, i, value);
-      return `<button type="button" data-variation-pick="${i}" data-variation-value="${esc(value)}" data-pick-base="${esc(base)}"${out ? ' data-sold-out="1" disabled' : ""} aria-pressed="false" class="${style.valueClass}"${base ? ` style="${esc(base)}"` : ""}>
-            <span>${esc(value)}</span><span data-sold-out-badge class="${out ? "" : "hidden "}text-[10px] uppercase opacity-60">Esgotado</span>
+      // Foto da versão, quando o Dono a definiu. Vai em `data-variation-image`
+      // porque é `web/views/product.ts` que troca a imagem principal ao escolher,
+      // e vai também como miniatura dentro do botão: um quadrado com a cor ou o
+      // padrão real diz mais do que a palavra «Azul».
+      const image = imageOfValue(v, i, value);
+      const thumb = image
+        ? `<img src="${esc(image)}" alt="" aria-hidden="true" class="w-6 h-6 rounded object-cover shrink-0" />`
+        : "";
+      return `<button type="button" data-variation-pick="${i}" data-variation-value="${esc(value)}" data-pick-base="${esc(base)}"${image ? ` data-variation-image="${esc(image)}"` : ""}${out ? ' data-sold-out="1" disabled' : ""} aria-pressed="false" class="${style.valueClass}"${base ? ` style="${esc(base)}"` : ""}>
+            ${thumb}<span>${esc(value)}</span><span data-sold-out-badge class="${out ? "" : "hidden "}text-[10px] uppercase opacity-60">Esgotado</span>
           </button>`;
     }).join("");
     return `<div data-variation-axis="${i}" class="flex flex-col gap-2 min-w-0">

@@ -21,6 +21,29 @@ export const SEO_LANGUAGE = "pt-AO";
 export const SEO_CURRENCY = "AOA";
 export const PLATFORM_NAME = "MôBisno";
 
+/**
+ * Arte de partilha das páginas da PLATAFORMA (`og:image`).
+ *
+ * Era o `logo-header.png`: um logótipo estreito sobre branco, que o WhatsApp
+ * mostrava numa miniatura ao lado do texto. A arte quadrada dá um cartão com
+ * imagem grande.
+ *
+ * É a versão leve (`scripts/share-image.mjs`) e não o original
+ * `images/artmobisno1.png`, que tem ~1,7 MB: acima de poucas centenas de kB o
+ * WhatsApp desiste de descarregar a imagem e o cartão sai sem ela — o defeito de
+ * volta, agora sem nada que o denuncie.
+ *
+ * As medidas são declaradas porque é por elas que o WhatsApp e o Facebook
+ * decidem entre cartão grande e miniatura, antes de terem a imagem.
+ *
+ * Espelhado em `api/_seo.js` com os mesmos nomes: as funções serverless não
+ * podem importar de `src/` (`SEO.md` §5.2). Ao mudar aqui, mudar lá.
+ */
+export const PLATFORM_SHARE_IMAGE = "/images/share.jpg";
+export const PLATFORM_SHARE_IMAGE_WIDTH = 1200;
+export const PLATFORM_SHARE_IMAGE_HEIGHT = 1200;
+export const PLATFORM_SHARE_IMAGE_TYPE = "image/jpeg";
+
 /** Trunca um texto para `max` caracteres, cortando em espaço e juntando "…". */
 export function truncate(text: string, max = 160): string {
   const clean = (text ?? "").replace(/\s+/g, " ").trim();

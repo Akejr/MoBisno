@@ -21,7 +21,8 @@ import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
+import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
@@ -164,7 +165,7 @@ function productCard(view: StoreRenderView, p: StoreProductView, opts: { offset?
     ? `<div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded text-[10px] font-bold tracking-widest" style="color:var(--brand,${DEFAULT_BRAND})">DESTAQUE</div>`
     : "";
   const hide = opts.hidden ? ` data-extra style="display:none"` : "";
-  return `<a href="${esc(productHref(view, p))}" data-edit-product="${esc(p.id)}" class="group block relative ${opts.offset ? "md:mt-8" : ""}"${hide}>
+  return `<a href="${esc(productHref(view, p))}" data-edit-product="${esc(p.id)}" data-product-category="${esc(p.category ?? "")}" class="group block relative ${opts.offset ? "md:mt-8" : ""}"${hide}>
     <div class="${cardAspect()} bg-white overflow-hidden rounded-xl mb-5 relative">${img}${badge}</div>
     <div class="flex justify-between items-start gap-3">
       <div class="min-w-0">
@@ -364,9 +365,15 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
 function renderCategory(view: StoreRenderView, category: string, custom?: StoreCustomization): string {
   const menuLabels = menuFor(view, custom);
   const items = filterForCategoryPage(view, category);
-  const grid = items.length
-    ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-16">${items.map((p, i) => productCard(view, p, { offset: i % 3 === 1 })).join("")}</div>`
+  const cards = listingProducts(view, category);
+  const grid = cards.length
+    ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-16">${cards.map((p, i) => productCard(view, p, { offset: i % 3 === 1 })).join("")}</div>`
     : `<div class="py-20 text-center text-[#685b5f]"><span class="material-symbols-outlined" style="font-size:48px;">category</span><p class="mt-2">Ainda não há produtos nesta categoria.</p></div>`;
+  const filters = categoryFilterHtml(categoryFilterLabels(view, category), category, {
+    chipClass: "text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 rounded-xl whitespace-nowrap transition-colors",
+    chipStyle: "border:1px solid #e7dcdd;color:#685b5f;background:#fff",
+    rootClass: "flex flex-wrap items-center gap-2 mb-10 min-w-0",
+  });
   return `
   <div class="min-h-screen flex flex-col bg-[#fcf9f8] text-[#1c1b1b]" style="font-family:'Manrope',sans-serif">
     ${headerHtml(view, menuLabels, custom)}
@@ -377,9 +384,10 @@ function renderCategory(view: StoreRenderView, category: string, custom?: StoreC
         <span class="text-[#1c1b1b] font-semibold">${esc(category)}</span>
       </nav>
       <div class="mb-12">
-        <h1 style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-4xl md:text-5xl tracking-tight">${esc(category)}</h1>
-        <p class="text-[#685b5f] mt-2">${items.length} produto(s)</p>
+        <h1 data-cat-title style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-4xl md:text-5xl tracking-tight">${esc(category)}</h1>
+        <p data-cat-count class="text-[#685b5f] mt-2">${items.length} produto(s)</p>
       </div>
+      ${filters}
       ${grid}
     </main>
     ${footerHtml(view, custom, menuLabels)}

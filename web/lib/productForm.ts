@@ -1,16 +1,15 @@
 /** Modal para criar/editar um Produto (com foto) — design MôBisno (branco + #F95901). */
-import { esc, toast, fileToUint8Array, withBusy, withButton } from "./dom.js";
+import { esc, toast, fileToUint8Array, formatKz, withBusy, withButton } from "./dom.js";
 import { compressImageFile } from "./imageCompress.js";
 import { PRODUCT_POLICY } from "../../src/services/fileService.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
-import { syncCombinations, variantLabelOf } from "../../src/services/variations.js";
+import { syncCombinations } from "../../src/services/variations.js";
 import type { AdminPanel } from "../../src/app/adminPanel.js";
 import type { Product } from "../../src/models/index.js";
 import type {
   ProductCombination,
   ProductVariationAxis,
   ProductVariations,
-  VariationPriceMode,
 } from "../../src/models/domain.js";
 import type { StoreCustomization } from "../templates/types.js";
 
@@ -58,30 +57,71 @@ export function openProductForm(opts: ProductFormOptions): void {
   const storedVariations = product && opts.customization?.productVariations
     ? opts.customization.productVariations[product.id]
     : undefined;
-  let varOn = false;
-  let priceMode: VariationPriceMode = "substitui";
-  let axes: ProductVariationAxis[] = [];
-  /** Combinação alinhadas com `syncedAxes`. Só `syncCombinations` escreve aqui. */
-  let combinations: ProductCombination[] = [];
-  /** Eixos utilizáveis (com nome e ≥ 1 valor), na ordem que indexa `combinations.values`. */
-  let syncedAxes: ProductVariationAxis[] = [];
 
-  /** Realinha as Combinação com os eixos. Chamada sempre que os eixos mudam. */
-  function resyncVariations(): void {
-    const synced = syncCombinations({ enabled: true, priceMode, axes, combinations });
-    syncedAxes = synced.axes;
-    combinations = synced.combinations;
+  /** Nome do grupo por omissão, quando o Dono não escreve nenhum. */
+  const DEFAULT_GROUP = "Opção";
+
+  /**
+   * Uma variação, como o Dono a vê: nome, preço, foto e stock.
+   *
+   * Isto é **um valor de um eixo** mais a Combinação que lhe corresponde, juntos
+   * numa só linha. A serialização continua a ser a de sempre (um eixo com
+   * valores + uma Combinação por valor), mas o formulário deixou de a expor: com
+   * um só grupo há exactamente uma Combinação por valor, e pedir ao Dono que
+   * pense em «eixos» e «combinações» era pedir-lhe o vocabulário da base de
+   * dados.
+   *
+   * `price` ausente = **preço original** do Produto (é o que a caixa marca).
+   * `stock` ausente = não controlado; `0` = esgotado (Requisitos 4.11, 4.12).
+   */
+  interface VariationItem {
+    name: string;
+    price?: number;
+    stock?: number;
+    image?: string;
   }
 
-  /** Carrega o rascunho a partir de uma entrada gravada, de forma desconhecida. */
+  let varOn = false;
+  let groupName = "";
+  let items: VariationItem[] = [];
+  /**
+   * Grupos que a Personalização tinha para além do primeiro.
+   *
+   * O formulário edita **um** grupo. Uma Loja gravada com dois (por exemplo Cor +
+   * Tamanho, do editor anterior) mantém os dados em base de dados, mas guardar
+   * aqui deixa-a com um só — por isso o formulário avisa antes, em vez de deixar
+   * o Dono descobrir depois.
+   */
+  let droppedGroups = 0;
+
+  /**
+   * Carrega o rascunho a partir de uma entrada gravada, de forma desconhecida.
+   *
+   * O preço é normalizado para **absoluto**. A serialização tem um `priceMode`
+   * («substitui» ou «acresce») que o formulário já não pergunta: um preço por
+   * variação é o preço, e o modo «acresce» obrigava o Dono a pensar em somas. O
+   * que estiver gravado como acréscimo é convertido aqui uma vez — `+2000` sobre
+   * um Produto de `10000` passa a `12000` — para o número que ele lê ser o que o
+   * Cliente paga, e para gravar de volta em «substitui» não mudar preço nenhum.
+   */
   function loadVariations(raw: unknown): void {
     const synced = syncCombinations(raw as ProductVariations);
     varOn = synced.enabled && synced.axes.length > 0;
-    priceMode = synced.priceMode;
-    // O rascunho é uma cópia: editá-lo não mexe nos eixos que indexam as Combinação.
-    axes = synced.axes.map((axis) => ({ name: axis.name, values: [...axis.values] }));
-    combinations = synced.combinations;
-    syncedAxes = synced.axes;
+    droppedGroups = Math.max(0, synced.axes.length - 1);
+    const axis = synced.axes[0];
+    groupName = axis?.name ?? "";
+    const base = Number(product?.price ?? 0);
+    items = (axis?.values ?? []).map((value) => {
+      const comb = synced.combinations.find((c) => c.values[0] === value);
+      const item: VariationItem = { name: value };
+      if (comb?.price !== undefined) {
+        const absolute = synced.priceMode === "acresce" ? base + comb.price : comb.price;
+        item.price = Math.max(0, absolute);
+      }
+      if (comb?.stock !== undefined) item.stock = comb.stock;
+      if (comb?.image !== undefined) item.image = comb.image;
+      return item;
+    });
   }
   loadVariations(storedVariations);
 
@@ -92,26 +132,21 @@ export function openProductForm(opts: ProductFormOptions): void {
   const host = document.createElement("div");
   host.className = "fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 animate-entrance";
   host.innerHTML = `
-    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+    <!--
+      Largura de quatro colunas e conteudo em duas: o formulario cabia numa
+      coluna estreita e obrigava a percorrer tudo de cima a baixo para chegar as
+      variacoes. Em ecra grande as duas colunas mostram o produto e as variacoes
+      ao mesmo tempo; abaixo de lg volta a ser uma coluna, que e o unico arranjo
+      que serve num telemovel. Sem acentos graves neste comentario: vive dentro
+      de um template literal.
+    -->
+    <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden max-h-[94vh] flex flex-col">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
         <h3 class="text-lg font-black text-gray-900">${isEdit ? "Editar produto" : "Adicionar produto"}</h3>
         <button data-close class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">close</span></button>
       </div>
-      <nav data-tabs class="flex gap-1 px-4 border-b border-gray-100 shrink-0">
-        ${[
-          { id: "produto", icon: "inventory_2", label: "Produto" },
-          { id: "variacoes", icon: "tune", label: "Variações" },
-          { id: "opcoes", icon: "settings", label: "Opções" },
-        ].map((t, i) => `
-          <button type="button" data-tab="${t.id}" class="relative flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors ${i === 0 ? "" : "text-gray-500 hover:text-gray-800"}" ${i === 0 ? `style="color:${ACCENT}"` : ""}>
-            <span class="material-symbols-outlined text-[18px]">${t.icon}</span>
-            <span>${t.label}</span>
-            ${t.id === "variacoes" ? `<span data-var-badge class="hidden min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold text-white items-center justify-center" style="background:${ACCENT}"></span>` : ""}
-            <span data-tab-underline class="absolute left-2 right-2 -bottom-px h-0.5 rounded-full ${i === 0 ? "" : "hidden"}" style="background:${ACCENT}"></span>
-          </button>`).join("")}
-      </nav>
-      <form data-form class="p-6 flex flex-col gap-5 overflow-y-auto">
-        <div data-panel="produto" class="flex flex-col gap-5">
+      <form data-form class="p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6 items-start">
+        <div class="flex flex-col gap-5 min-w-0">
         <div class="flex gap-4">
           <div data-photo class="w-28 h-28 shrink-0 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#F95901] hover:bg-orange-50/40 transition-colors">
             ${imageUrl ? `<img src="${esc(imageUrl)}" class="w-full h-full object-cover" />` : `<span class="material-symbols-outlined text-gray-400 text-3xl">add_a_photo</span>`}
@@ -148,7 +183,36 @@ export function openProductForm(opts: ProductFormOptions): void {
         </div>
         </div>
 
-        <div data-panel="opcoes" class="hidden flex-col gap-5">
+        <!--
+          Variacoes, no mesmo ecra. Estavam num separador proprio: o Dono tinha de
+          descobrir que existia um separador antes de sequer ver o que faziam. Sem
+          acentos graves neste comentario: vive dentro de um template literal.
+        -->
+        <div class="flex flex-col gap-4 min-w-0 lg:border-l lg:border-gray-100 lg:pl-8">
+          <span class="${label}">Variações</span>
+          <div data-var-empty class="${varOn ? "hidden" : ""} flex flex-col items-center text-center gap-3 py-6 px-4">
+            <span class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:${ACCENT}1a"><span class="material-symbols-outlined text-[26px]" style="color:${ACCENT}">tune</span></span>
+            <div>
+              <p class="text-sm font-bold text-gray-900">Este produto tem versões diferentes?</p>
+              <p class="text-[13px] text-gray-500 leading-snug mt-1 max-w-xs">Cada versão pode ter o seu preço, a sua foto e o seu stock — por exemplo, uma cor ou um tamanho.</p>
+            </div>
+            <button type="button" data-var-start class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white font-bold text-sm transition-opacity hover:opacity-95" style="background:${ACCENT}">
+              <span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação
+            </button>
+          </div>
+          <label data-var-head class="${varOn ? "flex" : "hidden"} items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer select-none">
+            <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">tune</span> Variações ativas</span>
+            <span class="relative inline-flex items-center">
+              <input data-var-on type="checkbox" ${varOn ? "checked" : ""} class="peer sr-only" />
+              <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
+            </span>
+          </label>
+          <div data-var-body class="${varOn ? "flex" : "hidden"} flex-col gap-3"></div>
+          <input data-var-image-input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+        </div>
+
+        <div class="flex flex-col gap-4 min-w-0 lg:col-span-2 border-t border-gray-100 pt-5">
+        <span class="${label}">Opções</span>
         <div class="rounded-2xl border border-gray-100 divide-y divide-gray-100">
           <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
             <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">star</span> Destacar na loja</span>
@@ -179,35 +243,8 @@ export function openProductForm(opts: ProductFormOptions): void {
 
         </div>
 
-        <div data-panel="variacoes" class="hidden flex-col gap-4">
-          <!--
-            Estado vazio com uma ação directa. Antes, as Variação viviam atrás de
-            um interruptor no fundo de um formulário longo: era preciso descer
-            até lá e descobrir a caixinha antes de sequer ver o que fazia. Agora
-            o separador abre já com a explicação e um botão que liga o
-            interruptor e cria a primeira variação de uma vez.
-          -->
-          <div data-var-empty class="${varOn ? "hidden" : ""} flex flex-col items-center text-center gap-3 py-8 px-4">
-            <span class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:${ACCENT}1a"><span class="material-symbols-outlined text-[26px]" style="color:${ACCENT}">tune</span></span>
-            <div>
-              <p class="text-sm font-bold text-gray-900">Este produto tem versões diferentes?</p>
-              <p class="text-[13px] text-gray-500 leading-snug mt-1 max-w-xs">Cada versão pode ter o seu preço e o seu stock — por exemplo, um tamanho ou uma cor.</p>
-            </div>
-            <button type="button" data-var-start class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white font-bold text-sm transition-opacity hover:opacity-95" style="background:${ACCENT}">
-              <span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação
-            </button>
-          </div>
-          <label data-var-head class="${varOn ? "" : "hidden"} items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3 cursor-pointer select-none">
-            <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">tune</span> Variações ativas</span>
-            <span class="relative inline-flex items-center">
-              <input data-var-on type="checkbox" ${varOn ? "checked" : ""} class="peer sr-only" />
-              <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
-            </span>
-          </label>
-          <div data-var-body class="${varOn ? "" : "hidden"} flex flex-col gap-4"></div>
-        </div>
-        <div data-errs class="empty:hidden"></div>
-        <div class="flex justify-end gap-2 pt-1">
+        <div data-errs class="empty:hidden lg:col-span-2"></div>
+        <div class="flex justify-end gap-2 pt-1 lg:col-span-2">
           <button type="button" data-close class="px-4 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-semibold transition-colors">Cancelar</button>
           <button type="submit" class="px-6 py-2.5 rounded-xl text-white font-bold text-sm flex items-center gap-1 transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check</span> Guardar</button>
         </div>
@@ -218,37 +255,6 @@ export function openProductForm(opts: ProductFormOptions): void {
   const close = (): void => host.remove();
   host.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", close));
   host.addEventListener("click", (e) => { if (e.target === host) close(); });
-
-  /*
-   * Separadores. Os painéis escondidos continuam no formulário — só saem do
-   * ecrã —, por isso o "Guardar" lê todos os campos, esteja qual estiver à
-   * vista. Isso é o que permite dividir sem tocar na gravação.
-   */
-  function showTab(id: string): void {
-    host.querySelectorAll<HTMLElement>("[data-panel]").forEach((p) => {
-      const on = p.dataset.panel === id;
-      p.classList.toggle("hidden", !on);
-      p.classList.toggle("flex", on);
-    });
-    host.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => {
-      const on = b.dataset.tab === id;
-      b.style.color = on ? ACCENT : "";
-      b.classList.toggle("text-gray-500", !on);
-      b.classList.toggle("hover:text-gray-800", !on);
-      b.querySelector<HTMLElement>("[data-tab-underline]")?.classList.toggle("hidden", !on);
-    });
-  }
-  host.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) =>
-    b.addEventListener("click", () => showTab(b.dataset.tab ?? "produto")));
-
-  /** Contador de combinações no separador — diz que há ali algo sem lá entrar. */
-  const varBadge = host.querySelector<HTMLElement>("[data-var-badge]")!;
-  function drawVarBadge(): void {
-    const n = varOn ? combinations.length : 0;
-    varBadge.textContent = String(n);
-    varBadge.classList.toggle("hidden", n === 0);
-    varBadge.classList.toggle("inline-flex", n > 0);
-  }
 
   const photoBox = host.querySelector<HTMLElement>("[data-photo]")!;
   const photoInput = host.querySelector<HTMLInputElement>("[data-photo-input]")!;
@@ -263,6 +269,9 @@ export function openProductForm(opts: ProductFormOptions): void {
   stockOn.addEventListener("change", () => {
     stockWrap.classList.toggle("hidden", !stockOn.checked);
     if (stockOn.checked) (host.querySelector<HTMLInputElement>("[data-stock]"))?.focus();
+    // As variações têm um campo de stock por linha: ele só faz sentido enquanto
+    // este interruptor estiver ligado, por isso a lista é redesenhada.
+    if (varOn) drawVariations();
   });
   photoInput.addEventListener("change", async () => {
     const raw = photoInput.files?.[0];
@@ -318,16 +327,8 @@ export function openProductForm(opts: ProductFormOptions): void {
   const varBody = host.querySelector<HTMLElement>("[data-var-body]")!;
   const varEmpty = host.querySelector<HTMLElement>("[data-var-empty]")!;
   const varHead = host.querySelector<HTMLElement>("[data-var-head]")!;
+  const varImageInput = host.querySelector<HTMLInputElement>("[data-var-image-input]")!;
 
-  // Estado vazio → liga o interruptor e cria já a primeira variação, para o
-  // Dono não ter de descobrir dois passos separados.
-  host.querySelector<HTMLElement>("[data-var-start]")?.addEventListener("click", () => {
-    varOn = true;
-    varOnInput.checked = true;
-    if (axes.length === 0) axes.push({ name: "", values: [] });
-    drawVariations();
-    varBody.querySelector<HTMLInputElement>('[data-axis-name="0"]')?.focus();
-  });
   const smallInput = "w-full min-w-0 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-[#F95901]";
 
   /** Lê um campo numérico opcional: vazio (ou inválido) = ausente, `0` = zero. */
@@ -337,156 +338,190 @@ export function openProductForm(opts: ProductFormOptions): void {
     return Number.isFinite(n) ? n : undefined;
   }
 
+  /** Preço escrito no campo do Produto, para a caixa «preço original» o mostrar. */
+  function basePrice(): number {
+    const n = Number(host.querySelector<HTMLInputElement>("[data-price]")?.value ?? "");
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /** Acrescenta uma variação vazia e põe o cursor no nome dela. */
+  function addItem(): void {
+    items.push({ name: "" });
+    drawVariations();
+    varBody.querySelector<HTMLInputElement>(`[data-item-name="${items.length - 1}"]`)?.focus();
+  }
+
+  // Estado vazio → liga o interruptor e cria já a primeira variação, para o Dono
+  // não ter de descobrir dois passos separados.
+  host.querySelector<HTMLElement>("[data-var-start]")?.addEventListener("click", () => {
+    varOn = true;
+    varOnInput.checked = true;
+    if (groupName.trim() === "") groupName = DEFAULT_GROUP;
+    if (items.length === 0) items.push({ name: "" });
+    drawVariations();
+    varBody.querySelector<HTMLInputElement>('[data-item-name="0"]')?.focus();
+  });
+
+  /**
+   * Linha à espera de uma fotografia.
+   *
+   * Um só `<input type="file">` serve todas as linhas — abrir um por variação
+   * enchia o formulário de elementos escondidos —, por isso o índice da linha que
+   * pediu a foto tem de ficar guardado entre o clique e o `change` do ficheiro.
+   */
+  let imageRow = -1;
+
   function drawVariations(): void {
     varBody.classList.toggle("hidden", !varOn);
+    varBody.classList.toggle("flex", varOn);
     varEmpty.classList.toggle("hidden", varOn);
     varHead.classList.toggle("hidden", !varOn);
     varHead.classList.toggle("flex", varOn);
-    if (!varOn) { varBody.innerHTML = ""; drawVarBadge(); return; }
-    resyncVariations();
-    drawVarBadge();
+    if (!varOn) { varBody.innerHTML = ""; return; }
 
-    const modeHtml = `
-      <div class="flex flex-col gap-2">
-        <span class="${label}">Preço das combinações</span>
-        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"><input type="radio" name="mb-var-mode" data-var-mode="substitui" ${priceMode === "substitui" ? "checked" : ""} class="accent-[#F95901]" /> Substitui o preço base</label>
-        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"><input type="radio" name="mb-var-mode" data-var-mode="acresce" ${priceMode === "acresce" ? "checked" : ""} class="accent-[#F95901]" /> Acresce ao preço base</label>
-      </div>`;
+    const base = basePrice();
+    /*
+     * O stock por variação só existe se o Produto controlar stock.
+     *
+     * Com «Controlar stock» desligado, o Produto **nunca esgota** — e um campo de
+     * stock por variação ali ao lado prometia um controlo que não ia acontecer:
+     * o Dono escrevia `0` numa variação, ficava à espera que ela aparecesse
+     * esgotada, e não aparecia. Desligado, os campos ficam inertes e explicados.
+     */
+    const stockOn = host.querySelector<HTMLInputElement>("[data-stock-on]")?.checked === true;
+    // Aviso, e não correção silenciosa: a Personalização tinha mais do que um
+    // grupo (o editor anterior permitia Cor + Tamanho) e este formulário edita um.
+    // Guardar deixa a Loja com o primeiro; o Dono tem de o saber antes.
+    const aviso = droppedGroups > 0
+      ? `<div class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-900 leading-snug">
+          Este produto tinha <strong>${droppedGroups + 1} grupos</strong> de variações. Aqui edita-se um: ao guardar, fica só <strong>${esc(groupName || DEFAULT_GROUP)}</strong> e as combinações dos outros grupos são descartadas.
+        </div>`
+      : "";
 
-    const axesHtml = axes.map((axis, i) => {
-      const chips = axis.values.map((value, j) =>
-        `<span class="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-2.5 pr-1 py-1 text-xs text-gray-700 max-w-full">
-          <span class="truncate">${esc(value)}</span>
-          <button type="button" data-rm-val="${i}:${j}" title="Remover valor" class="w-5 h-5 shrink-0 rounded-full hover:bg-white text-gray-500 hover:text-red-600 flex items-center justify-center"><span class="material-symbols-outlined text-[13px]">close</span></button>
-        </span>`).join("");
+    const rows = items.map((item, i) => {
+      const usaBase = item.price === undefined;
+      const thumb = item.image
+        ? `<img src="${esc(item.image)}" class="w-full h-full object-cover" />`
+        : `<span class="material-symbols-outlined text-gray-400 text-[22px]">add_a_photo</span>`;
       return `
-        <div class="rounded-xl border border-gray-200 p-3 flex flex-col gap-2">
-          <div class="flex items-center gap-2">
-            <input data-axis-name="${i}" value="${esc(axis.name)}" placeholder="Nome da variação (ex.: Cor)" class="${smallInput} font-semibold" />
-            <button type="button" data-rm-axis="${i}" title="Remover variação" class="w-9 h-9 shrink-0 rounded-xl text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
-          </div>
-          ${chips ? `<div class="flex flex-wrap gap-1.5">${chips}</div>` : `<p class="text-[11px] text-gray-400">Sem valores. Acrescente pelo menos um.</p>`}
-          <div class="flex gap-2">
-            <input data-val-input="${i}" placeholder="Valores separados por vírgula (ex.: Azul, Preto)" class="${smallInput}" />
-            <button type="button" data-add-val="${i}" class="shrink-0 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">Juntar</button>
+        <div class="rounded-xl border border-gray-200 p-3">
+          <div class="flex items-start gap-3">
+            <div class="shrink-0 flex flex-col items-center gap-1">
+              <button type="button" data-var-photo="${i}" title="Foto desta variação" class="w-14 h-14 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden hover:border-[#F95901] hover:bg-orange-50/40 transition-colors">${thumb}</button>
+              ${item.image ? `<button type="button" data-rm-var-photo="${i}" class="text-[11px] text-gray-400 hover:text-red-600 transition-colors">remover</button>` : ""}
+            </div>
+            <div class="flex-1 min-w-0 flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <input data-item-name="${i}" value="${esc(item.name)}" placeholder="Nome da variação (ex.: Azul)" class="${smallInput} font-semibold" />
+                <button type="button" data-rm-item="${i}" title="Remover variação" class="w-9 h-9 shrink-0 rounded-xl text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+              </div>
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <label class="inline-flex items-center gap-1.5 text-[12px] text-gray-600 cursor-pointer select-none">
+                  <input type="checkbox" data-item-base="${i}" ${usaBase ? "checked" : ""} class="accent-[#F95901]" />
+                  Preço original <span class="text-gray-400">(${esc(formatKz(base))})</span>
+                </label>
+                <input data-item-price="${i}" type="number" step="0.01" min="0" value="${item.price === undefined ? "" : esc(item.price)}" placeholder="Preço (Kz)" ${usaBase ? "disabled" : ""} class="${smallInput} w-32 text-right ${usaBase ? "opacity-50" : ""}" />
+                <input data-item-stock="${i}" type="number" min="0" step="1" value="${item.stock === undefined ? "" : esc(item.stock)}" placeholder="Stock" ${stockOn ? "" : "disabled"} title="${stockOn ? "Stock desta variação" : "Ligue «Controlar stock» nas opções para controlar o stock por variação"}" class="${smallInput} w-28 text-right ${stockOn ? "" : "opacity-50 cursor-not-allowed"}" />
+              </div>
+            </div>
           </div>
         </div>`;
     }).join("");
 
-    const pricePlaceholder = priceMode === "acresce" ? "+ 0" : "Preço base";
-    const combsHtml = combinations.length
-      ? combinations.map((comb, i) => `
-        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3 flex flex-col gap-2">
-          <span class="text-[13px] font-semibold text-gray-800 break-words">${esc(variantLabelOf(syncedAxes, comb.values))}</span>
-          <div class="flex gap-2">
-            <label class="flex-1 min-w-0 flex flex-col gap-1">
-              <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Preço (Kz)</span>
-              <input data-comb-price="${i}" type="number" step="0.01" value="${comb.price == null ? "" : esc(comb.price)}" placeholder="${esc(pricePlaceholder)}" class="${smallInput} text-right" />
-            </label>
-            <label class="flex-1 min-w-0 flex flex-col gap-1">
-              <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Stock</span>
-              <input data-comb-stock="${i}" type="number" min="0" step="1" value="${comb.stock == null ? "" : esc(comb.stock)}" placeholder="Sem controlo" class="${smallInput} text-right" />
-            </label>
-          </div>
-        </div>`).join("")
-      : `<p class="text-xs text-gray-500">Dê um nome à variação e junte valores para ver as combinações.</p>`;
-
     varBody.innerHTML = `
-      ${modeHtml}
-      <div class="flex flex-col gap-2">
-        <span class="${label}">Variações</span>
-        ${axesHtml}
-        <button type="button" data-add-axis class="self-start inline-flex items-center gap-1 text-sm font-bold" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação</button>
-      </div>
-      <div class="flex flex-col gap-2">
-        <span class="${label}">Combinações <span class="text-gray-400 font-normal">(${combinations.length})</span></span>
-        <p class="text-[11px] text-gray-500 leading-snug">Preço vazio usa o preço base. Stock vazio não é controlado; <strong>0</strong> marca a combinação como esgotada.</p>
-        ${combsHtml}
-      </div>`;
+      ${aviso}
+      <label class="flex flex-col gap-1.5">
+        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Nome do grupo</span>
+        <input data-group-name value="${esc(groupName)}" placeholder="${esc(DEFAULT_GROUP)}" class="${smallInput}" />
+      </label>
+      ${rows || `<p class="text-xs text-gray-500">Acrescente a primeira variação.</p>`}
+      <button type="button" data-add-item class="self-start inline-flex items-center gap-1 text-sm font-bold" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação</button>
+      <p class="text-[11px] text-gray-500 leading-snug">Com <strong>Preço original</strong> marcado, a variação custa o preço do produto. ${stockOn
+        ? "Stock vazio não é controlado; <strong>0</strong> marca a variação como esgotada."
+        : `Para dar stock a cada variação, ligue <strong>Controlar stock</strong> nas opções — sem isso o produto nunca esgota.`} A foto é opcional — quando existe, a loja troca a imagem ao escolher esta variação.</p>`;
 
-    // Nome do eixo: o rascunho acompanha cada tecla, mas só realinhamos ao sair do campo —
-    // redesenhar a cada tecla tirava o foco ao Dono a meio da escrita.
-    varBody.querySelectorAll<HTMLInputElement>("[data-axis-name]").forEach((el) => {
-      const i = Number(el.dataset.axisName);
-      el.addEventListener("input", () => { const axis = axes[i]; if (axis) axis.name = el.value; });
-      el.addEventListener("change", () => { drawVariations(); });
+    // O nome do grupo acompanha cada tecla sem redesenhar: redesenhar tirava o
+    // foco ao Dono a meio da escrita.
+    varBody.querySelector<HTMLInputElement>("[data-group-name]")?.addEventListener("input", (e) => {
+      groupName = (e.target as HTMLInputElement).value;
     });
-    varBody.querySelectorAll<HTMLElement>("[data-rm-axis]").forEach((el) =>
-      el.addEventListener("click", () => { axes.splice(Number(el.dataset.rmAxis), 1); drawVariations(); }));
-    varBody.querySelector("[data-add-axis]")?.addEventListener("click", () => {
-      axes.push({ name: "", values: [] });
-      drawVariations();
-      varBody.querySelector<HTMLInputElement>(`[data-axis-name="${axes.length - 1}"]`)?.focus();
+    varBody.querySelector("[data-add-item]")?.addEventListener("click", addItem);
+
+    varBody.querySelectorAll<HTMLInputElement>("[data-item-name]").forEach((el) => {
+      const i = Number(el.dataset.itemName);
+      el.addEventListener("input", () => { const item = items[i]; if (item) item.name = el.value; });
     });
+    varBody.querySelectorAll<HTMLElement>("[data-rm-item]").forEach((el) =>
+      el.addEventListener("click", () => { items.splice(Number(el.dataset.rmItem), 1); drawVariations(); }));
 
-    /**
-     * Acrescenta os valores escritos no campo. Aceita VÁRIOS de uma vez,
-     * separados por vírgula: escrever «S, M, L, XL» e carregar em Enter põe os
-     * quatro. Antes era um de cada vez, com um clique por valor — a parte mais
-     * aborrecida de definir variações.
-     */
-    const addValue = (i: number): void => {
-      const field = varBody.querySelector<HTMLInputElement>(`[data-val-input="${i}"]`);
-      const axis = axes[i];
-      if (!field || !axis) return;
-
-      const escritos = field.value.split(",").map((v) => v.trim()).filter((v) => v !== "");
-      if (escritos.length === 0) return;
-
-      const novos: string[] = [];
-      let repetidos = 0;
-      for (const value of escritos) {
-        // Repetido no que já existe, ou repetido dentro do que se escreveu agora.
-        if (axis.values.includes(value) || novos.includes(value)) { repetidos++; continue; }
-        novos.push(value);
-      }
-      if (novos.length === 0) { toast("Esse valor já existe nesta variação.", "error"); return; }
-      if (repetidos > 0) toast(`${repetidos} ${repetidos === 1 ? "valor repetido foi ignorado" : "valores repetidos foram ignorados"}.`);
-
-      axis.values.push(...novos);
-      drawVariations();
-      varBody.querySelector<HTMLInputElement>(`[data-val-input="${i}"]`)?.focus();
-    };
-    varBody.querySelectorAll<HTMLElement>("[data-add-val]").forEach((el) =>
-      el.addEventListener("click", () => addValue(Number(el.dataset.addVal))));
-    varBody.querySelectorAll<HTMLInputElement>("[data-val-input]").forEach((el) =>
-      el.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter") return;
-        e.preventDefault(); // senão o Enter submetia o formulário do Produto
-        addValue(Number(el.dataset.valInput));
-      }));
-    varBody.querySelectorAll<HTMLElement>("[data-rm-val]").forEach((el) =>
-      el.addEventListener("click", () => {
-        const [i, j] = (el.dataset.rmVal ?? "").split(":").map(Number);
-        // `syncCombinations` (em drawVariations) descarta as Combinação que usavam este valor e
-        // preserva o preço e o stock das restantes — R4.20.
-        axes[i!]?.values.splice(j!, 1);
-        drawVariations();
-      }));
-
-    varBody.querySelectorAll<HTMLInputElement>("[data-var-mode]").forEach((el) =>
+    varBody.querySelectorAll<HTMLInputElement>("[data-item-base]").forEach((el) => {
+      const i = Number(el.dataset.itemBase);
       el.addEventListener("change", () => {
-        if (!el.checked) return;
-        priceMode = el.dataset.varMode === "acresce" ? "acresce" : "substitui";
+        const item = items[i];
+        if (!item) return;
+        // Marcar «preço original» apaga o preço próprio: é a diferença entre «vale
+        // o preço do produto» e «vale zero», e um preço esquecido no campo
+        // desativado voltaria a valer no próximo desmarcar.
+        if (el.checked) delete item.price;
+        else item.price = item.price ?? basePrice();
         drawVariations();
-      }));
-
-    varBody.querySelectorAll<HTMLInputElement>("[data-comb-price]").forEach((el) =>
+      });
+    });
+    varBody.querySelectorAll<HTMLInputElement>("[data-item-price]").forEach((el) => {
+      const i = Number(el.dataset.itemPrice);
       el.addEventListener("input", () => {
-        const comb = combinations[Number(el.dataset.combPrice)];
-        if (!comb) return;
+        const item = items[i];
+        if (!item) return;
         const value = readOptionalNumber(el.value);
-        if (value === undefined) delete comb.price; else comb.price = value;
-      }));
-    varBody.querySelectorAll<HTMLInputElement>("[data-comb-stock]").forEach((el) =>
+        if (value === undefined) delete item.price; else item.price = Math.max(0, value);
+      });
+    });
+    varBody.querySelectorAll<HTMLInputElement>("[data-item-stock]").forEach((el) => {
+      const i = Number(el.dataset.itemStock);
       el.addEventListener("input", () => {
-        const comb = combinations[Number(el.dataset.combStock)];
-        if (!comb) return;
+        const item = items[i];
+        if (!item) return;
         const value = readOptionalNumber(el.value);
         // Vazio = stock não controlado; `0` = esgotado. Os dois estados são distintos.
-        if (value === undefined) delete comb.stock; else comb.stock = Math.max(0, Math.floor(value));
+        if (value === undefined) delete item.stock; else item.stock = Math.max(0, Math.floor(value));
+      });
+    });
+
+    varBody.querySelectorAll<HTMLElement>("[data-var-photo]").forEach((el) =>
+      el.addEventListener("click", () => {
+        imageRow = Number(el.dataset.varPhoto);
+        varImageInput.value = "";
+        varImageInput.click();
+      }));
+    varBody.querySelectorAll<HTMLElement>("[data-rm-var-photo]").forEach((el) =>
+      el.addEventListener("click", () => {
+        const item = items[Number(el.dataset.rmVarPhoto)];
+        if (item) delete item.image;
+        drawVariations();
       }));
   }
+
+  varImageInput.addEventListener("change", async () => {
+    const raw = varImageInput.files?.[0];
+    const item = items[imageRow];
+    if (!raw || !item) return;
+    const file = await compressImageFile(raw);
+    const content = await fileToUint8Array(file);
+    const validation = panel.services.fileService.validate({ content, fileName: file.name }, PRODUCT_POLICY);
+    if (!validation.ok) { toast(validation.error.message, "error"); return; }
+    const stored = await withBusy(
+      () => panel.services.fileService.store(storeId, "product", validation.value),
+      "A carregar foto…",
+    );
+    item.image = stored.url;
+    drawVariations();
+  });
+
+  // O rótulo «Preço original» mostra o preço do Produto: se o Dono o mudar, o
+  // rótulo tem de acompanhar, senão fica a prometer um valor que já não existe.
+  host.querySelector<HTMLInputElement>("[data-price]")?.addEventListener("change", () => {
+    if (varOn) drawVariations();
+  });
   drawVariations();
   varOnInput.addEventListener("change", () => { varOn = varOnInput.checked; drawVariations(); });
 
@@ -516,10 +551,39 @@ export function openProductForm(opts: ProductFormOptions): void {
     void extrasPreload;
   }
 
-  /** Entrada a gravar em `productVariations`, ou `null` para não gravar nada (R4.16). */
+  /**
+   * Entrada a gravar em `productVariations`, ou `null` para não gravar nada
+   * (R4.16).
+   *
+   * A lista simples do formulário volta aqui à forma serializada: **um** eixo com
+   * os nomes das variações, e uma Combinação por nome com o preço, o stock e a
+   * foto. `syncCombinations` é quem monta a lista final — descarta nomes vazios,
+   * ignora repetidos e alinha as Combinação com os valores que sobram.
+   *
+   * `priceMode` é sempre `"substitui"`: o preço de uma variação é o preço que o
+   * Cliente paga. O modo «acresce» saiu do formulário, e o que estivesse gravado
+   * assim já foi convertido para absoluto em `loadVariations`.
+   */
   function variationsToSave(): ProductVariations | null {
     if (!varOn) return null;
-    const synced = syncCombinations({ enabled: true, priceMode, axes, combinations });
+    const controlaStock = host.querySelector<HTMLInputElement>("[data-stock-on]")?.checked === true;
+    const values: string[] = [];
+    const combinations: ProductCombination[] = [];
+    for (const item of items) {
+      const name = item.name.trim();
+      if (name === "" || values.includes(name)) continue;
+      values.push(name);
+      const comb: ProductCombination = { values: [name] };
+      if (item.price !== undefined) comb.price = item.price;
+      // Stock só é gravado se o Produto controlar stock. Sem isso ficaria um `0`
+      // esquecido a marcar a variação como esgotada numa loja onde nada esgota.
+      if (controlaStock && item.stock !== undefined) comb.stock = item.stock;
+      if (item.image !== undefined) comb.image = item.image;
+      combinations.push(comb);
+    }
+    if (values.length === 0) return null;
+    const axes: ProductVariationAxis[] = [{ name: groupName.trim() || DEFAULT_GROUP, values }];
+    const synced = syncCombinations({ enabled: true, priceMode: "substitui", axes, combinations });
     return synced.axes.length > 0 ? synced : null;
   }
 
@@ -591,10 +655,10 @@ export function openProductForm(opts: ProductFormOptions): void {
       close();
       await onDone();
     } else {
-      // O que falha na validação é sempre um campo do separador «Produto»
-      // (nome e preço). Sem isto, o Dono podia estar nas Variação e ler um erro
-      // sobre um campo que não tem à vista.
-      showTab("produto");
+      // O que falha na validação é sempre o nome ou o preço, no topo do
+      // formulário. Num ecrã único pode estar fora de vista, por isso o campo é
+      // trazido ao ecrã em vez de o Dono ler um erro sobre algo que não vê.
+      host.querySelector<HTMLElement>("[data-name]")?.scrollIntoView({ block: "center", behavior: "smooth" });
       host.querySelector("[data-errs]")!.innerHTML =
         `<div class="bg-red-50 text-red-700 border border-red-100 rounded-xl px-3.5 py-2.5 text-sm">${esc(res.message)}</div>`;
     }

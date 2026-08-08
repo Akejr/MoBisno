@@ -142,3 +142,59 @@ export function mapStatusString(status: string | undefined): OrderStatus {
     default: return "open";
   }
 }
+
+/* ===================== Ciclo de vida de uma encomenda ===================== */
+
+/**
+ * Os campos de uma encomenda que decidem o seu ciclo de vida.
+ *
+ * Só isto: o estado gravado, o método, a data-limite da referência e o momento
+ * do pagamento. Chega para decidir se uma encomenda expirou e se pode ser
+ * apagada, e permite que estas regras vivam aqui — puras, sem Supabase e sem
+ * DOM — em vez de dentro da vista que as apresenta.
+ */
+export interface OrderLifecycle {
+  status: string;
+  method: string;
+  /** Data-limite da referência bancária (ISO), quando aplicável. */
+  dueDate: string | null;
+  /** Momento do pagamento, quando existe. */
+  paidAt?: string | null;
+}
+
+/**
+ * Uma referência bancária por pagar (`open`) cuja data-limite já passou é
+ * considerada **expirada** — deixa de ficar "pendente" para sempre.
+ *
+ * `agora` é parâmetro (e não `Date.now()` escrito no meio do cálculo) para a
+ * regra ser testável com exemplos em vez de depender do relógio do teste.
+ */
+export function isReferenceExpired(row: OrderLifecycle, agora: number = Date.now()): boolean {
+  if (row.status !== "open" || row.method !== "reference" || !row.dueDate) return false;
+  const t = Date.parse(row.dueDate);
+  return Number.isFinite(t) && t < agora;
+}
+
+/** Estado efetivo de uma encomenda (com "expired" derivado da data-limite). */
+export function orderEffectiveStatus(row: OrderLifecycle, agora: number = Date.now()): string {
+  return isReferenceExpired(row, agora) ? "expired" : row.status;
+}
+
+/**
+ * Uma encomenda pode ser apagada pelo Dono?
+ *
+ * **Só as referências expiradas.** São o único desfecho que já não muda de
+ * ideias: o prazo passou, a referência deixou de ser pagável, e a linha ficava
+ * na lista de Vendas para sempre sem nunca virar dinheiro.
+ *
+ * Uma encomenda paga nunca é apagável, e a condição diz isso duas vezes — pelo
+ * estado e pelo `paidAt`. Não é redundância inútil: uma encomenda paga apagada é
+ * dinheiro sem rasto, e é irreversível. A guarda de verdade é a política de
+ * `delete` da base de dados (migração `0021_orders_owner_delete.sql`), que
+ * repete a mesma condição; esta função existe para a interface só oferecer o que
+ * a base de dados aceita.
+ */
+export function canDeleteOrder(row: OrderLifecycle, agora: number = Date.now()): boolean {
+  if (row.status === "paid" || row.paidAt) return false;
+  return isReferenceExpired(row, agora);
+}

@@ -24,6 +24,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  PASSWORD_MIN_LENGTH,
+  REGISTER_FIX_LABELS,
+  validatePasswordConfirmation,
+  type RegisterFixValue,
+} from "../src/ui/wizardSteps.js";
 
 const ROOT = join(__dirname, "..");
 const ASSISTANT = readFileSync(join(ROOT, "api/assistant.js"), "utf8");
@@ -259,6 +265,28 @@ function declaredScreens(): string[] {
   return [...CONTEXT_SRC.matchAll(/^ {2}(\w+): `ECRÃ/gm)].map((m) => m[1]!);
 }
 
+/** Texto-fonte da orientação de um ecrã, do `ECRÃ:` até ao fim do literal. */
+function guiaDe(screen: string): string {
+  const i = CONTEXT_SRC.indexOf(`${screen}: \`ECRÃ`);
+  expect(i, `orientação do ecrã ${screen} não encontrada`).toBeGreaterThanOrEqual(0);
+  return CONTEXT_SRC.slice(i, CONTEXT_SRC.indexOf("`,", i));
+}
+
+/**
+ * A mesma orientação com as interpolações resolvidas pelos valores reais dos
+ * módulos — é este o texto que chega ao assistente.
+ *
+ * Asserções sobre o texto resolvido valem sobre **o que o utilizador ouve**: se
+ * o mínimo da palavra-passe ou o rótulo de um botão mudar no módulo, muda aqui
+ * também, e a asserção continua a dizer a mesma coisa. Asseverar o literal
+ * `${PASSWORD_MIN_LENGTH}` sozinho protegia a forma de escrever, não a resposta.
+ */
+function resolver(guia: string): string {
+  return guia
+    .replace(/\$\{PASSWORD_MIN_LENGTH\}/g, String(PASSWORD_MIN_LENGTH))
+    .replace(/\$\{REGISTER_FIX_LABELS\.(\w+)\}/g, (_m, k: string) => REGISTER_FIX_LABELS[k as RegisterFixValue]);
+}
+
 describe("Factos da plataforma — derivados do domínio, nunca escritos à mão", () => {
   it("platformFacts() não tem um único número no texto: todos vêm de interpolação", () => {
     // Um preço escrito à mão fica errado no dia em que o preço mudar, e ninguém
@@ -278,9 +306,16 @@ describe("Factos da plataforma — derivados do domínio, nunca escritos à mão
     expect(CONTEXT_SRC).toContain("yearlyFreeMonths()");
   });
 
-  it("responde ao caso concreto: lojas e produtos ilimitados, sem mandar consultar tabela", () => {
+  it("responde ao caso concreto: preço por loja publicada, produtos ilimitados", () => {
     const facts = factsLiteral();
-    expect(facts).toContain("LOJAS E PRODUTOS SÃO ILIMITADOS");
+    // O preço passou a ser **por loja publicada**: criar é livre, publicar é que
+    // custa. Um assistente a dizer «lojas ilimitadas» sem esta distinção estava a
+    // prometer de graça o que agora se paga.
+    expect(facts).toContain("O PREÇO É POR LOJA PUBLICADA");
+    expect(facts).toContain("Uma loja em rascunho não é cobrada");
+    expect(facts).toContain("PRODUTOS SÃO ILIMITADOS");
+    // A excepção dos administradores é dita, para não ser aplicada a um Dono.
+    expect(facts).toContain("Contas de ADMINISTRADOR da MôBisno não pagam");
     expect(facts).toContain("um só plano");
     expect(facts).toContain("NÃO existe teste grátis");
     // Os escalões removidos são nomeados de propósito: é a pergunta que os
@@ -402,6 +437,232 @@ describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu e
     for (const f of ["storefront.ts", "product.ts", "category.ts", "cart.ts", "checkout.ts"]) {
       expect(view(f), `${f} não devia montar o assistente`).not.toContain("mountAiAgent");
     }
+  });
+});
+
+describe("Orientação do ecrã «Análises» — descreve o ecrã reconstruído", () => {
+  /**
+   * O separador foi refeito (linha com eixo e dica por dia, variação de 7 dias
+   * face aos 7 anteriores, barras de proporção, estado vazio) e os rótulos dos
+   * números mudaram de nome. A regra de `.kiro/steering/assistente.md` é que a
+   * orientação muda na mesma alteração; esta é a asserção que a impõe.
+   */
+  const DASH = readFileSync(join(ROOT, "web/views/dashboard.ts"), "utf8");
+  const guia = (() => {
+    const i = CONTEXT_SRC.indexOf("analises: `ECRÃ");
+    expect(i, "orientação do ecrã analises não encontrada").toBeGreaterThanOrEqual(0);
+    return CONTEXT_SRC.slice(i, CONTEXT_SRC.indexOf("`,", i));
+  })();
+
+  it("os rótulos dos números na orientação são os que o Dono vê no ecrã", () => {
+    for (const rotulo of ["Visitas (7 dias)", "Visitas (30 dias)", "Produtos vistos (7 dias)"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(DASH, `rótulo ausente do painel: ${rotulo}`).toContain(rotulo);
+    }
+    // O rótulo antigo desapareceu do ecrã; não pode sobreviver na orientação.
+    expect(guia).not.toContain("Visualizações (7 dias)");
+  });
+
+  it("diz o que o ecrã não faz: sem comparação nas visualizações e sem filtro de datas", () => {
+    // Sem isto o assistente promete uma comparação que os dados não permitem
+    // (não há série diária de visualizações de produto) e um filtro que não existe.
+    expect(guia).toContain("não têm comparação entre períodos");
+    expect(guia).toContain("Não há filtro de datas");
+  });
+
+  it("descreve a dica do gráfico e o estado vazio, que são o que mudou", () => {
+    expect(guia).toContain("número de visitas desse dia");
+    expect(guia).toContain("Ainda não há visitas para mostrar");
+    expect(DASH).toContain("Ainda não há visitas para mostrar");
+  });
+});
+
+describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o ecrã a pede agora", () => {
+  /**
+   * O assistente de criação passou a tratar a conta por inteiro: email
+   * revalidado no formato, palavra-passe com mínimo e confirmação, cartão «Os
+   * teus dados» antes de criar, e caminhos de correção nomeados depois de uma
+   * falha. A regra de `.kiro/steering/assistente.md` é que a orientação muda na
+   * mesma alteração — estas são as asserções que a impõem.
+   */
+  const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
+  const LOGIN = readFileSync(join(ROOT, "web/views/login.ts"), "utf8");
+  const guia = guiaDe("criar");
+  const resolvida = resolver(guia);
+
+  it("os passos da conta estão pela ordem em que o ecrã os pede", () => {
+    // A ordem é a propriedade: quem pergunta «o que é que ele me vai pedir?»
+    // recebe a sequência certa, não um conjunto de campos.
+    const passos = ["o nome", "o email", "a palavra-passe", "outra vez, para confirmar"];
+    const posicoes = passos.map((p) => {
+      const i = resolvida.indexOf(p);
+      expect(i, `passo ausente da orientação: ${p}`).toBeGreaterThanOrEqual(0);
+      return i;
+    });
+    expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+    // O email inválido é recusado ali mesmo, e não guardado para o fim.
+    expect(resolvida).toMatch(/formato inválido é recusado/);
+    expect(WIZARD).toContain("Esse email não parece válido");
+  });
+
+  it("diz o mínimo real da palavra-passe, sem número escrito à mão", () => {
+    // O mínimo vive em `PASSWORD_MIN_LENGTH`: escrevê-lo aqui deixava a frase
+    // errada no dia em que a regra mudasse, e ninguém repararia.
+    expect(resolvida).toContain(`mínimo ${PASSWORD_MIN_LENGTH} caracteres`);
+    expect(guia.replace(/\$\{[^}]*\}/g, ""), "há um número escrito à mão na orientação").not.toMatch(/\d/);
+  });
+
+  it("a palavra-passe não aparece no chat, e uma diferença pede as duas de novo", () => {
+    expect(resolvida).toContain("••••••••");
+    expect(WIZARD).toContain('userSay("••••••••")');
+    // A frase citada é a que o módulo produz: a orientação não inventa uma
+    // versão própria da mensagem que o Dono vai ler.
+    const recusa = validatePasswordConfirmation("segredo123", "segredo124");
+    expect(recusa.status).toBe("invalid");
+    if (recusa.status === "invalid") {
+      expect(resolvida).toContain(recusa.message.split(".")[0]);
+    }
+    expect(resolvida).toMatch(/as duas de novo/);
+  });
+
+  it("o cartão de confirmação e os seus botões são os que o ecrã mostra", () => {
+    for (const rotulo of ["Os teus dados", "Está tudo certo"]) {
+      expect(resolvida, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(WIZARD, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    // Corrigir um campo não repete os passos anteriores: é o que distingue este
+    // cartão de recomeçar a conversa.
+    expect(resolvida).toMatch(/volta ao mesmo cartão/);
+  });
+
+  it("os rótulos de correção vêm da mesma constante que o ecrã usa", () => {
+    // Não podem divergir porque são o mesmo valor. Uma cópia à mão divergia na
+    // primeira vez que alguém renomeasse o botão.
+    for (const rotulo of Object.values(REGISTER_FIX_LABELS)) {
+      expect(resolvida, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(guia, `«${rotulo}» está copiado à mão em vez de vir de REGISTER_FIX_LABELS`).not.toContain(rotulo);
+    }
+    // Email já registado: entrar na conta existente vem primeiro, e leva à rota
+    // real de início de sessão.
+    const entrar = resolvida.indexOf(REGISTER_FIX_LABELS.entrar);
+    expect(entrar).toBeGreaterThanOrEqual(0);
+    expect(resolvida).toContain("#/login");
+    expect(WIZARD).toContain('go("#/login")');
+    // A escolha é do Dono: o assistente não anuncia que decide por ele.
+    expect(resolvida).toMatch(/não decide sozinho/);
+  });
+
+  it("diz o que não existe, em vez de deixar o modelo inventar", () => {
+    // Metade das perguntas é sobre o que a plataforma não faz. Sem isto o
+    // assistente promete um email de recuperação que nunca chega.
+    expect(resolvida).toMatch(/não há recuperação de palavra-passe/i);
+    expect(resolvida).toMatch(/nem por SMS/);
+    expect(resolvida).toMatch(/não se muda a palavra-passe depois de a conta existir/);
+  });
+
+  it("nem este ecrã nem o do início de sessão prometem recuperação por email", () => {
+    // A orientação do `registo` dizia «Esquecer a palavra-passe: recuperação por
+    // email» — e não há nada disso em lado nenhum. É o mesmo defeito dos
+    // escalões de preços: uma funcionalidade descrita que não existe.
+    const dois = `${resolvida}\n${resolver(guiaDe("registo"))}`;
+    expect(dois).not.toMatch(/recuperação por email/);
+    expect(LOGIN, "o ecrã de sessão não tem recuperação de palavra-passe").not.toMatch(/recuperar|esqueci|esqueceu/i);
+  });
+});
+
+describe("Orientação do ecrã «Início» — um cartão por informação, expiradas e telemóvel", () => {
+  /**
+   * O separador foi refeito: o cartão «Vendas online» que juntava tudo deu lugar
+   * a um cartão por informação, o gráfico ganhou cartão próprio, as referências
+   * expiradas passaram a poder ser apagadas e a navegação passou a existir em
+   * telemóvel. A orientação tinha de acompanhar as quatro coisas.
+   */
+  const DASH = readFileSync(join(ROOT, "web/views/dashboard.ts"), "utf8");
+  const guia = guiaDe("painel");
+
+  it("cada informação tem cartão próprio, e o cartão que juntava tudo saiu", () => {
+    for (const rotulo of ["Valor total vendido", "Recebido (líquido)", "Disponível para levantar",
+      "Vendas pagas", "Produtos", "Referências pendentes", "Vendas pagas por dia"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(DASH, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    // «Vendas online» era o bloco único e «Três números» o que vinha a seguir:
+    // descrever qualquer um deles manda o Dono procurar o que já não está lá.
+    expect(guia).not.toContain("Vendas online");
+    expect(DASH).not.toContain("Vendas online");
+    expect(guia).not.toMatch(/[Tt]rês números/);
+  });
+
+  it("a barra e o botão são descritos no cartão a que pertencem", () => {
+    // A barra é do líquido recebido e o botão é do disponível: trocá-los na
+    // orientação era mandar o Dono procurar no cartão errado.
+    const linhaBarra = guia.split("\n").find((l) => l.includes("Já pedido")) ?? "";
+    expect(linhaBarra, "a orientação não fala da barra do dinheiro").not.toBe("");
+    expect(linhaBarra).toContain("Recebido (líquido)");
+    const linhaBotao = guia.split("\n").find((l) => l.includes("Solicitar levantamento")) ?? "";
+    expect(linhaBotao).toContain("Disponível para levantar");
+    expect(guia).toMatch(/já sem a taxa/);
+  });
+
+  it("o gráfico é um cartão próprio, ainda de 14 dias e só de vendas pagas", () => {
+    const linha = guia.split("\n").find((l) => l.includes("Vendas pagas por dia")) ?? "";
+    expect(linha).toMatch(/cartão próprio/);
+    expect(linha).toMatch(/número de vendas desse dia/);
+    expect(guia).toMatch(/conta apenas vendas pagas/);
+    expect(DASH).toContain('homeCard(8, "insights", "Vendas pagas por dia"');
+  });
+
+  it("só as referências expiradas se apagam, e a guarda não é o ecrã", () => {
+    expect(guia).toContain("Expirada");
+    expect(guia).toContain("Apagar registo");
+    expect(guia).toMatch(/[Ss]ó as expiradas se apagam/);
+    // Pagas, pendentes no prazo, falhadas e canceladas ficam: prometer o
+    // contrário era prometer apagar dinheiro.
+    for (const estado of ["pagas", "falhadas", "canceladas"]) {
+      expect(guia, `estado não protegido na orientação: ${estado}`).toContain(estado);
+    }
+    // A guarda de verdade é a política de `delete`; dizer que é o ecrã dava ao
+    // Dono a ideia de que basta insistir.
+    expect(guia).toMatch(/é a base de dados que o impede/);
+    expect(guia).toMatch(/definitivo e não recuperável/);
+    // Os mesmos rótulos e a mesma frase no ecrã.
+    expect(DASH).toContain('badge("Expirada"');
+    expect(DASH).toContain("Apagar registo");
+    expect(guia).toContain("A referência passou a data-limite e já não pode ser paga.");
+    expect(DASH).toContain("A referência passou a data-limite e já não pode ser paga.");
+  });
+
+  it("as sete secções da navegação estão na orientação, e o telemóvel também", () => {
+    // A lista das secções é única no ecrã (`DASH_SECTIONS`): é dela que sai o
+    // que a orientação tem de cobrir, para não ficar com seis quando o ecrã tem
+    // sete.
+    const lista = DASH.slice(DASH.indexOf("const DASH_SECTIONS"), DASH.indexOf("function navChip("));
+    const labels = [...lista.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]!);
+    expect(labels).toHaveLength(7);
+    for (const label of labels) {
+      expect(guia, `secção ausente da orientação: ${label}`).toContain(label);
+    }
+    expect(guia).toMatch(/faixa de atalhos deslizante/);
+    expect(guia).toMatch(/barra lateral não existe no telemóvel/);
+  });
+
+  it("trocar de loja já não é só «no topo da barra lateral»", () => {
+    // Em telemóvel a barra lateral não existe. A orientação antiga contava metade
+    // da história e deixava o Dono a procurar um seletor que ele não vê.
+    expect(guia).not.toMatch(/troca no seletor no topo da barra lateral\./);
+    const frases = guia.split("\n").filter((l) => l.includes("seletor de loja"));
+    expect(frases.length, "a orientação não fala do seletor de loja").toBeGreaterThan(0);
+    expect(frases.some((l) => l.includes("telemóvel")), "o seletor de loja em telemóvel não está dito").toBe(true);
+  });
+
+  it("a barra de telemóvel traz o que o `aside` tinha, com os mesmos rótulos", () => {
+    for (const rotulo of ["Nova loja", "Dashboard de Administração", "Terminar sessão"]) {
+      expect(guia, `ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(DASH, `ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    // A Administração é só de administradores: prometê-la a um Dono era mandá-lo
+    // procurar um atalho que ele não tem.
+    expect(guia).toMatch(/só em contas de administrador/);
   });
 });
 

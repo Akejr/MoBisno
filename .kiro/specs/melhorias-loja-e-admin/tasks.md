@@ -410,7 +410,7 @@ marcadas são as que alteram forma de dados ou assinaturas públicas.
     - Paridade obrigatória do `SEO.md` §5.2, **só para esta função** — é a segunda e última das duas paridades desta spec
     - _Requisitos: 4.18, 12.4_ · _Decisão D9_
 
-- [ ] 16. Validação da Fase D
+- [x] 16. Validação da Fase D
   - `get_diagnostics` nos ficheiros tocados de `src/` e `tests/` → `npm run build` → `npm run web:build` → `npx vitest run`
   - Critério de saída: **nenhum dos 197 testes da linha de base muda de resultado**; os testes novos passam
   - Verificar as cinco invariantes do `SEO.md` §5 (com as duas guardas de paridade) e a §0.2 do `MODELO-GUIA.md` nos seletores de cada Modelo_De_Loja

@@ -22,7 +22,9 @@
  * `plan_expires_at` em `profiles`) fica na composição e nas funções serverless.
  */
 
-import { asBillingPeriod, daysOf, type BillingPeriod } from "./plans.js";
+import {
+  asBillingPeriod, billableStores, daysOf, priceFor, proratedStorePrice, type BillingPeriod,
+} from "./plans.js";
 
 const DAY_MS = 86_400_000;
 
@@ -32,6 +34,15 @@ export interface BillingInput {
   planExpiresAt: string | null | undefined;
   /** Conta de administrador: acesso sempre ativo, sem pagar. */
   isAdmin?: boolean;
+  /**
+   * Lojas pagas no ciclo em curso (coluna `plan_stores` em `profiles`).
+   *
+   * **Ausente vale uma.** A coluna foi acrescentada quando o preço passou a ser
+   * por Loja publicada, e todas as contas anteriores pagaram uma — ler ausência
+   * como «uma» é o que mantém essas contas exactamente como estavam, e é também o
+   * que faz o código funcionar antes de a migração correr.
+   */
+  planStores?: number | null;
 }
 
 /** Estado da subscrição resolvido para o momento atual. */
@@ -48,6 +59,14 @@ export interface BillingState {
   byAdmin: boolean;
   /** Precisa de pagar para publicar ou para a loja voltar a ficar online. */
   suspended: boolean;
+  /**
+   * Lojas que o ciclo em curso paga (**`Infinity` num administrador**).
+   *
+   * `Infinity` e não um número grande: um administrador não tem limite, e
+   * qualquer comparação `publicadas < slots` fica verdadeira sem casos especiais
+   * espalhados por quem chama.
+   */
+  paidStores: number;
 }
 
 /** Dias (arredondados para cima, mínimo 0) entre `now` e `target`. */
@@ -73,6 +92,52 @@ export function resolveBilling(input: BillingInput, now: number = Date.now()): B
     expired: temData && !pago,
     byAdmin,
     suspended: !byAdmin && !pago,
+    paidStores: byAdmin ? Number.POSITIVE_INFINITY : (pago ? billableStores(input.planStores) : 0),
+  };
+}
+
+/** Resultado de pedir para publicar mais uma Loja. */
+export interface PublishDecision {
+  /** A Loja pode ir para a web agora. */
+  allowed: boolean;
+  /**
+   * Preço a pagar para publicar esta Loja, em Kwanzas, ou `0` quando não há nada
+   * a pagar. É **proporcional aos dias que faltam** do ciclo em curso: cobrar um
+   * ciclo completo a meio do mês era cobrar duas vezes as Lojas já pagas.
+   */
+  amountDue: number;
+  /** Razão para apresentar ao Dono quando não pode publicar. */
+  reason: "ok" | "sem-subscricao" | "sem-lugar";
+}
+
+/**
+ * Pode esta conta publicar mais uma Loja?
+ *
+ * As três respostas possíveis, e é de propósito que são só três:
+ *
+ *  - **administrador** → sempre sim, sem pagar. É a excepção pedida: quem
+ *    administra a Plataforma cria as Lojas que precisar (as demonstrações dos
+ *    modelos são Lojas como as outras);
+ *  - **sem subscrição ativa** → não, e o que falta é subscrever;
+ *  - **subscrição ativa mas sem lugar pago** → não, e o que falta é pagar a Loja
+ *    adicional pelos dias que restam do ciclo.
+ *
+ * Função pura: `publishedStores` é quem chama que conta, porque é quem sabe se as
+ * lojas-modelo entram (não entram) e qual o Dono.
+ */
+export function canPublishStore(
+  state: BillingState,
+  publishedStores: number,
+  period: BillingPeriod = "mensal",
+): PublishDecision {
+  if (state.byAdmin) return { allowed: true, amountDue: 0, reason: "ok" };
+  if (!state.accessActive) return { allowed: false, amountDue: priceFor(period, 1), reason: "sem-subscricao" };
+  const publicadas = Number.isFinite(publishedStores) ? Math.max(0, Math.floor(publishedStores)) : 0;
+  if (publicadas < state.paidStores) return { allowed: true, amountDue: 0, reason: "ok" };
+  return {
+    allowed: false,
+    amountDue: proratedStorePrice(period, state.daysRemaining ?? 0),
+    reason: "sem-lugar",
   };
 }
 
@@ -86,9 +151,22 @@ export function planActivationPatch(
   current: BillingInput,
   period: unknown,
   now: number = Date.now(),
-): { plan_expires_at: string } {
+  stores?: unknown,
+): { plan_expires_at: string; plan_stores: number } {
   const ciclo: BillingPeriod = asBillingPeriod(period);
   const expMs = current.planExpiresAt ? Date.parse(current.planExpiresAt) : NaN;
   const base = Number.isFinite(expMs) && expMs > now ? expMs : now;
-  return { plan_expires_at: new Date(base + daysOf(ciclo) * DAY_MS).toISOString() };
+  /*
+   * Lojas pagas: exactamente as que este pagamento cobre.
+   *
+   * **Pode descer**, e é intencional: o Dono que despublica uma Loja antes de
+   * pagar fica a pagar menos, que é a forma de baixar a mensalidade. Não há risco
+   * de o pagamento tirar do ar uma Loja que estava online, porque o montante é
+   * calculado a partir das Lojas publicadas **naquele momento** — pagar por menos
+   * do que está publicado não é um estado que o ecrã de pagamento permita.
+   */
+  return {
+    plan_expires_at: new Date(base + daysOf(ciclo) * DAY_MS).toISOString(),
+    plan_stores: billableStores(stores ?? current.planStores),
+  };
 }
