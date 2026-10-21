@@ -128,6 +128,13 @@ export function openProductForm(opts: ProductFormOptions): void {
   const input = "w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-[15px] text-gray-900 outline-none transition-colors focus:border-[#F95901]";
   const label = "text-sm font-semibold text-gray-700";
   const physicalOn = product ? product.physical !== false : true;
+  /*
+   * Disponibilidade: um produto novo nasce disponível; um produto editado
+   * mantém a que tinha. Antes, guardar uma edição gravava sempre «disponível»
+   * — e um produto que o Dono tinha tirado da loja voltava a aparecer só
+   * porque ele corrigiu o preço.
+   */
+  const availableOn = product ? product.available !== false : true;
 
   const host = document.createElement("div");
   host.className = "fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 animate-entrance";
@@ -214,6 +221,13 @@ export function openProductForm(opts: ProductFormOptions): void {
         <div class="flex flex-col gap-4 min-w-0 lg:col-span-2 border-t border-gray-100 pt-5">
         <span class="${label}">Opções</span>
         <div class="rounded-2xl border border-gray-100 divide-y divide-gray-100">
+          <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
+            <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}" aria-hidden="true">storefront</span> Disponível na loja <span class="text-gray-500 font-normal">(desligado, fica escondido dos clientes)</span></span>
+            <span class="relative inline-flex items-center">
+              <input data-available type="checkbox" ${availableOn ? "checked" : ""} class="peer sr-only" />
+              <span class="w-11 h-6 rounded-full bg-gray-200 peer-checked:bg-[#F95901] peer-focus-visible:ring-2 peer-focus-visible:ring-[#F95901] peer-focus-visible:ring-offset-2 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:transition-transform peer-checked:after:translate-x-5"></span>
+            </span>
+          </label>
           <label class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
             <span class="flex items-center gap-2 text-sm font-medium text-gray-800"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">star</span> Destacar na loja</span>
             <span class="relative inline-flex items-center">
@@ -632,11 +646,14 @@ export function openProductForm(opts: ProductFormOptions): void {
     const category = host.querySelector<HTMLInputElement>("[data-category]")!.value;
     const featured = host.querySelector<HTMLInputElement>("[data-featured]")!.checked;
     const physical = host.querySelector<HTMLInputElement>("[data-physical]")!.checked;
+    // A disponibilidade é a do interruptor, que abre com a do produto: editar o
+    // preço não volta a pôr na loja um produto que o Dono tinha escondido.
+    const available = host.querySelector<HTMLInputElement>("[data-available]")!.checked;
     const price = priceRaw === "" ? Number.NaN : Number(priceRaw);
     const trackStock = host.querySelector<HTMLInputElement>("[data-stock-on]")!.checked;
     const stockRaw = host.querySelector<HTMLInputElement>("[data-stock]")?.value ?? "";
     const stock = trackStock ? Math.max(0, Math.floor(Number(stockRaw) || 0)) : null;
-    const input = { name, price, description, category, featured, physical, imageUrl, available: true, stock };
+    const input = { name, price, description, category, featured, physical, imageUrl, available, stock };
 
     const res = await withButton(
       submitBtn,

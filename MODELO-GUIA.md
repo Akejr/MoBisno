@@ -58,17 +58,28 @@ Fluxo recomendado: editar → `get_diagnostics` nos ficheiros tocados →
   - `types.ts` — **contrato** `StoreTemplate` + **`StoreCustomization`** (todas as
     opções editáveis, guardadas em JSON na coluna `customization`).
   - `registry.ts` — lista `TEMPLATE_REGISTRY` + `getTemplate` + `templateOptions`.
-  - `<modelo>.ts` — um ficheiro por modelo (ex.: `lumiere.ts`, `galeria.ts`,
-    `beauty.ts`, `desportivo.ts`). Exporta um `StoreTemplate`.
+  - `<modelo>.ts` — um ficheiro por modelo, que exporta um `StoreTemplate`. Os
+    modelos prontos registados são cinco:
+
+    | Ficheiro | `id` | Modelo |
+    |---|---|---|
+    | `desportivo.ts` | `desportivo` | Desportivo (o primeiro: serve qualquer id desconhecido) |
+    | `beauty.ts` | `beauty` | Beauty |
+    | `galeria.ts` | `galeria` | Galeria |
+    | `lumiere.ts` | `lumiere` | Lumière Chic |
+    | `techEssentials.ts` | `tech-essentials` | Tech Essentials |
+
+    O registo tem ainda três entradas genéricas não prontas (`boutique-elegante`,
+    `tech-dinamico`, `sabor-artesanal`), desenhadas por `renderDefault`.
   - Partilhados: `headers.ts`, `heroes.ts`, `footers.ts`, `blocks.ts`,
-    `productPage.ts`, `productGrid.ts`, `checkoutLayouts.ts`, `sectionsModel.ts`,
-    `gallery.ts`, `variationPicker.ts`, `perks.ts`, `shared.ts`.
-  - `foodmart.ts` e `neonlab.ts` **já não estão no `TEMPLATE_REGISTRY`**: os
-    ficheiros ficam no repositório (o editor ainda importa
-    `foodmartDefaultFeatures` para personalizações legadas), mas nenhuma loja
-    nova pode escolher esses modelos. Uma loja gravada com `template_id`
-    `foodmart` ou `neonlab` é servida pelo primeiro modelo registado
-    (`desportivo`), pelo fallback de `getTemplate`.
+    `sectionRules.ts`, `productPage.ts`, `productGrid.ts`, `checkoutLayouts.ts`,
+    `sectionsModel.ts`, `categoryFilter.ts`, `gallery.ts`, `variationPicker.ts`,
+    `perks.ts`, `shared.ts`.
+  - Um modelo que sai do registo sai também do repositório (desenho e
+    comportamento). Uma loja gravada com um `template_id` que já não está
+    registado é servida pelo primeiro modelo (`desportivo`), pelo fallback de
+    `getTemplate`; `tests/registry.test.ts` guarda que nenhum módulo de desenho
+    fica no disco sem estar registado.
 - **Comportamento (JS na loja publicada):** `web/lib/`
   - `cartDrawer.ts` (carrinho), `search.ts` (pesquisa no header),
     `sections.ts` ("ver mais"), `testimonialsCarousel.ts`, `particlesHero.ts`,
@@ -87,6 +98,7 @@ Fluxo recomendado: editar → `get_diagnostics` nos ficheiros tocados →
 ```ts
 {
   id, name, previewUrl, ready?, defaultBrand?,
+  sections?,                            // o que o editor precisa de saber das secções — §9.3
   render(view, custom),                 // home
   renderProduct?(view, product, custom),// página de produto
   renderCategory?(view, category, custom),
@@ -135,8 +147,13 @@ Fluxo recomendado: editar → `get_diagnostics` nos ficheiros tocados →
 ## 5. Cabeçalho FIXO (igual em todos os modelos)
 
 A navegação do header é **fixa e não editável** em todos os modelos:
-**Início** (`homeHref`), **Produtos** (`homeHref + "#produtos"`) e **Categorias**
+**Início** (`homeHref`), **Produtos** (`allProductsHref(view)` — a página de
+listagem com todos os produtos, num caminho real; ver §6) e **Categorias**
 (dropdown das categorias existentes, só aparece se houver categorias).
+
+`#produtos` não é a ligação «Produtos»: é o `id` do `<main>` da home e o destino
+por omissão do botão principal do hero (`hero.ctaTarget` vazio), que só faz
+scroll até aos produtos.
 
 - Partilhado em `headers.ts` (`menuLinks`, `mobileMenuParts`, `renderHeader`).
 - Cada modelo com header próprio replica esta navegação fixa (ver `lumiere.ts`
@@ -195,9 +212,11 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
   (garantias; ícones pré-definidos escolhíveis no editor).
 
 **Blocos de conteúdo adicionais** (partilhados, `blocks.ts`)
-- `data-edit-blocks` › `data-edit-block="i"` com `data-block-type` e, quando
-  aplicável, `data-block-variant`. Tipos: `info`, `text`, `testimonials`,
-  `location`. Suportam **cor de fundo** (`bg`) escolhida entre as cores do modelo.
+- `data-edit-blocks` › `data-edit-block="i"` com `data-block-type` e
+  `data-block-variant` (a variante que a secção **de facto** desenhou — é daí
+  que o editor a lê). Tipos: `info`, `text`, `testimonials`, `location`.
+  `info` e `text` suportam **cor de fundo** (`bg`) escolhida entre as cores que o
+  modelo declara (`sections.backgrounds`, §9.3).
 
 **Checkout**
 - `renderCheckout(view, innerHtml, custom)` envolve o conteúdo do checkout com o
@@ -208,20 +227,6 @@ fica contenteditable no editor e escreve em `custom` por esse caminho (ver
 - `data-edit-footer-logo`, `data-edit="footer.about|location|phone|email"`.
 
 ---
-
-## 6.0.1 Compra de logótipo por IA (5.000 Kz)
-
-O wizard oferece criar um logótipo por IA no fim da criação da loja (pergunta se
-já tem logo → oferece gerar 5 propostas → escolhe → paga MCX/Referência). O
-cumprimento é no servidor:
-- Tabela `logo_purchases` (migração `0018_logo_purchases.sql` — aplicar no Supabase).
-- `api/payment.js` aceita `kind:"logo"` (5.000 Kz) e guarda `logo_url` (já carregado
-  para o storage no cliente antes do pagamento).
-- Quando o pagamento confirma (inline no MCX, ou via `webhook.js`/`payment-status.js`
-  na Referência), `fulfillLogo` (em `_shared.js`) acrescenta o `logo_url` a
-  `stores.customization.logos` → aparece em "Criar logótipo → Meus logótipos".
-- As compras entram nas **Transações** do admin (`listServiceTransactions`, serviço
-  `logo`) e podem ser apagadas pelo botão de lixo (`adminDeleteServiceTransaction`).
 
 ## 6.1 Editabilidade TOTAL — obrigatória em TODAS as secções
 
@@ -234,30 +239,44 @@ cumprimento é no servidor:
 
 | Elemento | Como o tornar editável |
 |---|---|
-| **Texto** (títulos, subtítulos, etiquetas, rótulos de botão, telefone de apoio, etc.) | `data-edit="foodmart.ads.0.ctaLabel"` — fica contenteditable e escreve em `custom` via `setPath`. **Inclui o telefone/apoio do header.** |
-| **Cor de um cartão / superfície** | Guardar em `custom` (ex.: `ads[i].bg`) e ligar um **seletor de cor** no editor (popover de swatches). |
-| **Cor de etiqueta/badge** | Campo próprio (ex.: `ads[i].tagBg`) + seletor de cor. Aplicar inline com override do CSS fixo. |
-| **Cor de ícones** | Campo (ex.: `featuresIconColor`) + seletor de cor. |
-| **Ícone** | Campo (ex.: `ads[i].ctaIcon`, `features[i].icon`) + **picker de ícones** (`FM_CATEGORY_ICONS` ou lista própria). |
-| **Botão (CTA)** | Texto (`data-edit …ctaLabel`) **+** ícone (`…ctaIcon`, picker) **+** destino (`…ctaTarget`, `selectRow` com categorias / "Secção de produtos" via `targetHref`). |
+| **Texto** (títulos, subtítulos, etiquetas, rótulos de botão, telefone de apoio, etc.) | `data-edit="hero.ctaLabel"`, `data-edit="techEssentials.brands.0.name"` — fica contenteditable e escreve em `custom` via `setPath`. Fica também colorível por campo (`fieldColors`). **Inclui o telefone/apoio do header.** |
+| **Imagem** (logótipo, hero, foto de bloco, logótipo de marca) | Um gancho `data-edit-*` no contentor (ex.: `data-edit-hero`, `data-edit-block-image="i"`, `data-tx-brand="i"`) + overlay «Trocar» no editor que abre o `input` de ficheiro. |
+| **Cor de fundo de uma secção** | `blocks[i].bg`, escolhida entre as cores que o **modelo declara** (`sections.backgrounds`, §9.3). |
+| **Cor de texto/ícones** | As cores globais (`colors.primary`, `colors.text`, `colors.icon`) e a cor por campo (`fieldColors`). Toda a cor do Dono passa por `safeCssColor` antes de entrar em CSS. |
+| **Ícone** | Campo próprio + **picker de ícones** com uma lista fechada (ex.: `PERK_ICON_CHOICES` nas garantias). |
+| **Botão (CTA)** | Texto (`data-edit …ctaLabel`) **+** destino (categoria ou «Secção de produtos», ex.: `hero.ctaTarget` pelo gancho `data-hero-cta`). |
 
-**Padrão de implementação no editor** (`web/views/editor.ts`), dentro do bloco
-`if (store!.templateId === "<modelo>")`:
-- Marca cada zona editável no template com um `data-*` âncora (ex.: `data-fm-ad="i"`,
-  `data-fm-promo`, `data-fm-features`, `data-fm-feature="i"`).
-- Usa um **popover "tune"** por zona com: `swatchRow` (cores), `iconRow` (ícones)
-  e `selectRow` (destino do botão). Ver o bloco FoodMart como referência.
+**Padrão de implementação no editor** (`web/views/editor.ts`) — **declara no
+modelo, nunca `if (templateId === …)` no editor**:
+- Marca cada zona editável no template com um `data-*` âncora próprio do modelo
+  (ex.: `data-tx-slot="brands"` e `data-tx-brand="i"` no Tech Essentials,
+  `data-lumiere-slot` no Lumière). O editor liga os controlos **porque encontra a
+  âncora no HTML** (`mountTechEssentialsSections`, `mountLumiereSections`), não
+  porque compara o identificador do modelo.
+- Tudo o que muda de modelo para modelo e não é uma âncora — que secções se
+  acrescentam, com que variante e desenho, que cores de fundo, o que se
+  materializa — é declarado em `StoreTemplate.sections` e lido por
+  `sectionRules.ts` (§9.3). Uma comparação com `store.templateId` no editor deixa
+  de disparar em silêncio no dia em que o modelo muda de nome ou sai do registo;
+  `tests/sectionDesign.test.ts` falha se aparecer uma.
+- Secções removíveis usam os mesmos dois botões (`addRemoveBtn` /
+  `addSlotAddBtn`), partilhados por todos os modelos (§7).
 - Os textos usam sempre `data-edit` (ficam editáveis e coloríveis por `fieldColors`).
 
 **Materialização de defaults:** se uma secção usa um **array com fallback** (ex.:
-`features`, `ads`), materializa o array em `custom` **no arranque do editor**
-(antes da baseline `savedJson`) — senão, editar um item via `setPath` cria um
-objeto `{0:…}` sem `.length` e o template volta aos defaults, perdendo a edição.
-Ver `foodmartDefaultFeatures()` + a materialização no topo de `renderEditor`.
+as quatro marcas do Tech Essentials), o array tem de existir em `custom` **no
+arranque do editor** (antes da baseline `savedJson`) — senão, editar um item via
+`setPath` cria um objeto `{0:…}` sem `.length` e o template volta aos defaults,
+perdendo a edição. O modelo declara-o em `sections.materialize` (ex.:
+`materializeBrands` em `techEssentials.ts`, que escreve o resultado da mesma
+função que desenha a faixa) e o editor chama-o por `materializeForEditing`. Os
+blocos de localização têm a sua, partilhada (`materializeBlockPlaces`). A regra:
+escreve-se **exactamente o que a loja já mostra** — abrir o editor não pode
+mudar o aspeto nem marcar alterações.
 
 **Destino de botões:** todo o botão/CTA leva para uma **categoria** ou para a
-**secção de produtos**. Usa sempre o helper `targetHref(view, target)` no template
-e um `selectRow` (categorias + "Secção de produtos") no editor.
+**secção de produtos** (`#produtos`), e o editor oferece um seletor com as
+categorias + «Secção de produtos».
 
 ---
 
@@ -271,23 +290,35 @@ num **slot** que fica vazio quando removida:
 <div data-lumiere-slot="testimonials">${hide ? "" : testimonialSection(custom)}</div>
 ```
 
-No editor (`web/views/editor.ts`, `mountLumiereSections`), o slot ganha um botão
-"Remover secção"; quando vazio, mostra "Adicionar secção". A flag vive em
-`custom.<modelo>.hide<Seccao>`. **A secção de produtos nunca é removível.**
+No editor (`web/views/editor.ts`), o slot ganha o botão «Remover secção»
+(`addRemoveBtn`); quando vazio, mostra um botão «Adicionar …» no lugar onde a
+secção estava (`addSlotAddBtn`) — «Adicionar secção de testemunhos» e
+«Adicionar secção de lojas (mapa)» no Lumière (`mountLumiereSections`),
+«Adicionar faixa de marcas» no Tech Essentials (`mountTechEssentialsSections`).
+A flag vive em `custom.<modelo>.hide<Seccao>`. **A secção de produtos nunca é
+removível.**
 
-### Menu "Adicionar secção"
-- **Loja normal (construtor):** Produtos, Informação com foto, Título e texto,
-  Testemunhos, Localização.
-- **Modelo pronto (`__locked`):** só **Produtos**, **Informação com foto** e
-  **Título e texto**.
-- **Override por modelo:** um modelo pode restringir ainda mais. Ex.: **FoodMart**
-  só permite adicionar **Secção de produtos** (as outras não fazem sentido na
-  mercearia). Ver `productsOnly` em `editor.ts`.
+### Menu «Adicionar secção»
+O que o menu oferece sai **da declaração do modelo** (`sections.native` /
+`sections.allowed`, §9.3), por `sectionMenu` — nunca de um `if` por
+`templateId` no editor.
+
+- **«Secção de produtos»** aparece sempre.
+- Depois, as secções que o modelo aceita, **menos as que já traz** (`native`):
+  «Informação com foto», «Título e texto», «Testemunhos», «Localização».
+- **Modelo pronto (`__locked`):** ficam só as de conteúdo simples — «Informação
+  com foto» e «Título e texto». «Testemunhos» e «Localização» não aparecem.
+- Quando o modelo traz secções nativas, o menu termina com uma nota a dizê-lo
+  (ex.: no Lumière, «Testemunhos e Localização já fazem parte deste modelo —
+  edite-os na própria secção.»).
 
 ### Cor de fundo das secções
-Ao adicionar/editar uma secção de conteúdo (`info`/`text`), há um seletor de cor
-de fundo com as **cores já existentes no modelo** (ver `sectionBgChoices` no
-editor). Guardado em `blocks[i].bg` e aplicado em `blocks.ts` (`bgStyle`).
+Nas secções de conteúdo `info`/`text` há um seletor «Cor de fundo»: «Padrão»
+(sem fundo), «Branco» e as cores que o **modelo declara**
+(`sections.backgrounds`, lidas por `sectionBackgrounds`) — as que ele já usa. Um
+modelo que não declare recebe uma cor clara genérica, nunca a de outro modelo.
+Guardado em `blocks[i].bg` e aplicado em `blocks.ts` (`bgStyle`, depois de
+`safeCssColor`).
 
 ---
 
@@ -502,6 +533,147 @@ Guarda: `tests/categoryFilter.test.ts`.
 
 ---
 
+## 9.3 Secções acrescentáveis (`sectionRules.ts`)
+
+**Uma secção acrescentada no editor sai com o desenho do modelo onde foi
+acrescentada.** Tipografia, cantos, paleta e espaçamento são os do modelo. E o
+corolário: **o que o modelo já traz, o modelo não volta a oferecer** — edita-se
+onde está.
+
+O defeito que originou a regra: no **Lumière**, que já tem testemunhos (carrossel
+editorial) e mapa («As nossas lojas»), o menu «Adicionar secção» oferecia os dois
+outra vez, e a secção acrescentada aparecia duplicada **em cartões brancos de
+cantos arredondados e tipografia preta** — no meio de um modelo serifado, creme e
+de cantos retos. Duas causas: o menu decidia comparando `store.templateId` com
+identificadores escritos à mão (de dois modelos que já tinham saído do registo,
+pelo que as comparações nunca disparavam), e `newBlock` criava o bloco **sem
+`variant`**, caindo num valor por omissão genérico dentro do `blocks.ts`.
+
+O mesmo vício estava em mais três sítios do editor, e saiu com a mesma regra: a
+variante por omissão dos testemunhos (`=== "galeria"`), a materialização das
+marcas do Tech Essentials (`=== "tech-essentials"`) e as cores de fundo das
+secções (um mapa por `templateId` onde o Tech Essentials não estava, e que lhe
+dava o creme de outro modelo).
+
+### O que o modelo declara
+
+Em `StoreTemplate.sections` (`web/templates/types.ts`, `TemplateSections`), ao
+lado do `render`. O editor lê-o **só** por `web/templates/sectionRules.ts`
+(`sectionMenu`, `newBlockFor`, `sectionBackgrounds`, `materializeForEditing`) e
+**nunca** compara `store.templateId`:
+
+```ts
+// lumiere.ts
+sections: {
+  native: ["testimonials", "location"],   // já vêm desenhadas no modelo
+  allowed: ["info", "text"],              // ausente = todas menos as nativas
+  variants: { info: "lado", text: "linha" },
+  style: BLOCK_STYLE,                     // o mesmo que passa a blocksHtml
+  backgrounds: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
+}
+
+// techEssentials.ts — além das variantes, cores e desenho:
+  materialize: materializeBrands,         // as quatro marcas, antes da baseline
+```
+
+- **`native`** sai do menu «Adicionar secção». Tem de estar **mesmo** desenhado
+  no modelo: declarar como nativo o que não existe esconde a secção sem o Dono a
+  ter em lado nenhum. `tests/sectionDesign.test.ts` compara a declaração com o
+  HTML que o modelo produz.
+- **`allowed`** substitui os `if` por `templateId` que viviam no editor.
+- **`variants`** é gravada no bloco no **momento da criação** (`newBlockFor`), e
+  não resolvida a cada render: assim o aspeto de uma secção já criada não muda
+  quando o valor por omissão mudar.
+- **`style`** é o desenho do modelo (abaixo) — o **mesmo objeto** que o modelo
+  passa a `blocksHtml`. Está na declaração para o editor desenhar as miniaturas
+  do seletor de variantes com ele.
+- **`backgrounds`** são as cores de fundo que o seletor «Cor de fundo» oferece,
+  depois de «Padrão» e «Branco». Têm de ser cores que o modelo já usa. Ausente =
+  uma cor clara genérica (`DEFAULT_SECTION_BACKGROUNDS`).
+- **`materialize(custom)`** prepara os arrays com fallback do modelo para edição
+  (§6.1). Corre antes da baseline do editor, escreve só o que a loja já mostra,
+  é idempotente e não toca no que já está na forma certa.
+
+O editor não deduz qual variante um bloco está a desenhar: cada `<section>` de
+bloco leva `data-block-variant` com a variante que `blocks.ts` escolheu, e é daí
+que o seletor «Modelo: …» a lê.
+
+### O desenho vem por parâmetro
+
+`blocksHtml` recebe `style: BlockStyle` no seu `BlockCtx` — mesmo padrão de
+`variationPickerHtml` (§9.1) e de `categoryFilterHtml` (§9.2): a **estrutura** é
+partilhada, o **desenho** é do modelo. `BlockStyle` vive em `types.ts` (e é
+reexportado por `blocks.ts`). Os campos de classe são **sem o tamanho**, que é da
+variante; os `…Style` são CSS inline do próprio modelo:
+
+| Campo | Para quê | Se faltar |
+|---|---|---|
+| `heading` / `headingStyle` | títulos | omissão genérica |
+| `body` / `bodyStyle` | texto corrido | omissão genérica |
+| `name` / `nameStyle` | nomes curtos (autor de um testemunho, loja no mapa) | os do título |
+| `quote` / `quoteStyle` | citação dos testemunhos «Editorial» | os do título |
+| `muted` / `mutedStyle` | texto secundário (cargo de quem dá o testemunho) | os do corpo |
+| `surface` / `surfaceStyle` | cartões (fundo, moldura, sombra) | omissão genérica |
+| `radius` | cantos de cartões, imagens e mapas (`""` = retos) | `rounded-2xl` |
+| `band` / `bandStyle` | faixa tonal das secções sobre banda | omissão genérica |
+
+Reutiliza as classes que o modelo já usa nas suas próprias secções, em vez de
+escolher cores novas:
+
+```ts
+// lumiere.ts
+const BLOCK_STYLE: BlockStyle = {
+  heading: "lx-serif", headingStyle: "color:#1c1b1b",
+  body: "lx-body font-light leading-relaxed", bodyStyle: "color:#464742",
+  muted: "lx-body", mutedStyle: "color:#777871",
+  surface: "border border-black/5", surfaceStyle: "background:#fcf9f8",
+  radius: "",                      // no Lumière nem os chips levam `rounded`
+  band: "", bandStyle: "background:#f6f3f2",
+};
+```
+
+`radius: ""` é cantos retos, não «sem valor»: é o que o Lumière exige. Os cinco
+modelos prontos declaram o seu `style`; o do Galeria é, de propósito, o
+vocabulário mais próximo do desenho genérico (é o modelo claro e neutro de onde
+esse desenho saiu), com a citação «Editorial» no peso médio que sempre teve.
+
+O desenho do modelo aplica-se a **todos** os seus blocos, os acrescentados agora
+e os já gravados, e às três variantes de testemunhos — também ao «Carrossel»,
+que mantém o seu CSS próprio de `@keyframes`.
+
+### Compatibilidade
+
+- Um modelo que **não** passe `style` desenha os blocos **byte a byte** como
+  sempre: cada elemento leva em `blocks.ts` a sua classe genérica escrita por
+  extenso (o desenho genérico nunca foi uniforme — `rounded-3xl` num sítio,
+  `rounded-2xl` noutro —, e uniformizá-lo mudaria lojas no ar).
+  `tests/blocksDefault.test.ts` compara-o com `tests/fixtures/blocksDefault.json`,
+  o HTML que o `blocks.ts` de antes produzia para um conjunto fixo de entradas.
+  A única diferença admitida é o `data-block-variant` nas secções de testemunhos,
+  que antes não o tinham (um atributo de dados, sem efeito no aspeto). O fixture
+  **não se regenera** a partir do código actual.
+- Os blocos gravados **sem `variant`** continuam a usar a variante por omissão de
+  `blocks.ts` (nos testemunhos, `BlockCtx.variant: "galeria"` dá «Editorial» —
+  o Galeria e o Lumière passam-no).
+- Um modelo que **não** declare `sections` aceita todas as secções, usa o desenho
+  genérico e uma cor de fundo clara genérica — é o que permite declarar modelo a
+  modelo sem parar nada.
+
+Guardas: `tests/sectionDesign.test.ts` desenha as secções acrescentadas **de
+verdade** em cada modelo e verifica as propriedades — a secção do Lumière não sai
+igual à do Desportivo; o `style` declarado é exactamente o que o modelo desenha;
+nenhum modelo oferece o que já tem; as cores de fundo e a materialização vêm da
+declaração (e materializar não muda o ecrã); cada secção diz a variante que
+desenhou; e o editor não compara identificadores de modelo. Percorre também o
+`TEMPLATE_REGISTRY`: um modelo **pronto** que não declare `sections`, que ofereça
+uma secção sem variante, ou que não tenha aqui uma asserção de desenho, falha.
+`tests/blocksDefault.test.ts` guarda o desenho genérico.
+
+> A regra em forma curta, para quem mexe em modelos, está em
+> `.kiro/steering/modelos-secoes.md`.
+
+---
+
 ## 10. Modelos prontos (fluxo completo)
 
 - Uma **loja-modelo** = loja real do admin, publicada, marcada com
@@ -537,7 +709,11 @@ Guarda: `tests/categoryFilter.test.ts`.
    produto.
 6. **Consistência:** aplicar `var(--brand)`/`--brand-ink`, respeitar o tema, e
    garantir que carrinho e checkout partilham a mesma UI.
-7. **Registar** o modelo em `registry.ts` (`ready: true`, `defaultBrand`).
+7. **Registar** o modelo em `registry.ts` (`ready: true`, `defaultBrand`) e
+   **declarar as suas secções** em `sections` (§9.3: nativas, aceites,
+   variantes, `style`, cores de fundo e, se tiver arrays com fallback,
+   `materialize`). Acrescentar o modelo às asserções de
+   `tests/sectionDesign.test.ts` — o teste falha enquanto não estiver lá.
 8. **Recriar como loja-modelo** e importar no admin (`models.ts`), com dados demo.
 9. **Validar:** `get_diagnostics` → `npm run build` → `npm run web:build` →
    `npx vitest run` (manter 100% verde).
@@ -556,6 +732,9 @@ Guarda: `tests/categoryFilter.test.ts`.
 - [ ] Testemunhos/mapa/avaliações do modelo **reproduzidos e funcionais**.
 - [ ] Carrinho e checkout com a **mesma UI** (bordas, fontes, cores).
 - [ ] Secções removíveis (exceto produtos) + cor de fundo entre as do modelo.
+- [ ] `sections` declarado (§9.3): as secções acrescentadas saem no desenho do
+      modelo e o menu não oferece o que ele já traz. Nenhum `if (templateId === …)`
+      no editor.
 - [ ] **Editabilidade total (§6.1):** em TODAS as secções — textos, **cores**
       (cartões, etiquetas, ícones), **ícones** e **botões** (texto+ícone+destino)
       editáveis. Nada chumbado. Telefone de apoio do header editável.

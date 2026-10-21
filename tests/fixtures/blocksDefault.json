@@ -1,0 +1,1587 @@
+{
+  "origem": "web/templates/blocks.ts em dea47f99b70f1ac3dcd31623a240f87a0f651f8a (HEAD), sem `style` no BlockCtx — o desenho genérico tal como as lojas publicadas o têm.",
+  "como": "Gerado uma vez a partir do blocks.ts de HEAD, numa worktree temporária. Não regenerar a partir do código atual: este ficheiro é a referência contra a qual o código atual é comparado.",
+  "newBlock": {
+    "info": {
+      "type": "info",
+      "title": "O nosso compromisso",
+      "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+      "imageUrl": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000",
+      "imageSide": "left"
+    },
+    "text": {
+      "type": "text",
+      "title": "Um título de destaque",
+      "text": "Adicione aqui um texto informativo para os seus clientes."
+    },
+    "testimonials": {
+      "type": "testimonials",
+      "title": "O que dizem os nossos clientes",
+      "items": [
+        {
+          "name": "Ana Sofia",
+          "role": "Cliente",
+          "text": "Excelente atendimento e entrega rápida. Recomendo!"
+        },
+        {
+          "name": "João Pedro",
+          "role": "Cliente",
+          "text": "Produtos de qualidade e tudo muito simples de comprar."
+        },
+        {
+          "name": "Maria L.",
+          "role": "Cliente",
+          "text": "Adorei a experiência. Voltarei a comprar com certeza."
+        }
+      ]
+    },
+    "location": {
+      "type": "location",
+      "title": "Onde estamos",
+      "address": "Luanda, Angola"
+    }
+  },
+  "casos": [
+    {
+      "nome": "sem personalização",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": null,
+      "html": "<div data-edit-blocks></div>"
+    },
+    {
+      "nome": "personalização sem blocos",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {},
+      "html": "<div data-edit-blocks></div>"
+    },
+    {
+      "nome": "lista de blocos vazia",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": []
+      },
+      "html": "<div data-edit-blocks></div>"
+    },
+    {
+      "nome": "info (sem variante): foto à esquerda",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "left"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div><div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n  </div>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "info (sem variante): foto à direita, com fundo",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "right",
+            "bg": "#f6f3f2"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\" style=\"background:#f6f3f2\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n  </div><div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "info (sem variante): sem foto, texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&amp;w=1000\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div><div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n  </div>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "info lado: foto à esquerda",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "left",
+            "variant": "lado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div><div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n  </div>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "info lado: foto à direita, com fundo",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "right",
+            "variant": "lado",
+            "bg": "#f6f3f2"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\" style=\"background:#f6f3f2\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n  </div><div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "info lado: sem foto, texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "variant": "lado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&amp;w=1000\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div><div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n  </div>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "info sobreposto: foto à esquerda",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "left",
+            "variant": "sobreposto"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"sobreposto\" class=\"relative py-12 md:py-16\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div data-edit-block-image=\"0\" class=\"relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end\">\n          <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"absolute inset-0 w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n          <div class=\"absolute inset-0\" style=\"background:linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.15) 60%, transparent)\"></div>\n          <div class=\"relative p-8 md:p-12 max-w-xl\">\n            <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-4xl font-black tracking-tight text-white\">O nosso compromisso</h2>\n            <p data-edit=\"blocks.0.text\" class=\"mt-4 text-white/85 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n          </div>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "info sobreposto: foto à direita, com fundo",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "right",
+            "variant": "sobreposto",
+            "bg": "#f6f3f2"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"sobreposto\" class=\"relative py-12 md:py-16\" style=\"background:#f6f3f2\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div data-edit-block-image=\"0\" class=\"relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end\">\n          <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"absolute inset-0 w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n          <div class=\"absolute inset-0\" style=\"background:linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.15) 60%, transparent)\"></div>\n          <div class=\"relative p-8 md:p-12 max-w-xl\">\n            <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-4xl font-black tracking-tight text-white\">O nosso compromisso</h2>\n            <p data-edit=\"blocks.0.text\" class=\"mt-4 text-white/85 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n          </div>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "info sobreposto: sem foto, texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "variant": "sobreposto"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"sobreposto\" class=\"relative py-12 md:py-16\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div data-edit-block-image=\"0\" class=\"relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end\">\n          <img src=\"https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&amp;w=1000\" alt=\"\" class=\"absolute inset-0 w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n          <div class=\"absolute inset-0\" style=\"background:linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.15) 60%, transparent)\"></div>\n          <div class=\"relative p-8 md:p-12 max-w-xl\">\n            <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-4xl font-black tracking-tight text-white\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n            <p data-edit=\"blocks.0.text\" class=\"mt-4 text-white/85 text-lg leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n          </div>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "info cartao: foto à esquerda",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "left",
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden\">\n          <div data-edit-block-image=\"0\" class=\"relative aspect-[16/9] bg-gray-100\">\n            <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n          </div>\n          <div class=\"p-8 md:p-10 text-center\">\n            <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n            <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n          </div>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "info cartao: foto à direita, com fundo",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://cdn.exemplo/info.jpg",
+            "imageSide": "right",
+            "variant": "cartao",
+            "bg": "#f6f3f2"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\" style=\"background:#f6f3f2\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden\">\n          <div data-edit-block-image=\"0\" class=\"relative aspect-[16/9] bg-gray-100\">\n            <img src=\"https://cdn.exemplo/info.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n          </div>\n          <div class=\"p-8 md:p-10 text-center\">\n            <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n            <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n          </div>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "info cartao: sem foto, texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "info",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden\">\n          <div data-edit-block-image=\"0\" class=\"relative aspect-[16/9] bg-gray-100\">\n            <img src=\"https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&amp;w=1000\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n          </div>\n          <div class=\"p-8 md:p-10 text-center\">\n            <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n            <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n          </div>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "texto (sem variante)",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Um título de destaque",
+            "text": "Adicione aqui um texto informativo para os seus clientes."
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"centrado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"max-w-3xl mx-auto text-center\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Um título de destaque</h2>\n        <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Adicione aqui um texto informativo para os seus clientes.</p>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "texto (sem variante): várias linhas, fundo e texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Primeira linha\nSegunda linha & <i>mais</i>",
+            "bg": "#171717"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"centrado\" class=\"relative py-12 md:py-16\" style=\"background:#171717\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"max-w-3xl mx-auto text-center\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n        <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Primeira linha\nSegunda linha &amp; &lt;i&gt;mais&lt;/i&gt;</p>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "texto centrado",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Um título de destaque",
+            "text": "Adicione aqui um texto informativo para os seus clientes.",
+            "variant": "centrado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"centrado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"max-w-3xl mx-auto text-center\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Um título de destaque</h2>\n        <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Adicione aqui um texto informativo para os seus clientes.</p>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "texto centrado: várias linhas, fundo e texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Primeira linha\nSegunda linha & <i>mais</i>",
+            "variant": "centrado",
+            "bg": "#171717"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"centrado\" class=\"relative py-12 md:py-16\" style=\"background:#171717\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <div class=\"max-w-3xl mx-auto text-center\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n        <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Primeira linha\nSegunda linha &amp; &lt;i&gt;mais&lt;/i&gt;</p>\n      </div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "texto destaque",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Um título de destaque",
+            "text": "Adicione aqui um texto informativo para os seus clientes.",
+            "variant": "destaque"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"destaque\" class=\"relative py-14 md:py-20\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-10 items-start\">\n          <div class=\"md:col-span-5 flex items-start gap-4\">\n            <span class=\"mt-2 inline-block w-1.5 h-12 rounded-full shrink-0\" style=\"background:var(--brand,#4f46e5)\"></span>\n            <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-5xl font-black tracking-tight text-gray-900 leading-[1.05]\">Um título de destaque</h2>\n          </div>\n          <p data-edit=\"blocks.0.text\" class=\"md:col-span-7 text-gray-500 text-lg md:text-xl leading-relaxed whitespace-pre-line\">Adicione aqui um texto informativo para os seus clientes.</p>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "texto destaque: várias linhas, fundo e texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Primeira linha\nSegunda linha & <i>mais</i>",
+            "variant": "destaque",
+            "bg": "#171717"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"destaque\" class=\"relative py-14 md:py-20\" style=\"background:#171717\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-10 items-start\">\n          <div class=\"md:col-span-5 flex items-start gap-4\">\n            <span class=\"mt-2 inline-block w-1.5 h-12 rounded-full shrink-0\" style=\"background:var(--brand,#4f46e5)\"></span>\n            <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-5xl font-black tracking-tight text-gray-900 leading-[1.05]\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n          </div>\n          <p data-edit=\"blocks.0.text\" class=\"md:col-span-7 text-gray-500 text-lg md:text-xl leading-relaxed whitespace-pre-line\">Primeira linha\nSegunda linha &amp; &lt;i&gt;mais&lt;/i&gt;</p>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "texto linha",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Um título de destaque",
+            "text": "Adicione aqui um texto informativo para os seus clientes.",
+            "variant": "linha"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"linha\" class=\"relative py-14 md:py-20\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"max-w-3xl mx-auto text-center\">\n          <div class=\"flex items-center justify-center gap-4\">\n            <span class=\"h-px flex-1 max-w-[80px]\" style=\"background:linear-gradient(90deg,transparent,#d1d5db)\"></span>\n            <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Um título de destaque</h2>\n            <span class=\"h-px flex-1 max-w-[80px]\" style=\"background:linear-gradient(90deg,#d1d5db,transparent)\"></span>\n          </div>\n          <p data-edit=\"blocks.0.text\" class=\"mt-5 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Adicione aqui um texto informativo para os seus clientes.</p>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "texto linha: várias linhas, fundo e texto a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "text",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "text": "Primeira linha\nSegunda linha & <i>mais</i>",
+            "variant": "linha",
+            "bg": "#171717"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"text\" data-block-variant=\"linha\" class=\"relative py-14 md:py-20\" style=\"background:#171717\">\n      <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n        <div class=\"max-w-3xl mx-auto text-center\">\n          <div class=\"flex items-center justify-center gap-4\">\n            <span class=\"h-px flex-1 max-w-[80px]\" style=\"background:linear-gradient(90deg,transparent,#d1d5db)\"></span>\n            <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n            <span class=\"h-px flex-1 max-w-[80px]\" style=\"background:linear-gradient(90deg,#d1d5db,transparent)\"></span>\n          </div>\n          <p data-edit=\"blocks.0.text\" class=\"mt-5 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Primeira linha\nSegunda linha &amp; &lt;i&gt;mais&lt;/i&gt;</p>\n        </div>\n      </div>\n    </section></div>"
+    },
+    {
+      "nome": "testemunhos (sem variante), modelo por omissão",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ]
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"><div data-testi-item=\"0\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.0.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.0.name\" class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.1.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p data-edit=\"blocks.0.items.1.name\" class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.2.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.2.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.3.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.3.name\" class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.4.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.4.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos (sem variante), contexto galeria",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)",
+        "variant": "galeria"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ]
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative py-16 md:py-24\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-10 mt-12\"><div data-testi-item=\"0\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.0.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.0.name\" class=\"text-sm font-semibold text-gray-900\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.1.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Produtos de qualidade.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.1.name\" class=\"text-sm font-semibold text-gray-900\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.2.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Sem nome, com letra própria.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.2.name\" class=\"text-sm font-semibold text-gray-900\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.3.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.3.name\" class=\"text-sm font-semibold text-gray-900\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.4.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Sem nome nem cargo.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.4.name\" class=\"text-sm font-semibold text-gray-900\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos (sem variante): sem itens, título a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "items": []
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos cards, modelo por omissão",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ],
+            "variant": "cards"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"><div data-testi-item=\"0\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.0.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.0.name\" class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.1.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p data-edit=\"blocks.0.items.1.name\" class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.2.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.2.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.3.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.3.name\" class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.4.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.4.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos cards, contexto galeria",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)",
+        "variant": "galeria"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ],
+            "variant": "cards"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"><div data-testi-item=\"0\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.0.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.0.name\" class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.1.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p data-edit=\"blocks.0.items.1.name\" class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.2.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.2.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.3.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.3.name\" class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.4.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.4.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos cards: sem itens, título a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "items": [],
+            "variant": "cards"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos editorial, modelo por omissão",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ],
+            "variant": "editorial"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative py-16 md:py-24\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-10 mt-12\"><div data-testi-item=\"0\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.0.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.0.name\" class=\"text-sm font-semibold text-gray-900\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.1.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Produtos de qualidade.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.1.name\" class=\"text-sm font-semibold text-gray-900\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.2.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Sem nome, com letra própria.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.2.name\" class=\"text-sm font-semibold text-gray-900\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.3.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.3.name\" class=\"text-sm font-semibold text-gray-900\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.4.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Sem nome nem cargo.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.4.name\" class=\"text-sm font-semibold text-gray-900\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos editorial, contexto galeria",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)",
+        "variant": "galeria"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ],
+            "variant": "editorial"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative py-16 md:py-24\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-10 mt-12\"><div data-testi-item=\"0\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.0.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.0.name\" class=\"text-sm font-semibold text-gray-900\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.1.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Produtos de qualidade.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.1.name\" class=\"text-sm font-semibold text-gray-900\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.2.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Sem nome, com letra própria.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.2.name\" class=\"text-sm font-semibold text-gray-900\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.3.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.3.name\" class=\"text-sm font-semibold text-gray-900\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"relative pt-6\" style=\"border-top:2px solid var(--brand,#4f46e5)\">\n      <p data-edit=\"blocks.0.items.4.text\" class=\"text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900\">Sem nome nem cargo.</p>\n      <div class=\"mt-6 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div class=\"leading-tight\">\n          <p data-edit=\"blocks.0.items.4.name\" class=\"text-sm font-semibold text-gray-900\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-[11px] uppercase tracking-widest text-gray-400 mt-0.5\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos editorial: sem itens, título a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "items": [],
+            "variant": "editorial"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative py-16 md:py-24\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-10 mt-12\"></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos marquee, modelo por omissão",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ],
+            "variant": "marquee"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative overflow-hidden bg-gray-50 border-y border-gray-100\">\n    <style>\n      @keyframes mbMqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}\n      .mb-mq-mask{position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}\n      .mb-mq-track{display:flex;gap:20px;width:max-content;padding:0 10px;animation:mbMqScroll 36s linear infinite}\n      .mb-mq-mask:hover .mb-mq-track{animation-play-state:paused}\n      .mb-mq-card{transition:transform .25s ease, box-shadow .25s ease}\n      .mb-mq-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px -16px rgba(0,0,0,.3)}\n    </style>\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 pt-14 md:pt-20 pb-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">O que dizem os nossos clientes</h2>\n    </div>\n    <div class=\"mb-mq-mask pb-16 md:pb-20\">\n      <div data-edit-testimonials=\"0\" class=\"mb-mq-track\"><div data-testi-item=\"0\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.0.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.0.name\" class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.1.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p data-edit=\"blocks.0.items.1.name\" class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.2.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.2.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.3.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.3.name\" class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.4.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.4.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >A</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p  class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p  class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >XY</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p  class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >M</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p  class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >?</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p  class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos marquee, contexto galeria",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)",
+        "variant": "galeria"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "",
+                "text": "Produtos de qualidade.",
+                "avatarUrl": "https://cdn.exemplo/joao.jpg"
+              },
+              {
+                "name": "",
+                "text": "Sem nome, com letra própria.",
+                "avatarText": "xy"
+              },
+              {
+                "name": "  maria  ",
+                "role": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "text": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {
+                "text": "Sem nome nem cargo."
+              }
+            ],
+            "variant": "marquee"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative overflow-hidden bg-gray-50 border-y border-gray-100\">\n    <style>\n      @keyframes mbMqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}\n      .mb-mq-mask{position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}\n      .mb-mq-track{display:flex;gap:20px;width:max-content;padding:0 10px;animation:mbMqScroll 36s linear infinite}\n      .mb-mq-mask:hover .mb-mq-track{animation-play-state:paused}\n      .mb-mq-card{transition:transform .25s ease, box-shadow .25s ease}\n      .mb-mq-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px -16px rgba(0,0,0,.3)}\n    </style>\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 pt-14 md:pt-20 pb-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">O que dizem os nossos clientes</h2>\n    </div>\n    <div class=\"mb-mq-mask pb-16 md:pb-20\">\n      <div data-edit-testimonials=\"0\" class=\"mb-mq-track\"><div data-testi-item=\"0\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.0.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.0.avatarText\">A</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.0.name\" class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p data-edit=\"blocks.0.items.0.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.1.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p data-edit=\"blocks.0.items.1.name\" class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p data-edit=\"blocks.0.items.1.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.2.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.2.avatarText\">XY</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.2.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.2.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"3\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.3.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"3\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.3.avatarText\">M</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.3.name\" class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p data-edit=\"blocks.0.items.3.role\" class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"4\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.0.items.4.text\" class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"4\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.0.items.4.avatarText\">?</span></span>\n        <div>\n          <p data-edit=\"blocks.0.items.4.name\" class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p data-edit=\"blocks.0.items.4.role\" class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >A</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p  class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Produtos de qualidade.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full overflow-hidden shrink-0 bg-gray-100\">\n      <img src=\"https://cdn.exemplo/joao.jpg\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/80x80/eee/999?text=%20'\" />\n    </span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p  class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome, com letra própria.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >XY</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p  class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >M</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\">  maria  </p>\n          <p  class=\"text-gray-400 text-xs\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n        </div>\n      </div>\n    </div><div aria-hidden=\"true\" class=\"mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[26px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p  class=\"mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5\">Sem nome nem cargo.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span  class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span >?</span></span>\n        <div>\n          <p  class=\"font-semibold text-gray-900 text-sm\"></p>\n          <p  class=\"text-gray-400 text-xs\"></p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos marquee: sem itens, título a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "items": [],
+            "variant": "marquee"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative overflow-hidden bg-gray-50 border-y border-gray-100\">\n    <style>\n      @keyframes mbMqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}\n      .mb-mq-mask{position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}\n      .mb-mq-track{display:flex;gap:20px;width:max-content;padding:0 10px;animation:mbMqScroll 36s linear infinite}\n      .mb-mq-mask:hover .mb-mq-track{animation-play-state:paused}\n      .mb-mq-card{transition:transform .25s ease, box-shadow .25s ease}\n      .mb-mq-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px -16px rgba(0,0,0,.3)}\n    </style>\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 pt-14 md:pt-20 pb-8\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n    </div>\n    <div class=\"mb-mq-mask pb-16 md:pb-20\">\n      <div data-edit-testimonials=\"0\" class=\"mb-mq-track\"></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "testemunhos sem lista de itens",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "testimonials",
+            "title": "Sem itens"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">Sem itens</h2>\n      <div data-edit-testimonials=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"></div>\n    </div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): morada legada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "address": "Rua Rainha Ginga, 12"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Rua Rainha Ginga, 12</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Rua Rainha Ginga, 12\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Rua%20Rainha%20Ginga%2C%2012&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): coordenadas legadas",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "lat": -8.8383,
+            "lng": 13.2344
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.226400000000002,-8.8463,13.2424,-8.830300000000001&amp;layer=mapnik&amp;marker=-8.8383,13.2344\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): uma localização com nome",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja do Centro",
+                "address": "Morro Bento"
+              }
+            ]
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        <p data-edit=\"blocks.0.places.0.name\" class=\"mt-2 font-semibold text-gray-900\">Loja do Centro</p>\n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Morro Bento</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Loja do Centro\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Morro%20Bento&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): duas localizações",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja de Talatona",
+                "address": "Talatona"
+              },
+              {
+                "address": "Viana",
+                "lat": -8.9035,
+                "lng": 13.3744
+              }
+            ]
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Loja de Talatona\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Talatona&amp;z=15&amp;output=embed\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.0.name\" class=\"font-semibold text-gray-900\">Loja de Talatona</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Talatona</span></p>\n        </div>\n      </div><div data-edit-place=\"1\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Viana\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.3664,-8.911499999999998,13.382399999999999,-8.8955&amp;layer=mapnik&amp;marker=-8.9035,13.3744\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          \n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Viana</span></p>\n        </div>\n      </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): três localizações, uma sem nada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "address": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {},
+              {
+                "name": "Kilamba",
+                "lat": -8.99,
+                "lng": 13.27
+              }
+            ]
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=T%C3%ADtulo%20%3Cb%3E%22com%22%3C%2Fb%3E%20%26%20&#39;aspas&#39;%20%3Cscript%3Ex%3C%2Fscript%3E&amp;z=15&amp;output=embed\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.0.name\" class=\"font-semibold text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</span></p>\n        </div>\n      </div><div data-edit-place=\"1\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          \n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Luanda, Angola</span></p>\n        </div>\n      </div><div data-edit-place=\"2\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Kilamba\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.262,-8.998,13.277999999999999,-8.982000000000001&amp;layer=mapnik&amp;marker=-8.99,13.27\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.2.name\" class=\"font-semibold text-gray-900\">Kilamba</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.2.address\">Luanda, Angola</span></p>\n        </div>\n      </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): sem localização, morada do rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos"
+          }
+        ],
+        "footer": {
+          "location": "Kilamba, Luanda"
+        }
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Kilamba, Luanda</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Kilamba, Luanda\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Kilamba%2C%20Luanda&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização (sem variante): sem localização nem rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: morada legada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "address": "Rua Rainha Ginga, 12",
+            "variant": "classico"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Rua Rainha Ginga, 12</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Rua Rainha Ginga, 12\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Rua%20Rainha%20Ginga%2C%2012&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: coordenadas legadas",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "lat": -8.8383,
+            "lng": 13.2344,
+            "variant": "classico"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.226400000000002,-8.8463,13.2424,-8.830300000000001&amp;layer=mapnik&amp;marker=-8.8383,13.2344\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: uma localização com nome",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja do Centro",
+                "address": "Morro Bento"
+              }
+            ],
+            "variant": "classico"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        <p data-edit=\"blocks.0.places.0.name\" class=\"mt-2 font-semibold text-gray-900\">Loja do Centro</p>\n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Morro Bento</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Loja do Centro\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Morro%20Bento&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: duas localizações",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja de Talatona",
+                "address": "Talatona"
+              },
+              {
+                "address": "Viana",
+                "lat": -8.9035,
+                "lng": 13.3744
+              }
+            ],
+            "variant": "classico"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Loja de Talatona\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Talatona&amp;z=15&amp;output=embed\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.0.name\" class=\"font-semibold text-gray-900\">Loja de Talatona</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Talatona</span></p>\n        </div>\n      </div><div data-edit-place=\"1\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Viana\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.3664,-8.911499999999998,13.382399999999999,-8.8955&amp;layer=mapnik&amp;marker=-8.9035,13.3744\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          \n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Viana</span></p>\n        </div>\n      </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: três localizações, uma sem nada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "address": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {},
+              {
+                "name": "Kilamba",
+                "lat": -8.99,
+                "lng": 13.27
+              }
+            ],
+            "variant": "classico"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=T%C3%ADtulo%20%3Cb%3E%22com%22%3C%2Fb%3E%20%26%20&#39;aspas&#39;%20%3Cscript%3Ex%3C%2Fscript%3E&amp;z=15&amp;output=embed\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.0.name\" class=\"font-semibold text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</span></p>\n        </div>\n      </div><div data-edit-place=\"1\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          \n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Luanda, Angola</span></p>\n        </div>\n      </div><div data-edit-place=\"2\" class=\"flex flex-col\">\n        <div class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Kilamba\" class=\"w-full border-0\" style=\"height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.262,-8.998,13.277999999999999,-8.982000000000001&amp;layer=mapnik&amp;marker=-8.99,13.27\"></iframe></div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.2.name\" class=\"font-semibold text-gray-900\">Kilamba</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.2.address\">Luanda, Angola</span></p>\n        </div>\n      </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: sem localização, morada do rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "variant": "classico"
+          }
+        ],
+        "footer": {
+          "location": "Kilamba, Luanda"
+        }
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Kilamba, Luanda</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Kilamba, Luanda\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Kilamba%2C%20Luanda&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização classico: sem localização nem rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "variant": "classico"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: morada legada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "address": "Rua Rainha Ginga, 12",
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            <h2 data-edit=\"blocks.0.title\" class=\"mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n            \n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Rua Rainha Ginga, 12</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Rua Rainha Ginga, 12\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Rua%20Rainha%20Ginga%2C%2012&amp;z=15&amp;output=embed\"></iframe></div>\n        </div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: coordenadas legadas",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "lat": -8.8383,
+            "lng": 13.2344,
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            <h2 data-edit=\"blocks.0.title\" class=\"mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n            \n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.226400000000002,-8.8463,13.2424,-8.830300000000001&amp;layer=mapnik&amp;marker=-8.8383,13.2344\"></iframe></div>\n        </div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: uma localização com nome",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja do Centro",
+                "address": "Morro Bento"
+              }
+            ],
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            <h2 data-edit=\"blocks.0.title\" class=\"mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n            <p data-edit=\"blocks.0.places.0.name\" class=\"mt-3 text-xl font-black tracking-tight text-gray-900\">Loja do Centro</p>\n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Morro Bento</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Loja do Centro\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Morro%20Bento&amp;z=15&amp;output=embed\"></iframe></div>\n        </div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: duas localizações",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja de Talatona",
+                "address": "Talatona"
+              },
+              {
+                "address": "Viana",
+                "lat": -8.9035,
+                "lng": 13.3744
+              }
+            ],
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            \n            <p data-edit=\"blocks.0.places.0.name\" class=\"mt-3 text-xl font-black tracking-tight text-gray-900\">Loja de Talatona</p>\n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Talatona</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Loja de Talatona\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Talatona&amp;z=15&amp;output=embed\"></iframe></div>\n        </div><div data-edit-place=\"1\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            \n            \n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Viana</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Viana\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.3664,-8.911499999999998,13.382399999999999,-8.8955&amp;layer=mapnik&amp;marker=-8.9035,13.3744\"></iframe></div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: três localizações, uma sem nada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "address": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {},
+              {
+                "name": "Kilamba",
+                "lat": -8.99,
+                "lng": 13.27
+              }
+            ],
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            \n            <p data-edit=\"blocks.0.places.0.name\" class=\"mt-3 text-xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=T%C3%ADtulo%20%3Cb%3E%22com%22%3C%2Fb%3E%20%26%20&#39;aspas&#39;%20%3Cscript%3Ex%3C%2Fscript%3E&amp;z=15&amp;output=embed\"></iframe></div>\n        </div><div data-edit-place=\"1\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            \n            \n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Luanda, Angola</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div>\n        </div><div data-edit-place=\"2\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            \n            <p data-edit=\"blocks.0.places.2.name\" class=\"mt-3 text-xl font-black tracking-tight text-gray-900\">Kilamba</p>\n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.2.address\">Luanda, Angola</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Kilamba\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.262,-8.998,13.277999999999999,-8.982000000000001&amp;layer=mapnik&amp;marker=-8.99,13.27\"></iframe></div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: sem localização, morada do rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "variant": "cartao"
+          }
+        ],
+        "footer": {
+          "location": "Kilamba, Luanda"
+        }
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            <h2 data-edit=\"blocks.0.title\" class=\"mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n            \n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Kilamba, Luanda</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Kilamba, Luanda\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Kilamba%2C%20Luanda&amp;z=15&amp;output=embed\"></iframe></div>\n        </div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização cartao: sem localização nem rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "variant": "cartao"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"cartao\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div data-edit-place=\"0\" class=\"grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm\">\n          <div class=\"md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white\">\n            <span class=\"material-symbols-outlined\" style=\"font-size:32px;color:var(--brand,#4f46e5)\">location_on</span>\n            <h2 data-edit=\"blocks.0.title\" class=\"mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n            \n            <p class=\"mt-3 text-gray-500 leading-relaxed\"><span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n          </div>\n          <div class=\"md:col-span-2 min-h-[300px]\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:100%;min-height:300px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div>\n        </div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: morada legada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "address": "Rua Rainha Ginga, 12",
+            "variant": "estilizado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Rua Rainha Ginga, 12</span></p>\n      </div>\n      <div data-edit-place=\"0\"><div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Rua Rainha Ginga, 12\" class=\"w-full border-0\" style=\"height:420px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Rua%20Rainha%20Ginga%2C%2012&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: coordenadas legadas",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "lat": -8.8383,
+            "lng": 13.2344,
+            "variant": "estilizado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\"><div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:420px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.226400000000002,-8.8463,13.2424,-8.830300000000001&amp;layer=mapnik&amp;marker=-8.8383,13.2344\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: uma localização com nome",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja do Centro",
+                "address": "Morro Bento"
+              }
+            ],
+            "variant": "estilizado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        <p data-edit=\"blocks.0.places.0.name\" class=\"mt-2 font-semibold text-gray-900\">Loja do Centro</p>\n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Morro Bento</span></p>\n      </div>\n      <div data-edit-place=\"0\"><div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Loja do Centro\" class=\"w-full border-0\" style=\"height:420px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Morro%20Bento&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: duas localizações",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Loja de Talatona",
+                "address": "Talatona"
+              },
+              {
+                "address": "Viana",
+                "lat": -8.9035,
+                "lng": 13.3744
+              }
+            ],
+            "variant": "estilizado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"flex flex-col\">\n        <div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Loja de Talatona\" class=\"w-full border-0\" style=\"height:320px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Talatona&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.0.name\" class=\"font-semibold text-gray-900\">Loja de Talatona</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Talatona</span></p>\n        </div>\n      </div><div data-edit-place=\"1\" class=\"flex flex-col\">\n        <div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Viana\" class=\"w-full border-0\" style=\"height:320px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.3664,-8.911499999999998,13.382399999999999,-8.8955&amp;layer=mapnik&amp;marker=-8.9035,13.3744\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div>\n        <div class=\"mt-4 text-center\">\n          \n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Viana</span></p>\n        </div>\n      </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: três localizações, uma sem nada",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "places": [
+              {
+                "name": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+                "address": "Título <b>\"com\"</b> & 'aspas' <script>x</script>"
+              },
+              {},
+              {
+                "name": "Kilamba",
+                "lat": -8.99,
+                "lng": 13.27
+              }
+            ],
+            "variant": "estilizado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n      </div><div data-edit-places=\"0\" class=\"grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8\"><div data-edit-place=\"0\" class=\"flex flex-col\">\n        <div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;\" class=\"w-full border-0\" style=\"height:320px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=T%C3%ADtulo%20%3Cb%3E%22com%22%3C%2Fb%3E%20%26%20&#39;aspas&#39;%20%3Cscript%3Ex%3C%2Fscript%3E&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.0.name\" class=\"font-semibold text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</span></p>\n        </div>\n      </div><div data-edit-place=\"1\" class=\"flex flex-col\">\n        <div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:320px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div>\n        <div class=\"mt-4 text-center\">\n          \n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.1.address\">Luanda, Angola</span></p>\n        </div>\n      </div><div data-edit-place=\"2\" class=\"flex flex-col\">\n        <div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Kilamba\" class=\"w-full border-0\" style=\"height:320px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://www.openstreetmap.org/export/embed.html?bbox=13.262,-8.998,13.277999999999999,-8.982000000000001&amp;layer=mapnik&amp;marker=-8.99,13.27\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div>\n        <div class=\"mt-4 text-center\">\n          <p data-edit=\"blocks.0.places.2.name\" class=\"font-semibold text-gray-900\">Kilamba</p>\n          <p class=\"mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.2.address\">Luanda, Angola</span></p>\n        </div>\n      </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: sem localização, morada do rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "variant": "estilizado"
+          }
+        ],
+        "footer": {
+          "location": "Kilamba, Luanda"
+        }
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Kilamba, Luanda</span></p>\n      </div>\n      <div data-edit-place=\"0\"><div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Kilamba, Luanda\" class=\"w-full border-0\" style=\"height:420px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Kilamba%2C%20Luanda&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização estilizado: sem localização nem rodapé",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "variant": "estilizado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"estilizado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\"><div class=\"relative rounded-3xl overflow-hidden border border-gray-100 shadow-md\">\n          <div style=\"filter:grayscale(1) contrast(1.05) brightness(1.02)\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:420px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div>\n          <div class=\"pointer-events-none absolute inset-0\" style=\"background:var(--brand,#4f46e5);mix-blend-mode:multiply;opacity:.28\"></div>\n          <div class=\"pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl\"></div>\n          <div class=\"pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800\">\n            <span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">pin_drop</span> Estamos aqui\n          </div>\n        </div></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização: morada do rodapé vinda do contexto",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)",
+        "footerLocation": "Benguela, Angola"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Onde estamos"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Benguela, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Benguela, Angola\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Benguela%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "localização: título a escapar",
+      "ctx": {
+        "container": "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "blocks": [
+          {
+            "type": "location",
+            "title": "Título <b>\"com\"</b> & 'aspas' <script>x</script>",
+            "address": "Luanda"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Título &lt;b&gt;&quot;com&quot;&lt;/b&gt; &amp; &#39;aspas&#39; &lt;script&gt;x&lt;/script&gt;</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.0.places.0.address\">Luanda</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    },
+    {
+      "nome": "quatro blocos seguidos (índices)",
+      "ctx": {
+        "container": "w-full max-w-[1180px] mx-auto px-8",
+        "brand": "var(--brand,#4f46e5)"
+      },
+      "custom": {
+        "footer": {
+          "location": "Huambo"
+        },
+        "blocks": [
+          {
+            "type": "info",
+            "title": "O nosso compromisso",
+            "text": "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.",
+            "imageUrl": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000",
+            "imageSide": "left"
+          },
+          {
+            "type": "text",
+            "title": "Um título de destaque",
+            "text": "Adicione aqui um texto informativo para os seus clientes."
+          },
+          {
+            "type": "testimonials",
+            "title": "O que dizem os nossos clientes",
+            "items": [
+              {
+                "name": "Ana Sofia",
+                "role": "Cliente",
+                "text": "Excelente atendimento e entrega rápida. Recomendo!"
+              },
+              {
+                "name": "João Pedro",
+                "role": "Cliente",
+                "text": "Produtos de qualidade e tudo muito simples de comprar."
+              },
+              {
+                "name": "Maria L.",
+                "role": "Cliente",
+                "text": "Adorei a experiência. Voltarei a comprar com certeza."
+              }
+            ]
+          },
+          {
+            "type": "location",
+            "title": "Onde estamos",
+            "address": "Luanda, Angola"
+          },
+          {
+            "type": "desconhecido",
+            "title": "ignorado"
+          }
+        ]
+      },
+      "html": "<div data-edit-blocks><section data-edit-block=\"0\" data-block-type=\"info\" data-block-variant=\"lado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1180px] mx-auto px-8\">\n      <div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center\">\n        <div data-edit-block-image=\"0\" class=\"relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100\">\n    <img src=\"https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&amp;w=1000\" alt=\"\" class=\"w-full h-full object-cover\" onerror=\"this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'\" />\n  </div><div>\n    <h2 data-edit=\"blocks.0.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">O nosso compromisso</h2>\n    <p data-edit=\"blocks.0.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed\">Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.</p>\n  </div>\n      </div>\n    </div>\n  </section><section data-edit-block=\"1\" data-block-type=\"text\" data-block-variant=\"centrado\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1180px] mx-auto px-8\">\n      <div class=\"max-w-3xl mx-auto text-center\">\n        <h2 data-edit=\"blocks.1.title\" class=\"text-2xl md:text-4xl font-black tracking-tight text-gray-900\">Um título de destaque</h2>\n        <p data-edit=\"blocks.1.text\" class=\"mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line\">Adicione aqui um texto informativo para os seus clientes.</p>\n      </div>\n    </div>\n  </section><section data-edit-block=\"2\" data-block-type=\"testimonials\" class=\"relative bg-gray-50 border-y border-gray-100\">\n    <div class=\"w-full max-w-[1180px] mx-auto px-8 py-14 md:py-20\">\n      <h2 data-edit=\"blocks.2.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center\">O que dizem os nossos clientes</h2>\n      <div data-edit-testimonials=\"2\" class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mt-10\"><div data-testi-item=\"0\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.2.items.0.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Excelente atendimento e entrega rápida. Recomendo!</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"0\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.2.items.0.avatarText\">A</span></span>\n        <div>\n          <p data-edit=\"blocks.2.items.0.name\" class=\"font-semibold text-gray-900 text-sm\">Ana Sofia</p>\n          <p data-edit=\"blocks.2.items.0.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"1\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.2.items.1.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Produtos de qualidade e tudo muito simples de comprar.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"1\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.2.items.1.avatarText\">J</span></span>\n        <div>\n          <p data-edit=\"blocks.2.items.1.name\" class=\"font-semibold text-gray-900 text-sm\">João Pedro</p>\n          <p data-edit=\"blocks.2.items.1.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div><div data-testi-item=\"2\" class=\"relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm\">\n      <span class=\"material-symbols-outlined text-[28px]\" style=\"color:var(--brand,#4f46e5)\">format_quote</span>\n      <p data-edit=\"blocks.2.items.2.text\" class=\"mt-2 text-gray-600 leading-relaxed\">Adorei a experiência. Voltarei a comprar com certeza.</p>\n      <div class=\"mt-5 flex items-center gap-3\">\n        <span data-testi-avatar=\"2\" class=\"relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0\" style=\"background:var(--brand,#4f46e5)\"><span data-edit=\"blocks.2.items.2.avatarText\">M</span></span>\n        <div>\n          <p data-edit=\"blocks.2.items.2.name\" class=\"font-semibold text-gray-900 text-sm\">Maria L.</p>\n          <p data-edit=\"blocks.2.items.2.role\" class=\"text-gray-400 text-xs\">Cliente</p>\n        </div>\n      </div>\n    </div></div>\n    </div>\n  </section><section data-edit-block=\"3\" data-block-type=\"location\" data-block-variant=\"classico\" class=\"relative py-12 md:py-16\">\n    <div class=\"w-full max-w-[1180px] mx-auto px-8\"><div class=\"text-center max-w-2xl mx-auto mb-8\">\n        <h2 data-edit=\"blocks.3.title\" class=\"text-2xl md:text-3xl font-black tracking-tight text-gray-900\">Onde estamos</h2>\n        \n        <p class=\"mt-2 text-gray-500 inline-flex items-center gap-1.5\"><span class=\"material-symbols-outlined text-[18px]\" style=\"color:var(--brand,#4f46e5)\">location_on</span> <span data-edit-loc-address data-edit=\"blocks.3.places.0.address\">Luanda, Angola</span></p>\n      </div>\n      <div data-edit-place=\"0\" class=\"rounded-2xl overflow-hidden border border-gray-100 shadow-sm\"><iframe title=\"Mapa Luanda, Angola\" class=\"w-full border-0\" style=\"height:400px\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" src=\"https://maps.google.com/maps?q=Luanda%2C%20Angola&amp;z=15&amp;output=embed\"></iframe></div></div>\n  </section></div>"
+    }
+  ]
+}

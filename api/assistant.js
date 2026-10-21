@@ -67,13 +67,13 @@ CORES:
 - COR DE FUNDO DE UMA SECÇÃO: botão de cor de fundo no canto da secção, com as cores do modelo. Em fundo escuro os textos ficam claros automaticamente.
 
 CONTEÚDO EXTRA:
-- "Adicionar secção" acrescenta Produtos, Informação com foto ou Título e texto; as secções que acrescentares podem subir, descer ou ser removidas. As secções do modelo mantêm-se.
+- "Adicionar secção": o que se pode acrescentar depende do modelo, e está descrito no CONTEXTO. As secções que acrescentares podem subir, descer ou ser removidas. As secções do modelo mantêm-se.
 - PÁGINA DE PRODUTO: alterna no topo entre "Início" e "Página de produto"; edita as garantias, o botão de WhatsApp e a quantidade.
 - LOCALIZAÇÃO: quando o modelo tem bloco de mapa, o botão de definir no mapa arrasta o pin.
 - GUARDAR publica; "Ver loja" abre a loja; "Desfazer" reverte; "Tutorial" inicia a visita guiada.
-- PAGAMENTOS (no Dashboard → aba "Pagamentos", não no editor): ativar pagamentos online e vincular a conta bancária (Banco, Beneficiário, IBAN); definir o número de WhatsApp. Com pagamentos online ativos, o botão do produto passa a "Comprar agora" e abre o checkout com Multicaixa Express, Referência Bancária e WhatsApp. O valor, menos a comissão, é transferido automaticamente para a conta bancária verificada (levantamento instantâneo). O Dashboard de Início mostra vendas e valor recebido.
+- PAGAMENTOS (no Dashboard → separador "Pagamentos", não no editor): o WhatsApp está sempre ativo. Multicaixa Express e Referência Bancária são para empresas registadas, depois de a MôBisno aprovar os dados da empresa. As condições e o estado estão no CONTEXTO.
 
-PREÇOS, CICLOS, COMISSÃO, LIMITES E O QUE ESTÁ "EM BREVE" ESTÃO NO CONTEXTO, não aqui. Usa os valores que lá estão, tal como lá estão.`;
+PREÇOS, LIMITES, PAGAMENTOS E O QUE ESTÁ "EM BREVE" ESTÃO NO CONTEXTO, não aqui. Usa os valores que lá estão, tal como lá estão.`;
 
 /** Contexto do SITE (visitante da página inicial a conhecer a plataforma). */
 const SYSTEM_SITE = `És o assistente do MôBisno na página inicial. Ajudas visitantes a perceber a plataforma. Só RESPONDES a perguntas; não executas ações.
@@ -84,13 +84,11 @@ SOBRE O MÔBISNO:
 - É uma plataforma para criar lojas online em Angola, sem código. Criar uma loja é ESCOLHER UM MODELO PRONTO de site — uma loja completa, já com cabeçalho, secções, página de produto e rodapé — e depois PERSONALIZAR os textos, as fotografias e as cores. Não se monta a loja peça por peça.
 - PERCURSO, por esta ordem: 1) CRIAR CONTA — por chat, o assistente pergunta nome, email, palavra-passe, nome da loja, tipo de negócio e o endereço (subdomínio); 2) ESCOLHER O MODELO PRONTO na galeria de modelos, com pré-visualização real em computador e telemóvel, no botão "Usar este modelo"; 3) PERSONALIZAR no editor visual ao vivo — textos, fotografias (logótipo e imagens) e cores; 4) PUBLICAR, com "Guardar".
 - O modelo escolhido dá a ESTRUTURA da loja, e essa estrutura mantém-se. A personalização é dos textos, das fotografias e das cores; os produtos, preços e fotografias são geridos no Dashboard e no editor.
-- LOGÓTIPO (opcional, pago à parte): quem não tem logótipo pode pedir um por IA durante a criação; são geradas cinco propostas e o dono fica com a que escolher.
-- VENDAS: carrinho e checkout a sério. Com pagamentos online ativos, o cliente paga por Multicaixa Express ou Referência Bancária, além de WhatsApp; a fatura é gerada automaticamente.
-- PAGAMENTOS: o dono ativa pagamentos online no Dashboard e vincula a conta bancária angolana onde recebe; o valor entra automaticamente nessa conta (levantamento instantâneo).
+- VENDAS: carrinho e checkout a sério. Todas as lojas vendem por WhatsApp desde o primeiro dia; Multicaixa Express e Referência Bancária são para empresas registadas, depois de aprovadas (as condições estão no CONTEXTO).
 - O QUE NÃO FAZ: o assistente não executa ações por ti (não cria nem edita sozinho); é um guia. Não se muda a estrutura do modelo no editor, e funcionalidades fora do âmbito de e-commerce simples podem não existir.
 - COMEÇAR: clicar em "Criar minha loja".
 
-PREÇOS, CICLOS, ENDEREÇOS, LIMITES, COMISSÃO E O QUE ESTÁ "EM BREVE" ESTÃO NO CONTEXTO, não aqui. Responde com os valores que lá estão, exactamente como lá estão, e NUNCA mandes o visitante ver a secção de preços — os números que ele pede estão no contexto.
+PREÇOS, ENDEREÇOS, LIMITES, PAGAMENTOS E O QUE ESTÁ "EM BREVE" ESTÃO NO CONTEXTO, não aqui. Responde com os valores que lá estão, exactamente como lá estão, e NUNCA mandes o visitante ver a secção de preços — os números que ele pede estão no contexto.
 Se perguntarem algo específico da CONTA de alguém (saldo, vendas, data de renovação), aí sim: diz que precisa de entrar e ver no Dashboard.`;
 
 /** Contexto SEO (gerar a meta-descrição da loja a partir do que o dono descreve). */
@@ -110,24 +108,64 @@ REGRAS:
 - Apelativa e específica (ex.: "Cosmética natural em Luanda", "Moda feminina com entrega em Angola").
 - Sem o nome da loja, sem aspas, sem emojis, sem o símbolo "|", sem pontos finais. Devolve só a frase.`;
 
-/** Contexto LOGO (reestruturar a ideia do dono numa boa descrição de logótipo). */
-const SYSTEM_LOGO = `És um diretor de arte especialista em identidade visual. O dono de uma loja online vai dar uma ideia (por vezes vaga) do logótipo que quer. A tua tarefa é REESCREVER essa ideia numa descrição clara, rica e bem estruturada, pronta a alimentar um gerador de logótipos por IA.
+const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seotitle: SYSTEM_SEOTITLE };
 
-CONTEXTO: a partir desta descrição, o gerador de logótipos do MôBisno devolve CINCO propostas diferentes, e o dono escolhe uma delas. A descrição tem de ser suficientemente clara para dar coerência às cinco propostas, sem lhes tirar variedade.
+/**
+ * Origens que podem usar o assistente. O endpoint não exige sessão (o visitante
+ * da página inicial também pergunta), por isso é a origem que impede outro site
+ * de o usar com a nossa chave da OpenAI. Não trava um `curl` — é por isso que há
+ * também o limite de pedidos abaixo.
+ */
+function allowedOrigin(req) {
+  const origin = String(req.headers?.origin || req.headers?.referer || "");
+  if (!origin) return true; // pedidos do mesmo site nem sempre trazem a origem
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    if (host === "mobisno.store" || host.endsWith(".mobisno.store")) return true;
+    if (host === "localhost" || host === "127.0.0.1") return true;
+    // As pré-visualizações da Vercel: só os URLs DESTE projeto, que a Vercel
+    // expõe nas variáveis de sistema — não qualquer `*.vercel.app`, que
+    // qualquer pessoa pode criar.
+    const own = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]
+      .filter(Boolean)
+      .map((h) => String(h).toLowerCase());
+    return own.includes(host);
+  } catch {
+    return false;
+  }
+}
 
-REGRAS:
-- Devolve APENAS a descrição final, em português de Portugal, num único parágrafo curto (máximo ~400 caracteres).
-- Mantém sempre o NOME da marca e o tipo de negócio que o dono indicou; não inventes um nome novo.
-- PRESERVA todas as decisões que o dono já tomou, mesmo as que restringem: cor ("tudo preto" fica tudo preto), tipo de letra ("elegante"/"clássica" = serifada), caixa das letras, e sobretudo a AUSÊNCIA de coisas. Se ele disser que não quer símbolo, a descrição final não pode ter símbolo nenhum; se quiser uma só cor, não acrescentes gradiente nem segunda cor. Nunca "corrijas" nem contraries o gosto dele.
-- Enriquece SÓ o que ficou por dizer, com o vocabulário de um diretor de arte: a sensação/tom da marca, o detalhe tipográfico, o equilíbrio da composição, e — apenas se o dono não tiver excluído símbolos — o tipo de forma do símbolo.
-- Marca de nível de estúdio de branding: elegante e intencional. NUNCA sugiras ícones literais (envelope, carrinho, telefone, lâmpada, engrenagem) nem estilo clip-art.
-- Sem aspas à volta, sem emojis, sem prefixos como "Descrição:". Não expliques o que fizeste.`;
-
-const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seotitle: SYSTEM_SEOTITLE, logo: SYSTEM_LOGO };
+/**
+ * Limite de pedidos por IP, por instância: 30 pedidos em 10 minutos.
+ *
+ * É uma rede de segurança, não uma garantia — cada instância da função tem o seu
+ * contador. Trava o abuso mais simples (um ciclo a disparar pedidos) sem precisar
+ * de uma base de dados.
+ */
+const LIMIT = 30;
+const WINDOW_MS = 10 * 60 * 1000;
+const hits = new Map();
+function rateLimited(req) {
+  const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "?").split(",")[0].trim();
+  const now = Date.now();
+  const list = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
+  list.push(now);
+  hits.set(ip, list);
+  if (hits.size > 5000) hits.clear();
+  return list.length > LIMIT;
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Método não permitido." });
+    return;
+  }
+  if (!allowedOrigin(req)) {
+    res.status(403).json({ error: "Origem não permitida." });
+    return;
+  }
+  if (rateLimited(req)) {
+    res.status(429).json({ error: "Demasiados pedidos. Tenta de novo daqui a uns minutos." });
     return;
   }
   const key = process.env.OPENAI_API_KEY;
@@ -140,12 +178,12 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
     const question = String(body.question || "").slice(0, 2000);
     const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
-    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : body.scope === "seotitle" ? "seotitle" : body.scope === "logo" ? "logo" : "editor";
+    const scope = body.scope === "site" ? "site" : body.scope === "seo" ? "seo" : body.scope === "seotitle" ? "seotitle" : "editor";
     /**
      * Factos e orientação do ecrã, montados no cliente
      * (`web/lib/assistantContext.ts`) a partir dos módulos de domínio.
      *
-     * Só é aceite nos âmbitos de conversa: `seo`, `seotitle` e `logo` são
+     * Só é aceite nos âmbitos de conversa: `seo` e `seotitle` são
      * geradores de texto com regras fechadas, e contexto extra só os desviaria do
      * formato que devolvem.
      *
@@ -179,14 +217,18 @@ export default async function handler(req, res) {
     });
 
     if (!r.ok) {
-      const detail = await r.text();
-      res.status(502).json({ error: "Falha a contactar o assistente.", detail: detail.slice(0, 500) });
+      // O detalhe do fornecedor fica nos registos do servidor: pode trazer
+      // identificadores da conta ou da chave, e o cliente não precisa dele.
+      const detail = await r.text().catch(() => "");
+      console.error("[assistant] upstream", r.status, detail.slice(0, 500));
+      res.status(502).json({ error: "Falha a contactar o assistente." });
       return;
     }
     const data = await r.json();
     const answer = data?.choices?.[0]?.message?.content?.trim() || "Não consegui responder agora. Tenta de novo.";
     res.status(200).json({ answer });
   } catch (err) {
+    console.error("[assistant]", err);
     res.status(500).json({ error: "Erro interno do assistente." });
   }
 };

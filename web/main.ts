@@ -1,10 +1,10 @@
 /** Bootstrap + router (URLs limpas via History API) da SPA do MôBisno. */
 import "./styles.css";
-import { seedDemoStore } from "./composition.js";
-import { storeSubdomain, isStoreApexRoot, navigate, cleanPath, ROUTE_EVENT, PLATFORM_APEX } from "./lib/routing.js";
-import { setDocTitle, setFavicon, setSquareFavicon } from "./lib/dom.js";
+import { storeSubdomain, isStoreApexRoot, navigate, cleanPath, ROUTE_EVENT, PLATFORM_APEX, currentStoreIdentifier } from "./lib/routing.js";
+import { setDocTitle, setFavicon, setSquareFavicon, esc } from "./lib/dom.js";
 import { applyNoindexSeo } from "./lib/seo.js";
 import { loadStorefront } from "./lib/storeCache.js";
+import { STORE_DRAFT_LABEL } from "./views/storeHtml.js";
 import { renderLanding } from "./views/landing.js";
 import { renderLogin } from "./views/login.js";
 import { renderStorefront } from "./views/storefront.js";
@@ -49,7 +49,11 @@ const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
  */
 async function applyStoreBranding(identifier: string): Promise<void> {
   try {
-    const { result, view } = await loadStorefront(identifier);
+    const { result, view, draft } = await loadStorefront(identifier);
+    // Só se a página ainda for desta loja: a navegação pode ter mudado entretanto.
+    if (currentStoreIdentifier()?.toLowerCase() === identifier.toLowerCase()) {
+      syncDraftBar(draft === true);
+    }
     if (result.kind === "render" && view.kind === "render") {
       const logo = result.logo?.url;
       // O logótipo do dono tem a proporção que ele quis: passa por
@@ -72,12 +76,52 @@ function resetBranding(): void {
   setFavicon("/favicon.svg");
 }
 
+/** Faixa das páginas de um rascunho, abertas pelo próprio Dono. */
+const DRAFT_BAR_ID = "mb-draft-bar";
+
+/**
+ * Mostra (ou retira) a faixa «Pré-visualização — esta loja ainda não está
+ * publicada» nas páginas de uma loja por publicar.
+ *
+ * Vive fora de `#app`, presa ao fundo do ecrã: cada vista reescreve `#app`, e a
+ * faixa tem de sobreviver à navegação entre o início, os produtos, as
+ * categorias e o carrinho do rascunho. Só aparece a quem a loja resolve como
+ * rascunho — o próprio Dono (`loadStorefront`).
+ */
+function syncDraftBar(draft: boolean): void {
+  const atual = document.getElementById(DRAFT_BAR_ID);
+  if (!draft) { atual?.remove(); return; }
+  if (atual) return;
+  const bar = document.createElement("div");
+  bar.id = DRAFT_BAR_ID;
+  bar.setAttribute("role", "status");
+  bar.style.cssText =
+    "position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:300;display:flex;align-items:center;gap:10px;" +
+    "max-width:calc(100vw - 24px);padding:8px 8px 8px 14px;border-radius:999px;background:#111827;color:#fff;" +
+    "font:600 12px/1.35 Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)";
+  bar.innerHTML =
+    `<span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;color:#F95901">visibility</span>` +
+    `<span>${esc(STORE_DRAFT_LABEL)}</span>` +
+    `<a href="/painel" style="color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 10px;white-space:nowrap">Voltar ao Dashboard</a>`;
+  document.body.appendChild(bar);
+}
+
+/**
+ * Primeira rota da página. Nela a página já está no ecrã — veio pronta do
+ * servidor — e o visitante pode já ter rolado: voltar ao topo era um salto.
+ */
+let primeiraRota = true;
+
 function route(): void {
   const path = location.pathname || "/";
-  window.scrollTo(0, 0);
+  if (primeiraRota) primeiraRota = false;
+  else window.scrollTo(0, 0);
   if (path !== "/preview" && !path.startsWith("/preview/")) {
     document.getElementById("mb-preview-bar")?.remove();
   }
+  // A faixa de rascunho só fica nas páginas de uma loja; `applyStoreBranding`
+  // volta a decidir quando a loja carrega.
+  if (!currentStoreIdentifier() || path.startsWith("/previsualizar/")) syncDraftBar(false);
 
   // --- Modo subdomínio: nomedaloja.mobisno.store ---
   const sub = storeSubdomain();
@@ -209,7 +253,6 @@ async function boot(): Promise<void> {
     history.replaceState({}, "", cleanPath(location.hash) + location.search);
   }
 
-  await seedDemoStore();
   mountCartUI();
   mountSearchUI();
   mountSectionsUI();

@@ -1,14 +1,12 @@
 /**
- * Créditos de SMS de confirmação. Cada SMS custa {@link SMS_UNIT_PRICE} Kz.
- * O saldo vive em `stores.sms_credits` (creditado no servidor após pagamento).
+ * Créditos de SMS de confirmação — funcionalidade «Em breve»
+ * (`COMING_SOON.sms`, `src/services/comingSoon.ts`).
+ *
+ * O saldo vive em `stores.sms_credits` e só o servidor o altera (gatilho
+ * `stores_guard`, migração 0022). A compra de pacotes saiu com a integração
+ * MoMenu; o saldo que algum Dono já tenha comprado fica guardado e é mostrado.
  */
 import { supabase } from "./client.js";
-
-/** Preço por mensagem (Kz). */
-export const SMS_UNIT_PRICE = 300;
-
-/** Pacotes de mensagens disponíveis para compra. */
-export const SMS_PACKAGES = [15, 50, 100, 200] as const;
 
 /** Saldo de SMS de uma loja (0 se não existir). */
 export async function getSmsCredits(storeId: string): Promise<number> {

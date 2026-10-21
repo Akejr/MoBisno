@@ -1,22 +1,22 @@
 /** Página individual de produto — resolve a loja, encontra o produto e liga a compra. */
-import { render, $, esc, toast, fadeInImages, formatKz } from "../lib/dom.js";
-import { getTemplate } from "../templates/registry.js";
+import { render, esc, toast, fadeInImages, formatKz } from "../lib/dom.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
-import { brandOf, readableInk } from "../lib/brand.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
-import { navigate, storeHomePath } from "../lib/routing.js";
+import { navigate, storeBasePath } from "../lib/routing.js";
 import { applyInk } from "../lib/ink.js";
 import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { publicStoreUrl } from "../composition.js";
 import { applySeo, shippingFromCustom } from "../lib/seo.js";
-import { productTitle, productDescription, productJsonLd, breadcrumbJsonLd } from "../../src/services/seo.js";
+import { productTitle, productDescription, productJsonLd, breadcrumbJsonLd, isModelStore } from "../../src/services/seo.js";
+import { digitalPaymentsVisible } from "../../src/services/paymentVisibility.js";
 import { trackPixel } from "../lib/pixels.js";
 import { trackStoreEvent } from "../supabase/analytics.js";
 import { listProductReviews, summarize, submitReview, type Review } from "../supabase/reviews.js";
 import { storeNotFoundHtml } from "../templates/notFound.js";
+import { findProduct, productPageHtml, productNotFoundHtml, storeBrand, storeSeoFacts } from "./storeHtml.js";
 import {
   combinationAvailable,
   combinationsOf,
@@ -28,19 +28,16 @@ import {
   variantLabelOf,
 } from "../../src/services/variations.js";
 import type { ProductVariations } from "../../src/models/domain.js";
+import type { StoreProductView, StoreCustomization } from "../templates/types.js";
 
 /**
- * Produto inexistente numa loja que existe. Distinto da
- * Pagina_Loja_Nao_Encontrada: aqui a loja abre, por isso a ligação volta à loja
- * — com caminho real, sem fragmento `#` (`SEO.md` §5.1).
+ * Produto inexistente numa loja que existe. O servidor já responde 404; aqui a
+ * página sai também com `noindex`, para o Google não guardar um «não
+ * encontrado» como se fosse a página do produto.
  */
-function productNotFound(identifier: string): void {
-  render(`
-  <div class="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-    <span class="material-symbols-outlined text-on-surface-variant" style="font-size:64px;">production_quantity_limits</span>
-    <h1 class="text-headline-lg text-on-surface">Produto não encontrado</h1>
-    <a href="${esc(storeHomePath(identifier))}" class="bg-primary text-on-primary px-6 py-3 rounded-full mt-2">Voltar à loja</a>
-  </div>`);
+function productNotFound(identifier: string, storeName: string): void {
+  applySeo({ title: `Produto não encontrado — ${storeName}`, description: "", noindex: true });
+  render(productNotFoundHtml(identifier));
 }
 
 /** Combinação escolhida, pronta a entrar numa linha de Carrinho (R4.13, R4.15). */
@@ -237,45 +234,135 @@ function mountVariationPicker(
   };
 }
 
+/** O que a compra de um produto precisa de saber. */
+interface PurchaseCtx {
+  identifier: string;
+  storeId: string;
+  product: StoreProductView;
+  custom: StoreCustomization;
+  picker: { resolve(): VariantChoice | null } | null;
+  /** Os pagamentos digitais aparecem nesta loja (`digitalPaymentsVisible`). */
+  digital: boolean;
+  /** Conta para as estatísticas e pixels da loja (não num rascunho do Dono). */
+  track: boolean;
+}
+
+/**
+ * Liga a compra: quantidade, **todos** os botões «Adicionar ao carrinho» (antes
+ * só o primeiro respondia) e, quando os pagamentos digitais aparecem nesta loja,
+ * o «Comprar agora» no lugar do WhatsApp.
+ *
+ * O «Comprar agora» depende só de `digitalPaymentsVisible(store)` — loja
+ * aprovada E fornecedor ligado. Lia `custom.payments.onlineEnabled`, um
+ * interruptor que o próprio Dono escrevia na sua personalização.
+ */
+function mountPurchase(app: HTMLElement, ctx: PurchaseCtx): void {
+  const { storeId, product, custom, picker } = ctx;
+
+  // Controlo de quantidade.
+  const qtyInput = app.querySelector<HTMLInputElement>("[data-qty]");
+  const readQty = (): number => {
+    const n = parseInt(qtyInput?.value ?? "1", 10);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  };
+  const writeQty = (n: number) => { if (qtyInput) qtyInput.value = String(Math.max(1, n)); };
+  app.querySelector("[data-qty-dec]")?.addEventListener("click", () => writeQty(readQty() - 1));
+  app.querySelector("[data-qty-inc]")?.addEventListener("click", () => writeQty(readQty() + 1));
+  qtyInput?.addEventListener("input", () => { qtyInput.value = qtyInput.value.replace(/[^\d]/g, ""); });
+
+  /**
+   * Põe o produto no carrinho. Com Variação ativas, a linha leva a Combinação
+   * escolhida e o preço efetivo (R4.13, R4.15); seleção incompleta (R4.10) ou
+   * esgotada (R4.11) é rejeitada por `resolve`, que já mostrou a razão.
+   */
+  const add = (): boolean => {
+    let price = product.price;
+    if (picker) {
+      const choice = picker.resolve();
+      if (!choice) return false;
+      price = choice.price;
+      addToCart(storeId, {
+        productId: product.id,
+        name: product.name,
+        price: choice.price,
+        // A foto da versão escolhida, quando existe: quem escolheu o azul vê o
+        // azul na linha do carrinho.
+        imageUrl: choice.image ?? product.imageUrl ?? undefined,
+        variantKey: choice.variantKey,
+        variantLabel: choice.variantLabel,
+      }, readQty());
+    } else {
+      addToCart(storeId, {
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        imageUrl: product.imageUrl ?? undefined,
+      }, readQty());
+    }
+    updateCartBadge(storeId);
+    if (ctx.track) {
+      trackPixel(custom, { type: "AddToCart", name: product.name, id: product.id, value: price });
+      void trackStoreEvent(storeId, "add_to_cart", product.id);
+    }
+    return true;
+  };
+
+  app.querySelectorAll<HTMLElement>("[data-add-cart]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (add()) toast(`Adicionado ao carrinho (${cartCount(storeId)} item(s)).`);
+    });
+  });
+
+  // Pagamentos digitais nesta loja: o botão de WhatsApp passa a «Comprar agora»
+  // (adiciona ao carrinho e segue para o checkout com os métodos disponíveis).
+  if (!ctx.digital) return;
+  app.querySelectorAll<HTMLElement>("[data-edit-whatsapp]").forEach((el) => {
+    el.removeAttribute("href");
+    el.removeAttribute("target");
+    el.innerHTML = `<span class="material-symbols-outlined text-[20px]" aria-hidden="true">bolt</span> Comprar agora`;
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (add()) navigate(`${storeBasePath(ctx.identifier)}/checkout`);
+    });
+  });
+}
+
 /**
  * Renderiza a página de um produto. O parâmetro `slugOrId` aceita o caminho
  * amigável `<categoria>/<nome>` ou, por retrocompatibilidade, o id do produto.
  */
 export async function renderProductPage(identifier: string, slugOrId: string): Promise<void> {
-  const { result, view, custom } = await loadStorefront(identifier);
+  const { result, view, custom, draft } = await loadStorefront(identifier);
 
   if (view.kind === "not_found" || result.kind !== "render") {
     render(storeNotFoundHtml(identifier));
     return;
   }
 
-  const wanted = slugOrId.replace(/^\/+|\/+$/g, "").toLowerCase();
-  const product =
-    view.products.find((p) => productSlugPath(p).toLowerCase() === wanted) ??
-    view.products.find((p) => p.id === slugOrId);
+  const product = findProduct(view, slugOrId);
   if (!product) {
-    productNotFound(identifier);
+    productNotFound(identifier, view.storeName);
     return;
   }
 
-  const template = getTemplate(view.templateId);
-
   const outOfStock = product.stock === 0;
+  const storeId = result.store.id;
+  // Rascunho aberto pelo próprio Dono: nada de estatísticas nem de pixels.
+  const contaParaEstatisticas = draft !== true;
 
-  // Página de produto do modelo (ou fallback simples se o modelo não a definir).
-  const html = template.renderProduct
-    ? template.renderProduct(view, product, custom)
-    : `<div class="min-h-screen ${""}"><a href="${esc(storeHomePath(identifier))}">Voltar</a><h1>${esc(product.name)}</h1></div>`;
-
-  const app = render(html);
-  app.style.setProperty("--brand", brandOf(custom, view.templateId));
-  app.style.setProperty("--brand-ink", readableInk(brandOf(custom, view.templateId)));
+  // Página de produto do modelo — o mesmo HTML que o servidor pré-renderiza
+  // (`productPageHtml`), incluindo os botões de um produto esgotado já
+  // desativados. No primeiro desenho a página que está no ecrã é adotada.
+  const app = render(productPageHtml(view, product, custom, identifier));
+  const { brand, ink } = storeBrand(view, custom);
+  app.style.setProperty("--brand", brand);
+  app.style.setProperty("--brand-ink", ink);
   applyInk(app, custom);
   applyTheme(app, custom);
   applyFieldColors(app, custom);
   applyIconColor(app, custom);
   fadeInImages(app);
-  updateCartBadge(result.store.id);
+  updateCartBadge(storeId);
 
   // Variação do Produto (R4.9 a R4.12). `null` = Produto sem Variação: daqui em
   // diante corre exactamente o código de hoje (R4.16).
@@ -284,9 +371,17 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
     ? mountVariationPicker(app, variations, product.price, product.imageUrl ?? "")
     : null;
 
+  // A compra liga-se ANTES de esperar pelas avaliações: a página já está no ecrã
+  // (veio do servidor) e um clique em «Adicionar ao carrinho» enquanto as
+  // avaliações carregavam não fazia nada.
+  if (!outOfStock) mountPurchase(app, { identifier, storeId, product, custom, picker, digital: digitalPaymentsVisible(result.store), track: contaParaEstatisticas });
+
   // Avaliações (estrelas) — carrega e calcula o resumo para o JSON-LD.
+  const ancora = app.firstElementChild;
   let reviews: Review[] = [];
   try { reviews = await listProductReviews(product.id); } catch { reviews = []; }
+  // Entretanto o visitante pode ter mudado de página: não se escreve nada nela.
+  if (ancora && !ancora.isConnected) return;
   const rating = summarize(reviews);
 
   // SEO do produto (imagem do produto + foco na loja). O trilho de navegação
@@ -299,6 +394,8 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
   }
   crumbs.push({ name: product.name, url: productUrl });
 
+  const facts = storeSeoFacts(view, custom, result.store);
+  const modelo = isModelStore({ identifier: result.store.identifier, customization: custom });
   applySeo({
     title: productTitle(product.name, view.storeName),
     description: productDescription({
@@ -306,11 +403,15 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
       description: product.description,
       priceLabel: formatKz(product.price),
       storeName: view.storeName,
+      facts,
     }),
     canonical: productUrl,
     image: product.imageUrl,
     type: "product",
     siteName: view.storeName,
+    // Loja-modelo: fora do índice, ligações seguidas. Rascunho: fora do índice.
+    noindex: modelo || draft === true,
+    follow: modelo,
     jsonLd: [
       productJsonLd({
         name: product.name,
@@ -325,110 +426,15 @@ export async function renderProductPage(identifier: string, slugOrId: string): P
         available: !outOfStock,
         rating: rating.count > 0 ? rating : null,
         shipping: shippingFromCustom(custom),
+        facts,
       }),
       breadcrumbJsonLd(crumbs),
     ],
   });
-  trackPixel(custom, { type: "PageView" });
-  trackPixel(custom, { type: "ViewContent", name: product.name, id: product.id, value: product.price });
-  void trackStoreEvent(result.store.id, "product_view", product.id);
-
-  // Não navegar nas âncoras de menu/logo da própria página (já estamos na loja).
-  // Controlo de quantidade.
-  const qtyInput = $("[data-qty]") as HTMLInputElement | null;
-  const readQty = (): number => {
-    const n = parseInt(qtyInput?.value ?? "1", 10);
-    return Number.isFinite(n) && n > 0 ? n : 1;
-  };
-  const writeQty = (n: number) => { if (qtyInput) qtyInput.value = String(Math.max(1, n)); };
-  $("[data-qty-dec]")?.addEventListener("click", () => writeQty(readQty() - 1));
-  $("[data-qty-inc]")?.addEventListener("click", () => writeQty(readQty() + 1));
-  qtyInput?.addEventListener("input", () => { qtyInput.value = qtyInput.value.replace(/[^\d]/g, ""); });
-
-  // Adicionar ao carrinho.
-  const addBtn = $("[data-add-cart]") as HTMLButtonElement | null;
-  addBtn?.addEventListener("click", () => {
-    const qty = readQty();
-    // Com Variação ativas, a linha leva a Combinação escolhida e o preço efetivo
-    // (R4.13, R4.15). Seleção incompleta (R4.10) ou esgotada (R4.11) é rejeitada
-    // por `resolve`, que já mostrou a razão.
-    if (picker) {
-      const choice = picker.resolve();
-      if (!choice) return;
-      addToCart(result.store.id, {
-        productId: product.id,
-        name: product.name,
-        price: choice.price,
-        // A foto da versão escolhida, quando existe: quem escolheu o azul vê o
-        // azul na linha do carrinho.
-        imageUrl: choice.image ?? product.imageUrl ?? undefined,
-        variantKey: choice.variantKey,
-        variantLabel: choice.variantLabel,
-      }, qty);
-      updateCartBadge(result.store.id);
-      trackPixel(custom, { type: "AddToCart", name: product.name, id: product.id, value: choice.price });
-      toast(`Adicionado ao carrinho (${cartCount(result.store.id)} item(s)).`);
-      return;
-    }
-    addToCart(result.store.id, {
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      imageUrl: product.imageUrl ?? undefined,
-    }, qty);
-    updateCartBadge(result.store.id);
-    trackPixel(custom, { type: "AddToCart", name: product.name, id: product.id, value: product.price });
-    toast(`Adicionado ao carrinho (${cartCount(result.store.id)} item(s)).`);
-  });
-
-  // Checkout online ativo: o botão de WhatsApp passa a "Comprar agora"
-  // (adiciona ao carrinho e segue para o checkout com as três opções).
-  if (custom.payments?.onlineEnabled) {
-    document.querySelectorAll<HTMLElement>("[data-edit-whatsapp]").forEach((el) => {
-      el.removeAttribute("href");
-      el.removeAttribute("target");
-      el.innerHTML = `<span class="material-symbols-outlined text-[20px]">bolt</span> Comprar agora`;
-      el.addEventListener("click", (e) => {
-        e.preventDefault();
-        // Mesma regra do botão de carrinho: com Variação ativas segue a
-        // Combinação escolhida e o seu preço efetivo; sem Variação, o código de
-        // hoje (R4.16).
-        if (picker) {
-          const choice = picker.resolve();
-          if (!choice) return;
-          addToCart(result.store.id, {
-            productId: product.id,
-            name: product.name,
-            price: choice.price,
-            imageUrl: choice.image ?? product.imageUrl ?? undefined,
-            variantKey: choice.variantKey,
-            variantLabel: choice.variantLabel,
-          }, readQty());
-          updateCartBadge(result.store.id);
-          navigate(`/loja/${encodeURIComponent(identifier)}/checkout`);
-          return;
-        }
-        addToCart(result.store.id, {
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          imageUrl: product.imageUrl ?? undefined,
-        }, readQty());
-        updateCartBadge(result.store.id);
-        navigate(`/loja/${encodeURIComponent(identifier)}/checkout`);
-      });
-    });
-  }
-
-  // Esgotado: desativa a compra e marca visualmente (corre após todos os binds).
-  if (outOfStock) {
-    document.querySelectorAll<HTMLElement>("[data-add-cart], [data-edit-whatsapp]").forEach((el) => {
-      el.setAttribute("disabled", "true");
-      el.style.opacity = "0.55";
-      el.style.pointerEvents = "none";
-      el.style.cursor = "not-allowed";
-      el.innerHTML = `<span class="material-symbols-outlined text-[20px]">block</span> Esgotado`;
-    });
+  if (contaParaEstatisticas) {
+    trackPixel(custom, { type: "PageView" });
+    trackPixel(custom, { type: "ViewContent", name: product.name, id: product.id, value: product.price });
+    void trackStoreEvent(storeId, "product_view", product.id);
   }
 
   // No preview de um MODELO (loja marcada com __template) mostramos avaliações
@@ -533,12 +539,13 @@ function mountReviews(
             </div>
           </div>
           <div data-rv-form class="hidden mb-10 p-8 max-w-xl" style="background:rgba(249,247,242,.85);backdrop-filter:blur(12px);border:1px solid rgba(228,226,221,.5);box-shadow:0 30px 50px -15px rgba(28,27,27,.05)">
-            <div class="flex items-center gap-1 mb-5" data-star-pick>
-              ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" class="material-symbols-outlined" style="font-size:28px;color:#c8c6c2;cursor:pointer">star</button>`).join("")}
+            <div class="flex items-center gap-1 mb-5" data-star-pick role="group" aria-label="Classificação">
+              ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" aria-label="${n} de 5 estrelas" class="material-symbols-outlined" style="font-size:28px;color:#c8c6c2;cursor:pointer">star</button>`).join("")}
             </div>
-            <input data-rv-name placeholder="O seu nome" class="w-full bg-transparent border-0 border-b px-0 py-2 text-[16px] outline-none mb-5 lx-body" style="border-color:rgba(28,27,27,.3);color:#1c1b1b" />
-            <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" class="w-full bg-transparent border-0 border-b px-0 py-2 text-[16px] outline-none resize-none mb-6 lx-body" style="border-color:rgba(28,27,27,.3);color:#1c1b1b"></textarea>
+            <input data-rv-name placeholder="O seu nome" aria-label="O seu nome" class="w-full bg-transparent border-0 border-b px-0 py-2 text-[16px] outline-none mb-5 lx-body" style="border-color:rgba(28,27,27,.3);color:#1c1b1b" />
+            <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" aria-label="O que achou do produto? (opcional)" class="w-full bg-transparent border-0 border-b px-0 py-2 text-[16px] outline-none resize-none mb-6 lx-body" style="border-color:rgba(28,27,27,.3);color:#1c1b1b"></textarea>
             <button data-rv-submit class="px-8 py-3 lx-body lx-track uppercase text-[12px] font-semibold" style="background:var(--brand,#1c1b1b);color:var(--brand-ink,#fff)">Enviar avaliação</button>
+            <p data-rv-note role="status" class="hidden mt-4 lx-body text-sm" style="color:#464742"></p>
           </div>
           <div data-reviews-list class="${listCls}">${list(reviews)}</div>
         </div>
@@ -555,12 +562,13 @@ function mountReviews(
         <div data-reviews-list class="lg:col-span-2">${list(reviews)}</div>
         <div class="rounded-2xl border border-neutral-200 bg-white p-5 lg:col-span-1 lg:sticky lg:top-6">
           <h3 class="font-bold text-neutral-900 mb-3">Deixe a sua avaliação</h3>
-          <div class="flex items-center gap-1 mb-3" data-star-pick>
-            ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" class="material-symbols-outlined" style="font-size:30px;color:#d4d4d8;cursor:pointer">star</button>`).join("")}
+          <div class="flex items-center gap-1 mb-3" data-star-pick role="group" aria-label="Classificação">
+            ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" aria-label="${n} de 5 estrelas" class="material-symbols-outlined" style="font-size:30px;color:#d4d4d8;cursor:pointer">star</button>`).join("")}
           </div>
-          <input data-rv-name placeholder="O seu nome" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] mb-2" />
-          <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] resize-none mb-3"></textarea>
-          <button data-rv-submit class="w-full px-5 py-2.5 rounded-xl text-white font-bold text-sm inline-flex items-center justify-center gap-1" style="background:var(--brand)"><span class="material-symbols-outlined text-[18px]">send</span> Enviar avaliação</button>
+          <input data-rv-name placeholder="O seu nome" aria-label="O seu nome" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] mb-2" />
+          <textarea data-rv-comment rows="3" placeholder="O que achou do produto? (opcional)" aria-label="O que achou do produto? (opcional)" class="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-[16px] outline-none focus:border-[color:var(--brand)] resize-none mb-3"></textarea>
+          <button data-rv-submit class="w-full px-5 py-2.5 rounded-xl text-white font-bold text-sm inline-flex items-center justify-center gap-1" style="background:var(--brand)"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">send</span> Enviar avaliação</button>
+          <p data-rv-note role="status" class="hidden mt-3 text-sm text-neutral-600"></p>
         </div>
       </div>`;
   }
@@ -590,13 +598,24 @@ function mountReviews(
   section.querySelector<HTMLElement>("[data-rv-next]")?.addEventListener("click", () => rvList?.scrollBy({ left: scrollAmt(), behavior: "smooth" }));
 
   section.querySelector<HTMLElement>("[data-rv-submit]")?.addEventListener("click", async () => {
-    const author = (section.querySelector("[data-rv-name]") as HTMLInputElement).value;
-    const comment = (section.querySelector("[data-rv-comment]") as HTMLTextAreaElement).value;
-    const err = await submitReview(storeId, productId, { author, rating: picked, comment });
+    const nameEl = section.querySelector<HTMLInputElement>("[data-rv-name]");
+    const commentEl = section.querySelector<HTMLTextAreaElement>("[data-rv-comment]");
+    const err = await submitReview(storeId, productId, { author: nameEl?.value ?? "", rating: picked, comment: commentEl?.value ?? "" });
     if (err) { toast(err, "error"); return; }
-    toast("Obrigado pela sua avaliação!");
-    const fresh = await listProductReviews(productId);
-    const el = section.querySelector("[data-reviews-list]");
-    if (el) el.innerHTML = list(fresh);
+    // A avaliação entra por aprovar (`web/supabase/reviews.ts`): não aparece já
+    // na lista, e o visitante tem de saber porquê — senão parece que se perdeu.
+    toast(REVIEW_PENDING_MESSAGE);
+    if (nameEl) nameEl.value = "";
+    if (commentEl) commentEl.value = "";
+    picked = 0;
+    paint();
+    const note = section.querySelector<HTMLElement>("[data-rv-note]");
+    if (note) {
+      note.textContent = REVIEW_PENDING_MESSAGE;
+      note.classList.remove("hidden");
+    }
   });
 }
+
+/** O que o visitante lê depois de enviar uma avaliação (que entra por aprovar). */
+const REVIEW_PENDING_MESSAGE = "Obrigado! A sua avaliação aparece depois de aprovada pela loja.";

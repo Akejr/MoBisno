@@ -127,9 +127,9 @@ export function markIconTextButtons(scope: Element | null): void {
  * O documento de trabalho vem de `createHTMLDocument`, que **não tem contexto de
  * navegação**: as imagens do modelo não são pedidas outra vez, nada é
  * apresentado e nenhum `<script>` corre. Os blocos `<style>` dos modelos
- * (lumiere, foodmart, heroes, blocks, gallery, o menu mobile dos cabeçalhos)
- * sobrevivem intactos: o conteúdo de um `<style>` é texto cru, que o analisador
- * guarda e a serialização devolve sem escapar.
+ * (lumiere, tech essentials, heroes, blocks, gallery, o menu mobile dos
+ * cabeçalhos) sobrevivem intactos: o conteúdo de um `<style>` é texto cru, que o
+ * analisador guarda e a serialização devolve sem escapar.
  */
 export function markIconTextButtonsInHtml(html: string): string {
   const inert = document.implementation.createHTMLDocument("");

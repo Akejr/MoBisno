@@ -3,8 +3,16 @@
  * Analytics 4. Os IDs vivem em `custom.marketing`. Como a loja é renderizada
  * via innerHTML (os `<script>` não correm), os pixels são injetados
  * programaticamente. Cada pixel é carregado uma única vez por sessão de página.
+ *
+ * **«Em breve»** (`COMING_SOON.marketing`, `src/services/comingSoon.ts`):
+ * enquanto a bandeira estiver ligada, nenhum pixel é carregado — o Dashboard
+ * anuncia a funcionalidade como por lançar, e uma loja a enviar dados para a Meta
+ * ou para a Google com a funcionalidade «Em breve» seria dizer uma coisa e fazer
+ * outra. Os IDs já gravados ficam intactos e voltam a valer quando a bandeira
+ * for desligada.
  */
 import type { StoreCustomization } from "../templates/types.js";
+import { isComingSoon } from "../../src/services/comingSoon.js";
 
 interface FbqWindow extends Window { fbq?: (...args: unknown[]) => void; _fbqLoaded?: string; dataLayer?: unknown[]; gtag?: (...args: unknown[]) => void; _gaLoaded?: string; }
 const w = window as unknown as FbqWindow;
@@ -46,6 +54,7 @@ export type PixelEvent =
 
 /** Garante os pixels da loja carregados e dispara um evento. */
 export function trackPixel(custom: StoreCustomization | undefined, ev: PixelEvent): void {
+  if (isComingSoon("marketing")) return;
   const m = custom?.marketing;
   if (!m) return;
   const metaId = (m.metaPixelId || "").trim();

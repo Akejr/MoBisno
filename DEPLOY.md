@@ -33,7 +33,7 @@ git push -u origin main
    - `VITE_SUPABASE_ANON_KEY` = chave anon (pública)
 
    As variáveis usadas pelas funções serverless (`SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`, MoMenu, OpenAI) estão nas secções próprias, mais
+   `SUPABASE_SERVICE_ROLE_KEY`, OpenAI) estão nas secções próprias, mais
    abaixo. O resumo de todas está no fim deste documento.
 4. Deploy.
 
@@ -71,21 +71,33 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 > (Settings → Domains → Redirect) para ser instantâneo, sem carregar a app.
 
 ## 4. Supabase
+1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0024`.
+   Nenhuma é opcional, e a ordem conta.
 
-1. Aplicar as migrações por ordem no **SQL Editor**: `0001` … `0018`
-   (a `0001` cria também o bucket público `store-assets` e as políticas de
-   Storage; a `0007` muda o subdomínio para `.mobisno.store`; a `0008` cria
-   pagamentos; a `0009` o produto físico; a `0010` os pedidos de levantamento; a
-   `0011` adiciona `profiles.is_admin` e as políticas RLS de administração; a
-   `0012` a faturação de planos (expiração/carry-over); a `0013` os créditos de
-   SMS; a `0014` os códigos de desconto; a `0015` o stock de produtos; a `0016`
-   as avaliações de produtos; a `0017` os eventos de loja (analytics)).
+   | Migração | O que faz |
+   |---|---|
+   | `0001_init.sql` | Tabelas base, RLS, bucket público `store-assets` |
+   | `0002`–`0006` | Personalização, produtos, banners, assets |
+   | `0007_subdomain.sql` | Subdomínio das lojas |
+   | `0008_payments.sql` | `store_payments`, `orders`, `plan_payments` |
+   | `0009`–`0010` | Produto físico; pedidos de levantamento |
+   | `0011_admin.sql` | `profiles.is_admin` + políticas RLS de administração |
+   | `0012`–`0017` | Faturação, créditos de SMS, códigos de desconto, stock, avaliações, eventos de loja |
+   | `0018_trial.sql` e `0018_logo_purchases.sql` | **Duas com o número 0018** — aplicar as duas (histórico; a 0019 supera a primeira) |
+   | `0019_single_plan.sql` | Plano único, sem teste grátis |
+   | `0020_stores_per_plan.sql` | Preço por loja publicada (superada pela 0023) |
+   | `0021_orders_owner_delete.sql` | O Dono apaga referências expiradas |
+   | **`0022_security.sql`** | **Correções de segurança.** O utilizador deixa de poder tornar-se administrador ou dar-se subscrição; o Storage passa a ter isolamento por loja; o prefixo `modelo-` fica reservado; as avaliações entram por aprovar; os códigos de desconto deixam de ser listáveis e ganham validade e limite de usos; um levantamento não pode exceder o saldo |
+   | **`0023_single_plan_and_company_verification.sql`** | **Plano único de 10.000 Kz/30 dias** (saem as colunas de lugares pagos) e **verificação de empresa** para os pagamentos digitais: dados e documentos em `store_payments`, bucket privado `company-documents`, e o gatilho que liga `stores.digital_payments` quando o Administrador aprova |
+   | **`0024_wizapay_vero_and_whatsapp_orders.sql`** | **Pagamentos a sério.** O serviço e o código de estado que a Wiza devolveu (`orders`, `plan_payments`); a factura da empresa do Dono (`orders.invoice_*`, `store_payments.vero_org_id`/`vero_api_key` e as colunas derivadas `vero_key_set`/`vero_key_test`, que são as únicas que o navegador lê); `orders.notified_at`, que impede o mesmo aviso de venda duas vezes; a restrição `orders_net_within_amount` (o líquido nunca excede o montante nem é negativo); e a tabela **`whatsapp_orders`**, com inserção pública, onde cai quem toca em «Finalizar via WhatsApp» |
 
-   **Há duas migrações com o número 0018** — aplicar **as duas**:
-   `0018_trial.sql` (superada pela 0019; aplique-a na mesma, a ordem conta) e
-   `0019_single_plan.sql` (preço único, sem teste grátis, publicar exige subscrição)
-   e `0018_logo_purchases.sql` (tabela `logo_purchases`, sem a qual a compra de
-   logótipo por IA falha no servidor).
+   > Numa instalação feita antes desta versão faltam a 0022, a 0023 e a 0024.
+   > Sem a 0022, qualquer utilizador autenticado se promove a administrador
+   > (`update profiles set is_admin = true`). Sem a 0023, o painel de
+   > «Pagamentos» falha ao gravar a verificação de empresa. Sem a 0024, uma
+   > venda digital não grava a factura e o separador «Pagamentos» falha a ler
+   > as encomendas por WhatsApp.
+
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
    no SQL Editor, correr
    `update public.profiles set is_admin = true where email = 'o-seu-email@exemplo.com';`
@@ -151,89 +163,124 @@ sem ela não se pode pedir indexação dos subdomínios das lojas. Enquanto os a
 redirecionarem para `www`, todos os `canonical` apontam para URLs que
 redirecionam; ver `SEO.md` §7.1 para o alinhamento pendente em Domains.
 
-## Assistente de IA (olhinho do editor) e gerador de logótipos
+## Assistente de IA (o olhinho)
 
-O chat do assistente (`api/assistant.js`) e o gerador de logótipos
-(`api/logo.js`) guardam a chave da OpenAI **apenas no servidor**. Configura no
-Vercel (Project → Settings → Environment Variables):
+`api/assistant.js` guarda a chave da OpenAI **apenas no servidor**. Variáveis
+na Vercel → Settings → Environment Variables:
 
-- `OPENAI_API_KEY` — a chave secreta da OpenAI (**obrigatória para os dois**).
-- `OPENAI_MODEL` — opcional; por omissão `gpt-5.4-mini` (texto/assistente).
-- `OPENAI_IMAGE_MODEL` — opcional; por omissão `gpt-image-1` (logótipos).
-- `OPENAI_IMAGE_QUALITY` — opcional; por omissão `medium` (logótipos).
+- `OPENAI_API_KEY` — a chave secreta da OpenAI (**obrigatória**).
+- `OPENAI_MODEL` — opcional; por omissão `gpt-5.4-mini`.
 
-Sem `OPENAI_API_KEY` as duas funções respondem **500** com mensagem explícita —
-o assistente e a criação de logótipos ficam indisponíveis, o resto da app
-funciona.
+Sem `OPENAI_API_KEY` o endpoint responde **500** com mensagem explícita — não
+falha em silêncio.
 
-`api/assistant.js` aceita cinco *scopes* no corpo do pedido (`editor`, `site`,
-`seo`, `seotitle`, `logo`); `api/logo.js` pede cinco propostas em paralelo e
-devolve PNG com fundo transparente. Nem o scope nem o caminho do endpoint são
-verificados pelo `tsc` — são chamadas HTTP em execução (ver `SEO.md` §7.3).
+O endpoint não exige sessão (o visitante da página inicial também pergunta),
+por isso tem duas guardas: **origem** (só `mobisno.store`, `localhost` e os URL
+de pré-visualização deste projeto, lidos de `VERCEL_URL` /
+`VERCEL_BRANCH_URL`) e **limite de pedidos** (30 por IP em 10 minutos, por
+instância). O detalhe de um erro da OpenAI fica no registo do servidor e não na
+resposta.
 
-Nunca coloques a chave no frontend nem a faças commit. Em desenvolvimento local,
-estas funções só correm com `vercel dev` (não com o `vite` puro).
+**Os factos que o assistente usa não estão no servidor.** Vêm no pedido, em
+`context`, montados por `web/lib/assistantContext.ts` a partir dos módulos de
+domínio (`src/services/plans.ts`, `comingSoon.ts`, `paymentVerification.ts`…).
+É o que impede o prompt de envelhecer: ver `.kiro/steering/assistente.md`.
 
-### Compra de logótipo (5.000 Kz)
+**O gerador de logótipos por IA foi removido** do produto. `api/logo.js`,
+`web/lib/logoApi.ts`, `logoCompose.ts` e `logoPurchase.ts` já não existem, e
+não há `OPENAI_IMAGE_MODEL` nem `OPENAI_IMAGE_QUALITY`. A tabela
+`logo_purchases` fica como histórico das compras feitas enquanto existiu.
 
-Requer a migração `0018_logo_purchases.sql` e a `MOMENU_PLATFORM_API_KEY` (a
-compra é receita da plataforma). O ficheiro é carregado para o Storage **antes**
-do pagamento; ao confirmar, `fulfillLogo` acrescenta o URL a
-`stores.customization.logos`.
+## Pagamentos (Multicaixa Express + Referência Bancária)
 
-## Pagamentos (MoMenu — Multicaixa Express + Referência Bancária)
+### Quem faz o quê
 
-O checkout online e os pagamentos de planos usam a API MoMenu através de funções
-serverless (`api/payment.js`, `api/payment-status.js`, `api/webhook.js`). A chave
-MoMenu de cada loja **vive só no servidor** (tabela `store_payments`, lida pela
-service role); nunca chega ao frontend.
+| Peça | Papel |
+|---|---|
+| **Wiza** (WizaPay) | Cobra o cliente. É ela que mostra ao comprador a escolha entre Multicaixa Express e Referência Bancária, no **checkout alojado** dela |
+| **Vero** | Emite a Fatura-Recibo, certificada pela AGT. As credenciais são **da empresa do Dono**, não da MôBisno: quem vende é ele |
+| **Resend** | Avisa o Dono de cada venda e envia o recibo ao comprador |
 
-### Variáveis de ambiente (Vercel → Settings → Environment Variables)
+`api/_provider.js` é o único ficheiro que o resto do código conhece;
+`api/_wizapay.js`, `api/_vero.js` e `api/_resend.js` são os clientes. Sem as
+variáveis de ambiente, `/api/payment`, `/api/payment-status` e
+`/api/payment-webhook` respondem **503 `PAYMENTS_UNAVAILABLE`** sem tocar na
+base de dados — e **todas as lojas continuam a vender por WhatsApp**, que não
+depende de fornecedor nenhum.
 
-- `SUPABASE_URL` — URL do projeto Supabase (igual ao `VITE_SUPABASE_URL`).
-- `SUPABASE_SERVICE_ROLE_KEY` — **service role** do Supabase (secreta; ignora RLS
-  para ler chaves de loja e gravar/atualizar encomendas). Nunca no frontend.
-- `MOMENU_PLATFORM_API_KEY` — chave MoMenu **da plataforma**, usada para receber
-  os pagamentos de planos (a receita dos planos é tua, não aparece em nenhum
-  dashboard de comerciante).
-- `MOMENU_BASE_URL` — opcional; por omissão `https://api.momenu.online`.
+### O fluxo de uma venda
 
-### Migração
+1. O checkout envia os artigos. **O servidor calcula o preço** a partir da base
+   de dados (`api/_payments.js`): stock verificado, código de desconto validado
+   por RPC, taxa de entrega recalculada, e 409 `PRICE_CHANGED` se não bater com
+   o total que o comprador viu. A encomenda é gravada **antes** de se cobrar.
+2. `POST /v1/hosts/payments` cria a cobrança. A Wiza responde **303 sem corpo**:
+   o `id` vem no cabeçalho `Location`, por isso o redireccionamento **não pode
+   ser seguido** (sem `id` não há forma de confirmar o pagamento).
+3. O comprador é levado ao checkout alojado da Wiza, paga, e volta a
+   `/checkout?mb_pay=…`. **A volta dele não confirma nada.**
+4. `GET /v1/hosts/payments/{id}` é a **única fonte de verdade**. Responde durante
+   cerca de **cinco minutos**; depois devolve 404, pago ou não. O Express
+   resolve-se dentro da janela; uma Referência paga horas depois cai fora dela,
+   e aí a única pista é o callback.
+5. Confirmada a venda, `api/_payments.js` grava `fee` e `net` (comissão de
+   `src/services/fees.ts`, **calculada do nosso lado**, nunca a partir do que o
+   fornecedor diga) e `api/_fulfil.js` emite a factura e envia os emails.
+   **Uma falha do Vero ou do Resend nunca cancela uma venda**: fica em
+   `orders.invoice_status` e é retentada na verificação de estado seguinte.
 
-Aplicar `supabase/migrations/0008_payments.sql` no SQL Editor.
+### A comissão de 5 %
 
-### Por comerciante (no painel MôBisno → Pagamentos)
+Vive em `src/services/fees.ts`, espelhada em `api/_shared.js`
+(`tests/fees.test.ts` compara as duas) e escrita em lado nenhum à mão. O Dono
+recebe o montante menos a comissão; é esse o «Disponível para levantar». As
+vendas por **WhatsApp não têm comissão**: esse dinheiro nunca passa pela
+Plataforma.
 
-1. Ativar "Pagamentos online" (não é preciso chave — a plataforma usa a sua
-   `MOMENU_PLATFORM_API_KEY` única do Vercel).
-2. Vincular a **conta bancária** (Banco, Beneficiário, IBAN) onde o comerciante
-   recebe. É obrigatória uma conta **verificada na MoMenu** para receber (senão a
-   API recusa com `BANK_ACCOUNT_NOT_VERIFIED`). Com `instantWithdraw` (sempre
-   ativo), o valor menos 2% é transferido automaticamente para essa conta.
+### Configurar
 
-### Webhook (Referência Bancária)
+1. Variáveis `WIPAY_*` na Vercel (tabela abaixo). `WIPAY_WEBHOOK_SECRET` é um
+   segredo inventado por si — 32 caracteres aleatórios servem.
+2. No painel da Wiza, o URL de notificação:
+   `https://<domínio>/api/payment-webhook?k=<WIPAY_WEBHOOK_SECRET>`
+3. `RESEND_API_KEY` e o domínio do remetente verificado no Resend (DNS).
+4. Cada Dono liga a **factura dele** no Dashboard → «Pagamentos» → «Fatura
+   automática (Vero)», com o Org ID e a chave `vero_live_sk_…` da empresa dele.
+   Sem isso, a loja vende e recebe como sempre; só não emite factura
+   (`invoice_status = 'skipped'`).
 
-Cada comerciante (e a conta da plataforma para os planos) deve configurar, na sua
-conta MoMenu (Definições → Desenvolvedores → Webhook), o URL:
+> **O webhook exige três provas** (`api/payment-webhook.js`): o `?k=` igual ao
+> segredo (comparado com `timingSafeEqual`), o `id` do pagamento, e o montante
+> igual ao da encomenda. A assinatura HMAC documentada pela Wiza não é
+> reproduzível e **não** é usada. O endpoint responde sempre 200, para a Wiza
+> não reentrar em ciclo; 500 fica reservado a falhas internas retentáveis.
 
-```
-https://mobisno.store/api/webhook
-```
+> `api/webhook.js` foi **apagado**. Aceitava qualquer `POST` com um
+> `merchantTransactionId` e marcava a encomenda como paga: bastava conhecer o id
+> que o próprio comprador recebia. Se existir um webhook a apontar para
+> `/api/webhook` no painel de algum fornecedor, remova-o.
 
-O webhook é mapeado por `merchantTransactionId`. Como fallback (entrega
-fire-and-forget, sem retentativas), o checkout tem o botão "Já paguei — verificar"
-que chama `/api/payment-status`.
+### Quem pode receber pagamentos digitais
 
-### Domínios autorizados na MoMenu
+Não há interruptor. A coluna `stores.digital_payments` é ligada **apenas** pelo
+gatilho da migração 0023, quando o Administrador aprova a verificação de empresa
+em `/adminPainel/aprovacoes`. O Dono envia, no Dashboard → «Pagamentos», o nome
+e o NIF da empresa, o banco, o titular e o IBAN, e dois documentos (Matrícula e
+Certidão) para o bucket **privado** `company-documents`. O Administrador abre-os
+por URL assinado (5 minutos) e aprova ou rejeita com motivo.
 
-A API valida a origem (`DOMAIN_NOT_ALLOWED`). Como as chamadas partem das funções
-serverless (servidor) e não do browser, registar/autorizar o domínio da app na
-conta MoMenu conforme exigido.
+Uma loja **sem** pagamentos digitais não vê saldo nem levantamentos: vê as
+**«Encomendas por WhatsApp»** — quem tocou em «Finalizar via WhatsApp» e o que
+tinha no carrinho (tabela `whatsapp_orders`, migração 0024).
 
-### Testes (QA)
+### Subscrição do plano
 
-Abrir o checkout ou o painel com `?qa=1` no URL ativa o modo de testes
-(`x-env-qa: true`); nenhum valor real é cobrado (MCX simula `success`).
+Paga-se pelo mesmo caminho (`api/payment.js` com `kind: "plan"`), e o Dono
+volta ao separador «Plano», que confirma o pagamento. A equipa MôBisno também
+pode ativar à mão em `/adminPainel/contas` → «Ativar», escolhendo 1, 3, 6 ou 12
+meses (cada mês são 30 dias, somados ao fim do período em curso). A confirmação
+é idempotente: um pagamento de plano soma 30 dias uma vez só, graças a
+`plan_payments.activated_at`.
 
 ## Resumo das variáveis de ambiente
 
@@ -246,23 +293,66 @@ Todas na Vercel → Settings → Environment Variables (Production + Preview). E
 | `VITE_SUPABASE_ANON_KEY` | `web/supabase/client.ts` (build) | sim | — |
 | `SUPABASE_URL` | `api/_shared.js` | sim | cai para `VITE_SUPABASE_URL` |
 | `SUPABASE_SERVICE_ROLE_KEY` | `api/_shared.js` | sim (secreta) | — |
-| `MOMENU_PLATFORM_API_KEY` | `api/_shared.js` | para planos, SMS e logótipos | `""` |
-| `MOMENU_BASE_URL` | `api/_shared.js` | não | `https://api.momenu.online` |
-| `OPENAI_API_KEY` | `api/assistant.js`, `api/logo.js` | para assistente e logótipos | — |
+| `WIPAY_CLIENT_ID` | `api/_wizapay.js` | para cobrar | — |
+| `WIPAY_CLIENT_SECRET` | `api/_wizapay.js` | para cobrar (secreta) | — |
+| `WIPAY_WEBHOOK_SECRET` | `api/payment-webhook.js` | para cobrar (secreta) | — |
+| `WIPAY_BASE_URL` | `api/_wizapay.js` | não | `https://api.wipay.ao` |
+| `RESEND_API_KEY` | `api/_resend.js` | para avisar por email (secreta) | — |
+| `RESEND_FROM` | `api/_resend.js` | não | `MôBisno <vendas@mobisno.store>` |
+| `VERO_BASE_URL` | `api/_vero.js` | não | a API pública do Vero |
+| `OPENAI_API_KEY` | `api/assistant.js` | para o assistente | — |
 | `OPENAI_MODEL` | `api/assistant.js` | não | `gpt-5.4-mini` |
-| `OPENAI_IMAGE_MODEL` | `api/logo.js` | não | `gpt-image-1` |
-| `OPENAI_IMAGE_QUALITY` | `api/logo.js` | não | `medium` |
+| `GOOGLE_SITE_VERIFICATION` | `api/_seo.js` (`siteVerificationTags`) | não | `""` — só se verificar o Search Console por prefixo de URL em vez de DNS |
+
+`VERCEL_URL`, `VERCEL_BRANCH_URL` e `VERCEL_PROJECT_PRODUCTION_URL` são postas
+pela própria Vercel e usadas por `api/assistant.js` para reconhecer as
+pré-visualizações deste projeto. Não as configure à mão.
+
+As credenciais do **Vero** não estão aqui de propósito: são de cada empresa,
+não da Plataforma, e o Dono escreve-as no painel dele. Ficam em
+`store_payments`, que não tem leitura pública — e o navegador só lê as colunas
+derivadas `vero_key_set`/`vero_key_test`, nunca a chave.
 
 ## Checklist de lançamento
+- [ ] Migrações `0001` … `0024` (as duas `0018` incluídas). **A 0022, a 0023 e
+      a 0024 são obrigatórias**: sem a 0022, qualquer utilizador se promove a
+      administrador; sem a 0024, uma venda digital não grava a factura.
+- [ ] Bucket `store-assets` público (criado pela `0001`) e `company-documents`
+      **privado** (criado pela `0023`).
+- [ ] Variáveis de ambiente da tabela acima, incluindo as `WIPAY_*` e as
+      `RESEND_*`.
+- [ ] URL de notificação na Wiza:
+      `https://<domínio>/api/payment-webhook?k=<WIPAY_WEBHOOK_SECRET>`.
+- [ ] Domínio do remetente verificado no Resend (registos DNS).
+- [ ] Domínios e wildcards (`*.sualoja.digital` é essencial) com SSL emitido, e
+      o **domínio principal escolhido** na Vercel (apex ou `www.`) de forma
+      coerente — ver `SEO.md` §7.1.
+- [ ] Uma conta com `is_admin = true`. A palavra-passe é escolhida na criação,
+      em Authentication → Users; `supabase/scripts/create_admin.sql` tem
+      marcadores, não credenciais.
+- [ ] Authentication → URL Configuration: **Site URL** e **Redirect URLs** com
+      `/login` incluído (`https://www.mobisno.store/login`,
+      `https://mobisno.store/login`, `http://localhost:5173/login`). Sem isto,
+      o link de «Esqueci-me da palavra-passe» não pede a palavra-passe nova.
+- [ ] Nenhum webhook de fornecedor a apontar para `/api/webhook` (o endpoint
+      foi apagado).
+- [ ] `npm run build`, `npm run web:build` e `npx vitest run` verdes. O
+      `web:build` corre o `ssr:build`, que regenera `api/_ssr/render.mjs` — o
+      pacote com que o servidor desenha a loja.
+- [ ] `curl` à raiz de uma loja: o `<title>` traz o nome da loja, há
+      `href="/produto/..."` no HTML e o `<div id="app">` traz `data-ssr="…"`
+      (é o que faz a SPA adotar a página em vez de a redesenhar).
+- [ ] Search Console: propriedade de **Domínio** para `sualoja.digital` e para
+      `mobisno.store`, verificadas por **DNS (TXT)**, e os sitemaps submetidos
+      — ver `SEO.md` §8.4.
 
-- [ ] Migrações `0001` … `0017` + **`0018_trial.sql`, `0018_logo_purchases.sql` e `0019_single_plan.sql`**.
-- [ ] Bucket `store-assets` público (criado pela `0001`).
-- [ ] Variáveis de ambiente da tabela acima.
-- [ ] Domínios e wildcards (`*.sualoja.digital` é essencial) com SSL emitido.
-- [ ] Uma conta com `is_admin = true`.
-- [ ] Authentication → Site URL e Redirect URLs.
-- [ ] Webhook MoMenu para `https://mobisno.store/api/webhook`.
-- [ ] `curl` à raiz de uma loja: o `<title>` traz o nome da loja (prerender a
-      correr) e há `href="/produto/..."` no HTML — ver `SEO.md` §6.
-- [ ] Sitemap `https://www.sualoja.digital/sitemap.xml` submetido no Search
-      Console, com propriedade de Domínio verificada por DNS.
+## Depois do lançamento, antes de abrir pagamentos digitais
+- [ ] Uma compra de ponta a ponta numa loja aprovada: Multicaixa Express (paga
+      dentro da janela de 5 minutos) **e** Referência Bancária (confirmada só
+      pelo callback, horas depois).
+- [ ] A factura chegou ao comprador e o aviso de venda ao Dono. Confirmar que
+      a factura sai em nome da **empresa dele**, não da MôBisno.
+- [ ] `orders.fee` e `orders.net` com a comissão certa, e um levantamento.
+- [ ] A primeira factura emitida com chave `vero_live_sk_…` (uma
+      `vero_test_sk_…` não chega à AGT — o painel avisa, mas vale confirmar).
+

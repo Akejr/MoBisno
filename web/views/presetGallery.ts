@@ -10,7 +10,8 @@ import { render, $, go, esc, toast } from "../lib/dom.js";
 import { appState, currentOwnerId } from "../composition.js";
 import { listTemplateModels, applyModelToStore, applyRawToStore, defaultFactoryModels, factoryModelNameKeys, type TemplateModel } from "../supabase/models.js";
 import { loadStorefront } from "../lib/storeCache.js";
-import { storePreviewDoc } from "../lib/storePreviewDoc.js";
+import { storePreviewDoc, loadPreviewDoc } from "../lib/storePreviewDoc.js";
+import { safeCssColor } from "../../src/services/storeCustom.js";
 import { getTemplate } from "../templates/registry.js";
 import { DEFAULT_LOGO, type StoreRenderView, type StoreProductView } from "../../src/storefront/storeRenderer.js";
 import type { StoreCustomization } from "../templates/types.js";
@@ -151,8 +152,10 @@ async function loadItems(): Promise<GalleryItem[]> {
 
 /** Aplica as variáveis de cor/tema ao contentor do preview. */
 function applyVars(el: HTMLElement, c: StoreCustomization): void {
-  el.style.setProperty("--brand", c.colors?.primary ?? ACCENT);
-  const ink = c.colors?.text;
+  // As cores vêm do JSON da loja-modelo: uma variável CSS aceita quase tudo
+  // (até `url(…)`), por isso só entra o que é cor.
+  el.style.setProperty("--brand", safeCssColor(c.colors?.primary, ACCENT));
+  const ink = safeCssColor(c.colors?.text, "");
   if (ink) { el.setAttribute("data-ink", ""); el.style.setProperty("--ink", ink); }
   const style = c.theme?.style;
   if (style) {
@@ -188,7 +191,8 @@ function storeIframe(item: GalleryItem, cssText: string): HTMLIFrameElement {
   const iframe = document.createElement("iframe");
   iframe.style.cssText = `border:0;background:#fff;${cssText}`;
   iframe.setAttribute("title", "Pré-visualização da loja");
-  iframe.srcdoc = buildStoreDoc(item);
+  // `sandbox` sem scripts, posto antes do `srcdoc` (ver `storePreviewDoc.ts`).
+  loadPreviewDoc(iframe, buildStoreDoc(item));
   return iframe;
 }
 

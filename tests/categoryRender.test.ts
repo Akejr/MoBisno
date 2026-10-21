@@ -19,8 +19,8 @@
  */
 import { describe, it, expect, beforeAll } from "vitest";
 
-/** Modelos registados com página de categoria própria. */
-const MODELOS = ["galeria", "desportivo", "beauty", "lumiere"] as const;
+/** Modelos registados com página de categoria própria, pelo nome do ficheiro. */
+const MODELOS = ["galeria", "desportivo", "beauty", "lumiere", "techEssentials"] as const;
 
 interface Template {
   renderCategory?: (view: unknown, category: string, custom?: unknown) => string;
@@ -42,10 +42,16 @@ const VIEW = {
   ],
 };
 
-beforeAll(() => {
+beforeAll(async () => {
   const g = globalThis as unknown as { location?: unknown };
   if (!g.location) g.location = { hostname: "localhost", pathname: "/", search: "", origin: "http://localhost" };
-});
+  // Os módulos carregam-se uma vez aqui, com tempo: o primeiro import transforma
+  // a árvore de `web/`, e dentro de um teste (5 s) numa máquina ocupada não chega.
+  for (const modelo of MODELOS) {
+    const especificador = `../web/templates/${modelo}.js`;
+    await import(especificador);
+  }
+}, 120_000);
 
 /** HTML da página de listagem de um modelo, para uma categoria. */
 async function listagem(modelo: string, categoria: string): Promise<string> {

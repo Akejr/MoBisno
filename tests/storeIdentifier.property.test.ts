@@ -8,6 +8,7 @@ import {
   DEFAULT_RESERVED_IDENTIFIERS,
 } from "../src/services/identifierService.js";
 import { createInMemoryStoreRepository } from "../src/services/storeRepository.js";
+import { MODEL_STORE_PREFIX } from "../src/services/domains.js";
 import {
   createStoreService,
   type CreateStoreInput,
@@ -77,6 +78,7 @@ const scenarioArb = fc
       validIdentifierArb, // fresco (pode ou não colidir/ser reservado)
       fc.constantFrom(...DEFAULT_RESERVED_IDENTIFIERS), // reservado
       invalidIdentifierArb, // formato inválido
+      validIdentifierArb.map((id) => `${MODEL_STORE_PREFIX}${id}`), // prefixo das lojas-modelo
     ];
     if (seedIds.length > 0) {
       candidateKinds.push(fc.constantFrom(...seedIds)); // colisão garantida
@@ -131,8 +133,11 @@ describe("StoreService — unicidade e reserva de identificador (propriedade)", 
         const key = candidate.trim().toLowerCase();
         const validFormat = isValidIdentifierFormat(candidate.trim());
         const isReserved = reservedSet.has(key);
+        // O prefixo das lojas-modelo é da Plataforma (também imposto pela base
+        // de dados, gatilho `stores_guard` da migração 0022).
+        const isModelPrefix = key.startsWith(MODEL_STORE_PREFIX);
         const isTaken = await repository.isIdentifierTaken(candidate);
-        const shouldSucceed = validFormat && !isReserved && !isTaken;
+        const shouldSucceed = validFormat && !isReserved && !isModelPrefix && !isTaken;
 
         const countBefore = (await repository.listByOwner(owner.id)).length;
         const result = await service.createStore(owner, input);

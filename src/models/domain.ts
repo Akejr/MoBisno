@@ -52,10 +52,20 @@ export interface Store {
   templateId: string;
   /** Identificador: 2–63 chars, `[a-z0-9-]`, sem hífen inicial/final/duplo. */
   identifier: string;
-  /** Subdomínio composto: `${identifier}.mobisno.com`. */
+  /**
+   * Subdomínio gravado: `${identifier}.mobisno.store` (restrição da base de
+   * dados, migração 0007). O endereço público das lojas é
+   * `${identifier}.sualoja.digital` — ver `src/services/domains.ts`.
+   */
   subdomain: string;
   state: StoreState;
   createdAt: string;
+  /**
+   * A loja foi aprovada para pagamentos digitais (Multicaixa Express e
+   * Referência Bancária) — coluna `stores.digital_payments`, ligada só pela
+   * aprovação da verificação de empresa (migração 0023). Ausente = não.
+   */
+  digitalPayments?: boolean;
 }
 
 /**

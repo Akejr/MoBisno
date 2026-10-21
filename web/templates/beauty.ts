@@ -24,6 +24,7 @@ import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js"
 import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
+import type { BlockStyle } from "./blocks.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -37,10 +38,37 @@ const DEFAULT_BRAND = "#b71656";
 const DEFAULT_PHONE = "+244 900 000 000";
 const DEFAULT_SUBTITLE = "Descubra fragrâncias exclusivas que capturam a sofisticação moderna. Agora em Angola.";
 const DEFAULT_CTA = "Comprar agora";
+
+/**
+ * Desenho das secções acrescentadas, na linguagem deste modelo
+ * (`MODELO-GUIA.md` §9.3): Noto Serif nos títulos com a cor de marca, Manrope
+ * claro no corpo em `#524345`, e superfícies tonais **sem moldura** — este
+ * modelo constrói profundidade por camadas de cor, não por linhas.
+ */
+const BLOCK_STYLE: BlockStyle = {
+  heading: "tracking-tight",
+  headingStyle: `${SERIF};color:var(--brand,${DEFAULT_BRAND})`,
+  body: "font-light leading-relaxed",
+  bodyStyle: "color:#524345",
+  surface: "",
+  surfaceStyle: "background:#f6f3f2",
+  radius: "rounded-xl",
+  band: "",
+  bandStyle: "background:#f6f3f2",
+};
+
 /** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
 let mbLogoScale: number | undefined;
 /** Disposição dos produtos escolhida (definida em menuFor a cada render). */
 let mbGridVariant: ProductVariant | undefined;
+
+/**
+ * Aspeto do campo de pesquisa **neste** modelo: superfície tonal rosa **sem
+ * moldura** e cantos de 12px, como o seletor de quantidade e os chips de
+ * variação. Este modelo constrói profundidade por camadas de cor, não por
+ * linhas — uma moldura de 1px aqui denunciava-se logo.
+ */
+const SEARCH_VARS = "--mb-search-radius:12px;--mb-search-h:42px;--mb-search-bg:#f0dee3;--mb-search-border:transparent;--mb-search-ink:#1c1b1b;--mb-search-ph:rgba(104,91,95,.75);--mb-search-font:'Manrope',sans-serif";
 
 /** Aspeto do cartão de produto (omissão do modelo: alto 4:5). */
 function cardAspect(): string {
@@ -107,15 +135,15 @@ function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: Store
       </div>`
     : "";
   return `
-    <nav class="sticky top-0 w-full z-50" style="background:rgba(252,249,248,.72);backdrop-filter:blur(20px)">
+    <nav class="sticky top-0 w-full z-50" style="background:rgba(252,249,248,.72);backdrop-filter:blur(20px);${SEARCH_VARS}">
       ${mnav.head}
       <div class="${CONTAINER} flex justify-between items-center gap-3 py-4">
         <div class="flex items-center gap-1 min-w-0">
           ${mnav.button}
           <a href="${esc(storeHomeHref(view))}" data-edit-logo class="shrink-0">${brandHtml(view)}</a>
         </div>
-        <div class="hidden lg:flex items-center gap-8">${menu}${categoriesMenu}</div>
-        <div class="flex items-center gap-4 text-[#1c1b1b] shrink-0">
+        <div data-search-collapse class="hidden lg:flex items-center gap-8">${menu}${categoriesMenu}</div>
+        <div data-search-host class="flex items-center gap-4 text-[#1c1b1b] shrink-0 min-w-0">
           <button type="button" data-search-btn class="hover:opacity-70 transition-opacity p-1"><span class="material-symbols-outlined">search</span></button>
           <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex hover:opacity-70 transition-opacity p-1">
             <span class="material-symbols-outlined">shopping_bag</span>
@@ -257,7 +285,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
       </div>
     </section>
 
-    ${blocksHtml(custom, { container: CONTAINER, brand: `var(--brand,${DEFAULT_BRAND})` })}
+    ${blocksHtml(custom, { container: CONTAINER, brand: `var(--brand,${DEFAULT_BRAND})`, style: BLOCK_STYLE })}
 
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
@@ -400,6 +428,16 @@ export const beautyTemplate: StoreTemplate = {
   previewUrl: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=600",
   ready: true,
   defaultBrand: DEFAULT_BRAND,
+  /**
+   * Sem secções nativas. As variantes escolhidas são as de superfície tonal, a
+   * par das camadas alabastro/rosa deste modelo — que não usa molduras. Fundos:
+   * as duas camadas tonais da página (creme e areia).
+   */
+  sections: {
+    variants: { info: "cartao", text: "centrado", testimonials: "cards", location: "cartao" },
+    style: BLOCK_STYLE,
+    backgrounds: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
+  },
   render,
   renderProduct,
   renderCategory,

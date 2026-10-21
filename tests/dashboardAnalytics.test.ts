@@ -6,7 +6,8 @@
  * zeros que quem acaba de criar a loja lê como avaria do painel, não como «não
  * há dados». A reconstrução trouxe eixo com rótulos, dica por dia, dia de maior
  * tráfego destacado, barras de proporção nos produtos mais vistos e um estado
- * vazio com os passos que faltam.
+ * vazio com os passos que faltam. Depois entrou o funil de compra (visitas,
+ * produtos vistos, carrinho e encomendas por WhatsApp), com os eventos novos.
  *
  * Duas propriedades que só um teste protege, porque nada falha sem elas:
  *
@@ -18,9 +19,9 @@
  *    painel resolve para o que estiver no `:root` e o gráfico sai de outra cor
  *    conforme a loja escolhida no seletor.
  *
- * As asserções são sobre o **texto-fonte**: `web/views/dashboard.ts` depende do
- * DOM e `tests/` compila com `lib: ["ES2022"]`, sem DOM, por isso o módulo não
- * pode ser importado. É o mesmo padrão `readFileSync` de
+ * As asserções são sobre o **texto-fonte**: `web/views/dashboard/analises.ts`
+ * depende do DOM e `tests/` compila com `lib: ["ES2022"]`, sem DOM, por isso o
+ * módulo não pode ser importado. É o mesmo padrão `readFileSync` de
  * `tests/platformChrome.test.ts` e de `tests/comingSoon.test.ts`.
  */
 import { describe, it, expect } from "vitest";
@@ -31,23 +32,32 @@ const ROOT = join(__dirname, "..");
 const ler = (p: string): string => readFileSync(join(ROOT, p), "utf8");
 
 const DASHBOARD = ler("web/views/dashboard.ts");
+const ANALISES = ler("web/views/dashboard/analises.ts");
+const MARKUP = ler("web/views/dashboard/markup.ts");
 const ANALYTICS = ler("web/supabase/analytics.ts");
 const CONTEXT = ler("web/lib/assistantContext.ts");
 
-/** Corpo de `renderAnalises`, do nome dela até ao `}` da mesma indentação. */
+/** Corpo de `renderAnalises`, do nome dela até ao `}` da coluna 0. */
 function analises(): string {
-  const inicio = "async function renderAnalises(): Promise<void> {";
-  const i = DASHBOARD.indexOf(inicio);
-  expect(i, "renderAnalises não encontrada em web/views/dashboard.ts").toBeGreaterThan(-1);
-  // O fecho é o `}` a duas colunas (a função é aninhada em `renderDashboard`).
+  const inicio = "export async function renderAnalises(ctx: DashCtx): Promise<void> {";
+  const i = ANALISES.indexOf(inicio);
+  expect(i, "renderAnalises não encontrada em web/views/dashboard/analises.ts").toBeGreaterThan(-1);
   // A busca é por expressão regular para o teste não depender de o ficheiro
   // estar gravado com LF ou com CRLF.
-  const fim = /\r?\n {2}\}\r?\n/.exec(DASHBOARD.slice(i));
+  const fim = /\r?\n\}\r?\n/.exec(ANALISES.slice(i));
   expect(fim, "fim de renderAnalises não encontrado").not.toBeNull();
-  return DASHBOARD.slice(i, i + fim!.index);
+  return ANALISES.slice(i, i + fim!.index);
 }
 
 const SECCAO = analises();
+
+describe("O separador é desenhado pelo seu ficheiro", () => {
+  it("a moldura despacha «analises» para renderAnalises", () => {
+    expect(DASHBOARD).toContain('import { renderAnalises } from "./dashboard/analises.js";');
+    expect(DASHBOARD).toContain("analises: renderAnalises,");
+    expect(DASHBOARD).toContain('analises: "analises",');
+  });
+});
 
 describe("Gráfico de visitas — eixo com rótulos e valor ao passar o rato", () => {
   it("desenha linha e área em SVG, sem biblioteca de gráficos", () => {
@@ -71,11 +81,12 @@ describe("Gráfico de visitas — eixo com rótulos e valor ao passar o rato", (
     expect(SECCAO).toContain("(dias - 1 - i) % 2 === 0");
   });
 
-  it("cada dia tem uma dica com a data e o número de visitas", () => {
+  it("cada dia tem uma dica com a data, as visitas e as encomendas por WhatsApp", () => {
     expect(SECCAO).toContain('id="ana-tip"');
     expect(SECCAO).toMatch(/data-day="\$\{i\}"/);
     expect(SECCAO).toContain('addEventListener("pointerenter", mostrar)');
     expect(SECCAO).toMatch(/\$\{d\.visits\} visita\(s\)/);
+    expect(SECCAO).toMatch(/\$\{d\.whatsapp\} encomenda\(s\) por WhatsApp/);
     // O `title` cobre o intervalo entre o primeiro pixel e o JavaScript ligar,
     // e é o que um leitor de ecrã anuncia.
     expect(SECCAO).toMatch(/title="\$\{esc\(rotulo\)\}"/);
@@ -100,6 +111,13 @@ describe("Números com contexto — variação só onde os dados a permitem", ()
     expect(SECCAO).toContain('statCard(0, "group", "Visitas (7 dias)", last7, deltaPill(last7, prev7)');
   });
 
+  it("as encomendas por WhatsApp também comparam 7 dias com 7, pela série diária", () => {
+    // A série diária traz as encomendas por WhatsApp: é o que permite a variação.
+    expect(ANALYTICS).toContain("daily: { date: string; visits: number; whatsapp: number }[]");
+    expect(SECCAO).toContain("const wLast7 = a.daily.slice(-7).reduce((s, d) => s + d.whatsapp, 0);");
+    expect(SECCAO).toContain('statCard(3, "chat", "Encomendas por WhatsApp (7 dias)", wLast7, deltaPill(wLast7, wPrev7, "sem encomendas", "primeiras encomendas")');
+  });
+
   it("a série tem 14 dias, o que é o que permite comparar 7 com 7", () => {
     // Se a série encurtar, `prev7` deixa de ser um período comparável.
     expect(ANALYTICS).toContain("for (let i = 13; i >= 0; i--)");
@@ -119,6 +137,26 @@ describe("Números com contexto — variação só onde os dados a permitem", ()
     // há período anterior com que comparar.
     expect(ANALYTICS).not.toMatch(/dailyViews|viewsDaily/);
     expect(SECCAO).toMatch(/statCard\(2, "visibility", "Produtos vistos \(7 dias\)", a\.views7, ""/);
+  });
+});
+
+describe("Funil de compra — os eventos novos chegam ao ecrã", () => {
+  it("o funil dos 30 dias usa visitas, produtos vistos, carrinho e WhatsApp", () => {
+    expect(SECCAO).toContain("funnelHtml({ visits: a.visits30, views: a.views30, carts: a.carts30, whatsapp: a.whatsapp30 })");
+    for (const rotulo of ["Visitas", "Produtos vistos", "Adições ao carrinho", "Encomendas por WhatsApp"]) {
+      expect(MARKUP, `passo do funil ausente: ${rotulo}`).toContain(`label: "${rotulo}"`);
+    }
+  });
+
+  it("os checkouts abertos aparecem à parte, e não como passo do funil", () => {
+    // Uma encomenda por WhatsApp pode sair do produto ou do carrinho sem passar
+    // pelo checkout: um passo que se pode saltar não é um passo.
+    expect(SECCAO).toContain("Checkouts abertos (30 dias):");
+    expect(SECCAO).toContain("${a.checkouts30}");
+  });
+
+  it("o mesmo desenho do funil serve o Início e as Análises", () => {
+    expect(ler("web/views/dashboard/inicio.ts")).toContain("funnelHtml({ visits: analytics.visits30, views: analytics.views30, carts: analytics.carts30, whatsapp: analytics.whatsapp30 })");
   });
 });
 
@@ -143,7 +181,7 @@ describe("Estado vazio — uma loja sem visitas não mostra zeros", () => {
     // Os passos que faltam, com o estado real da Loja a marcar os já feitos.
     expect(SECCAO).toContain("Publicar a loja");
     expect(SECCAO).toContain("Partilhar o endereço com os seus clientes");
-    expect(SECCAO).toContain('store!.state === "Publicada" && billing.accessActive');
+    expect(SECCAO).toContain('store.state === "Publicada" && billing.accessActive');
   });
 
   it("sem visualizações de produto a lista diz-o, em vez de ficar vazia", () => {
@@ -190,6 +228,7 @@ describe("Cor da plataforma — nunca a cor da loja", () => {
     // `var(--brand)` é a cor do tema da loja publicada (`web/lib/theme.ts`); num
     // ecrã de painel resolve para o que estiver no `:root` do momento.
     expect(DASHBOARD).not.toContain("var(--brand");
+    expect(ANALISES).not.toContain("var(--brand");
   });
 
   it("a folha injetada usa o laranja da plataforma no realce das colunas", () => {
@@ -197,6 +236,12 @@ describe("Cor da plataforma — nunca a cor da loja", () => {
   });
 });
 
+/*
+ * Estas três asserções são sobre `web/lib/assistantContext.ts`, que é atualizado
+ * à parte (`.kiro/steering/assistente.md`). Ficam tal como estavam: os rótulos do
+ * ecrã que citam continuam iguais. A orientação nova tem de acrescentar o funil
+ * e o cartão «Encomendas por WhatsApp (7 dias)», que substituiu «Produtos».
+ */
 describe("Orientação do assistente — acompanha o que o ecrã mostra", () => {
   const guia = (() => {
     const i = CONTEXT.indexOf("analises: `ECRÃ");
@@ -217,7 +262,16 @@ describe("Orientação do assistente — acompanha o que o ecrã mostra", () => 
   });
 
   it("descreve a dica do gráfico e o estado vazio", () => {
-    expect(guia).toContain("número de visitas desse dia");
+    // A dica passou a mostrar também as encomendas por WhatsApp do dia: a
+    // orientação diz as duas coisas, por isso a asserção é sobre as partes.
+    expect(guia).toContain("o número de visitas");
+    expect(guia).toContain("desse dia");
     expect(guia).toContain("Ainda não há visitas para mostrar");
+  });
+
+  it("descreve o funil e os checkouts, que são o que o ecrã ganhou", () => {
+    expect(guia).toContain("Funil de compra (30 dias)");
+    expect(guia).toContain("Checkouts abertos (30 dias)");
+    expect(SECCAO).toContain("Checkouts abertos (30 dias)");
   });
 });

@@ -67,6 +67,11 @@ describe("cartMessage — mensagem de WhatsApp da encomenda (propriedade)", () =
           subtotal + (extras?.delivery?.fee ?? 0) - (extras?.discount?.amount ?? 0),
         );
         expect(msg).toContain(`Total: ${dinheiro(total)}`);
+        // Sem dados do comprador (os acrescentos gerados nunca os têm — é o
+        // caso da página do Carrinho e da Gaveta), o total fecha a mensagem. O
+        // bloco «Os meus dados:» do Checkout vem depois dele e tem exemplos
+        // próprios em `tests/checkoutOrder.test.ts`.
+        expect(msg.endsWith(`\n\nTotal: ${dinheiro(total)}`)).toBe(true);
       }),
       { numRuns: 100 },
     );

@@ -221,3 +221,32 @@ describe("mapEmbedSrc — sem coordenadas: embed da Google pela morada (R5.7)", 
     );
   });
 });
+
+describe("Uma só função de mapa (decisão D4) — também no mapa único do Lumière", () => {
+  /*
+   * «As nossas lojas» do Lumière tem dois ramos: com pontos (`lumiere.boutiques`)
+   * e sem pontos (um mapa da morada do rodapé). O primeiro já usava
+   * `mapEmbedSrc`; o segundo montava um URL da Google à mão, com outro zoom. A
+   * guarda é sobre o texto-fonte — `lumiere.ts` importa `web/lib/dom.ts` e este
+   * ficheiro importa estaticamente, sem o contorno do especificador.
+   */
+  it("o Lumière não monta URLs de mapa à mão: os dois ramos passam por mapEmbedSrc", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const lumiere = readFileSync(join(__dirname, "..", "web/templates/lumiere.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(lumiere).not.toContain("maps.google.com");
+    expect(lumiere).not.toContain("openstreetmap.org");
+    expect(lumiere).toContain("mapEmbedSrc(b)");
+    expect(lumiere).toContain("mapEmbedSrc({ address: location })");
+  });
+
+  it("o mapa único sai igual ao de um ponto só com essa morada", () => {
+    // O que `mapEmbedSrc({ address })` dá ao ramo sem pontos: o mesmo embed, com
+    // o mesmo zoom, que uma boutique com essa morada teria.
+    expect(mapEmbedSrc({ address: "Kilamba, Luanda" })).toBe(
+      "https://maps.google.com/maps?q=Kilamba%2C%20Luanda&z=15&output=embed",
+    );
+  });
+});

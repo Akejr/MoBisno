@@ -1,12 +1,69 @@
 /** Pequenos utilitários de DOM e navegação para a SPA. */
 import { navigate } from "./routing.js";
+import { fnv1a } from "../ssr/hash.js";
 
-/** Define o conteúdo HTML do contentor da app. */
+/* ------------------------- Adoção do HTML do servidor ------------------------ */
+
+/**
+ * Atributo onde o servidor (`api/prerender.js`) grava a impressão digital do
+ * HTML que escreveu dentro de `#app`. Só existe quando o servidor desenhou a
+ * página com o MESMO modelo que a SPA usa (`web/ssr/entry.ts`); a versão
+ * simplificada `.mb-ssr` nunca o leva.
+ */
+const SSR_ATTR = "data-ssr";
+
+/**
+ * Folhas de estilo que o servidor põe no `<head>` só para o primeiro ecrã (as
+ * cores por campo e o filtro inicial da listagem, que a SPA aplica ao DOM).
+ * Saem no primeiro `render()`: daí em diante é a SPA que as aplica, e deixá-las
+ * ficar pintaria a página seguinte com as regras desta.
+ */
+const SSR_ONLY_STYLE_SELECTOR = "style[data-mb-ssr-only]";
+
+/** Ainda não houve nenhum `render()` nesta página. */
+let primeiroRender = true;
+/** O último `render()` adotou o DOM do servidor em vez de o reescrever. */
+let ultimoAdotado = false;
+
+/**
+ * Define o conteúdo HTML do contentor da app.
+ *
+ * **Adoção.** No primeiro desenho da página, se `#app` traz `data-ssr` igual à
+ * impressão digital de `html`, o servidor já escreveu exatamente isto: o DOM que
+ * está no ecrã é mantido tal como está — sem o reescrever, sem piscar, sem
+ * voltar a pedir as imagens. Em qualquer outro caso (impressão diferente, sem
+ * atributo, desenhos seguintes) o conteúdo é substituído, como sempre foi.
+ *
+ * O atributo sai sempre no primeiro desenho, adotado ou não: só vale para o
+ * HTML que veio do servidor.
+ */
 export function render(html: string): HTMLElement {
   const app = document.getElementById("app");
   if (!app) throw new Error("#app não encontrado");
+  if (primeiroRender) {
+    primeiroRender = false;
+    const ssr = app.getAttribute(SSR_ATTR);
+    app.removeAttribute(SSR_ATTR);
+    document.querySelectorAll(SSR_ONLY_STYLE_SELECTOR).forEach((el) => el.remove());
+    if (ssr && ssr === fnv1a(html)) {
+      ultimoAdotado = true;
+      // As imagens já estão pintadas: `fadeInImages` não as volta a esconder.
+      app.querySelectorAll<HTMLImageElement>("img").forEach((img) => { img.dataset.mbFade = "1"; });
+      return app;
+    }
+  }
+  ultimoAdotado = false;
   app.innerHTML = html;
   return app;
+}
+
+/**
+ * O último `render()` adotou o HTML do servidor (a página já estava no ecrã).
+ * Serve às vistas que animam conteúdo à entrada — sobre uma página que o
+ * visitante já está a ver, a animação de entrada seria um salto.
+ */
+export function renderedFromSsr(): boolean {
+  return ultimoAdotado;
 }
 
 /** Atalho para querySelector tipado dentro do #app. */
@@ -223,15 +280,23 @@ export async function withBusy<T>(fn: () => Promise<T>, message?: string): Promi
   try { return await fn(); } finally { stopBusy(); }
 }
 
-/** Faz as imagens aparecerem com fade-in à medida que carregam. */
+/**
+ * Faz as imagens aparecerem com fade-in à medida que carregam.
+ *
+ * Uma imagem que já carregou não passa pelo fade: escondê-la (opacidade 0) para
+ * a voltar a mostrar era um piscar sobre uma imagem que o visitante já estava a
+ * ver. É o caso de todas as imagens de uma página adotada do servidor — essas
+ * chegam aqui já marcadas por `render()`.
+ */
 export function fadeInImages(root: ParentNode = document): void {
   root.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
     if (img.dataset.mbFade) return;
     img.dataset.mbFade = "1";
+    if (img.complete && img.naturalWidth > 0) return;
     img.classList.add("mb-fade-img");
     const done = () => img.classList.add("mb-loaded");
-    if (img.complete && img.naturalWidth > 0) done();
-    else { img.addEventListener("load", done, { once: true }); img.addEventListener("error", done, { once: true }); }
+    img.addEventListener("load", done, { once: true });
+    img.addEventListener("error", done, { once: true });
   });
 }
 

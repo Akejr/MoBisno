@@ -23,6 +23,7 @@ import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js"
 import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
+import type { BlockStyle } from "./blocks.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -30,10 +31,40 @@ const PER_ROW = 4;
 const TWO_ROWS = 8;
 const CONTAINER = "w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8";
 const DEFAULT_PHONE = "+244 900 000 000";
+
+/**
+ * Desenho das secções acrescentadas, na linguagem deste modelo
+ * (`MODELO-GUIA.md` §9.3): Inter `font-black` em `gray-900` nos títulos,
+ * `gray-500` no corpo, cartões brancos `rounded-2xl` de moldura `gray-100` e a
+ * faixa `gray-50` do rodapé — as classes que o modelo já usa nos cartões de
+ * produto, nos títulos das secções e no rodapé.
+ *
+ * É, de propósito, o vocabulário mais próximo do desenho genérico: o Galeria é
+ * o modelo claro e neutro de onde esse desenho saiu, e as lojas publicadas com
+ * ele não devem mudar de cara. A citação «Editorial» (`quote`) mantém o peso
+ * médio que sempre teve, e os nomes o `font-semibold`.
+ */
+const BLOCK_STYLE: BlockStyle = {
+  heading: "font-black tracking-tight text-gray-900",
+  body: "text-gray-500 leading-relaxed",
+  name: "font-semibold text-gray-900",
+  quote: "font-medium tracking-tight text-gray-900",
+  muted: "text-gray-400",
+  surface: "bg-white border border-gray-100 shadow-sm",
+  radius: "rounded-2xl",
+  band: "bg-gray-50 border-y border-gray-100",
+};
 /** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
 let mbLogoScale: number | undefined;
 /** Disposição dos produtos escolhida (definida em menuFor a cada render). */
 let mbGridVariant: ProductVariant | undefined;
+
+/**
+ * Aspeto do campo de pesquisa **neste** modelo: pílula completa e moldura
+ * `gray-300`, a par dos chips de categoria e do botão «Ver mais», que são todos
+ * `rounded-full` aqui.
+ */
+const SEARCH_VARS = "--mb-search-radius:9999px;--mb-search-h:42px;--mb-search-bg:#fff;--mb-search-border:#d1d5db;--mb-search-ink:#111827;--mb-search-ph:rgba(17,24,39,.45)";
 
 /** Aspeto do cartão de produto (omissão do modelo: quadrado). */
 function cardAspect(): string {
@@ -107,7 +138,7 @@ function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: Store
       </div>`
     : "";
   return `
-    <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
+    <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100" style="${SEARCH_VARS}">
       ${mnav.head}
       <div class="${CONTAINER}">
         <div class="relative flex items-center justify-between gap-3 h-16">
@@ -115,8 +146,8 @@ function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: Store
             ${mnav.button}
             <a href="${esc(storeHomeHref(view))}" data-edit-logo class="flex items-center gap-2 min-w-0">${brandHtml(view)}</a>
           </div>
-          <nav class="hidden lg:flex items-center gap-7 text-sm font-medium text-gray-600">${menu}${categoriesMenu}</nav>
-          <div class="flex items-center gap-3 text-gray-700 shrink-0">
+          <nav data-search-collapse class="hidden lg:flex items-center gap-7 text-sm font-medium text-gray-600">${menu}${categoriesMenu}</nav>
+          <div data-search-host class="flex items-center gap-3 text-gray-700 shrink-0 min-w-0">
             <button type="button" data-search-btn class="hover:opacity-70 transition-opacity"><span class="material-symbols-outlined">search</span></button>
             <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex">
               <span class="material-symbols-outlined">shopping_cart</span>
@@ -222,7 +253,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} py-10 md:py-14">
       ${sectionsArea(view, custom)}
     </main>
-    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)", variant: "galeria" })}
+    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#4f46e5)", variant: "galeria", style: BLOCK_STYLE })}
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
 }
@@ -341,6 +372,18 @@ export const galeriaTemplate: StoreTemplate = {
   previewUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600",
   ready: true,
   defaultBrand: "#4f46e5",
+  /**
+   * Sem secções nativas. `testimonials: "editorial"` é o desenho que este
+   * modelo já produzia para os blocos gravados sem variante (`variant:
+   * "galeria"` no `BlockCtx`) — as secções novas levam-no gravado.
+   *
+   * Fundos: os cinzentos `gray-50`/`gray-100` do rodapé e das molduras.
+   */
+  sections: {
+    variants: { info: "lado", text: "centrado", testimonials: "editorial", location: "estilizado" },
+    style: BLOCK_STYLE,
+    backgrounds: [{ label: "Cinza claro", value: "#f9fafb" }, { label: "Cinza", value: "#f3f4f6" }],
+  },
   render,
   renderProduct,
   renderCategory,

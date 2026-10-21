@@ -13,7 +13,24 @@
  * Google penaliza dados estruturados que não correspondem à página (política
  * de devoluções, portes, avaliações). Por isso os campos opcionais só são
  * emitidos quando há dados reais para os preencher.
+ *
+ * A mesma regra vale para o texto: as descrições geradas dizem só o que a loja
+ * tem. Durante muito tempo todas as lojas anunciavam «Pagamento por Multicaixa
+ * Express, Referência Bancária e WhatsApp, com entrega em Luanda» — a mesma
+ * frase em todas (conteúdo duplicado aos olhos do Google) e falsa em quase
+ * todas: os pagamentos digitais só existem numa loja aprovada e com o
+ * fornecedor ligado, e a entrega só quando o Dono a configurou. Ver
+ * {@link StoreSeoFacts}.
+ *
+ * Espelhado em `api/_seo.js` (as funções serverless não importam de `src/`);
+ * `tests/seoInfra.test.ts` compara os dois.
  */
+import { PLAN_PRICE_KZ, PLAN_PERIOD_DAYS } from "./plans.js";
+import { comingSoonList, isComingSoon } from "./comingSoon.js";
+import { PLATFORM_FEE_LABEL } from "./fees.js";
+import { STORE_APEX, PLATFORM_APEX, isModelIdentifier } from "./domains.js";
+import { formatKz } from "./format.js";
+import { PAYMENTS_PROVIDER_READY } from "./payments.js";
 
 export const SEO_COUNTRY = "Angola";
 export const SEO_LOCALE = "pt_AO";
@@ -64,19 +81,119 @@ export function clampTitle(title: string, max = 60): string {
   return truncate(clean, max);
 }
 
+/* ------------------------------ Origens ------------------------------ */
+
+/**
+ * Origem das páginas da PLATAFORMA para um pedido feito a `host`.
+ *
+ * `mobisno.store` redireciona (308) para `www.mobisno.store` na Vercel, e os
+ * canónicos, o `og:url`, o `sitemap.xml` e a linha `Sitemap:` do `robots.txt`
+ * apontavam para o apex: cada URL que o Google recebia levava a um
+ * redirecionamento. A origem passa a ser a do pedido — mas só dentro da família
+ * do apex (o apex ou `www.`). Qualquer outro host (pré-visualizações da Vercel,
+ * um `Host` forjado, o subdomínio de uma loja) dá o apex: um canónico nunca
+ * aponta para fora da plataforma.
+ *
+ * Espelhada em `api/_seo.js` (`platformOrigin`); `tests/seoInfra.test.ts`
+ * compara as duas.
+ */
+export function platformOriginForHost(host: string | null | undefined): string {
+  const h = (String(host ?? "").trim().toLowerCase().split(":")[0] ?? "").replace(/\.$/, "");
+  return h === PLATFORM_APEX || h === `www.${PLATFORM_APEX}` ? `https://${h}` : `https://${PLATFORM_APEX}`;
+}
+
+/* ------------------------------ Indexação ------------------------------ */
+
+/** Diretiva de uma página indexável (a mesma no servidor e na SPA). */
+export const ROBOTS_INDEX = "index, follow, max-image-preview:large, max-snippet:-1";
+
+/**
+ * Conteúdo do `<meta name="robots">`.
+ *
+ * `follow` só conta com `noindex`: as lojas-modelo saem com `noindex, follow` —
+ * a página não entra no índice (é uma demonstração, quase igual às outras), mas
+ * as ligações continuam a ser seguidas.
+ */
+export function robotsContent(opts: { noindex?: boolean; follow?: boolean } = {}): string {
+  if (!opts.noindex) return ROBOTS_INDEX;
+  return opts.follow ? "noindex, follow" : "noindex, nofollow";
+}
+
+/**
+ * A loja é uma Loja_Modelo (demonstração de um modelo da Plataforma)?
+ *
+ * Duas marcas, qualquer uma basta: o identificador reservado (`modelo-…`) ou a
+ * marca interna `customization.__template`. As lojas-modelo são conteúdo quase
+ * duplicado entre si e de cada loja criada a partir delas — não se indexam, não
+ * entram nos sitemaps nem no diretório `/lojas`.
+ */
+export function isModelStore(store: { identifier?: unknown; customization?: unknown } | null | undefined): boolean {
+  if (!store) return false;
+  if (isModelIdentifier(store.identifier)) return true;
+  const c = store.customization;
+  const tpl = c && typeof c === "object" && !Array.isArray(c) ? (c as Record<string, unknown>).__template : undefined;
+  return !(tpl === undefined || tpl === null || tpl === false);
+}
+
 /* --------------------------------- Loja --------------------------------- */
+
+/**
+ * O que é verdade numa loja, para as descrições geradas.
+ *
+ * Nenhum campo é obrigatório e a ausência significa «não»: sem `delivery` a
+ * descrição não fala de entregas; sem `digitalPayments` não fala de Multicaixa
+ * Express nem de Referência Bancária. No navegador, `digitalPayments` vem de
+ * `digitalPaymentsVisible(store)`; no servidor, de `store.digital_payments` com
+ * o fornecedor de pagamentos ligado.
+ */
+export interface StoreSeoFacts {
+  /** Categorias da loja, pela ordem em que aparecem. */
+  categories?: readonly string[];
+  /** Nomes de produtos — usados quando a loja não tem categorias. */
+  productNames?: readonly string[];
+  /** O Dono configurou taxas de entrega. */
+  delivery?: boolean;
+  /** Multicaixa Express e Referência Bancária estão disponíveis nesta loja. */
+  digitalPayments?: boolean;
+}
+
+/** Junta uma lista em português: «a», «a e b», «a, b e c». */
+function joinPt(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
+
+/** Até três exemplos, com «e mais» quando há mais. */
+function examplesPt(items: readonly string[]): string {
+  const clean = items.map((s) => String(s ?? "").trim()).filter(Boolean);
+  if (clean.length > 3) return `${clean.slice(0, 3).join(", ")} e mais`;
+  return joinPt(clean);
+}
+
+/**
+ * Como se compra nesta loja — só o que é verdade. O WhatsApp existe em todas
+ * as lojas; o resto depende de `facts`.
+ */
+export function howToBuy(facts?: StoreSeoFacts | null): string {
+  const pay = facts?.digitalPayments
+    ? "Encomendas por WhatsApp e pagamento por Multicaixa Express ou Referência Bancária"
+    : "Encomendas por WhatsApp";
+  return `${pay}${facts?.delivery ? ", com entrega" : ""}.`;
+}
 
 /** Título da loja no Google: `Nome da Loja | Compras em Angola`. */
 export function storeTitle(storeName: string): string {
   return `${storeName.trim()} | Compras em Angola`;
 }
 
-/** Descrição da loja, com palavras-chave de Angola e métodos de pagamento. */
-export function storeDescription(storeName: string, custom?: string | null): string {
-  const base = custom && custom.trim()
-    ? custom.trim()
-    : `Compre online na ${storeName.trim()} em Angola. Pagamento por Multicaixa Express, Referência Bancária e WhatsApp, com entrega em Luanda. Faça a sua encomenda de forma rápida e segura.`;
-  return truncate(base, 160);
+/**
+ * Descrição da loja. A do Dono (`custom`) ganha sempre; sem ela, uma frase
+ * própria desta loja — o nome, o que vende e como se compra.
+ */
+export function storeDescription(storeName: string, custom?: string | null, facts?: StoreSeoFacts | null): string {
+  if (custom && custom.trim()) return truncate(custom.trim(), 160);
+  const what = examplesPt(facts?.categories?.length ? facts.categories : (facts?.productNames ?? []));
+  return truncate(`Compre online na ${storeName.trim()}, em Angola${what ? `: ${what}` : ""}. ${howToBuy(facts)}`, 160);
 }
 
 /* ------------------------------- Categoria ------------------------------- */
@@ -97,6 +214,7 @@ export function categoryDescription(input: {
   count?: number;
   sampleNames?: readonly string[];
   priceFrom?: string | null;
+  facts?: StoreSeoFacts | null;
 }): string {
   const cat = input.category.trim();
   const store = input.storeName.trim();
@@ -106,10 +224,7 @@ export function categoryDescription(input: {
     ? ` ${input.sampleNames.slice(0, 3).join(", ")} e mais.`
     : "";
   const desde = input.priceFrom ? ` Desde ${input.priceFrom}.` : "";
-  return truncate(
-    `${quantos} na ${store}.${desde}${exemplos} Entrega em Luanda e em Angola, com pagamento por Multicaixa Express, Referência Bancária ou WhatsApp.`,
-    160,
-  );
+  return truncate(`${quantos} na ${store}.${desde}${exemplos} ${howToBuy(input.facts)}`, 160);
 }
 
 /* -------------------------------- Produto -------------------------------- */
@@ -125,27 +240,184 @@ export function productDescription(input: {
   description?: string | null;
   priceLabel?: string | null;
   storeName: string;
+  facts?: StoreSeoFacts | null;
 }): string {
   const desc = (input.description ?? "").trim();
   if (desc) return truncate(desc, 160);
   const price = input.priceLabel ? ` por ${input.priceLabel}` : "";
-  return truncate(
-    `Compre ${input.name.trim()}${price} na ${input.storeName.trim()}. Pagamento seguro por Multicaixa Express, Referência e WhatsApp, com entrega em Luanda (Angola).`,
-    160,
-  );
+  return truncate(`Compre ${input.name.trim()}${price} na ${input.storeName.trim()}, em Angola. ${howToBuy(input.facts)}`, 160);
 }
 
 /* ------------------------------ Plataforma ------------------------------ */
+
+/**
+ * Kwanzas sem cêntimos («10.000 Kz»), a partir de `formatKz` — os preços da
+ * subscrição são inteiros e «10.000,00 Kz» num texto corrido lê-se mal.
+ */
+export function kzWhole(value: number): string {
+  return formatKz(value).replace(/,00 Kz$/, " Kz");
+}
+
+/** Período da subscrição como se escreve a seguir ao preço: «/mês» (30 dias). */
+export function planPeriodLabel(): string {
+  return PLAN_PERIOD_DAYS === 30 ? "/mês" : ` por ${PLAN_PERIOD_DAYS} dias`;
+}
+
+/** Preço da subscrição como se escreve nos textos: «10.000 Kz/mês». */
+export function platformPriceLabel(): string {
+  return `${kzWhole(PLAN_PRICE_KZ)}${planPeriodLabel()}`;
+}
 
 export function platformTitle(): string {
   return "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais";
 }
 
+/**
+ * Descrição da plataforma. Diz só o que existe: um plano, tudo incluído,
+ * WhatsApp em todas as lojas. O domínio próprio, o SMS e os pixels estão «Em
+ * breve» e por isso não aparecem aqui (`src/services/comingSoon.ts`).
+ */
 export function platformDescription(): string {
   return truncate(
-    "Crie a sua loja online em Angola em minutos com a MôBisno. Editor visual ao vivo, pagamentos Multicaixa Express e Referência, vendas por WhatsApp, domínio próprio e SEO otimizado. A forma mais fácil de vender online em Luanda e em todo o país.",
+    `Crie a sua loja online em Angola: modelos prontos, editor visual e encomendas por WhatsApp. Lojas e produtos ilimitados por ${platformPriceLabel()}, tudo incluído.`,
     160,
   );
+}
+
+/** Os dois pagamentos digitais, pelo nome que o Dono e o cliente conhecem. */
+export const DIGITAL_PAYMENTS_LABEL = "Multicaixa Express e Referência Bancária";
+
+/**
+ * Frase curta sobre os pagamentos digitais nos textos da plataforma (página
+ * inicial, versão do servidor, perguntas frequentes).
+ *
+ * **Enquanto o fornecedor de pagamentos não estiver ligado**
+ * (`PAYMENTS_PROVIDER_READY` a `false`; no servidor, `getPaymentProvider()`
+ * devolve `null`), os pagamentos digitais são «em breve» e nunca aparecem como
+ * disponíveis: nenhuma loja os consegue mostrar, aprovada ou não. Anunciá-los era
+ * prometer ao Dono o que ele não consegue ligar — o mesmo erro dos escalões que o
+ * assistente continuou a descrever depois de terem saído.
+ *
+ * @param providerReady Para testes e para o servidor; por omissão, o estado real.
+ */
+export function digitalPaymentsNote(providerReady: boolean = PAYMENTS_PROVIDER_READY): string {
+  return providerReady === true
+    ? `${DIGITAL_PAYMENTS_LABEL} para empresas registadas, depois de a MôBisno aprovar os documentos da empresa.`
+    : `${DIGITAL_PAYMENTS_LABEL} em breve, para empresas registadas, depois de a MôBisno aprovar os documentos da empresa.`;
+}
+
+/**
+ * A comissão da Plataforma como se escreve num texto: quanto é, sobre o quê, e
+ * o que **não** é cobrado.
+ *
+ * Existe aqui — e não escrita à mão na página inicial e na FAQ — pela razão de
+ * sempre: a percentagem vive em `src/services/fees.ts` e qualquer texto que a
+ * repita à mão fica errado no dia em que ela mudar. É a mesma regra do preço do
+ * plano (`platformPriceLabel`).
+ */
+export function platformFeeNote(): string {
+  return `As vendas por WhatsApp não têm comissão nenhuma. Nas vendas recebidas por ${DIGITAL_PAYMENTS_LABEL}, a MôBisno fica com ${PLATFORM_FEE_LABEL} do valor da encomenda; o resto é levantado para a conta bancária da sua empresa.`;
+}
+
+/**
+ * O endereço da loja, e o que acontece a um domínio próprio.
+ *
+ * O subdomínio existe desde o primeiro dia; o domínio próprio está «Em breve»
+ * (`src/services/comingSoon.ts`) e por isso nunca é prometido como incluído. A
+ * frase é lida pela FAQ e pela página inicial — era escrita à mão nos dois.
+ */
+export function platformAddressNote(): string {
+  return isComingSoon("customDomain")
+    ? `A loja fica em nomedaloja.${STORE_APEX} desde o primeiro dia. O domínio próprio está «Em breve» e ainda não está incluído na subscrição.`
+    : `A loja fica em nomedaloja.${STORE_APEX} desde o primeiro dia, e pode também ligar um domínio próprio.`;
+}
+
+/**
+ * O que a plataforma ainda não tem, pela ordem em que se mostra: os pagamentos
+ * digitais enquanto o fornecedor não estiver ligado, e as funcionalidades «Em
+ * breve» de `src/services/comingSoon.ts` (SMS, domínio próprio, pixels).
+ */
+export function platformComingSoon(providerReady: boolean = PAYMENTS_PROVIDER_READY): string[] {
+  const pagamentos = providerReady === true ? [] : [`${DIGITAL_PAYMENTS_LABEL} para empresas registadas`];
+  return [...pagamentos, ...comingSoonList()];
+}
+
+/**
+ * Perguntas frequentes da plataforma — as **mesmas** na secção visível da
+ * página inicial (`web/views/landingHtml.ts`) e no `FAQPage` que o Google lê
+ * (`api/prerender.js`, através do pacote SSR, e `applyPlatformSeo`). O Google
+ * só aceita FAQ em dados estruturados quando as perguntas estão na página.
+ *
+ * Os números e as funcionalidades «Em breve» saem das constantes, nunca de
+ * texto escrito à mão.
+ *
+ * **O texto da pergunta não pode depender de `providerReady`** — só o da
+ * resposta. `tests/ssrRender.test.ts` compara as perguntas de `platformFaq(false)`
+ * com o HTML da página inicial, que é desenhado com o estado real: duas versões
+ * do mesmo título fariam o `FAQPage` declarar uma pergunta que não está na
+ * página, que é precisamente o que o Google recusa.
+ *
+ * São perguntas de objeção, não de catálogo: quem já vende por WhatsApp e por
+ * Instagram pergunta se precisa de programar, para que serve um site se já tem
+ * perfil, quanto é a comissão e o que acontece sem empresa registada. É aqui que
+ * essas respostas vivem.
+ *
+ * **Espelho do servidor.** `api/_seo.js` tem a sua cópia desta lista (as funções
+ * serverless não importam de `src/`) e é dela que sai o `FAQPage` em
+ * `api/prerender.js`. A invariante que importa é de inclusão, não de igualdade:
+ * **toda a pergunta declarada em dados estruturados tem de estar visível na
+ * página**. Esta lista é a visível, por isso pode ser maior; o espelho é que não
+ * pode conter nada que não esteja aqui. Acrescentar as perguntas novas ao
+ * espelho é o que lhes dá direito ao bloco de FAQ do Google.
+ *
+ * @param providerReady Para testes e para o servidor; por omissão, o estado real
+ *        do fornecedor de pagamentos (`PAYMENTS_PROVIDER_READY`).
+ */
+export function platformFaq(providerReady: boolean = PAYMENTS_PROVIDER_READY): { question: string; answer: string }[] {
+  const breve = platformComingSoon(providerReady);
+  const faq = [
+    {
+      question: "Preciso de saber programar?",
+      answer: "Não. A loja é personalizada num editor visual, por cima da própria página: logótipo, cores, textos, secções, categorias e produtos. Não há código para escrever nem nada para instalar.",
+    },
+    {
+      question: "Como crio uma loja online em Angola?",
+      answer: `Registe-se na MôBisno, escolha um modelo pronto, personalize os textos, as fotografias e as cores e adicione os seus produtos. A loja fica no endereço nomedaloja.${STORE_APEX}, sem precisar de conhecimentos técnicos.`,
+    },
+    {
+      question: "Já vendo pelo Instagram e pelo WhatsApp. Para que preciso de uma loja?",
+      answer: "Para o cliente escolher sozinho. Em vez de enviar fotografias uma a uma e repetir preços, envia um link com o catálogo inteiro, com preço, stock e variações. A encomenda chega-lhe ao WhatsApp escrita, a qualquer hora, mesmo quando não está a responder: produtos, variações, zona de entrega, desconto e total. E a loja é uma página que o Google indexa, o que um perfil de rede social não é.",
+    },
+    {
+      question: "Quanto custa?",
+      answer: `${platformPriceLabel()}, com tudo incluído. Há um só plano, sem escalões: lojas e produtos ilimitados. Criar a loja e vê-la é grátis; a subscrição serve para a publicar.`,
+    },
+    {
+      question: "A MôBisno fica com uma parte das minhas vendas?",
+      answer: `${platformFeeNote()} A fatura da venda é emitida pela sua empresa, não pela MôBisno.`,
+    },
+    {
+      question: "Que pagamentos posso receber?",
+      answer: providerReady === true
+        ? "Todas as lojas recebem encomendas por WhatsApp. O Multicaixa Express e a Referência Bancária ficam disponíveis para empresas registadas, depois de a MôBisno aprovar os documentos da empresa."
+        : "Todas as lojas recebem encomendas por WhatsApp. O Multicaixa Express e a Referência Bancária chegam em breve, para empresas registadas, depois de a MôBisno aprovar os documentos da empresa; até lá, as encomendas são feitas por WhatsApp.",
+    },
+    {
+      question: "E se eu não tiver empresa registada?",
+      answer: "Pode criar a loja, publicá-la e receber encomendas por WhatsApp, sem comissão nenhuma. São os pagamentos digitais que exigem empresa registada: a MôBisno pede a Matrícula e a Certidão e só liga o Multicaixa Express e a Referência Bancária depois de as aprovar.",
+    },
+    {
+      question: "Posso usar o meu domínio próprio?",
+      answer: platformAddressNote(),
+    },
+  ];
+  if (breve.length) {
+    faq.push({
+      question: "O que ainda não está disponível?",
+      answer: `Em breve: ${joinPt(breve.map((b) => `«${b}»`))}. Ainda não estão incluídos na subscrição.`,
+    });
+  }
+  return faq;
 }
 
 /** Palavras-chave da plataforma (Angola). */
@@ -156,6 +428,18 @@ export function platformKeywords(): string {
     "multicaixa express online", "pagamentos online angola", "website angola",
     "criar loja whatsapp", "MôBisno",
   ].join(", ");
+}
+
+/**
+ * Descrição do diretório de lojas (`/lojas`). Dizia «Compre em Kwanzas com
+ * Multicaixa Express, Referência Bancária ou WhatsApp, com entrega em Luanda e
+ * em todo o país» — falso para quase todas as lojas listadas: o WhatsApp é o
+ * único meio comum a todas, e a entrega depende de cada Dono.
+ */
+export function directoryDescription(total: number): string {
+  const n = Number.isFinite(total) && total > 0 ? Math.floor(total) : 0;
+  const quantas = n === 1 ? "1 loja online angolana criada" : `${n} lojas online angolanas criadas`;
+  return truncate(`${quantas} com a MôBisno. Compre em Kwanzas, com encomendas por WhatsApp em todas as lojas.`, 160);
 }
 
 /* -------------------------------- JSON-LD -------------------------------- */
@@ -227,6 +511,8 @@ export function storeJsonLd(input: {
   telephone?: string | null;
   priceRange?: string | null;
   sameAs?: readonly string[] | null;
+  /** Factos da loja para a descrição gerada e para `paymentAccepted`. */
+  facts?: StoreSeoFacts | null;
 }): object {
   const url = input.url.replace(/\/+$/, "");
   const node: Record<string, unknown> = {
@@ -235,9 +521,10 @@ export function storeJsonLd(input: {
     "@id": `${url}/#store`,
     name: input.storeName,
     url: `${url}/`,
-    description: storeDescription(input.storeName, input.description),
+    description: storeDescription(input.storeName, input.description, input.facts),
     currenciesAccepted: SEO_CURRENCY,
-    paymentAccepted: "Multicaixa Express, Referência Bancária, WhatsApp",
+    // Só o que a loja aceita de facto: os digitais exigem aprovação e fornecedor.
+    paymentAccepted: input.facts?.digitalPayments ? "Multicaixa Express, Referência Bancária, WhatsApp" : "WhatsApp",
     areaServed: { "@type": "Country", name: SEO_COUNTRY },
   };
   if (input.logoUrl) {
@@ -367,6 +654,8 @@ export function productJsonLd(input: {
   /** Validade do preço (ISO). Por omissão, um ano a contar de `now`. */
   priceValidUntil?: string | null;
   now?: Date;
+  /** Factos da loja, para a descrição gerada quando o produto não tem. */
+  facts?: StoreSeoFacts | null;
 }): object {
   const offer: Record<string, unknown> = {
     "@type": "Offer",
@@ -423,7 +712,7 @@ export function productJsonLd(input: {
     "@context": "https://schema.org",
     "@type": "Product",
     name: input.name,
-    description: productDescription({ name: input.name, description: input.description, storeName: input.storeName }),
+    description: productDescription({ name: input.name, description: input.description, storeName: input.storeName, facts: input.facts }),
     brand: { "@type": "Brand", name: input.storeName },
     offers: offer,
   };

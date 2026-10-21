@@ -20,7 +20,7 @@
  * `web/views/product.ts`, depende de eventos do DOM e fica fora deste programa
  * de testes; a guarda desse lado é `npm run web:build`.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 // Estas guardas novas leem o texto-fonte de `web/`, que não é carregável em
 // `node` (usa DOM): é o mesmo padrão de `tests/platformChrome.test.ts`.
 import { readFileSync } from "node:fs";
@@ -67,6 +67,14 @@ const PRODUTO = { id: "p1", name: "Camisola", price: 1000 };
 async function picker(): Promise<Picker> {
   return (await import(ESPECIFICADOR_PICKER)) as unknown as Picker;
 }
+
+// O módulo carrega-se uma vez aqui, com tempo: o primeiro import transforma a
+// árvore de `web/`, e dentro de um teste (5 s) numa máquina ocupada não chega.
+beforeAll(async () => {
+  await picker();
+  const especificadorGaleria = "../web/templates/gallery.js";
+  await import(especificadorGaleria);
+}, 120_000);
 
 /** Recorta o botão de um valor, para asserções sobre esse botão e não sobre o resto. */
 function botao(html: string, valor: string): string {
@@ -205,7 +213,12 @@ describe("Cobertura dos modelos — todos apresentam os seletores", () => {
   it("todo o modelo registado com página de produto desenha os seletores", () => {
     // Um modelo que desenhe a página de produto sem seletores deixa o Cliente sem
     // forma de escolher a versão — e a página passa a vender sempre a versão base.
-    for (const modelo of ["galeria", "desportivo", "beauty", "lumiere"]) {
+    const modelos = ["galeria", "desportivo", "beauty", "lumiere", "techEssentials"];
+    // A lista é a do registo, e não só «contida» nele: um modelo novo registado
+    // sem estar aqui ficava sem guarda.
+    const registados = [...REGISTRY.matchAll(/import \{ \w+Template \} from "\.\/(\w+)\.js"/g)].map((x) => x[1]!);
+    expect([...registados].sort()).toEqual([...modelos].sort());
+    for (const modelo of modelos) {
       const src = readFileSync(join(ROOT, `web/templates/${modelo}.ts`), "utf8");
       expect(REGISTRY, `${modelo} fora do registo`).toContain(`from "./${modelo}.js"`);
       const usaPartilhada = src.includes("renderProductPage(");

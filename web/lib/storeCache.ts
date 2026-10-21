@@ -4,12 +4,14 @@
  * Evita re-consultar o Supabase a cada navegação entre páginas da mesma loja
  * (home, produto, categoria, carrinho), tornando a navegação instantânea.
  */
-import { storeRepository, assetRepository, bannerRepository, productRepository } from "../composition.js";
+import { storeRepository, assetRepository, bannerRepository, productRepository, currentOwnerId } from "../composition.js";
 import { createStorefrontResolver, type StorefrontResult } from "../../src/services/storefrontResolver.js";
-import { renderStore, type StoreViewModel } from "../../src/storefront/storeRenderer.js";
+import { renderStore } from "../../src/storefront/storeRenderer.js";
 import { getCustomization } from "../supabase/customization.js";
-import { toStore, toProduct, toBanner, toAsset } from "../supabase/repositories.js";
+import { storefrontFromRows, type LoadedStorefront, type StorefrontRows } from "../ssr/storefrontRows.js";
 import type { StoreCustomization } from "../templates/types.js";
+
+export type { LoadedStorefront };
 
 const resolver = createStorefrontResolver({ storeRepository, assetRepository, bannerRepository, productRepository });
 
@@ -23,14 +25,13 @@ const SSR_DATA_ID = "mb-ssr-data";
  *
  * PORQUÊ: o `api/prerender.js` já leu a loja, o logótipo, os banners e os
  * produtos para escrever a página. Sem isto, a SPA ia buscar tudo outra vez —
- * três idas encadeadas ao Supabase, cerca de um segundo medido em produção,
- * durante o qual o visitante ficava a olhar para a página pré-renderizada antes
- * de a loja aparecer.
+ * três idas encadeadas ao Supabase, cerca de um segundo medido em produção.
  *
- * As linhas vêm cruas do servidor e são convertidas aqui pelos mesmos
- * conversores que os repositórios usam. É de propósito: converter no servidor
- * obrigaria a manter um espelho das conversões em `api/`, e esse tipo de
- * espelho já custa caro neste projeto.
+ * E há uma segunda razão, agora mais importante: o servidor desenha a página com
+ * o modelo verdadeiro a partir destas linhas, e a SPA só adota esse HTML (em vez
+ * de o reescrever) se chegar exatamente ao mesmo. Por isso as linhas passam pela
+ * MESMA função dos dois lados — `storefrontFromRows` (`web/ssr/storefrontRows.ts`)
+ * —, com os mesmos conversores e o mesmo renderizador.
  *
  * **Uso único.** O bloco é removido depois de lido, para uma navegação dentro
  * da SPA (ou um recarregamento passados os 60s de cache) voltar a ler dados
@@ -43,37 +44,12 @@ function fromEmbeddedData(identifier: string): LoadedStorefront | null {
   el.remove();
 
   try {
-    const raw = JSON.parse(el.textContent) as {
-      store?: { identifier?: string; customization?: unknown };
-      logo?: unknown;
-      banners?: unknown[];
-      products?: { available?: boolean }[];
-    };
-    const store = raw.store;
-    if (!store || String(store.identifier ?? "").toLowerCase() !== identifier.toLowerCase()) return null;
-
-    const result: StorefrontResult = {
-      kind: "render",
-      store: toStore(store),
-      logo: raw.logo ? toAsset(raw.logo) : null,
-      banners: (raw.banners ?? []).map(toBanner),
-      // O resolvedor só devolve produtos disponíveis; o servidor já filtra, mas
-      // repetir aqui mantém a garantia do lado de cá.
-      products: (raw.products ?? []).filter((p) => p.available === true).map(toProduct),
-    };
-    const custom = (store.customization && typeof store.customization === "object"
-      ? store.customization
-      : {}) as StoreCustomization;
-    return { result, view: renderStore(result), custom };
+    const raw = JSON.parse(el.textContent) as StorefrontRows;
+    if (String(raw.store?.identifier ?? "").toLowerCase() !== identifier.toLowerCase()) return null;
+    return storefrontFromRows(raw);
   } catch {
     return null; // bloco corrompido: segue-se pelo caminho normal
   }
-}
-
-export interface LoadedStorefront {
-  result: StorefrontResult;
-  view: StoreViewModel;
-  custom: StoreCustomization;
 }
 
 const TTL_MS = 60_000;
@@ -85,12 +61,51 @@ const cache = new Map<string, { at: number; data: LoadedStorefront }>();
  * PORQUÊ: a cache guardava só o RESULTADO, e só depois de ele chegar. Como o
  * arranque da loja chama esta função duas vezes ao mesmo tempo — a vista e o
  * favicon —, as duas chamadas falhavam a cache e faziam o trabalho todo em
- * duplicado: dez consultas ao Supabase em vez de cinco, a competir umas com as
- * outras. Guardar a PROMESSA faz a segunda chamada esperar pela primeira.
+ * duplicado. Guardar a PROMESSA faz a segunda chamada esperar pela primeira.
  */
 const inFlight = new Map<string, Promise<LoadedStorefront>>();
 
-/** Carrega (e memoiza) a loja por identificador. */
+/** Junta a personalização ao resultado da resolução. */
+async function withCustomization(result: StorefrontResult, draft: boolean): Promise<LoadedStorefront> {
+  const custom: StoreCustomization = result.kind === "render"
+    ? await getCustomization(result.store.id)
+    : {};
+  return { result, view: renderStore(result), custom, ...(draft ? { draft: true } : {}) };
+}
+
+/**
+ * Resolve a loja pública e, se não houver nenhuma publicada com este
+ * identificador, tenta o **rascunho do próprio Dono**.
+ *
+ * PORQUÊ: a pré-visualização privada (`/previsualizar/<id>`) abria, mas cada
+ * ligação lá dentro — um produto, uma categoria, o carrinho — leva a
+ * `/loja/<id>/…`, que só resolvia lojas publicadas: o Dono clicava num produto
+ * do seu rascunho e recebia «Loja não encontrada».
+ *
+ * Quem mais vê o rascunho: ninguém. `resolveForOwner` só devolve a loja se
+ * pertencer a quem tem sessão, o repositório filtra por dono e as políticas da
+ * base de dados recusam ler a loja de outra pessoa. Um visitante sem sessão (ou
+ * com outra conta) continua a receber «Loja não encontrada».
+ */
+async function resolveWithDraft(identifier: string): Promise<LoadedStorefront> {
+  const result = await resolver.resolve(`${identifier}.mobisno.store`);
+  if (result.kind === "render") return withCustomization(result, false);
+
+  let ownerId: string | null = null;
+  try { ownerId = await currentOwnerId(); } catch { ownerId = null; }
+  if (ownerId) {
+    const own = await resolver.resolveForOwner(identifier, ownerId);
+    if (own.kind === "render") return withCustomization(own, own.store.state !== "Publicada");
+  }
+  return withCustomization(result, false);
+}
+
+/**
+ * Carrega (e memoiza) a loja por identificador.
+ *
+ * Os rascunhos não entram na cache: mudam a cada gravação no editor, e o Dono
+ * que volta da edição tem de ver a versão que acabou de guardar.
+ */
 export async function loadStorefront(identifier: string): Promise<LoadedStorefront> {
   const key = identifier.toLowerCase();
   const hit = cache.get(key);
@@ -107,14 +122,8 @@ export async function loadStorefront(identifier: string): Promise<LoadedStorefro
   }
 
   const pedido = (async (): Promise<LoadedStorefront> => {
-    const host = `${identifier}.mobisno.store`;
-    const result = await resolver.resolve(host);
-    const view = renderStore(result);
-    const custom: StoreCustomization = result.kind === "render"
-      ? await getCustomization(result.store.id)
-      : {};
-    const data: LoadedStorefront = { result, view, custom };
-    cache.set(key, { at: Date.now(), data });
+    const data = await resolveWithDraft(identifier);
+    if (!data.draft) cache.set(key, { at: Date.now(), data });
     return data;
   })();
 
@@ -138,10 +147,8 @@ export async function loadStorefront(identifier: string): Promise<LoadedStorefro
  */
 export async function loadStorePreview(identifier: string, ownerId: string): Promise<LoadedStorefront> {
   const result = await resolver.resolveForOwner(identifier, ownerId);
-  const custom: StoreCustomization = result.kind === "render"
-    ? await getCustomization(result.store.id)
-    : {};
-  return { result, view: renderStore(result), custom };
+  const draft = result.kind === "render" && result.store.state !== "Publicada";
+  return withCustomization(result, draft);
 }
 
 /** Invalida a cache (uma loja específica ou toda). */

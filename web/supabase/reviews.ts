@@ -1,4 +1,11 @@
-/** Avaliações de produtos (estrelas + comentário). Submissão pública; o Dono modera. */
+/**
+ * Avaliações de produtos (estrelas + comentário). Submissão pública; o Dono
+ * modera.
+ *
+ * Desde a migração 0022 uma avaliação nova entra **por aprovar** (`approved =
+ * false`) e só aparece na página do produto — e no `aggregateRating` que o
+ * Google lê — depois de o Dono a aprovar no separador «Avaliações».
+ */
 import { supabase } from "./client.js";
 
 export interface Review {
@@ -54,9 +61,13 @@ export async function submitReview(
   const author = input.author.trim();
   if (author.length < 1) return "Indique o seu nome.";
   if (!(input.rating >= 1 && input.rating <= 5)) return "Escolha de 1 a 5 estrelas.";
+  if (author.length > 60) return "O nome pode ter até 60 caracteres.";
+  const comment = (input.comment ?? "").trim();
+  if (comment.length > 1000) return "O comentário pode ter até 1000 caracteres.";
   const { error } = await supabase.from("reviews").insert({
     store_id: storeId, product_id: productId, author_name: author, rating: Math.round(input.rating),
-    comment: (input.comment ?? "").trim() || null,
+    comment: comment || null,
+    approved: false,
   });
   if (error) { console.error("submitReview", error); return "Não foi possível enviar a avaliação."; }
   return null;

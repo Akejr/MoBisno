@@ -7,10 +7,12 @@
  * (que renderiza JS) e da experiência no navegador.
  */
 import {
-  SEO_LOCALE, platformTitle, platformDescription, platformKeywords, platformJsonLd,
+  SEO_LOCALE, platformTitle, platformDescription, platformKeywords, platformJsonLd, platformFaq, faqJsonLd,
+  robotsContent,
   PLATFORM_SHARE_IMAGE, PLATFORM_SHARE_IMAGE_WIDTH, PLATFORM_SHARE_IMAGE_HEIGHT, PLATFORM_SHARE_IMAGE_TYPE,
   type SeoShipping, type SeoAddress,
 } from "../../src/services/seo.js";
+import { PLATFORM_APEX } from "../../src/services/domains.js";
 import type { StoreCustomization, ContentBlock } from "../templates/types.js";
 
 export interface SeoInput {
@@ -36,8 +38,40 @@ export interface SeoInput {
   keywords?: string;
   /** Não indexar (páginas privadas: painel, login, carrinho, checkout). */
   noindex?: boolean;
+  /**
+   * Com `noindex`: seguir as ligações na mesma (`noindex, follow`). É o caso das
+   * lojas-modelo — fora do índice, mas não becos sem saída.
+   */
+  follow?: boolean;
   /** Um ou mais objetos JSON-LD a injetar. */
   jsonLd?: object | object[];
+}
+
+/** O host é o da plataforma (apex ou `www.`)? */
+function isPlatformFamily(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return h === PLATFORM_APEX || h === `www.${PLATFORM_APEX}`;
+}
+
+/**
+ * Canónico de uma página da plataforma, com a origem do pedido.
+ *
+ * `mobisno.store` redireciona (308) para `www.mobisno.store`, e as páginas
+ * declaravam o apex como canónico: cada URL que o Google via apontava para um
+ * redirecionamento. Quando a página está a ser vista num host da plataforma e o
+ * canónico é desse mesmo domínio, a origem passa a ser `location.origin` — a
+ * que o Vercel serve de facto. Os endereços das lojas (`*.sualoja.digital`) não
+ * são tocados.
+ */
+function platformCanonical(url: string): string {
+  if (typeof location === "undefined" || !isPlatformFamily(location.hostname)) return url;
+  try {
+    const u = new URL(url, location.origin);
+    if (!isPlatformFamily(u.hostname)) return url;
+    return `${location.origin}${u.pathname}${u.search}`;
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -87,7 +121,7 @@ function setLink(rel: string, href: string): void {
 
 /** Aplica todos os metadados de SEO da página atual. */
 export function applySeo(input: SeoInput): void {
-  const url = input.canonical ?? (location.origin + location.pathname);
+  const url = platformCanonical(input.canonical ?? (location.origin + location.pathname));
   const imagemPropria = Boolean(input.image);
   const image = abs(input.image || OG_DEFAULT_IMAGE);
   // Sem imagem própria, a página está a usar a arte da plataforma — e dessa as
@@ -101,7 +135,9 @@ export function applySeo(input: SeoInput): void {
   document.title = input.title;
   setMeta("name", "description", input.description);
   if (input.keywords) setMeta("name", "keywords", input.keywords);
-  setMeta("name", "robots", input.noindex ? "noindex, nofollow" : "index, follow");
+  // A mesma diretiva que o servidor escreve (`robotsContent`): antes a SPA
+  // trocava-a por um `index, follow` sem `max-image-preview`.
+  setMeta("name", "robots", robotsContent({ noindex: input.noindex, follow: input.follow }));
   setLink("canonical", url);
 
   // Open Graph
@@ -153,7 +189,12 @@ export function addressFromCustom(custom?: StoreCustomization | null): SeoAddres
       longitude: typeof block.lng === "number" ? block.lng : null,
     };
   }
-  const boutique = custom?.map?.boutiques?.find((b) => b.address || typeof b.lat === "number");
+  // As lojas do Lumière vivem em `custom.lumiere.boutiques`. Isto lia
+  // `custom.map.boutiques`, um campo que não existe na Personalização: a morada
+  // de uma loja Lumière nunca chegava ao JSON-LD, e o `tsc` não o apanhava
+  // porque o `web/` não é verificado no portão (`scripts/check-web.mjs` só
+  // falha nos códigos que rebentam em execução).
+  const boutique = custom?.lumiere?.boutiques?.find((b) => b.address || typeof b.lat === "number");
   if (!boutique) return null;
   return {
     street: boutique.address ?? null,
@@ -181,7 +222,24 @@ export function applyNoindexSeo(title: string): void {
   applySeo({ title, description: "", noindex: true });
 }
 
-/** SEO por omissão da plataforma (landing e páginas públicas do MôBisno). */
+/**
+ * Atualiza só o canónico e o `og:url` — para as páginas que mudam de endereço
+ * sem mudar de vista (a barra de filtros da listagem troca de categoria com
+ * `history.replaceState`).
+ */
+export function updateCanonical(url: string): void {
+  const u = platformCanonical(url);
+  setLink("canonical", u);
+  setMeta("property", "og:url", u);
+}
+
+/**
+ * SEO por omissão da plataforma (página inicial).
+ *
+ * O `FAQPage` acompanha a secção «Perguntas frequentes», que está visível na
+ * página (`platformFaq()` alimenta as duas). Sem ele aqui, o servidor declarava
+ * as perguntas e a SPA apagava-as ao arrancar.
+ */
 export function applyPlatformSeo(): void {
   applySeo({
     title: platformTitle(),
@@ -190,6 +248,6 @@ export function applyPlatformSeo(): void {
     type: "website",
     siteName: "MôBisno",
     canonical: location.origin + "/",
-    jsonLd: platformJsonLd(location.origin),
+    jsonLd: [...platformJsonLd(location.origin), faqJsonLd(platformFaq())],
   });
 }

@@ -16,7 +16,10 @@
  * Defensivo: perante erro devolve um sitemap mínimo (nunca 500).
  */
 import { admin } from "./_shared.js";
-import { STORE_APEX, PLATFORM_APEX, STORE_APEXES, productSlugPath, categorySlug, identifierFromHost } from "./_seo.js";
+import {
+  STORE_APEX, PLATFORM_APEX, STORE_APEXES, productSlugPath, categorySlug, identifierFromHost,
+  platformOrigin, isModelIdentifier,
+} from "./_seo.js";
 
 /** Limite do protocolo: 50.000 URLs por sitemap. */
 const MAX_URLS = 45000;
@@ -67,10 +70,18 @@ export default async function handler(req, res) {
     /* ------------ 1) Host de loja → páginas dessa loja (mesmo host) ------------ */
     if (identifier && db) {
       const base = `https://${host}`;
+      // Uma loja-modelo é uma demonstração da galeria, servida com `noindex`:
+      // listar as páginas dela seria pedir ao Google para indexar o que a página
+      // lhe diz para não indexar.
+      if (isModelIdentifier(identifier)) { res.statusCode = 200; return res.end(urlset([])); }
       const { data: store } = await db
-        .from("stores").select("id, state, owner_id")
+        .from("stores").select("id, state, owner_id, tpl:customization->__template")
         .eq("identifier", identifier).eq("state", "Publicada").maybeSingle();
       if (!store) { res.statusCode = 200; return res.end(urlset([{ loc: `${base}/` }])); }
+      if (!(store.tpl === undefined || store.tpl === null || store.tpl === false)) {
+        res.statusCode = 200;
+        return res.end(urlset([]));
+      }
 
       const { data: products } = await db
         .from("products").select("name, category, price, image_url, available, created_at")
@@ -139,13 +150,18 @@ export default async function handler(req, res) {
     }
 
     /* ---------------- 3) Plataforma (mobisno.store) ---------------- */
+    // A origem é a do pedido dentro da família do apex (`platformOrigin`): o
+    // apex redireciona (308) para `www.` na Vercel, e um sitemap cheio de URL
+    // que redirecionam é um sitemap que o Search Console marca inteiro como
+    // «página com redirecionamento».
+    const origem = platformOrigin(host);
     const urls = [
-      { loc: `https://${PLATFORM_APEX}/`, changefreq: "weekly", priority: "1.0" },
-      { loc: `https://${PLATFORM_APEX}/lojas`, changefreq: "daily", priority: "0.9" },
+      { loc: `${origem}/`, changefreq: "weekly", priority: "1.0" },
+      { loc: `${origem}/lojas`, changefreq: "daily", priority: "0.9" },
       // `/criar` é o assistente (noindex na SPA) — não entra no sitemap.
-      { loc: `https://${PLATFORM_APEX}/termos`, changefreq: "yearly", priority: "0.3" },
-      { loc: `https://${PLATFORM_APEX}/privacidade`, changefreq: "yearly", priority: "0.3" },
-      { loc: `https://${PLATFORM_APEX}/politica`, changefreq: "yearly", priority: "0.3" },
+      { loc: `${origem}/termos`, changefreq: "yearly", priority: "0.3" },
+      { loc: `${origem}/privacidade`, changefreq: "yearly", priority: "0.3" },
+      { loc: `${origem}/politica`, changefreq: "yearly", priority: "0.3" },
     ];
     res.statusCode = 200;
     return res.end(urlset(urls));

@@ -3,7 +3,8 @@
  * Identidade visual branco + #F95901, com animações. O assistente conduz o
  * utilizador: nome → email → palavra-passe → confirmação da palavra-passe →
  * resumo dos dados (confirmar ou corrigir) → cria conta → nome da loja →
- * tipo de negócio → subdomínio (recomenda/aprova) → cria e publica → painel.
+ * tipo de negócio → descrição (título e descrição para o Google) → subdomínio
+ * (recomenda/aprova) → cria a loja em rascunho → galeria de modelos prontos.
  *
  * Qualquer passo pode ser repetido para corrigir um campo: `askName` e
  * `askEmail` recebem o passo seguinte, e uma correção regressa ao resumo em vez
@@ -13,11 +14,7 @@
  * authService, wizardFlow, identifierService).
  */
 import { render, $, go, esc } from "../lib/dom.js";
-import { TEMPLATES, identifierService, authService, wizardFlow, appState, currentSession, adminPanelFor, STORE_APEX } from "../composition.js";
-import { generateLogos, dataUrlToUint8Array, LOGO_PROPOSALS, type LogoResult, type LogoDirection } from "../lib/logoApi.js";
-import { composeLogo, PREVIEW_SIZE, FINAL_SIZE } from "../lib/logoCompose.js";
-import { openLogoCheckout, LOGO_PRICE_KZ } from "../lib/logoPurchase.js";
-import { LOGO_POLICY } from "../../src/services/fileService.js";
+import { TEMPLATES, identifierService, authService, wizardFlow, appState, currentSession, STORE_APEX } from "../composition.js";
 import {
   validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS,
   PASSWORD_MIN_LENGTH, validatePasswordLength, validatePasswordConfirmation,
@@ -38,8 +35,13 @@ const wiz: { data: Record<string, unknown>; session: Session | null; subdomain: 
 };
 
 
+/**
+ * Modelo com que a loja nasce. `TEMPLATES` vem de `templateOptions()`, que já só
+ * traz os modelos prontos — procurar aqui por `t.ready` era procurar um campo
+ * que a opção não tem, e a resposta vinha sempre do `?? TEMPLATES[0]`.
+ */
 function defaultTemplateId(): string {
-  return TEMPLATES.find((t) => t.ready)?.id ?? TEMPLATES[0]?.id ?? "galeria";
+  return TEMPLATES[0]?.id ?? "galeria";
 }
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -416,25 +418,39 @@ function correctName(): void {
     : "Certo. Qual é o teu nome?");
 }
 
+/**
+ * Há um registo a correr. A conversa já tira os botões do ecrã ao escolher,
+ * mas a guarda fica explícita: um segundo «Está tudo certo» (duplo toque, ou
+ * um clique que chega antes de o ecrã mudar) nunca faz uma segunda chamada a
+ * `register` enquanto a primeira não terminou.
+ */
+let registering = false;
+
 function createAccount(): void {
+  if (registering) return;
+  registering = true;
   void (async () => {
-    inputBusy("A criar a tua conta…");
-    const email = String(wiz.data[WIZARD_FIELDS.email] ?? "");
-    const name = String(wiz.data[WIZARD_FIELDS.ownerName] ?? "");
-    const res = await authService.register({ email, password: pendingPassword, name });
-    clearInput();
-    if (!res.ok) {
-      await botSay(res.error.reason);
-      offerRegisterFix(res.error);
-      return;
+    try {
+      inputBusy("A criar a tua conta…");
+      const email = String(wiz.data[WIZARD_FIELDS.email] ?? "");
+      const name = String(wiz.data[WIZARD_FIELDS.ownerName] ?? "");
+      const res = await authService.register({ email, password: pendingPassword, name });
+      clearInput();
+      if (!res.ok) {
+        await botSay(res.error.reason);
+        offerRegisterFix(res.error);
+        return;
+      }
+      pendingPassword = "";
+      wiz.session = res.value;
+      appState.session = res.value;
+      appState.ownerId = res.value.ownerId;
+      wiz.data[WIZARD_FIELDS.ownerId] = res.value.ownerId;
+      await botSay("Boa, conta criada! 🎉");
+      askStoreName();
+    } finally {
+      registering = false;
     }
-    pendingPassword = "";
-    wiz.session = res.value;
-    appState.session = res.value;
-    appState.ownerId = res.value.ownerId;
-    wiz.data[WIZARD_FIELDS.ownerId] = res.value.ownerId;
-    await botSay("Boa, conta criada! 🎉");
-    askStoreName();
   })();
 }
 
@@ -681,260 +697,8 @@ function createStore(): void {
     }
 
     await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade — para a pôres online, ativas a subscrição no Dashboard.");
-    askLogo(result.store.ownerId, result.store.id);
-  })();
-}
-
-/* ------------------------------ Logótipo ------------------------------ */
-
-/**
- * Estado do Gerador_De_Logotipos dentro do wizard.
- *
- * `busy` é a guarda de R2.7: enquanto há um pedido em curso, qualquer nova
- * submissão (incluindo um duplo clique em «Tentar de novo») é rejeitada.
- * `description` guarda a descrição do pedido para o «Tentar de novo» repetir
- * exactamente o mesmo pedido (R2.8).
- */
-const logoGen: { busy: boolean; description: string } = { busy: false, description: "" };
-
-/**
- * Cabeçalho da secção de criação de logótipos, com o selo «Beta» (R2.9).
- * Aparece em todos os cartões da secção: oferta, propostas e falhas.
- */
-function logoSectionHeader(): string {
-  return `<div class="flex items-center gap-2 flex-wrap pb-2 mb-2.5 border-b border-gray-100">
-    <span class="material-symbols-outlined text-[18px]" style="color:${ACCENT}">auto_awesome</span>
-    <h4 class="font-black text-gray-900 text-sm">Criar logótipo</h4>
-    <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style="background:rgba(249,89,1,.12);color:${ACCENT}"><span class="material-symbols-outlined text-[12px]">science</span> Beta</span>
-  </div>`;
-}
-
-/** Pergunta se o dono já tem logótipo; se não, oferece criar por IA (pago). */
-function askLogo(ownerId: string, storeId: string): void {
-  void (async () => {
-    await botSay("Antes de escolheres o modelo: já tens um logótipo para a tua loja?");
-    inputChips(
-      [
-        { value: "sim", label: "Sim, já tenho" },
-        { value: "nao", label: "Ainda não tenho" },
-      ],
-      async (value, label) => {
-        userSay(label);
-        clearInput();
-        if (value === "sim") {
-          await botSay("Perfeito! Podes carregá-lo a qualquer momento no editor da loja. 👍");
-          goToModels();
-        } else {
-          offerLogo(ownerId, storeId);
-        }
-      },
-    );
-  })();
-}
-
-/** Oferece gerar as propostas de logótipo por IA (custo 5.000 Kz). */
-function offerLogo(ownerId: string, storeId: string): void {
-  void (async () => {
-    botCard(`${logoSectionHeader()}
-      <p class="text-sm text-gray-800 leading-relaxed">Queres que eu crie um logótipo profissional agora, com IA? Gero ${LOGO_PROPOSALS} propostas em PNG com fundo transparente e ficas com a que escolheres — por ${LOGO_PRICE_KZ.toLocaleString("pt-PT")} Kz.</p>`);
-    await wait(220);
-    inputChips(
-      [
-        { value: "sim", label: "✨ Sim, criar logótipo" },
-        { value: "nao", label: "Agora não" },
-      ],
-      async (value, label) => {
-        userSay(label);
-        clearInput();
-        if (value === "sim") generateWizardLogos(ownerId, storeId);
-        else {
-          await botSay("Sem problema! Podes criá-lo mais tarde no Dashboard, em \"Criar logótipo\". 🙂");
-          goToModels();
-        }
-      },
-    );
-  })();
-}
-
-/** Compõe a descrição a enviar ao servidor a partir dos dados do wizard. */
-function wizardLogoDescription(): string {
-  const storeName = String(wiz.data[WIZARD_FIELDS.name] ?? "A minha loja");
-  const about = String(wiz.data.aboutStore ?? "");
-  return `${storeName}. ${about}`.trim();
-}
-
-/** Primeira geração: fixa a descrição e arranca o pedido. */
-function generateWizardLogos(ownerId: string, storeId: string): void {
-  void runLogoGeneration(wizardLogoDescription(), ownerId, storeId);
-}
-
-/**
- * Pede as propostas e trata as **três variantes** de `LogoResult` (D3).
- *
- * Enquanto espera, a zona de entrada mostra o estado de progresso e qualquer
- * submissão adicional é rejeitada pela guarda `logoGen.busy` (R2.7).
- */
-async function runLogoGeneration(description: string, ownerId: string, storeId: string): Promise<void> {
-  if (logoGen.busy) return; // R2.7 — pedido em curso: submissão rejeitada.
-  logoGen.busy = true;
-  logoGen.description = description; // R2.8 — «Tentar de novo» repete esta descrição.
-  inputBusy(`A criar ${LOGO_PROPOSALS} propostas de logótipo…`);
-
-  let result: LogoResult;
-  try {
-    result = await generateLogos(description);
-  } finally {
-    logoGen.busy = false;
-  }
-  clearInput();
-
-  if (result.kind === "ok" && result.directions.length > 0) {
-    await showLogoOptions(result, ownerId, storeId);
-    return;
-  }
-  showLogoFailure(logoFailureText(result), ownerId, storeId);
-}
-
-/**
- * Texto que o Dono lê em cada situação de falha.
- *
- * - `ok` sem propostas: o servidor respondeu, mas não veio nada;
- * - `server-error`: o `error` do servidor tal como vem, com `detail` quando
- *   existe (R2.4); com `error` vazio, texto genérico com o `status` à mão;
- * - `network-error`: distingue falha de comunicação de ausência de propostas
- *   (R2.5); o `message` é diagnóstico técnico, mostrado à parte.
- */
-function logoFailureText(result: LogoResult): { text: string; detail?: string } {
-  if (result.kind === "ok") {
-    return { text: `O servidor respondeu, mas não veio nenhuma proposta (0 de ${result.requested}). Podes tentar de novo com a mesma descrição.` };
-  }
-  if (result.kind === "server-error") {
-    const text = result.error
-      ? `O servidor não conseguiu criar os logótipos: ${result.error}`
-      : `O servidor não conseguiu criar os logótipos e não indicou o motivo (erro ${result.status}).`;
-    return result.detail ? { text, detail: `Detalhe: ${result.detail}` } : { text };
-  }
-  return {
-    text: "Não consegui falar com o servidor, por isso não sei se havia propostas para criar. Verifica a ligação à internet e tenta de novo.",
-    detail: `Detalhe técnico: ${result.message}`,
-  };
-}
-
-/** Cartão de falha com o motivo, mais as ações «Tentar de novo» e continuar. */
-function showLogoFailure(msg: { text: string; detail?: string }, ownerId: string, storeId: string): void {
-  botCard(`${logoSectionHeader()}
-    <div class="flex gap-2 items-start">
-      <span class="material-symbols-outlined text-[20px] shrink-0" style="color:#dc2626">error</span>
-      <div class="min-w-0">
-        <p class="text-sm text-gray-800 leading-relaxed" style="overflow-wrap:anywhere">${esc(msg.text)}</p>
-        ${msg.detail ? `<p class="text-xs text-gray-500 mt-1.5 leading-relaxed" style="overflow-wrap:anywhere">${esc(msg.detail)}</p>` : ""}
-      </div>
-    </div>`);
-  inputChips(
-    [
-      { value: "retry", label: "🔄 Tentar de novo" },
-      { value: "skip", label: "Continuar sem logótipo" },
-    ],
-    async (value, label) => {
-      userSay(label);
-      clearInput();
-      if (value === "retry") {
-        // R2.8 — repete o pedido com exactamente a mesma descrição.
-        await runLogoGeneration(logoGen.description, ownerId, storeId);
-        return;
-      }
-      await botSay("Sem problema! Podes criá-lo mais tarde no Dashboard, em \"Criar logótipo\". 🙂");
-      goToModels();
-    },
-  );
-}
-
-/**
- * Mostra as propostas recebidas num cartão do chat, com botão «Escolher» em
- * cada uma. Todas as propostas devolvidas aparecem, em PNG com fundo
- * transparente sobre o fundo axadrezado (R2.2); quando ficaram propostas em
- * falta, o cartão diz quantas (R2.3).
- */
-async function showLogoOptions(
-  result: { directions: LogoDirection[]; brief: { brandName: string }; requested: number; missing: number },
-  ownerId: string,
-  storeId: string,
-): Promise<void> {
-  // As direções são receitas: o PNG de cada proposta é composto aqui, com o
-  // nome da marca desenhado por nós (ver `web/lib/logoCompose.ts`).
-  const images = await Promise.all(
-    result.directions.map((d) => composeLogo(result.brief.brandName, d, PREVIEW_SIZE)),
-  );
-  const row = document.createElement("div");
-  row.className = "flex items-end gap-2";
-  const checker = "background-image:linear-gradient(45deg,#eef1f4 25%,transparent 25%),linear-gradient(-45deg,#eef1f4 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef1f4 75%),linear-gradient(-45deg,transparent 75%,#eef1f4 75%);background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0;background-color:#fff;";
-  const cells = images.map((src, i) => `
-    <div class="rounded-xl border border-gray-200 overflow-hidden bg-white">
-      <div class="aspect-square flex items-center justify-center p-2" style="${checker}"><img src="${src}" alt="Proposta ${i + 1}" class="max-w-full max-h-full object-contain" oncontextmenu="return false" draggable="false" /></div>
-      <button data-wlogo-pick="${i}" class="w-full py-2 text-xs font-bold text-white hover:opacity-95 transition-opacity" style="background:${ACCENT}">Escolher</button>
-    </div>`).join("");
-  const recebidas = images.length === 1 ? "1 proposta" : `${images.length} propostas`;
-  const intro = result.missing > 0
-    ? `Recebi ${recebidas} de ${result.requested} — ${result.missing === 1 ? "faltou 1" : `faltaram ${result.missing}`}. Escolhe a tua preferida:`
-    : `Aqui estão as ${images.length} propostas. Escolhe a tua preferida:`;
-  row.innerHTML = `${botAvatar()}<div class="mb-bubble bg-white border border-gray-100 rounded-2xl rounded-bl-md p-3 shadow-sm" style="max-width:96%">
-    ${logoSectionHeader()}
-    <p class="text-sm text-gray-800 leading-relaxed mb-2.5">${esc(intro)}</p>
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${cells}</div>
-    ${result.missing > 0 ? `<button data-wlogo-retry class="mt-2.5 w-full py-2 text-xs font-bold rounded-xl border transition-colors hover:bg-gray-50" style="border-color:${ACCENT};color:${ACCENT}">Tentar de novo com a mesma descrição</button>` : ""}
-  </div>`;
-  $("#chat")!.appendChild(row);
-  scrollDown();
-  row.querySelectorAll<HTMLElement>("[data-wlogo-pick]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const chosen = result.directions[Number(b.dataset.wlogoPick)];
-      if (!chosen) return;
-      // Recomposto em alta resolução: mesmo desenho, ficheiro melhor.
-      void composeLogo(result.brief.brandName, chosen, FINAL_SIZE)
-        .then((src) => { if (src) void pickWizardLogo(src, ownerId, storeId); });
-    }));
-  // Propostas em falta: repetir o pedido é uma opção sem perder as recebidas.
-  row.querySelector<HTMLElement>("[data-wlogo-retry]")?.addEventListener("click", () => {
-    if (logoGen.busy) return; // R2.7
-    userSay("Tentar de novo");
-    void runLogoGeneration(logoGen.description, ownerId, storeId);
-  });
-}
-
-/** Carrega o logótipo escolhido, inicia o pagamento e continua a conversa. */
-async function pickWizardLogo(dataUrl: string, ownerId: string, storeId: string): Promise<void> {
-  userSay("Escolhi este logótipo. ✨");
-  inputBusy("A preparar o teu logótipo…");
-  let logoUrl = "";
-  try {
-    const content = dataUrlToUint8Array(dataUrl);
-    const fileService = adminPanelFor(storeId).services.fileService;
-    const validation = fileService.validate({ content, fileName: "logotipo.png" }, LOGO_POLICY);
-    if (!validation.ok) {
-      clearInput();
-      await botSay("Não consegui preparar esse logótipo. Podes tentar outro mais tarde no Dashboard.");
-      goToModels();
-      return;
-    }
-    const stored = await fileService.store(storeId, "logo", validation.value);
-    logoUrl = stored.url;
-    // R2.10 — a proposta escolhida fica guardada em `customization.logos`,
-    // a mesma lista que o separador «Criar logótipo › Meus logótipos» lê.
-    try {
-      const fresh = await getCustomization(storeId);
-      const logos = Array.isArray(fresh.logos) ? fresh.logos : [];
-      await saveCustomization(ownerId, storeId, { ...fresh, logos: [...logos, logoUrl] });
-    } catch { /* o ficheiro já está guardado; não bloquear o fluxo */ }
-  } catch {
-    clearInput();
-    await botSay("Houve um problema a preparar o logótipo. Podes tentar mais tarde no Dashboard.");
     goToModels();
-    return;
-  }
-  clearInput();
-  await botSay(`Boa escolha! Só falta o pagamento de ${LOGO_PRICE_KZ.toLocaleString("pt-PT")} Kz. Vou abrir o pagamento — assim que for processado, o teu logótipo aparece em "Criar logótipo › Meus logótipos".`);
-  openLogoCheckout({ ownerId, storeId, logoUrl });
-  goToModels();
+  })();
 }
 
 /** Leva o dono à galeria de modelos prontos (por agora só usamos modelos). */

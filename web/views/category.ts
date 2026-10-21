@@ -1,21 +1,22 @@
 /** Página de categoria — resolve a loja e mostra só os produtos dessa categoria. */
 import { render, fadeInImages, formatKz } from "../lib/dom.js";
-import { getTemplate } from "../templates/registry.js";
-import { headerCategories, allProductsHref, filterForCategoryPage, ALL_LABEL, FEATURED_LABEL } from "../templates/sectionsModel.js";
+import { allProductsHref, filterForCategoryPage, ALL_LABEL } from "../templates/sectionsModel.js";
 import type { StoreRenderView } from "../templates/types.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { updateCartBadge } from "../lib/cart.js";
-import { brandOf } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
 import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { publicStoreUrl } from "../composition.js";
 import { storeBasePath } from "../lib/routing.js";
-import { applySeo } from "../lib/seo.js";
-import { categoryTitle, categoryDescription, collectionJsonLd, breadcrumbJsonLd } from "../../src/services/seo.js";
-import { categorySlug, resolveCategoryLabel, productSlugPath } from "../lib/slug.js";
+import { applySeo, updateCanonical } from "../lib/seo.js";
+import { categoryTitle, categoryDescription, collectionJsonLd, breadcrumbJsonLd, isModelStore } from "../../src/services/seo.js";
+import { categorySlug, productSlugPath } from "../lib/slug.js";
 import { storeNotFoundHtml } from "../templates/notFound.js";
+import {
+  resolveCategory, categoryPageHtml, categoryCanonicalLabel, isAllListingLabel, storeBrand, storeSeoFacts,
+} from "./storeHtml.js";
 
 /**
  * Página de categoria. `slugOrLabel` vem da URL (`/categoria/tenis-de-corrida`)
@@ -23,40 +24,39 @@ import { storeNotFoundHtml } from "../templates/notFound.js";
  * percent-encoded continuam a funcionar (o resolvedor compara por slug).
  */
 export async function renderCategoryPage(identifier: string, slugOrLabel: string): Promise<void> {
-  const { result, view, custom } = await loadStorefront(identifier);
+  const { result, view, custom, draft } = await loadStorefront(identifier);
 
   if (view.kind !== "render" || result.kind !== "render") {
     render(storeNotFoundHtml(identifier));
     return;
   }
 
-  // Slug da URL → rótulo real. Inclui os rótulos especiais ("Produtos",
-  // "Destaques", "Todos") para que /categoria/produtos e /categoria/destaques
-  // continuem a resolver.
-  const known = [ALL_LABEL, FEATURED_LABEL, "Todos", ...headerCategories(view)];
-  const category = resolveCategoryLabel(slugOrLabel, known) ?? slugOrLabel;
+  // Slug da URL → rótulo real («Produtos», «Destaques» e «Todos» incluídos).
+  // A mesma resolução que o servidor usa para decidir entre 200 e 404.
+  const resolved = resolveCategory(view, slugOrLabel);
+  const category = resolved.label;
 
-  const template = getTemplate(view.templateId);
-
-  const html = template.renderCategory
-    ? template.renderCategory(view, category, custom)
-    : template.render(view, custom);
-
-  const app = render(html);
-  app.style.setProperty("--brand", brandOf(custom, view.templateId));
+  // O mesmo HTML que o servidor pré-renderiza, com o seletor de ordenação já no
+  // sítio: no primeiro desenho a página que está no ecrã é adotada.
+  const app = render(categoryPageHtml(view, category, custom));
+  const { brand, ink } = storeBrand(view, custom);
+  app.style.setProperty("--brand", brand);
+  app.style.setProperty("--brand-ink", ink);
   applyInk(app, custom);
   applyTheme(app, custom);
   applyFieldColors(app, custom);
   applyIconColor(app, custom);
   fadeInImages(app);
   updateCartBadge(result.store.id);
-  mountCategoryFilter(app, view, identifier, category);
+
+  const storeUrl = publicStoreUrl(identifier);
+  mountCategoryFilter(app, view, identifier, category, storeUrl);
   mountListingSort(app, view);
 
   // SEO da listagem: descrição ÚNICA por categoria (nunca a da loja repetida),
   // trilho de navegação e a coleção de produtos em dados estruturados.
-  const storeUrl = publicStoreUrl(identifier);
-  const url = `${storeUrl}/categoria/${categorySlug(category)}`;
+  const canonicalLabel = categoryCanonicalLabel(category);
+  const url = `${storeUrl}/categoria/${categorySlug(canonicalLabel)}`;
   const items = filterForCategoryPage(view, category);
   const prices = items.map((p) => p.price).filter((n) => Number.isFinite(n));
   const description = categoryDescription({
@@ -65,7 +65,9 @@ export async function renderCategoryPage(identifier: string, slugOrLabel: string
     count: items.length,
     sampleNames: items.slice(0, 3).map((p) => p.name),
     priceFrom: prices.length ? formatKz(Math.min(...prices)) : null,
+    facts: storeSeoFacts(view, custom, result.store),
   });
+  const modelo = isModelStore({ identifier: result.store.identifier, customization: custom });
 
   applySeo({
     title: categoryTitle(category, view.storeName),
@@ -74,6 +76,10 @@ export async function renderCategoryPage(identifier: string, slugOrLabel: string
     image: items.find((p) => p.imageUrl)?.imageUrl ?? result.logo?.url ?? null,
     type: "website",
     siteName: view.storeName,
+    // Endereço que não corresponde a listagem nenhuma (o servidor responde 404),
+    // listagem vazia, loja-modelo ou rascunho: fora do índice.
+    noindex: !resolved.known || !resolved.hasItems || modelo || draft === true,
+    follow: resolved.known,
     jsonLd: [
       collectionJsonLd({
         name: category,
@@ -96,7 +102,7 @@ export async function renderCategoryPage(identifier: string, slugOrLabel: string
 
 /** Um rótulo que significa «todos os produtos» (o do menu ou o das ligações antigas). */
 function isAllLabel(label: string): boolean {
-  return label === ALL_LABEL || label === "Todos";
+  return isAllListingLabel(label);
 }
 
 /**
@@ -109,15 +115,21 @@ function isAllLabel(label: string): boolean {
  * (`listingProducts`), pelo que filtrar é esconder e mostrar: não há pedido ao
  * servidor, não há vista nova.
  *
+ * À entrada, os cartões de fora da categoria são escondidos aqui — e o servidor
+ * já os enviou escondidos (uma folha de estilo só para o primeiro ecrã, que
+ * `render()` retira), para a grelha não aparecer inteira e depois encolher.
+ *
  * O endereço acompanha a escolha com `history.replaceState` e nunca com
  * `navigate()`: `navigate()` é o que dispara o router e recarrega a vista, ou
- * seja, o defeito que esta barra existe para corrigir.
+ * seja, o defeito que esta barra existe para corrigir. O canónico acompanha o
+ * endereço (`updateCanonical`).
  */
 function mountCategoryFilter(
   app: HTMLElement,
   view: StoreRenderView,
   identifier: string,
   activeLabel: string,
+  storeUrl: string,
 ): void {
   const bar = app.querySelector<HTMLElement>("[data-cat-filter-bar]");
   if (!bar) return;
@@ -159,6 +171,9 @@ function mountCategoryFilter(
       ? allProductsHref(view)
       : `${storeBasePath(identifier)}/categoria/${categorySlug(label)}`;
     history.replaceState(history.state, "", href + location.search);
+    // O canónico segue o endereço — senão a página filtrada declarava-se cópia
+    // da categoria com que abriu.
+    updateCanonical(`${storeUrl}/categoria/${categorySlug(categoryCanonicalLabel(titulo))}`);
   }
 
   apply(activeLabel, true);
@@ -170,56 +185,44 @@ function mountCategoryFilter(
 }
 
 /**
- * Ordenação da listagem, injetada em qualquer modelo: reordena os cartões que já
- * estão no ecrã, sem voltar ao servidor. Entra dentro da barra de filtros do
- * modelo quando existe (uma linha só, à direita), senão fica acima da grelha.
+ * Ordenação da listagem: reordena os cartões que já estão no ecrã, sem voltar ao
+ * servidor. O seletor (`[data-listing-sort]`) vem no HTML da página
+ * (`withListingSort` de `storeHtml.ts`) — a vista criava-o depois de desenhar e
+ * a grelha saltava.
+ *
+ * Cada grelha é ordenada **dentro de si**: quando a página tem várias (secções
+ * por categoria), juntar todos os cartões na primeira esvaziava as outras.
  */
 function mountListingSort(app: HTMLElement, view: StoreRenderView): void {
-  const cards = Array.from(app.querySelectorAll<HTMLElement>("[data-edit-product]"));
-  if (cards.length < 2) return; // sem produtos suficientes para ordenar
-  const grid = cards[0].parentElement;
-  if (!grid) return;
+  const sortSel = app.querySelector<HTMLSelectElement>("[data-listing-sort]");
+  if (!sortSel) return;
 
-  const box = document.createElement("div");
-  box.className = "ml-auto relative";
-  box.innerHTML = `
-    <select data-listing-sort class="text-sm rounded-full pl-4 pr-9 py-2 appearance-none cursor-pointer outline-none" style="border:1px solid rgba(128,128,128,.32);background:transparent;color:inherit">
-      <option value="rel">Ordenar: Relevância</option>
-      <option value="preco-asc">Preço: mais baixo</option>
-      <option value="preco-desc">Preço: mais alto</option>
-      <option value="nome">Nome (A–Z)</option>
-    </select>
-    <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[18px]" style="opacity:.6">expand_more</span>`;
-
-  const bar = app.querySelector<HTMLElement>("[data-cat-filter-bar]");
-  if (bar) {
-    bar.appendChild(box);
-  } else {
-    // Sem barra (listagem de Destaques, loja sem categorias): linha própria, à
-    // direita, para não ficar um selecionador solto encostado ao título.
-    box.className = "relative";
-    const row = document.createElement("div");
-    row.className = "flex justify-end mb-6";
-    row.appendChild(box);
-    grid.parentElement?.insertBefore(row, grid);
-  }
+  const grids = new Map<HTMLElement, { el: HTMLElement; i: number }[]>();
+  app.querySelectorAll<HTMLElement>("[data-edit-product]").forEach((el, i) => {
+    const grid = el.parentElement;
+    if (!grid) return;
+    const list = grids.get(grid) ?? [];
+    list.push({ el, i });
+    grids.set(grid, list);
+  });
+  if (!grids.size) return;
 
   const priceById = new Map(view.products.map((p) => [p.id, p.price]));
   const nameById = new Map(view.products.map((p) => [p.id, (p.name ?? "").toLowerCase()]));
-  const original = cards.map((el, i) => ({ el, i }));
 
-  const sortSel = box.querySelector<HTMLSelectElement>("[data-listing-sort]");
-  sortSel?.addEventListener("change", () => {
+  sortSel.addEventListener("change", () => {
     const mode = sortSel.value;
-    const arr = [...original];
-    arr.sort((a, b) => {
-      const ia = a.el.dataset.editProduct ?? "";
-      const ib = b.el.dataset.editProduct ?? "";
-      if (mode === "preco-asc") return (priceById.get(ia) ?? 0) - (priceById.get(ib) ?? 0);
-      if (mode === "preco-desc") return (priceById.get(ib) ?? 0) - (priceById.get(ia) ?? 0);
-      if (mode === "nome") return (nameById.get(ia) ?? "").localeCompare(nameById.get(ib) ?? "");
-      return a.i - b.i; // relevância = ordem original
-    });
-    arr.forEach((o) => grid.appendChild(o.el));
+    for (const [grid, original] of grids) {
+      const arr = [...original];
+      arr.sort((a, b) => {
+        const ia = a.el.dataset.editProduct ?? "";
+        const ib = b.el.dataset.editProduct ?? "";
+        if (mode === "preco-asc") return (priceById.get(ia) ?? 0) - (priceById.get(ib) ?? 0);
+        if (mode === "preco-desc") return (priceById.get(ib) ?? 0) - (priceById.get(ia) ?? 0);
+        if (mode === "nome") return (nameById.get(ia) ?? "").localeCompare(nameById.get(ib) ?? "");
+        return a.i - b.i; // relevância = ordem original
+      });
+      arr.forEach((o) => grid.appendChild(o.el));
+    }
   });
 }

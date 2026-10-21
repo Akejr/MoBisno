@@ -1,14 +1,15 @@
 /**
- * Registo de Modelos_De_Loja depois da remoção do «Neon Lab» e do «FoodMart»
- * (R1.4, R1.10, passo 5 da decisão D7).
+ * Registo de Modelos_De_Loja depois da saída de dois modelos — o modelo escuro e
+ * a mercearia (R1.4, R1.10, passo 5 da decisão D7).
  *
  * A avaria que este teste guarda: remover uma entrada de `TEMPLATE_REGISTRY`
  * não parte nada visível: `getTemplate` tem fallback, e qualquer Loja gravada
  * com esse `template_id` passa **silenciosamente** a ser servida com o primeiro
  * Modelo registado. Nenhum teste da linha de base apanhava a alteração, e o
  * `tsc` não olha para `web/` (o `tsconfig.json` compila só `src/**` e
- * `tests/**`). Este ficheiro é a rede: fixa quais as entradas que saíram, quais
- * as que ficaram, e para onde vai um id desconhecido.
+ * `tests/**`). Este ficheiro é a rede: fixa quais os modelos que estão no
+ * registo, para onde vai um id desconhecido, e que nenhum módulo de desenho fica
+ * no repositório sem estar registado.
  *
  * ## Contorno escolhido: `await import()` com o especificador em constante
  *
@@ -20,24 +21,16 @@
  * programa; em execução, o `vitest` resolve-o normalmente.
  *
  * A alternativa (`readFileSync` do texto-fonte, padrão de
- * `tests/seoInfra.test.ts` e `tests/seedRename.test.ts`) chegava para «as
- * entradas saíram do registo», mas não prova o R1.10: só executando
- * `getTemplate` se vê que um id desconhecido devolve o primeiro Modelo
- * registado. Nenhum stub é necessário — `dom.ts` e `routing.ts` só tocam em
- * `document`/`location` **dentro** das funções, e nem `registry.ts` nem os
- * módulos de desenho correm código de DOM no carregamento: só declaram funções
- * `render` e objetos `StoreTemplate`.
+ * `tests/seoInfra.test.ts` e `tests/seedRename.test.ts`) chegava para «o que
+ * está no registo», mas não prova o R1.10: só executando `getTemplate` se vê que
+ * um id desconhecido devolve o primeiro Modelo registado.
  *
- * Uma única asserção fica pelo **texto-fonte** (`readFileSync`, padrão de
- * `tests/seoInfra.test.ts` e `tests/seedRename.test.ts`): a ausência dos imports
- * de `neonlab.js` e `foodmart.js`. Não é observável em execução: `foodmart.ts`
- * continua no repositório (exporta `foodmartDefaultFeatures`, usado pelo editor) e
- * importá-lo sem o registar deixaria o `TEMPLATE_REGISTRY` correto mas o pacote
- * maior, com o modelo removido ainda lá dentro à espera de voltar. `neonlab.ts` já
- * foi apagado — a guarda mantém-se para o caso de voltar.
+ * Os dois modelos que saíram já não existem no repositório — nem o desenho nem
+ * o comportamento —, por isso não são nomeados aqui: a guarda é a lista
+ * deliberada de modelos prontos e a ausência de módulos de desenho órfãos.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 /** Especificador em constante: mantém `web/templates/registry.ts` fora do `tsc`. */
@@ -55,22 +48,25 @@ const { TEMPLATE_REGISTRY, getTemplate, templateOptions } = (await import(
 
 const ids = (): string[] => TEMPLATE_REGISTRY.map((t) => t.id);
 
-describe("TEMPLATE_REGISTRY — entradas removidas (R1.4)", () => {
-  it("não registra `neonlab` nem `foodmart`", () => {
-    expect(ids()).not.toContain("neonlab");
-    expect(ids()).not.toContain("foodmart");
+/**
+ * Os modelos prontos, por esta ordem. Acrescentar ou retirar um modelo é uma
+ * decisão (muda o que o Dono pode escolher e, para o primeiro, o que serve as
+ * Lojas com ids desconhecidos): tem de passar por aqui.
+ */
+const PRONTOS = ["desportivo", "beauty", "galeria", "lumiere", "tech-essentials"];
+
+describe("TEMPLATE_REGISTRY — os modelos que estão no registo (R1.4)", () => {
+  it("os modelos prontos são exactamente os previstos, pela ordem prevista", () => {
+    expect(TEMPLATE_REGISTRY.filter((t) => t.ready).map((t) => t.id)).toEqual(PRONTOS);
   });
 
-  it("mantém os Modelos que ficaram, com `desportivo` como primeiro", () => {
+  it("mantém `desportivo` como primeiro", () => {
     // A identidade do primeiro é o que define o destino de qualquer id
     // desconhecido (R1.10): trocar a ordem do registo muda o Modelo servido às
-    // Lojas gravadas com `neonlab`/`foodmart`, e é uma alteração que tem de ser
+    // Lojas gravadas com os modelos que saíram, e é uma alteração que tem de ser
     // deliberada.
     expect(TEMPLATE_REGISTRY.length).toBeGreaterThan(0);
     expect(TEMPLATE_REGISTRY[0]!.id).toBe("desportivo");
-    expect(ids()).toContain("lumiere");
-    expect(ids()).toContain("beauty");
-    expect(ids()).toContain("galeria");
   });
 
   it("não tem ids repetidos", () => {
@@ -79,10 +75,9 @@ describe("TEMPLATE_REGISTRY — entradas removidas (R1.4)", () => {
     expect(new Set(ids()).size).toBe(ids().length);
   });
 
-  it("não oferece `neonlab` nem `foodmart` na galeria de Modelos", () => {
+  it("a galeria de Modelos só oferece modelos prontos e registados", () => {
     const oferecidos = templateOptions().map((o) => o.id);
-    expect(oferecidos).not.toContain("neonlab");
-    expect(oferecidos).not.toContain("foodmart");
+    expect(oferecidos).toEqual(PRONTOS);
     for (const id of oferecidos) expect(ids()).toContain(id);
   });
 });
@@ -90,11 +85,13 @@ describe("TEMPLATE_REGISTRY — entradas removidas (R1.4)", () => {
 describe("getTemplate — id desconhecido devolve o primeiro registado (R1.10)", () => {
   const primeiro = (): Modelo => TEMPLATE_REGISTRY[0]!;
 
-  it("devolve o primeiro Modelo para as Lojas gravadas com `neonlab` ou `foodmart`", () => {
+  it("devolve o primeiro Modelo para um id que já não está no registo", () => {
     // É este o comportamento que serve as demos publicadas depois da remoção:
     // não rebenta, serve o primeiro Modelo registado.
-    expect(getTemplate("neonlab")).toBe(primeiro());
-    expect(getTemplate("foodmart")).toBe(primeiro());
+    for (const id of ["modelo-que-saiu", "modelo-escuro", "mercearia"]) {
+      expect(ids()).not.toContain(id);
+      expect(getTemplate(id)).toBe(primeiro());
+    }
   });
 
   it("devolve o primeiro Modelo para qualquer id inventado", () => {
@@ -113,19 +110,23 @@ describe("getTemplate — id desconhecido devolve o primeiro registado (R1.10)",
   });
 });
 
-describe("registry.ts — os módulos de desenho removidos não são importados (R1.4)", () => {
-  const FONTE = readFileSync(join(__dirname, "..", "web", "templates", "registry.ts"), "utf8");
+describe("registry.ts — nenhum módulo de desenho fica de fora (R1.4)", () => {
+  const PASTA = join(__dirname, "..", "web", "templates");
+  const FONTE = readFileSync(join(PASTA, "registry.ts"), "utf8");
 
-  it("não importa `neonlab.js` nem `foodmart.js`", () => {
-    // Sem esta guarda, alguém pode repor o import «só para reutilizar uma
-    // função» e o passo seguinte — voltar a pôr a entrada no registo — deixa de
-    // ter atrito. O `tsc` não olha para `web/`, logo nada mais o apanha.
-    const imports = FONTE.split("\n").filter((l) => /^\s*import\b/.test(l));
-    for (const proibido of ["neonlab", "foodmart"]) {
-      expect(
-        imports.filter((l) => l.includes(proibido)),
-        `registry.ts não pode importar ${proibido}.js`,
-      ).toEqual([]);
-    }
+  /** Módulos que exportam um `StoreTemplate` (`export const xTemplate: StoreTemplate`). */
+  const modulosDeModelo = (): string[] =>
+    readdirSync(PASTA)
+      .filter((f) => f.endsWith(".ts"))
+      .filter((f) => /export const \w+Template: StoreTemplate/.test(readFileSync(join(PASTA, f), "utf8")))
+      .map((f) => f.replace(/\.ts$/, ""));
+
+  it("todo o módulo que exporta um modelo está importado no registo", () => {
+    // Um modelo que sai do registo sai também do repositório. Deixá-lo no disco
+    // «só para reutilizar uma função» foi o que manteve a mercearia viva no
+    // editor, com materializações e controlos para um modelo que nenhuma loja
+    // podia escolher.
+    const importados = [...FONTE.matchAll(/import \{ \w+Template \} from "\.\/(\w+)\.js"/g)].map((m) => m[1]!);
+    expect(modulosDeModelo().sort()).toEqual([...importados].sort());
   });
 });

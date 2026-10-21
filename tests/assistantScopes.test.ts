@@ -1,28 +1,32 @@
 /**
- * Guardas dos âmbitos do Assistente_IA (R8).
+ * Guardas dos âmbitos do Assistente_IA e da orientação por ecrã (R8).
  *
- * O Assistente_IA descrevia o MôBisno como um construtor onde a loja se monta
- * peça por peça. Hoje criar uma Loja é escolher um **modelo pronto de site** e
- * personalizar textos, fotografias e cores. A tarefa 8.1 reescreveu os âmbitos
- * `site`, `editor` e `logo` de `api/assistant.js`; este ficheiro é a guarda de
- * que o texto novo fica, e de que nada do que tinha de ficar intacto se perdeu.
+ * Duas metades, com a mesma origem.
  *
- * As asserções são sobre o **texto-fonte**. `api/` é JavaScript sem verificação
- * de tipos e fora do programa do `tsc`, por isso nada aqui é importado: é o
- * mesmo padrão `readFileSync` que `tests/seoInfra.test.ts` usa para as
- * invariantes de SEO.
+ * A primeira é sobre `api/assistant.js`: o Assistente_IA descrevia o MôBisno
+ * como um construtor onde a loja se monta peça por peça, quando criar uma Loja é
+ * escolher um **modelo pronto de site** e personalizar textos, fotografias e
+ * cores. As asserções são sobre o **texto-fonte** — `api/` é JavaScript fora do
+ * programa do `tsc`, por isso nada é importado: é o mesmo padrão `readFileSync`
+ * de `tests/seoInfra.test.ts`.
  *
- * O ponto mais frágil que este ficheiro protege é o âmbito `seotitle`. A §7.3 do
- * `SEO.md` afirmava que `seotitle` tinha saído de `api/assistant.js` e que
- * `api/logo.js` tinha sido apagado — ambos existem, e a tarefa 8.3 corrigiu o
- * documento. Se o `seotitle` desaparecer de facto, `web/lib/seoGen.ts` passa a
- * receber o prompt errado **sem nada falhar**, porque a ligação é uma chamada
- * HTTP que o `tsc` não vê. Daí as asserções serem sobre o mapa `PROMPTS` e sobre
- * a resolução de `body.scope`, e não apenas sobre a presença do texto no
- * ficheiro.
+ * O ponto mais frágil aqui é o âmbito `seotitle`. Se desaparecer,
+ * `web/lib/seoGen.ts` passa a receber o prompt errado **sem nada falhar**,
+ * porque a ligação é uma chamada HTTP que o `tsc` não vê. Daí as asserções serem
+ * sobre o mapa `PROMPTS` e sobre a resolução de `body.scope`, e não apenas sobre
+ * a presença do texto no ficheiro.
+ *
+ * A segunda metade é sobre `web/lib/assistantContext.ts`, e nasceu de um defeito
+ * concreto: o prompt dizia «Há planos diferentes (ver secção de preços na
+ * página)» meses depois de os escalões terem sido removidos, e um Dono que
+ * perguntou se com 11.000 Kz podia criar 10 lojas foi mandado consultar uma
+ * tabela que já não existe. A correcção tem três partes, e cada uma tem guarda
+ * aqui: os FACTOS saem do domínio (nunca escritos à mão), a orientação vive ao
+ * lado das vistas, e todos os ecrãs com assistente montam-no com o ecrã certo.
+ * Ver `.kiro/steering/assistente.md`.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   PASSWORD_MIN_LENGTH,
@@ -30,6 +34,12 @@ import {
   validatePasswordConfirmation,
   type RegisterFixValue,
 } from "../src/ui/wizardSteps.js";
+import { COMING_SOON_LABELS, comingSoonList } from "../src/services/comingSoon.js";
+import { VERIFICATION_STATUS_LABEL, COMPANY_DOCUMENTS } from "../src/services/paymentVerification.js";
+import { ACTIVATION_MONTHS, REJECTION_REASON_MIN } from "../src/services/adminMetrics.js";
+import { PLATFORM_CONTACT_EMAIL } from "../src/services/domains.js";
+import { DELIVERY_PROVINCE } from "../src/services/delivery.js";
+import type { StoreTemplate } from "../web/templates/types.js";
 
 const ROOT = join(__dirname, "..");
 const ASSISTANT = readFileSync(join(ROOT, "api/assistant.js"), "utf8");
@@ -39,8 +49,7 @@ const AI_AGENT = readFileSync(join(ROOT, "web/lib/aiAgent.ts"), "utf8");
  * Devolve o conteúdo do template literal de `const <name> = \`…\`;`.
  *
  * Isola cada âmbito para as asserções não passarem por acidente com texto que
- * vive noutro âmbito — «cinco propostas», por exemplo, aparece no `site` e no
- * `logo`, e são critérios diferentes (8.1 e 8.6).
+ * vive noutro âmbito.
  */
 function block(name: string): string {
   const opening = `const ${name} = \``;
@@ -56,11 +65,10 @@ const SITE = block("SYSTEM_SITE");
 const EDITOR = block("SYSTEM_EDITOR");
 const SEO = block("SYSTEM_SEO");
 const SEOTITLE = block("SYSTEM_SEOTITLE");
-const LOGO = block("SYSTEM_LOGO");
 const STYLE = block("STYLE_RULES");
 
-describe("Assistente_IA — os cinco âmbitos estão registados (R8.8)", () => {
-  it("o mapa PROMPTS liga os cinco âmbitos aos cinco prompts", () => {
+describe("Assistente_IA — os quatro âmbitos estão registados (R8.8)", () => {
+  it("o mapa PROMPTS liga os quatro âmbitos aos quatro prompts", () => {
     // Não basta o texto existir no ficheiro: se o âmbito sair do mapa, o
     // `PROMPTS[scope]` fica `undefined` e o pedido segue sem prompt de sistema.
     for (const [scope, constant] of [
@@ -68,30 +76,61 @@ describe("Assistente_IA — os cinco âmbitos estão registados (R8.8)", () => {
       ["site", "SYSTEM_SITE"],
       ["seo", "SYSTEM_SEO"],
       ["seotitle", "SYSTEM_SEOTITLE"],
-      ["logo", "SYSTEM_LOGO"],
     ] as const) {
       expect(ASSISTANT).toMatch(new RegExp(`PROMPTS\\s*=\\s*\\{[^}]*\\b${scope}:\\s*${constant}\\b`));
     }
   });
 
-  it("a resolução de body.scope aceita os quatro âmbitos explícitos e cai em editor", () => {
+  it("o gerador de logótipos saiu por inteiro: nem âmbito, nem prompt, nem endpoint", () => {
+    // O produto deixou de ter gerador de logótipos. Um âmbito `logo` vivo aqui
+    // seria o assistente a oferecer uma funcionalidade que não existe — o mesmo
+    // defeito dos escalões de preço.
+    expect(ASSISTANT).not.toContain("SYSTEM_LOGO");
+    expect(ASSISTANT).not.toMatch(/\blogo:\s*SYSTEM/);
+    expect(ASSISTANT).not.toMatch(/body\.scope === "logo"/);
+    expect(`${SITE}\n${EDITOR}`).not.toMatch(/logótipo por IA/i);
+    expect(`${SITE}\n${EDITOR}`).not.toMatch(/cinco propostas/i);
+  });
+
+  it("a resolução de body.scope aceita os três âmbitos explícitos e cai em editor", () => {
     // `seotitle` é o caso que se perde em silêncio: `web/lib/seoGen.ts` envia
     // `scope: "seotitle"` por HTTP e, sem este ramo, receberia o prompt do
     // editor sem erro nenhum.
-    for (const scope of ["site", "seo", "seotitle", "logo"]) {
+    for (const scope of ["site", "seo", "seotitle"]) {
       expect(ASSISTANT).toContain(`body.scope === "${scope}" ? "${scope}"`);
     }
-    expect(ASSISTANT).toMatch(/body\.scope === "logo" \? "logo" : "editor"/);
+    expect(ASSISTANT).toMatch(/body\.scope === "seotitle" \? "seotitle" : "editor"/);
   });
 
   it("o prompt do âmbito chega ao modelo como primeira mensagem de sistema", () => {
-    // Esta asserção era o literal `{ role: "system", content: PROMPTS[scope] }` e
-    // quebrou quando o contexto do ecrã passou a ser anexado ao prompt — sem que
-    // a propriedade protegida (o prompt do âmbito é a mensagem de sistema, antes
-    // de tudo) tenha deixado de ser verdadeira. Afirma-se agora a propriedade:
-    // `system` deriva de `PROMPTS[scope]`, e é `system` que vai na mensagem.
+    // Afirma-se a propriedade e não o literal: `system` deriva de
+    // `PROMPTS[scope]`, e é `system` que vai na mensagem.
     expect(ASSISTANT).toMatch(/const system = context[\s\S]{0,400}PROMPTS\[scope\]/);
     expect(ASSISTANT).toMatch(/messages = \[\s*\{ role: "system", content: system \}/);
+  });
+});
+
+describe("Endpoint do assistente — protegido e sem fugas", () => {
+  it("recusa origens de fora e limita os pedidos por IP", () => {
+    // Não exige sessão (o visitante da página inicial também pergunta), por isso
+    // a origem e o limite são o que impede outro site de gastar a nossa chave.
+    expect(ASSISTANT).toContain("if (!allowedOrigin(req))");
+    expect(ASSISTANT).toContain("if (rateLimited(req))");
+    expect(ASSISTANT).toMatch(/res\.status\(403\)/);
+    expect(ASSISTANT).toMatch(/res\.status\(429\)/);
+  });
+
+  it("as pré-visualizações aceitas são as deste projeto, não qualquer *.vercel.app", () => {
+    // `host.endsWith(".vercel.app")` deixava qualquer pessoa criar um site que
+    // passava a guarda.
+    expect(ASSISTANT).not.toContain('endsWith(".vercel.app")');
+    expect(ASSISTANT).toContain("process.env.VERCEL_URL");
+  });
+
+  it("o erro do fornecedor fica no registo do servidor, não na resposta", () => {
+    // O detalhe pode trazer identificadores da conta ou da chave.
+    expect(ASSISTANT).not.toMatch(/detail: detail\.slice/);
+    expect(ASSISTANT).toMatch(/console\.error\("\[assistant\] upstream"/);
   });
 });
 
@@ -118,8 +157,9 @@ describe("Âmbito site — modelo pronto e personalização (R8.1, R8.2)", () =>
     expect(SITE).toContain("dá a ESTRUTURA da loja, e essa estrutura mantém-se");
   });
 
-  it("indica cinco propostas no logótipo por IA", () => {
-    expect(SITE).toContain("cinco propostas");
+  it("descreve as vendas como são: WhatsApp sempre, digitais para empresas aprovadas", () => {
+    expect(SITE).toContain("vendem por WhatsApp desde o primeiro dia");
+    expect(SITE).toMatch(/empresas registadas, depois de aprovadas/);
   });
 });
 
@@ -136,19 +176,24 @@ describe("Âmbito editor — estrutura mantida, três coisas personalizáveis (R
     expect(EDITOR).toContain("personalizas TRÊS coisas: os TEXTOS, as FOTOGRAFIAS e as CORES");
     expect(EDITOR).toContain("Não montas a loja peça por peça");
   });
+
+  it("manda os pagamentos para o Dashboard e descreve-os como são hoje", () => {
+    expect(EDITOR).toMatch(/WhatsApp está sempre ativo/);
+    expect(EDITOR).toMatch(/empresas registadas/);
+    expect(EDITOR).toMatch(/aprovar os dados da empresa/);
+  });
 });
 
 describe("Âmbitos site e editor — ausência do vocabulário antigo de construtor (R8.1, R8.3)", () => {
   // Cada cadeia afirmada como ausente **estava** em `api/assistant.js` antes da
-  // tarefa 8.1 (commit `d7b365b`) e descreve uma ação que já não existe numa
-  // Loja com `customization.__locked`. Nenhuma é inventada: todas saem das
-  // linhas removidas pela reescrita.
+  // tarefa 8.1 e descreve uma ação que já não existe numa Loja com
+  // `customization.__locked`.
   const REMOVIDAS_DO_EDITOR = [
-    "Trocar modelo do hero",       // botão de trocar o modelo do topo
-    "Mudar disposição",            // botão de mudar a disposição dos produtos
-    "DISPOSIÇÃO DOS PRODUTOS",     // rubrica dessa instrução
-    'seletor "Estilo"',            // seletor de estilo global (Moderno/Clássico/Minimal)
-    '4 modelos no botão "Modelo"', // modelos de testemunhos
+    "Trocar modelo do hero",
+    "Mudar disposição",
+    "DISPOSIÇÃO DOS PRODUTOS",
+    'seletor "Estilo"',
+    '4 modelos no botão "Modelo"',
   ];
 
   const REMOVIDAS_DO_SITE = [
@@ -166,8 +211,6 @@ describe("Âmbitos site e editor — ausência do vocabulário antigo de constru
   });
 
   it("nenhum dos dois âmbitos volta a falar de trocar modelo de hero ou de rodapé", () => {
-    // A forma genérica: qualquer instrução de escolher um modelo *de peça* em
-    // vez do modelo pronto de site inteiro.
     const dois = `${EDITOR}\n${SITE}`;
     expect(dois).not.toMatch(/Trocar modelo do (hero|rodapé)/);
     expect(dois).not.toMatch(/modelos? de (hero|rodapé)/i);
@@ -191,14 +234,6 @@ describe("Âmbito seotitle — regras atuais preservadas (R8.8)", () => {
   });
 });
 
-describe("Âmbito logo — cinco propostas (R8.6)", () => {
-  it("o bloco CONTEXTO diz que o gerador devolve cinco propostas", () => {
-    expect(LOGO).toContain("CONTEXTO");
-    expect(LOGO).toContain("devolve CINCO propostas diferentes");
-    expect(LOGO).toContain("português de Portugal");
-  });
-});
-
 describe("Regras de estilo comuns — recusa fora de âmbito (R8.9, R8.10)", () => {
   it("recusa numa frase e redireciona para o âmbito do MôBisno", () => {
     expect(STYLE).toContain("RECUSA educadamente numa única frase");
@@ -207,8 +242,8 @@ describe("Regras de estilo comuns — recusa fora de âmbito (R8.9, R8.10)", () 
   });
 
   it("as regras de estilo são interpoladas nos âmbitos conversacionais", () => {
-    // `site` e `editor` são os que respondem a perguntas livres; os três âmbitos
-    // de geração (seo, seotitle, logo) recebem só a descrição do dono.
+    // `site` e `editor` são os que respondem a perguntas livres; os dois âmbitos
+    // de geração (seo, seotitle) recebem só a descrição do dono.
     expect(SITE).toContain("${STYLE_RULES}");
     expect(EDITOR).toContain("${STYLE_RULES}");
   });
@@ -217,9 +252,7 @@ describe("Regras de estilo comuns — recusa fora de âmbito (R8.9, R8.10)", () 
 describe("Saudação da página inicial — âmbito site (R8.5)", () => {
   // Única guarda automatizada possível do texto que o utilizador reportou como
   // desatualizado na página inicial: a saudação vive em `web/lib/aiAgent.ts` e
-  // é escolhida por `mountAiAgent(..., { screen: "site" })` em
-  // `web/views/landing.ts`. `web/` não é verificado por tipos, por isso a
-  // asserção é sobre a fonte.
+  // é escolhida por `mountAiAgent(..., { screen: "site" })`.
   const saudacao = AI_AGENT.split("\n").find((l) => l.includes("Sou o assistente do MôBisno")) ?? "";
 
   it("a saudação existe e está no ramo do âmbito site", () => {
@@ -235,17 +268,6 @@ describe("Saudação da página inicial — âmbito site (R8.5)", () => {
 
 /* ========================================================================== *
  * Contexto por ecrã — a regra de `.kiro/steering/assistente.md`
- *
- * O defeito que originou estas guardas: o prompt do âmbito `site` dizia «Há
- * planos diferentes (ver secção de preços na página)» e «No plano Básico, a
- * venda é por WhatsApp» meses depois de os escalões terem sido removidos. Um
- * Dono perguntou se com 11.000 Kz podia criar 10 lojas e o assistente mandou-o
- * consultar uma tabela que já não existe.
- *
- * A correcção tem três partes, e cada uma tem guarda aqui: os FACTOS saem do
- * domínio (nunca escritos à mão), a orientação vive ao lado das vistas
- * (`web/lib/assistantContext.ts`) e todos os ecrãs com assistente montam-no com
- * o ecrã certo.
  * ========================================================================== */
 
 const CONTEXT_SRC = readFileSync(join(ROOT, "web/lib/assistantContext.ts"), "utf8");
@@ -278,13 +300,21 @@ function guiaDe(screen: string): string {
  *
  * Asserções sobre o texto resolvido valem sobre **o que o utilizador ouve**: se
  * o mínimo da palavra-passe ou o rótulo de um botão mudar no módulo, muda aqui
- * também, e a asserção continua a dizer a mesma coisa. Asseverar o literal
- * `${PASSWORD_MIN_LENGTH}` sozinho protegia a forma de escrever, não a resposta.
+ * também, e a asserção continua a dizer a mesma coisa.
  */
 function resolver(guia: string): string {
   return guia
     .replace(/\$\{PASSWORD_MIN_LENGTH\}/g, String(PASSWORD_MIN_LENGTH))
-    .replace(/\$\{REGISTER_FIX_LABELS\.(\w+)\}/g, (_m, k: string) => REGISTER_FIX_LABELS[k as RegisterFixValue]);
+    .replace(/\$\{REGISTER_FIX_LABELS\.(\w+)\}/g, (_m, k: string) => REGISTER_FIX_LABELS[k as RegisterFixValue])
+    .replace(/\$\{VERIFICATION_STATUS_LABEL\.(\w+)\}/g, (_m, k: string) => VERIFICATION_STATUS_LABEL[k as "none" | "pending" | "approved" | "rejected"])
+    .replace(/\$\{COMING_SOON_LABELS\.(\w+)\}/g, (_m, k: string) => COMING_SOON_LABELS[k as "sms" | "customDomain" | "marketing"])
+    .replace(/\$\{REJECTION_REASON_MIN\}/g, String(REJECTION_REASON_MIN))
+    .replace(/\$\{DELIVERY_PROVINCE\}/g, DELIVERY_PROVINCE)
+    .replace(/\$\{PLATFORM_CONTACT_EMAIL\}/g, PLATFORM_CONTACT_EMAIL)
+    .replace(/\$\{DOCUMENTOS\}/g, COMPANY_DOCUMENTS.map((d) => `«${d.label}»`).join(" e "))
+    .replace(/\$\{emBreveLista\(\)\}/g, comingSoonList().map((x) => `«${x}»`).join(", "))
+    .replace(/\$\{ACTIVATION_MONTHS\.slice\(0, -1\)\.join\(", "\)\}/g, ACTIVATION_MONTHS.slice(0, -1).join(", "))
+    .replace(/\$\{ACTIVATION_MONTHS\[ACTIVATION_MONTHS\.length - 1\]\}/g, String(ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]));
 }
 
 describe("Factos da plataforma — derivados do domínio, nunca escritos à mão", () => {
@@ -295,32 +325,69 @@ describe("Factos da plataforma — derivados do domínio, nunca escritos à mão
     expect(semInterpolacoes).not.toMatch(/\d/);
   });
 
-  it("os valores vêm de plans.ts e de payments.ts", () => {
-    expect(CONTEXT_SRC).toMatch(/import \{[\s\S]*?\} from "\.\.\/\.\.\/src\/services\/plans\.js"/);
-    expect(CONTEXT_SRC).toMatch(/import \{ FEE_RATE, MIN_PAYMENT_KZ \} from "\.\.\/\.\.\/src\/services\/payments\.js"/);
-    for (const nome of ["PLAN_NAME", "PRICE_KZ", "PERIOD_DAYS", "PLAN_HIGHLIGHTS", "FEE_RATE", "MIN_PAYMENT_KZ"]) {
+  it("os valores vêm dos módulos de domínio, e não de uma cópia local", () => {
+    for (const mod of ["plans", "payments", "comingSoon", "domains", "paymentVerification", "adminMetrics"]) {
+      expect(CONTEXT_SRC, `${mod} não é importado`).toContain(`src/services/${mod}.js`);
+    }
+    for (const nome of ["PLAN_NAME", "PLAN_HIGHLIGHTS", "PRECO"]) {
       expect(factsLiteral(), `${nome} não é interpolado nos factos`).toContain(nome);
     }
-    // A poupança anual é calculada, não escrita: sai de `yearlySavingKz()`.
-    expect(CONTEXT_SRC).toContain("yearlySavingKz()");
-    expect(CONTEXT_SRC).toContain("yearlyFreeMonths()");
+    // O preço e o período saem de `plans.ts`, pela função de formato do domínio.
+    expect(CONTEXT_SRC).toContain("kzWhole(PLAN_PRICE_KZ)");
+    expect(CONTEXT_SRC).toContain("PLAN_PERIOD_DAYS");
+    // O que está «Em breve» sai da lista do domínio, não de uma enumeração aqui.
+    expect(CONTEXT_SRC).toContain("comingSoonList()");
   });
 
-  it("responde ao caso concreto: preço por loja publicada, produtos ilimitados", () => {
+  it("responde ao caso concreto: um plano, lojas e produtos ilimitados", () => {
     const facts = factsLiteral();
-    // O preço passou a ser **por loja publicada**: criar é livre, publicar é que
-    // custa. Um assistente a dizer «lojas ilimitadas» sem esta distinção estava a
-    // prometer de graça o que agora se paga.
-    expect(facts).toContain("O PREÇO É POR LOJA PUBLICADA");
-    expect(facts).toContain("Uma loja em rascunho não é cobrada");
-    expect(facts).toContain("PRODUTOS SÃO ILIMITADOS");
-    // A excepção dos administradores é dita, para não ser aplicada a um Dono.
-    expect(facts).toContain("Contas de ADMINISTRADOR da MôBisno não pagam");
     expect(facts).toContain("um só plano");
+    expect(facts).toContain("LOJAS E PRODUTOS SÃO ILIMITADOS");
+    expect(facts).toMatch(/Quantas lojas posso criar\?/);
     expect(facts).toContain("NÃO existe teste grátis");
     // Os escalões removidos são nomeados de propósito: é a pergunta que os
     // utilizadores fazem, e sem isto o modelo inventa-os de volta.
     expect(facts).toContain("Não existe Básico, Profissional nem Empresarial");
+    expect(facts).toMatch(/Não há ciclo anual nem preço por loja/);
+    // A excepção dos administradores é dita, para não ser aplicada a um Dono.
+    expect(facts).toContain("Contas de ADMINISTRADOR da MôBisno não pagam");
+  });
+
+  it("o preço por loja publicada saiu dos factos: criar e publicar não se pagam à parte", () => {
+    const facts = factsLiteral();
+    expect(facts).not.toContain("O PREÇO É POR LOJA PUBLICADA");
+    expect(facts).not.toMatch(/por cada loja publicada/);
+    expect(facts).not.toMatch(/lugar pago/);
+    expect(facts).not.toMatch(/dias que faltam/);
+  });
+
+  it("descreve as vendas como elas são: WhatsApp sempre, digitais só depois de aprovadas", () => {
+    const facts = resolver(factsLiteral());
+    expect(facts).toMatch(/todas as lojas vendem por WhatsApp/i);
+    expect(facts).toContain("empresas registadas");
+    for (const d of COMPANY_DOCUMENTS) expect(facts).toContain(d.label);
+    expect(facts).toMatch(/só depois de \*\*aprovado\*\*/);
+  });
+
+  it("não promete o que não existe, e nomeia-o", () => {
+    const facts = resolver(factsLiteral());
+    // O gerador de logótipos e a compra de SMS saíram do produto. Quem pergunta
+    // por eles tem de ouvir «não existe», não uma explicação de como se usa.
+    expect(facts).toMatch(/NÃO existe/);
+    expect(facts).toMatch(/logótipos por IA \(foi removido\)/);
+    // Cada funcionalidade «Em breve» é nomeada pela lista do domínio.
+    for (const nome of comingSoonList()) expect(facts).toContain(nome);
+  });
+
+  it("diz a verdade sobre o estado do serviço de pagamentos", async () => {
+    // `PAYMENTS_PROVIDER_READY` decide a frase. Com ele a `false`, o assistente
+    // não pode dizer que o checkout já cobra; com ele a `true`, não pode
+    // continuar a dizer que está por ligar.
+    const { PAYMENTS_PROVIDER_READY } = (await import("../src/services/payments.js")) as { PAYMENTS_PROVIDER_READY: boolean };
+    expect(CONTEXT_SRC).toContain("PAYMENTS_PROVIDER_READY");
+    const estado = CONTEXT_SRC.slice(CONTEXT_SRC.indexOf("const ESTADO_DIGITAIS"), CONTEXT_SRC.indexOf("const ESTADO_SUBSCRICAO"));
+    if (PAYMENTS_PROVIDER_READY) expect(estado).toContain("estão a funcionar");
+    else expect(estado).toMatch(/ainda NÃO está ligado/);
   });
 });
 
@@ -331,7 +398,7 @@ describe("Prompt do servidor — os factos velhos saíram (o defeito original)",
     expect(dois).not.toMatch(/plano Básico|Profissional|Empresarial/);
     expect(dois).not.toMatch(/teste grátis/i);
     expect(dois).not.toMatch(/planos pagos/);
-    expect(dois).not.toMatch(/\d+\s*%/); // a comissão vem do contexto (FEE_RATE)
+    expect(dois).not.toMatch(/\d+\s*%/);
   });
 
   it("nenhum âmbito manda o utilizador ver a secção de preços", () => {
@@ -340,8 +407,6 @@ describe("Prompt do servidor — os factos velhos saíram (o defeito original)",
   });
 
   it("nenhum âmbito tem domínios nem preços escritos à mão", () => {
-    // O apex das lojas é `sualoja.digital` (ver `web/lib/routing.ts`); o prompt
-    // ainda dizia `aloja.mobisno.store`. Os endereços vêm do contexto.
     expect(dois).not.toContain("aloja.mobisno.store");
     expect(dois).not.toMatch(/\d[\d .]*Kz/);
   });
@@ -361,8 +426,6 @@ describe("Prompt do servidor — os factos velhos saíram (o defeito original)",
 
 describe("Contexto no pedido — só nos âmbitos de conversa e tratado como dados", () => {
   it("apenas editor e site aceitam contexto; os geradores não", () => {
-    // `seo`, `seotitle` e `logo` devolvem texto com formato fechado: contexto
-    // extra só os desviaria do formato.
     expect(ASSISTANT).toContain('const chatScope = scope === "editor" || scope === "site"');
     expect(ASSISTANT).toMatch(/const context = chatScope \? String\(body\.context \|\| ""\)\.slice\(0, \d+\) : "";/);
   });
@@ -393,11 +456,13 @@ describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu e
     criar: "wizard.ts",
     painel: "dashboard.ts",
     produtos: "dashboard.ts",
+    entregas: "dashboard.ts",
+    descontos: "dashboard.ts",
+    avaliacoes: "dashboard.ts",
+    analises: "dashboard.ts",
     pagamentos: "dashboard.ts",
     plano: "dashboard.ts",
     config: "dashboard.ts",
-    analises: "dashboard.ts",
-    logotipo: "dashboard.ts",
     editor: "editor.ts",
     modelos: "presetGallery.ts",
     lojas: "directory.ts",
@@ -409,6 +474,12 @@ describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu e
 
   it("os ecrãs com orientação são exactamente os ecrãs montados", () => {
     expect(declaredScreens().slice().sort()).toEqual(Object.keys(MOUNTED).sort());
+  });
+
+  it("o ecrã do gerador de logótipos saiu da orientação e do painel", () => {
+    expect(declaredScreens()).not.toContain("logotipo");
+    expect(CONTEXT_SRC).not.toMatch(/logotipo/i);
+    expect(view("dashboard.ts")).not.toContain('"logotipo"');
   });
 
   it("cada vista monta o assistente e nomeia o seu ecrã", () => {
@@ -423,9 +494,9 @@ describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu e
     const dash = view("dashboard.ts");
     expect(dash).toContain("const DASH_SCREEN: Record<string, AssistantScreen>");
     for (const [tab, screen] of [
-      ["inicio", "painel"], ["produtos", "produtos"], ["logotipo", "logotipo"],
-      ["analises", "analises"], ["pagamentos", "pagamentos"], ["plano", "plano"],
-      ["config", "config"],
+      ["inicio", "painel"], ["produtos", "produtos"], ["entregas", "entregas"],
+      ["descontos", "descontos"], ["avaliacoes", "avaliacoes"], ["analises", "analises"],
+      ["pagamentos", "pagamentos"], ["plano", "plano"], ["config", "config"],
     ] as const) {
       expect(dash).toContain(`${tab}: "${screen}"`);
     }
@@ -440,59 +511,331 @@ describe("Cobertura dos ecrãs — cada ecrã com assistente monta-o com o seu e
   });
 });
 
-describe("Orientação do ecrã «Análises» — descreve o ecrã reconstruído", () => {
-  /**
-   * O separador foi refeito (linha com eixo e dica por dia, variação de 7 dias
-   * face aos 7 anteriores, barras de proporção, estado vazio) e os rótulos dos
-   * números mudaram de nome. A regra de `.kiro/steering/assistente.md` é que a
-   * orientação muda na mesma alteração; esta é a asserção que a impõe.
-   */
-  const DASH = readFileSync(join(ROOT, "web/views/dashboard.ts"), "utf8");
-  const guia = (() => {
-    const i = CONTEXT_SRC.indexOf("analises: `ECRÃ");
-    expect(i, "orientação do ecrã analises não encontrada").toBeGreaterThanOrEqual(0);
-    return CONTEXT_SRC.slice(i, CONTEXT_SRC.indexOf("`,", i));
-  })();
+/* -------------------------------------------------------------------------- *
+ * Painel do Dono — as nove secções, com os rótulos do ecrã
+ * -------------------------------------------------------------------------- */
+
+/** Código do painel: a moldura e todos os separadores. */
+const DASH_ALL = (() => {
+  const base = readFileSync(join(ROOT, "web/views/dashboard.ts"), "utf8");
+  const pasta = join(ROOT, "web/views/dashboard");
+  const partes = readdirSync(pasta).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(join(pasta, f), "utf8"));
+  return [base, ...partes].join("\n");
+})();
+
+const DASH_SHELL = readFileSync(join(ROOT, "web/views/dashboard.ts"), "utf8");
+
+describe("Orientação do ecrã «Início» — as nove secções, o funil e os próximos passos", () => {
+  const guia = guiaDe("painel");
+
+  it("as nove secções da navegação estão na orientação, com os rótulos do ecrã", () => {
+    // A lista das secções é única no ecrã (`DASH_SECTIONS`): é dela que sai o
+    // que a orientação tem de cobrir, para não ficar com oito quando o ecrã tem
+    // nove.
+    const lista = DASH_SHELL.slice(DASH_SHELL.indexOf("const DASH_SECTIONS"), DASH_SHELL.indexOf("function navItem("));
+    const labels = [...lista.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]!);
+    expect(labels).toHaveLength(9);
+    for (const label of labels) {
+      expect(guia, `secção ausente da orientação: ${label}`).toContain(label);
+    }
+    expect(guia).toMatch(/nove secções/);
+    expect(guia).toMatch(/faixa de atalhos deslizante/);
+    expect(guia).toMatch(/barra lateral não existe no telemóvel/);
+  });
+
+  it("descreve o funil de compra pelos quatro passos do ecrã", () => {
+    for (const passo of ["Visitas", "Produtos vistos", "Adições ao carrinho", "Encomendas por WhatsApp"]) {
+      expect(guia, `passo ausente da orientação: ${passo}`).toContain(passo);
+      expect(DASH_ALL, `passo ausente do ecrã: ${passo}`).toContain(passo);
+    }
+    expect(guia).toContain("Funil de compra");
+    expect(guia).toContain("Ainda sem movimento nos últimos 30 dias");
+    expect(DASH_ALL).toContain("Ainda sem movimento nos últimos 30 dias");
+  });
+
+  it("descreve os «Próximos passos» com os mesmos títulos do ecrã", () => {
+    expect(guia).toContain("Próximos passos");
+    for (const passo of ["Adicionar produtos", "Personalizar a loja", "Número de WhatsApp",
+      "Taxa de entrega", "Ativar a subscrição e publicar", "Verificar a empresa para pagamentos digitais"]) {
+      expect(guia, `passo ausente da orientação: ${passo}`).toContain(passo);
+      expect(DASH_ALL, `passo ausente do ecrã: ${passo}`).toContain(passo);
+    }
+  });
+
+  it("o estado da loja e a regra de publicar são os do ecrã", () => {
+    for (const rotulo of ["Publicada", "Rascunho", "Publicar a loja", "Despublicar", "Copiar"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+    }
+    expect(guia).toContain("Ative a subscrição para publicar.");
+    expect(DASH_ALL).toContain("Ative a subscrição para publicar.");
+  });
+
+  it("os cartões de dinheiro saíram do Início: estão em «Pagamentos»", () => {
+    // Enquanto estiveram aqui, a orientação descrevia-os neste ecrã. Mandar o
+    // Dono procurar o saldo no Início é uma não-resposta.
+    expect(guia).not.toContain("Valor total vendido");
+    expect(guia).not.toContain("Disponível para levantar");
+    expect(guia).toMatch(/separador «Pagamentos»/);
+  });
+
+  it("a barra de telemóvel traz o que o `aside` tinha, com os mesmos rótulos", () => {
+    for (const rotulo of ["Nova loja", "Dashboard de Administração", "Terminar sessão", "Personalizar loja"]) {
+      expect(guia, `ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(DASH_SHELL, `ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(guia).toMatch(/só em contas de administrador/);
+  });
+});
+
+describe("Orientação do ecrã «Análises» — os quatro números do ecrã reconstruído", () => {
+  const guia = guiaDe("analises");
+  const ANALISES = readFileSync(join(ROOT, "web/views/dashboard/analises.ts"), "utf8");
 
   it("os rótulos dos números na orientação são os que o Dono vê no ecrã", () => {
-    for (const rotulo of ["Visitas (7 dias)", "Visitas (30 dias)", "Produtos vistos (7 dias)"]) {
+    for (const rotulo of ["Visitas (7 dias)", "Visitas (30 dias)", "Produtos vistos (7 dias)",
+      "Encomendas por WhatsApp (7 dias)"]) {
       expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
-      expect(DASH, `rótulo ausente do painel: ${rotulo}`).toContain(rotulo);
+      expect(ANALISES, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
     }
-    // O rótulo antigo desapareceu do ecrã; não pode sobreviver na orientação.
+    // Os rótulos antigos desapareceram do ecrã; não podem sobreviver na orientação.
     expect(guia).not.toContain("Visualizações (7 dias)");
+    expect(guia).not.toMatch(/«Produtos»[,.]/);
+  });
+
+  it("descreve o funil e os checkouts, que são o que o ecrã ganhou", () => {
+    expect(guia).toContain("Funil de compra (30 dias)");
+    expect(guia).toContain("Checkouts abertos (30 dias)");
+    expect(ANALISES).toContain("Checkouts abertos (30 dias)");
+    expect(ANALISES).toContain("Funil de compra (30 dias)");
   });
 
   it("diz o que o ecrã não faz: sem comparação nas visualizações e sem filtro de datas", () => {
-    // Sem isto o assistente promete uma comparação que os dados não permitem
-    // (não há série diária de visualizações de produto) e um filtro que não existe.
     expect(guia).toContain("não têm comparação entre períodos");
     expect(guia).toContain("Não há filtro de datas");
   });
 
-  it("descreve a dica do gráfico e o estado vazio, que são o que mudou", () => {
-    expect(guia).toContain("número de visitas desse dia");
+  it("descreve a dica do gráfico e o estado vazio", () => {
+    expect(guia).toContain("Visitas — últimos 14 dias");
+    expect(ANALISES).toContain("Visitas — últimos 14 dias");
     expect(guia).toContain("Ainda não há visitas para mostrar");
-    expect(DASH).toContain("Ainda não há visitas para mostrar");
+    expect(ANALISES).toContain("Ainda não há visitas para mostrar");
+  });
+});
+
+describe("Orientação dos ecrãs novos — Taxa de entrega, Código de desconto e Avaliações", () => {
+  it("«Taxa de entrega» descreve os dois modos e a província real", () => {
+    const guia = resolver(guiaDe("entregas"));
+    expect(guia).toContain(DELIVERY_PROVINCE);
+    for (const rotulo of ["Valor único", "Por área", "Entrega grátis acima de", "Guardar a taxa de entrega"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(DASH_ALL, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    // A consequência que o Dono precisa de saber antes de guardar.
+    expect(guia).toMatch(/não aparecem ao cliente/);
+    // Saiu das Configurações: a orientação do `config` tem de o dizer.
+    expect(guiaDe("config")).toContain("Taxa de entrega");
+  });
+
+  it("«Código de desconto» descreve os campos e os quatro estados", () => {
+    const guia = guiaDe("descontos");
+    for (const rotulo of ["Código", "Tipo", "Percentagem", "Valor fixo", "Limite de usos", "Válido até", "Criar código"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(DASH_ALL, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    for (const estado of ["Ativo", "Inativo", "Caducado", "Esgotado"]) {
+      expect(guia, `estado ausente da orientação: ${estado}`).toContain(estado);
+    }
+    // Duas regras que o Dono não adivinha.
+    expect(guia).toMatch(/quando a encomenda é paga/);
+    expect(guia).toMatch(/não são visíveis aos clientes/);
+  });
+
+  it("«Avaliações» diz que as novas entram por aprovar", () => {
+    const guia = guiaDe("avaliacoes");
+    expect(guia).toMatch(/entram \*\*por aprovar\*\*/);
+    for (const rotulo of ["Por aprovar", "Publicadas", "Aprovar", "Esconder", "Apagar"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+    }
+    expect(DASH_ALL).toContain("As avaliações novas só aparecem na página do produto depois de as aprovar.");
+  });
+});
+
+describe("Orientação do ecrã «Pagamentos» — WhatsApp sempre, digitais por aprovação", () => {
+  const guia = resolver(guiaDe("pagamentos"));
+  const PAG = readFileSync(join(ROOT, "web/views/dashboard/pagamentos.ts"), "utf8");
+  const MARKUP = readFileSync(join(ROOT, "web/views/dashboard/markup.ts"), "utf8");
+
+  it("o WhatsApp é descrito como sempre ativo, com o campo do ecrã", () => {
+    expect(guia).toContain("Sempre ativo");
+    expect(guia).toContain("Número de WhatsApp");
+    expect(MARKUP).toContain("Número de WhatsApp");
+  });
+
+  it("enumera os campos e os documentos do pedido de verificação", () => {
+    for (const rotulo of ["Nome da empresa", "NIF da empresa", "Banco", "Titular da conta", "IBAN", "Enviar para aprovação"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(MARKUP, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    for (const d of COMPANY_DOCUMENTS) expect(guia, `documento ausente: ${d.label}`).toContain(d.label);
+  });
+
+  it("os quatro estados são os rótulos do domínio, não uma cópia à mão", () => {
+    for (const estado of Object.values(VERIFICATION_STATUS_LABEL)) {
+      expect(guia, `estado ausente da orientação: ${estado}`).toContain(estado);
+    }
+    expect(guiaDe("pagamentos"), "os estados estão copiados à mão em vez de vir de VERIFICATION_STATUS_LABEL")
+      .toContain("${VERIFICATION_STATUS_LABEL.pending}");
+  });
+
+  it("avisa que alterar dados aprovados volta a pôr o pedido em análise", () => {
+    expect(guia).toContain("Alterar dados");
+    expect(guia).toMatch(new RegExp(`volta a pôr o pedido «${VERIFICATION_STATUS_LABEL.pending}»`));
+    expect(PAG).toContain("changeRequiresReview");
+  });
+
+  it("não promete um interruptor que não existe: quem liga é a aprovação", () => {
+    expect(guia).toMatch(/quem os liga é a aprovação/);
+    expect(guia).not.toMatch(/Pagamentos online/);
+    // Houve um tempo em que esta guarda era «a orientação não fala de chave
+    // nenhuma», porque a chave que existia era a do fornecedor antigo e ligava
+    // os pagamentos. Agora há uma chave no ecrã — a do **Vero da empresa do
+    // Dono**, que emite a fatura — e o que importa é que nenhuma chave apareça
+    // como forma de ligar pagamentos. Logo: cada linha que fale de chave tem de
+    // ser uma linha da faturação.
+    const comChave = guia.split("\n").filter((l) => /chave|API key/i.test(l));
+    expect(comChave.length, "ninguém fala de chave: esta guarda deixou de guardar algo").toBeGreaterThan(0);
+    for (const linha of comChave) {
+      expect(linha, `chave fora da faturação: ${linha.trim().slice(0, 90)}`).toMatch(/Vero|fatura/i);
+    }
+  });
+
+  it("as vendas, o saldo e as expiradas são descritos onde estão", () => {
+    for (const rotulo of ["Recebido (líquido)", "Disponível para levantar", "Solicitar levantamento",
+      "Vendas pagas", "Referências pendentes", "Expirada", "Apagar registo"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(MARKUP, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(guia).toMatch(/[Ss]ó as expiradas se apagam/);
+    for (const estado of ["pagas", "falhadas", "canceladas"]) {
+      expect(guia, `estado não protegido na orientação: ${estado}`).toContain(estado);
+    }
+    // A guarda de verdade é a política de `delete`; dizer que é o ecrã dava ao
+    // Dono a ideia de que basta insistir.
+    expect(guia).toMatch(/é a base de dados que o impede/);
+    expect(MARKUP).toContain("A referência passou a data-limite e já não pode ser paga.");
+  });
+});
+
+describe("Orientação dos ecrãs «Plano» e «Configurações»", () => {
+  it("o Plano fala de um só cartão de preço e do que não existe", () => {
+    const guia = guiaDe("plano");
+    expect(guia).toContain("${PRECO}");
+    expect(guia).toMatch(/um cartão de preço só/);
+    expect(guia).toMatch(/Não há escalões, ciclo anual nem preço por loja/);
+    for (const estado of ["Ativa até", "Inativa", "Caducada", "Conta de administração"]) {
+      expect(guia, `estado ausente: ${estado}`).toContain(estado);
+    }
+    // Nenhum número escrito à mão.
+    expect(guia.replace(/\$\{[^}]*\}/g, "")).not.toMatch(/\d/);
+  });
+
+  it("as Configurações são exactamente as três funcionalidades «Em breve», pelos rótulos do domínio", () => {
+    const guia = guiaDe("config");
+    for (const k of ["customDomain", "marketing", "sms"] as const) {
+      expect(guia, `${k} não vem de COMING_SOON_LABELS`).toContain(`\${COMING_SOON_LABELS.${k}}`);
+    }
+    const resolvida = resolver(guia);
+    for (const nome of comingSoonList()) expect(resolvida).toContain(nome);
+    expect(resolvida).toContain("Em breve");
+    expect(resolvida).toContain("Apagar a loja");
+    expect(DASH_ALL).toContain("Apagar a loja");
+    // Não prometer datas é regra: a orientação di-lo.
+    expect(resolvida).toMatch(/Não prometas datas/);
+  });
+
+  it("as Configurações dizem para onde foram as entregas, os descontos e as avaliações", () => {
+    // Sem isto, o assistente manda o Dono procurar nas Configurações o que
+    // mudou de sítio — a não-resposta que originou esta regra.
+    const guia = guiaDe("config");
+    for (const destino of ["Taxa de entrega", "Código de desconto", "Avaliações"]) {
+      expect(guia, `destino ausente: ${destino}`).toContain(destino);
+    }
+  });
+});
+
+describe("Orientação do ecrã «Administração» — as seis secções e as aprovações", () => {
+  const guia = resolver(guiaDe("admin"));
+  const ADMIN_SHELL = readFileSync(join(ROOT, "web/views/adminPanel.ts"), "utf8");
+  const ADMIN_ALL = (() => {
+    const pasta = join(ROOT, "web/views/admin");
+    const partes = readdirSync(pasta).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(join(pasta, f), "utf8"));
+    return [ADMIN_SHELL, ...partes].join("\n");
+  })();
+
+  it("as secções da orientação são as do painel, e são seis", () => {
+    const lista = ADMIN_SHELL.slice(ADMIN_SHELL.indexOf("const SECTIONS"), ADMIN_SHELL.indexOf("const LEGACY_ROUTES"));
+    const labels = [...lista.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]!);
+    expect(labels.length).toBeGreaterThanOrEqual(5);
+    for (const label of labels) expect(guia, `secção ausente da orientação: ${label}`).toContain(label);
+    expect(guia).toMatch(/Seis secções/);
+  });
+
+  it("descreve as aprovações com as ações e o mínimo real do motivo", () => {
+    for (const rotulo of ["Ver matrícula", "Ver certidão", "Aprovar", "Rejeitar", "Histórico"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(ADMIN_ALL, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(guia).toContain(`pelo menos ${REJECTION_REASON_MIN} caracteres`);
+    expect(guiaDe("admin"), "o mínimo do motivo está escrito à mão").toContain("${REJECTION_REASON_MIN}");
+    expect(guia).toMatch(/liga sozinho os pagamentos digitais/);
+  });
+
+  it("descreve a ativação manual com as durações reais", () => {
+    expect(guia).toContain("Ativar");
+    expect(guia).toContain("Prolongar");
+    expect(guia).toContain("Desativar");
+    for (const m of ACTIVATION_MONTHS) expect(guia).toMatch(new RegExp(`\\b${m}\\b`));
+    expect(guiaDe("admin"), "as durações estão escritas à mão").toContain("ACTIVATION_MONTHS");
+  });
+
+  it("distingue a receita da plataforma do dinheiro dos Donos, e não fala do que saiu", () => {
+    expect(guia).toContain("Receita do mês");
+    expect(guia).toMatch(/dinheiro dos Donos/);
+    expect(guia).not.toMatch(/Transações/);
+    expect(guia).not.toMatch(/SMS e logótipos/);
+    expect(guia).not.toMatch(/teste grátis/i);
+  });
+
+  it("explica porque é que as lojas da própria conta não entram nos números, e onde estão", () => {
+    // O Administrador criou duas lojas com a própria conta e concluiu que o
+    // painel não as mostrava: a Visão geral contava zero e «Contas» abria no
+    // filtro dos Donos. A regra de exclusão está certa; faltava dizê-lo.
+    expect(guia).toMatch(/própria conta/);
+    expect(guia).toContain("«Lojas», que é onde elas aparecem");
+    expect(guia).toContain("filtro «Administradores»");
+    const VISAO = readFileSync(join(ROOT, "web/views/admin/overview.ts"), "utf8");
+    expect(VISAO, "a Visão geral já não conta as lojas da própria conta").toContain("adminIds.has(s.ownerId)");
+    expect(VISAO).toContain("da sua própria conta de administração");
+  });
+
+  it("uma leitura falhada aparece como falha, com a causa, e não como lista vazia", () => {
+    expect(guia).toContain("Não foi possível carregar esta secção");
+    expect(guia).toContain("Tentar de novo");
+    expect(guia).toMatch(/falta aplicar uma migração/);
+    for (const rotulo of ["Não foi possível carregar esta secção.", "Tentar de novo"]) {
+      expect(ADMIN_ALL, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    // A causa chega ao ecrã: é a frase da exceção que a leitura lança.
+    expect(ADMIN_SHELL).toContain("errorState(err instanceof Error ? err.message : \"\")");
   });
 });
 
 describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o ecrã a pede agora", () => {
-  /**
-   * O assistente de criação passou a tratar a conta por inteiro: email
-   * revalidado no formato, palavra-passe com mínimo e confirmação, cartão «Os
-   * teus dados» antes de criar, e caminhos de correção nomeados depois de uma
-   * falha. A regra de `.kiro/steering/assistente.md` é que a orientação muda na
-   * mesma alteração — estas são as asserções que a impõem.
-   */
   const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
-  const LOGIN = readFileSync(join(ROOT, "web/views/login.ts"), "utf8");
   const guia = guiaDe("criar");
   const resolvida = resolver(guia);
 
   it("os passos da conta estão pela ordem em que o ecrã os pede", () => {
-    // A ordem é a propriedade: quem pergunta «o que é que ele me vai pedir?»
-    // recebe a sequência certa, não um conjunto de campos.
     const passos = ["o nome", "o email", "a palavra-passe", "outra vez, para confirmar"];
     const posicoes = passos.map((p) => {
       const i = resolvida.indexOf(p);
@@ -500,14 +843,11 @@ describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o e
       return i;
     });
     expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
-    // O email inválido é recusado ali mesmo, e não guardado para o fim.
     expect(resolvida).toMatch(/formato inválido é recusado/);
     expect(WIZARD).toContain("Esse email não parece válido");
   });
 
   it("diz o mínimo real da palavra-passe, sem número escrito à mão", () => {
-    // O mínimo vive em `PASSWORD_MIN_LENGTH`: escrevê-lo aqui deixava a frase
-    // errada no dia em que a regra mudasse, e ninguém repararia.
     expect(resolvida).toContain(`mínimo ${PASSWORD_MIN_LENGTH} caracteres`);
     expect(guia.replace(/\$\{[^}]*\}/g, ""), "há um número escrito à mão na orientação").not.toMatch(/\d/);
   });
@@ -515,8 +855,6 @@ describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o e
   it("a palavra-passe não aparece no chat, e uma diferença pede as duas de novo", () => {
     expect(resolvida).toContain("••••••••");
     expect(WIZARD).toContain('userSay("••••••••")');
-    // A frase citada é a que o módulo produz: a orientação não inventa uma
-    // versão própria da mensagem que o Dono vai ler.
     const recusa = validatePasswordConfirmation("segredo123", "segredo124");
     expect(recusa.status).toBe("invalid");
     if (recusa.status === "invalid") {
@@ -530,139 +868,145 @@ describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o e
       expect(resolvida, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
       expect(WIZARD, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
     }
-    // Corrigir um campo não repete os passos anteriores: é o que distingue este
-    // cartão de recomeçar a conversa.
     expect(resolvida).toMatch(/volta ao mesmo cartão/);
   });
 
   it("os rótulos de correção vêm da mesma constante que o ecrã usa", () => {
-    // Não podem divergir porque são o mesmo valor. Uma cópia à mão divergia na
-    // primeira vez que alguém renomeasse o botão.
     for (const rotulo of Object.values(REGISTER_FIX_LABELS)) {
       expect(resolvida, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
       expect(guia, `«${rotulo}» está copiado à mão em vez de vir de REGISTER_FIX_LABELS`).not.toContain(rotulo);
     }
-    // Email já registado: entrar na conta existente vem primeiro, e leva à rota
-    // real de início de sessão.
     const entrar = resolvida.indexOf(REGISTER_FIX_LABELS.entrar);
     expect(entrar).toBeGreaterThanOrEqual(0);
-    expect(resolvida).toContain("#/login");
+    expect(resolvida).toContain("/login");
     expect(WIZARD).toContain('go("#/login")');
-    // A escolha é do Dono: o assistente não anuncia que decide por ele.
     expect(resolvida).toMatch(/não decide sozinho/);
   });
 
-  it("diz o que não existe, em vez de deixar o modelo inventar", () => {
-    // Metade das perguntas é sobre o que a plataforma não faz. Sem isto o
-    // assistente promete um email de recuperação que nunca chega.
-    expect(resolvida).toMatch(/não há recuperação de palavra-passe/i);
-    expect(resolvida).toMatch(/nem por SMS/);
-    expect(resolvida).toMatch(/não se muda a palavra-passe depois de a conta existir/);
+  it("o fim do assistente é a galeria de modelos, e já não pergunta pelo logótipo", () => {
+    // O gerador de logótipos saiu: a conversa acabava com uma oferta que já não
+    // existe.
+    expect(resolvida).toMatch(/galeria de modelos prontos/);
+    expect(WIZARD).toContain("goToModels()");
+    expect(resolvida).not.toMatch(/logótipo/i);
+    expect(WIZARD).not.toMatch(/logoPurchase|generateLogos/);
   });
 
-  it("nem este ecrã nem o do início de sessão prometem recuperação por email", () => {
-    // A orientação do `registo` dizia «Esquecer a palavra-passe: recuperação por
-    // email» — e não há nada disso em lado nenhum. É o mesmo defeito dos
-    // escalões de preços: uma funcionalidade descrita que não existe.
-    const dois = `${resolvida}\n${resolver(guiaDe("registo"))}`;
-    expect(dois).not.toMatch(/recuperação por email/);
-    expect(LOGIN, "o ecrã de sessão não tem recuperação de palavra-passe").not.toMatch(/recuperar|esqueci|esqueceu/i);
+  it("diz o que não existe aqui, e onde se resolve", () => {
+    expect(resolvida).toMatch(/não se recupera a palavra-passe aqui dentro/);
+    expect(resolvida).toMatch(/nem por SMS/);
+    expect(resolvida).toContain("Esqueci-me da palavra-passe");
   });
 });
 
-describe("Orientação do ecrã «Início» — um cartão por informação, expiradas e telemóvel", () => {
+describe("Orientação do ecrã «registo» — a redefinição da palavra-passe existe mesmo", () => {
   /**
-   * O separador foi refeito: o cartão «Vendas online» que juntava tudo deu lugar
-   * a um cartão por informação, o gráfico ganhou cartão próprio, as referências
-   * expiradas passaram a poder ser apagadas e a navegação passou a existir em
-   * telemóvel. A orientação tinha de acompanhar as quatro coisas.
+   * A orientação prometeu durante muito tempo uma «recuperação por email» que
+   * não existia, e depois negou-a quando ela passou a existir. As duas versões
+   * eram o mesmo defeito: a orientação a contar uma história diferente do ecrã.
    */
-  const DASH = readFileSync(join(ROOT, "web/views/dashboard.ts"), "utf8");
-  const guia = guiaDe("painel");
+  const LOGIN = readFileSync(join(ROOT, "web/views/login.ts"), "utf8");
+  const guia = resolver(guiaDe("registo"));
 
-  it("cada informação tem cartão próprio, e o cartão que juntava tudo saiu", () => {
-    for (const rotulo of ["Valor total vendido", "Recebido (líquido)", "Disponível para levantar",
-      "Vendas pagas", "Produtos", "Referências pendentes", "Vendas pagas por dia"]) {
+  it("os rótulos do fluxo são os do ecrã", () => {
+    for (const rotulo of ["Entrar", "Esqueci-me da palavra-passe", "Enviar link",
+      "Definir nova palavra-passe", "Guardar a nova palavra-passe"]) {
       expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
-      expect(DASH, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+      expect(LOGIN, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
     }
-    // «Vendas online» era o bloco único e «Três números» o que vinha a seguir:
-    // descrever qualquer um deles manda o Dono procurar o que já não está lá.
-    expect(guia).not.toContain("Vendas online");
-    expect(DASH).not.toContain("Vendas online");
-    expect(guia).not.toMatch(/[Tt]rês números/);
   });
 
-  it("a barra e o botão são descritos no cartão a que pertencem", () => {
-    // A barra é do líquido recebido e o botão é do disponível: trocá-los na
-    // orientação era mandar o Dono procurar no cartão errado.
-    const linhaBarra = guia.split("\n").find((l) => l.includes("Já pedido")) ?? "";
-    expect(linhaBarra, "a orientação não fala da barra do dinheiro").not.toBe("");
-    expect(linhaBarra).toContain("Recebido (líquido)");
-    const linhaBotao = guia.split("\n").find((l) => l.includes("Solicitar levantamento")) ?? "";
-    expect(linhaBotao).toContain("Disponível para levantar");
-    expect(guia).toMatch(/já sem a taxa/);
+  it("cita a resposta neutra do ecrã, que não diz se a conta existe", () => {
+    const neutra = "Se existir uma conta com este email, enviámos um link para redefinir a palavra-passe.";
+    expect(LOGIN).toContain(neutra);
+    expect(guia).toContain(neutra);
   });
 
-  it("o gráfico é um cartão próprio, ainda de 14 dias e só de vendas pagas", () => {
-    const linha = guia.split("\n").find((l) => l.includes("Vendas pagas por dia")) ?? "";
-    expect(linha).toMatch(/cartão próprio/);
-    expect(linha).toMatch(/número de vendas desse dia/);
-    expect(guia).toMatch(/conta apenas vendas pagas/);
-    expect(DASH).toContain('homeCard(8, "insights", "Vendas pagas por dia"');
+  it("avisa do mesmo navegador e diz o mínimo real da palavra-passe", () => {
+    // O cliente usa PKCE: o link aberto noutro navegador não tem a sessão.
+    expect(guia).toMatch(/mesmo navegador/);
+    expect(guia).toContain(`mínimo ${PASSWORD_MIN_LENGTH} caracteres`);
+    // O número tem de vir da constante: no texto-fonte não há um só algarismo.
+    expect(guiaDe("registo").replace(/\$\{[^}]*\}/g, "")).not.toMatch(/\d/);
   });
 
-  it("só as referências expiradas se apagam, e a guarda não é o ecrã", () => {
-    expect(guia).toContain("Expirada");
-    expect(guia).toContain("Apagar registo");
-    expect(guia).toMatch(/[Ss]ó as expiradas se apagam/);
-    // Pagas, pendentes no prazo, falhadas e canceladas ficam: prometer o
-    // contrário era prometer apagar dinheiro.
-    for (const estado of ["pagas", "falhadas", "canceladas"]) {
-      expect(guia, `estado não protegido na orientação: ${estado}`).toContain(estado);
+  it("não volta a negar a redefinição, nem promete confirmação por código ou SMS", () => {
+    expect(guia).not.toMatch(/NÃO há recuperação/);
+    expect(guia).not.toMatch(/não se muda a palavra-passe depois de a conta existir/);
+    expect(guia).toMatch(/NÃO há confirmação de email por código nem por SMS/);
+  });
+});
+
+describe("Orientação do ecrã «editor» — o que se acrescenta depende do modelo", () => {
+  /**
+   * O menu «Adicionar secção» deixou de oferecer as secções que o modelo já
+   * traz, e o que é acrescentado passou a sair no desenho do modelo
+   * (`MODELO-GUIA.md` §9.3). A versão antiga enumerava três secções fixas, e com
+   * ela o assistente mandaria um Dono do Lumière acrescentar testemunhos que ele
+   * já tem.
+   */
+  const guia = guiaDe("editor");
+
+  it("diz que o menu depende do modelo, em vez de enumerar uma lista fixa", () => {
+    expect(guia).toMatch(/depende do modelo/);
+    expect(guia).toContain("Secção de produtos");
+    expect(guia).not.toMatch(/acrescenta Produtos, Informação com foto ou Título e texto/);
+  });
+
+  it("diz que as secções nativas do modelo se editam onde estão", () => {
+    expect(guia).toMatch(/não aparecem no menu/i);
+    expect(guia).toMatch(/edita-se onde estão|na própria secção/);
+    expect(guia).toContain("Lumière Chic");
+  });
+
+  it("nomeia as secções nativas que o modelo do exemplo declara", async () => {
+    // A orientação não pode ficar a falar de secções que o modelo deixou de
+    // declarar como nativas: são a mesma verdade em dois sítios.
+    //
+    // O especificador fica numa constante de propósito: com ele literal, o `tsc`
+    // segue o import e arrasta `web/lib/routing.ts` (que lê `location` e
+    // `window`) para um programa compilado sem DOM.
+    // `web/templates/lumiere.js` puxa `web/lib/routing.ts`, que lê `location` no
+    // arranque. O substituto é posto aqui e não deixado ao acaso: sem ele, este
+    // teste só passava quando outro ficheiro, no mesmo processo, o tinha posto
+    // primeiro — e falhava conforme a ordem em que o vitest distribuía os
+    // ficheiros pelos trabalhadores.
+    const g = globalThis as unknown as { location?: unknown };
+    if (!g.location) {
+      g.location = { hostname: "localhost", pathname: "/", search: "", origin: "http://localhost", href: "http://localhost/" };
     }
-    // A guarda de verdade é a política de `delete`; dizer que é o ecrã dava ao
-    // Dono a ideia de que basta insistir.
-    expect(guia).toMatch(/é a base de dados que o impede/);
-    expect(guia).toMatch(/definitivo e não recuperável/);
-    // Os mesmos rótulos e a mesma frase no ecrã.
-    expect(DASH).toContain('badge("Expirada"');
-    expect(DASH).toContain("Apagar registo");
-    expect(guia).toContain("A referência passou a data-limite e já não pode ser paga.");
-    expect(DASH).toContain("A referência passou a data-limite e já não pode ser paga.");
+    const especificador = "../web/templates/lumiere.js";
+    const { lumiereTemplate } = (await import(especificador)) as { lumiereTemplate: StoreTemplate };
+    expect(lumiereTemplate.sections?.native).toContain("testimonials");
+    expect(lumiereTemplate.sections?.native).toContain("location");
+    expect(guia).toMatch(/testemunhos/i);
+    expect(guia).toMatch(/As nossas lojas/);
   });
 
-  it("as sete secções da navegação estão na orientação, e o telemóvel também", () => {
-    // A lista das secções é única no ecrã (`DASH_SECTIONS`): é dela que sai o
-    // que a orientação tem de cobrir, para não ficar com seis quando o ecrã tem
-    // sete.
-    const lista = DASH.slice(DASH.indexOf("const DASH_SECTIONS"), DASH.indexOf("function navChip("));
-    const labels = [...lista.matchAll(/label: "([^"]+)"/g)].map((m) => m[1]!);
-    expect(labels).toHaveLength(7);
-    for (const label of labels) {
-      expect(guia, `secção ausente da orientação: ${label}`).toContain(label);
-    }
-    expect(guia).toMatch(/faixa de atalhos deslizante/);
-    expect(guia).toMatch(/barra lateral não existe no telemóvel/);
+  it("promete que a secção acrescentada tem o desenho do modelo", () => {
+    expect(guia).toMatch(/desenho do modelo/);
   });
 
-  it("trocar de loja já não é só «no topo da barra lateral»", () => {
-    // Em telemóvel a barra lateral não existe. A orientação antiga contava metade
-    // da história e deixava o Dono a procurar um seletor que ele não vê.
-    expect(guia).not.toMatch(/troca no seletor no topo da barra lateral\./);
-    const frases = guia.split("\n").filter((l) => l.includes("seletor de loja"));
-    expect(frases.length, "a orientação não fala do seletor de loja").toBeGreaterThan(0);
-    expect(frases.some((l) => l.includes("telemóvel")), "o seletor de loja em telemóvel não está dito").toBe(true);
+  it("não oferece um gerador de logótipos: o logótipo é carregado pelo Dono", () => {
+    expect(guia).toMatch(/não há gerador de logótipos/i);
+    expect(guia).toContain("Trocar");
+  });
+});
+
+describe("Orientação do ecrã «legal» — descreve o que os documentos dizem agora", () => {
+  const guia = resolver(guiaDe("legal"));
+
+  it("fala do plano único, do WhatsApp e da verificação de empresa", () => {
+    expect(guia).toMatch(/plano único/);
+    expect(guia).toMatch(/WhatsApp/);
+    expect(guia).toMatch(/empresas registadas/);
+    for (const d of COMPANY_DOCUMENTS) expect(guia).toContain(d.label);
   });
 
-  it("a barra de telemóvel traz o que o `aside` tinha, com os mesmos rótulos", () => {
-    for (const rotulo of ["Nova loja", "Dashboard de Administração", "Terminar sessão"]) {
-      expect(guia, `ausente da orientação: ${rotulo}`).toContain(rotulo);
-      expect(DASH, `ausente do ecrã: ${rotulo}`).toContain(rotulo);
-    }
-    // A Administração é só de administradores: prometê-la a um Dono era mandá-lo
-    // procurar um atalho que ele não tem.
-    expect(guia).toMatch(/só em contas de administrador/);
+  it("diz quem vê os dados da empresa e para que servem", () => {
+    expect(guia).toMatch(/armazenamento privado/);
+    expect(guia).toMatch(/administração da MôBisno/);
+    expect(guia).toContain(PLATFORM_CONTACT_EMAIL);
   });
 });
 
@@ -682,15 +1026,12 @@ describe("Assistente no telemóvel — folha inferior, sem zoom e sem a página 
   });
 
   it("no telemóvel o painel encosta às margens e usa dvh, não vh", () => {
-    // `vh` conta a barra do navegador que se esconde: a folha ficava mais alta do
-    // que o ecrã.
     expect(AI_AGENT).toMatch(/const sheet = isNarrow\(\)/);
     expect(AI_AGENT).toContain("height:min(86dvh,640px)");
     expect(AI_AGENT).toContain("border-radius:20px 20px 0 0");
   });
 
   it("não rouba o foco no telemóvel", () => {
-    // Dar foco ao abrir puxava o teclado antes de a pessoa ler a saudação.
     expect(AI_AGENT).toMatch(/if \(!sheet\) \(panel\.querySelector\("\[data-input\]"\)/);
   });
 
@@ -705,5 +1046,11 @@ describe("Assistente no telemóvel — folha inferior, sem zoom e sem a página 
     expect(AI_AGENT).toMatch(/e\.key === "Escape" && panel/);
     // O ouvinte de teclado sai no desmonte, senão fica preso à vista anterior.
     expect(AI_AGENT).toMatch(/removeEventListener\("keydown", onKey\)/);
+  });
+
+  it("a animação da bolha está definida no próprio módulo", () => {
+    // `mbBubbleIn` era usada aqui e definida noutro ficheiro: a bolha entrava
+    // sem animação em qualquer ecrã que não fosse o assistente de criação.
+    expect(AI_AGENT).toContain("@keyframes mbBubbleIn");
   });
 });

@@ -31,7 +31,14 @@ const ROOT = join(__dirname, "..");
 const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
 
 const CHROME = read("web/templates/platformChrome.ts");
-const LANDING = read("web/views/landing.ts");
+/**
+ * A página inicial em dois ficheiros: o HTML puro (`landingHtml.ts`), que o
+ * servidor também pré-renderiza, e a vista (`landing.ts`), que o desenha e liga
+ * os eventos. As asserções sobre markup leem os dois juntos — e o rodapé, que é
+ * markup, é afirmado sobre o construtor.
+ */
+const LANDING_HTML = read("web/views/landingHtml.ts");
+const LANDING = `${LANDING_HTML}\n${read("web/views/landing.ts")}`;
 const DIRECTORY = read("web/views/directory.ts");
 const SEO_API = read("api/_seo.js");
 const PRERENDER = read("api/prerender.js");
@@ -71,7 +78,7 @@ describe("Botões do cabeçalho — o espaço vem do gap, não do HTML", () => {
 
 describe("Rodapé — uma só definição", () => {
   it("a página inicial usa o rodapé partilhado e não tem um <footer> próprio", () => {
-    expect(LANDING).toContain("${platformFooterHtml()}");
+    expect(LANDING_HTML).toContain("${platformFooterHtml()}");
     expect(LANDING).not.toContain("<footer");
   });
 
@@ -82,17 +89,31 @@ describe("Rodapé — uma só definição", () => {
   });
 });
 
-describe("Cromo servido pelo servidor — ligações absolutas ao apex", () => {
-  it("o cabeçalho e o rodapé do platformHtml apontam para o apex, não para o host pedido", () => {
+describe("Cromo servido pelo servidor — ligações absolutas à plataforma", () => {
+  it("o cabeçalho e o rodapé do platformHtml apontam para a plataforma, não para o host pedido", () => {
     const inicio = SEO_API.indexOf("export function platformHtml(");
     expect(inicio).toBeGreaterThanOrEqual(0);
     const fn = SEO_API.slice(inicio, SEO_API.indexOf("\n}", inicio));
-    expect(fn).toContain("const platform = `https://${PLATFORM_APEX}`");
+    // A origem é a do pedido quando ele é da plataforma, e o apex em qualquer
+    // outro caso: numa loja (`naoexiste.sualoja.digital`), um `/criar` relativo
+    // levava quem tentava sair da página de erro para outro erro. Na plataforma,
+    // usar o host pedido evita o redirecionamento apex → www.
+    expect(fn).toContain("platformOrigin(host)");
     for (const caminho of ["/", "/criar", "/termos", "/privacidade"]) {
       expect(fn, `ligação relativa a ${caminho}`).toContain(`href="\${platform}${caminho}"`);
     }
     // Nenhuma ligação do cromo pode voltar a ser relativa.
     expect(fn).not.toMatch(/href="\/(criar|termos|privacidade)"/);
+  });
+
+  it("platformOrigin só aceita a família do apex da plataforma", () => {
+    const inicio = SEO_API.indexOf("export function platformOrigin(");
+    expect(inicio, "platformOrigin não encontrada em api/_seo.js").toBeGreaterThanOrEqual(0);
+    const fn = SEO_API.slice(inicio, SEO_API.indexOf("\n}", inicio));
+    // Um `Host` arbitrário não pode passar a canónico da plataforma: seria o
+    // Google a indexar o nosso conteúdo noutro domínio.
+    expect(fn).toContain("PLATFORM_APEX");
+    expect(fn).toMatch(/www\./);
   });
 });
 

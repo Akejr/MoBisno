@@ -1,198 +1,209 @@
 /**
- * Guardas das funcionalidades «Em breve» — SMS de confirmação e domínio próprio (R6).
+ * Funcionalidades «Em breve» (`src/services/comingSoon.ts`).
  *
- * A decisão D6 do design escolheu **desativar sem apagar**: uma constante
- * `COMING_SOON` no Painel_Do_Dono, a etiqueta «Em breve» nas duas secções e uma
- * devolução antecipada nos três manipuladores (comprar créditos, ativar SMS,
- * guardar domínio). O saldo de `stores.sms_credits` continua a ser lido e nunca
- * escrito pelo Painel_Do_Dono.
+ * Uma só lista, lida por todos os sítios que precisam de saber: o Dashboard
+ * (etiqueta e configuração bloqueada), a loja publicada (os pixels de marketing
+ * não carregam), a página de preços e o assistente (que tem de dizer a verdade
+ * sobre o que existe). Vivia dentro de `web/views/dashboard.ts`, e o assistente
+ * repetia a lista à mão — que é exatamente a forma de as duas divergirem.
  *
- * As asserções são sobre o **texto-fonte** e não sobre o DOM gerado:
- * `web/views/dashboard.ts` depende do DOM e `tests/` compila com `lib: ["ES2022"]`,
- * sem DOM, por isso o módulo não pode ser importado. É o mesmo padrão
- * `readFileSync` de `tests/seoInfra.test.ts` e de `tests/lumiereFooter.test.ts`.
+ * O que se fixa aqui:
  *
- * Nota sobre a etiqueta: o literal «Em breve» aparece em vários sítios de
- * `dashboard.ts`, incluindo num `stub()` anterior a esta spec que nada tem a ver
- * com R6. Contar ocorrências seria frágil, por isso as asserções incidem no que é
- * específico de R6: a constante, as duas bandeiras e a passagem de `comingSoon:`
- * aos acordeões de SMS e de Domínio.
+ *  1. o **módulo** — bandeiras, rótulos e a lista derivada;
+ *  2. **«Em breve» desliga, não apaga** — o saldo de SMS já comprado continua a
+ *     ser lido, nunca escrito pelo navegador;
+ *  3. **a compra de SMS saiu do servidor** — não há caminho de pagamento de
+ *     pacotes de SMS em `api/`;
+ *  4. **o checkout conclui a encomenda sem enviar SMS** (R6.6).
+ *
+ * O Dashboard e o checkout estão a ser refeitos; deles afirma-se só o
+ * comportamento exigido (ler a bandeira do módulo, não haver compra de SMS), e
+ * não a forma do código.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import {
+  COMING_SOON, COMING_SOON_LABELS, comingSoonList, isComingSoon, type ComingSoonFeature,
+} from "../src/services/comingSoon.js";
 
 const ROOT = join(__dirname, "..");
 const ler = (p: string): string => readFileSync(join(ROOT, p), "utf8");
 
-const DASHBOARD = ler("web/views/dashboard.ts");
-const SMS_MODULE = ler("web/supabase/sms.ts");
-const SHARED = ler("api/_shared.js");
-
-/**
- * Recorta o texto entre dois marcadores. Falha com mensagem útil se algum
- * marcador desaparecer — sem isto, um bloco renomeado passaria por «não tem
- * envio de SMS» simplesmente por não ter sido encontrado.
- */
-function trecho(texto: string, inicio: string, fim: string): string {
-  const i = texto.indexOf(inicio);
-  expect(i, `marcador inicial não encontrado: ${inicio}`).toBeGreaterThan(-1);
-  const j = texto.indexOf(fim, i + inicio.length);
-  expect(j, `marcador final não encontrado: ${fim}`).toBeGreaterThan(i);
-  return texto.slice(i, j);
+/** Ficheiros `.ts`/`.js`/`.mjs` de uma pasta, recursivamente, menos as excluídas. */
+function ficheiros(pasta: string, excluir: readonly string[] = []): string[] {
+  const out: string[] = [];
+  const andar = (abs: string): void => {
+    for (const e of readdirSync(abs, { withFileTypes: true })) {
+      const caminho = join(abs, e.name);
+      const rel = relative(ROOT, caminho).split(sep).join("/");
+      if (excluir.some((x) => rel === x || rel.startsWith(`${x}/`))) continue;
+      if (e.isDirectory()) andar(caminho);
+      else if (/\.(ts|js|mjs)$/.test(e.name)) out.push(rel);
+    }
+  };
+  andar(join(ROOT, pasta));
+  return out.sort();
 }
 
-describe("«Em breve» — etiquetas das duas funcionalidades (R6.1, R6.4)", () => {
-  it("a constante COMING_SOON declara as duas bandeiras a true", () => {
-    expect(DASHBOARD).toMatch(/const COMING_SOON\s*=\s*\{\s*sms:\s*true\s*,\s*customDomain:\s*true\s*\}/);
+/** Linhas de `ficheiros` que casam com `padrao`, como `ficheiro:linha: texto`. */
+function linhasCom(lista: readonly string[], padrao: RegExp): string[] {
+  const achados: string[] = [];
+  for (const f of lista) {
+    ler(f).split(/\r?\n/).forEach((linha, i) => {
+      if (padrao.test(linha)) achados.push(`${f}:${i + 1}: ${linha.trim().slice(0, 160)}`);
+    });
+  }
+  return achados;
+}
+
+const FEATURES = Object.keys(COMING_SOON) as ComingSoonFeature[];
+
+describe("O módulo «Em breve»", () => {
+  it("declara o SMS de confirmação, o domínio próprio e o marketing", () => {
+    expect([...FEATURES].sort()).toEqual(["customDomain", "marketing", "sms"]);
   });
 
-  it("a etiqueta partilhada tem o texto literal «Em breve»", () => {
-    const badge = trecho(DASHBOARD, "function comingSoonBadge()", "\nfunction comingSoonNotice");
-    expect(badge).toContain("Em breve");
+  it("as três estão «Em breve» hoje", () => {
+    for (const f of FEATURES) expect(isComingSoon(f), f).toBe(true);
   });
 
-  it("o acordeão de Configurações sabe desenhar a etiqueta", () => {
-    const acordeao = trecho(DASHBOARD, "function settingsAccordion(", "\nfunction areaRowHtml");
-    expect(acordeao).toContain("comingSoon?: boolean");
-    expect(acordeao).toContain("o.comingSoon ? comingSoonBadge()");
+  it("isComingSoon é a bandeira, comparada sem coerção", () => {
+    for (const f of FEATURES) expect(isComingSoon(f)).toBe(COMING_SOON[f] === true);
   });
 
-  it("a secção «SMS de confirmação» recebe a etiqueta a partir de COMING_SOON.sms", () => {
-    expect(DASHBOARD).toMatch(/const smsSoon\s*=\s*COMING_SOON\.sms/);
-    const chamada = trecho(DASHBOARD, 'title: "SMS de confirmação"', "})}");
-    expect(chamada).toContain("comingSoon: smsSoon");
+  it("toda a funcionalidade tem nome, e só as declaradas têm", () => {
+    expect(Object.keys(COMING_SOON_LABELS).sort()).toEqual([...FEATURES].sort());
+    for (const f of FEATURES) expect(COMING_SOON_LABELS[f].trim().length, f).toBeGreaterThan(0);
   });
 
-  it("a secção «Domínio» recebe a etiqueta a partir de COMING_SOON.customDomain", () => {
-    expect(DASHBOARD).toMatch(/const domainSoon\s*=\s*COMING_SOON\.customDomain/);
-    const chamada = trecho(DASHBOARD, 'title: "Domínio"', "})}");
-    expect(chamada).toContain("comingSoon: domainSoon");
-  });
-});
-
-describe("«Em breve» — as três devoluções antecipadas (R6.2, R6.3, R6.5)", () => {
-  /** Guarda com aviso ao Dono e `return` antes de qualquer efeito. */
-  const guardaSms = /if \(COMING_SOON\.sms\)\s*\{[^}]*toast\([^)]*\)[^}]*return;\s*\}/;
-  const guardaDominio = /if \(COMING_SOON\.customDomain\)\s*\{[^}]*toast\([^)]*\)[^}]*return;\s*\}/;
-
-  it("comprar créditos de SMS devolve antes de abrir o checkout de SMS (R6.2)", () => {
-    const bloco = trecho(DASHBOARD, '[data-sms-pack]"', "// Código de desconto");
-    expect(bloco).toMatch(guardaSms);
-    // A ordem é o que importa: a guarda tem de vir antes de `openSmsCheckout`,
-    // senão o diálogo de pagamento abre mesmo com a bandeira a `true`.
-    expect(bloco.search(guardaSms)).toBeLessThan(bloco.indexOf("openSmsCheckout("));
+  it("os nomes dizem o que é cada uma, como o Dono a procura", () => {
+    expect(COMING_SOON_LABELS.sms).toMatch(/SMS/);
+    expect(COMING_SOON_LABELS.customDomain).toMatch(/[Dd]omínio próprio/);
+    expect(COMING_SOON_LABELS.marketing).toMatch(/[Pp]ixel/);
   });
 
-  it("ativar o SMS devolve antes de escrever c.sms e antes de guardar (R6.3)", () => {
-    const bloco = trecho(DASHBOARD, '$("#save-sms")?.addEventListener', '[data-sms-pack]"');
-    expect(bloco).toMatch(guardaSms);
-    expect(bloco.search(guardaSms)).toBeLessThan(bloco.indexOf("c.sms ="));
-    expect(bloco.search(guardaSms)).toBeLessThan(bloco.indexOf("saveCustomization("));
+  it("comingSoonList devolve os nomes das bloqueadas, pela ordem da declaração", () => {
+    expect(comingSoonList()).toEqual(FEATURES.filter(isComingSoon).map((f) => COMING_SOON_LABELS[f]));
   });
 
-  it("guardar o domínio devolve antes de escrever c.customDomain e antes de guardar (R6.5)", () => {
-    const bloco = trecho(DASHBOARD, '$("#save-domain")?.addEventListener', '$("#delete-store")');
-    expect(bloco).toMatch(guardaDominio);
-    expect(bloco.search(guardaDominio)).toBeLessThan(bloco.indexOf("c.customDomain ="));
-    expect(bloco.search(guardaDominio)).toBeLessThan(bloco.indexOf("saveCustomization("));
+  it("comingSoonList devolve uma cópia: mexer-lhe não muda a lista seguinte", () => {
+    const primeira = comingSoonList();
+    primeira.push("Inventada");
+    expect(comingSoonList()).not.toContain("Inventada");
   });
 });
 
-describe("«Em breve» — o saldo de SMS é lido e nunca escrito (R6.7, R6.8)", () => {
-  it("o Painel_Do_Dono continua a ler o saldo para o apresentar", () => {
-    expect(DASHBOARD).toContain("getSmsCredits(store!.id)");
-    expect(DASHBOARD).toContain("${smsCredits} SMS");
-  });
+describe("«Em breve» desliga, não apaga — o saldo de SMS é lido e nunca escrito", () => {
+  const SMS_MODULE = ler("web/supabase/sms.ts");
 
-  it("o módulo de SMS do cliente só lê stores.sms_credits", () => {
+  it("o módulo de SMS do navegador só lê stores.sms_credits", () => {
     expect(SMS_MODULE).toContain('select("sms_credits")');
     for (const escrita of [".update(", ".insert(", ".upsert(", ".delete("]) {
       expect(SMS_MODULE, `o módulo de SMS não pode escrever (${escrita})`).not.toContain(escrita);
     }
+  });
+
+  it("nenhum ficheiro de web/ escreve o saldo de SMS", () => {
+    // O gatilho `stores_guard` (0022) repõe `sms_credits` em qualquer escrita
+    // do navegador; uma escrita aqui seria uma promessa que a base de dados
+    // desfaz em silêncio.
+    expect(linhasCom(ficheiros("web", ["web/dist"]), /sms_credits\s*:/)).toEqual([]);
+  });
+});
+
+describe("A compra de SMS saiu — não há caminho de pagamento de pacotes de SMS", () => {
+  const WEB = ficheiros("web", ["web/dist"]);
+  /** Funções serverless escritas à mão (o pacote gerado `api/_ssr` fica de fora). */
+  const API = ficheiros("api", ["api/_ssr"]);
+
+  it("o checkout de compra de SMS foi apagado e ninguém o abre", () => {
+    expect(existsSync(join(ROOT, "web/lib/smsCheckout.ts"))).toBe(false);
+    expect(linhasCom(WEB, /openSmsCheckout|SMS_PACKAGES|smsCheckout/)).toEqual([]);
+  });
+
+  it("o servidor não conhece um pagamento do tipo «sms»", () => {
+    // `api/payment.js` só aceita `kind: "plan"` (subscrição) e `kind: "store"`
+    // (encomenda numa loja).
+    expect(linhasCom(API, /kind[^\n]{0,24}["'`]sms["'`]|["'`]sms["'`][^\n]{0,24}kind/i)).toEqual([]);
+    expect(linhasCom(API, /creditSms|sms_purchases|SMS_PACK/i)).toEqual([]);
+  });
+
+  it("os ficheiros do pagamento nem falam de SMS", () => {
+    for (const f of ["api/payment.js", "api/payment-status.js", "api/payment-webhook.js", "api/_payments.js", "api/_provider.js"]) {
+      expect(ler(f), f).not.toMatch(/sms/i);
+    }
+  });
+});
+
+describe("O Dashboard lê as bandeiras do módulo, não uma cópia", () => {
+  /** `web/views/dashboard.ts` e os módulos dos separadores. */
+  const DASHBOARD = ["web/views/dashboard.ts", ...ficheiros("web/views/dashboard")];
+
+  it("algum módulo do Dashboard importa COMING_SOON ou isComingSoon de src/services/comingSoon", () => {
+    const importa = DASHBOARD.some((f) =>
+      /import\s*\{[^}]*\b(COMING_SOON|isComingSoon)\b[^}]*\}\s*from\s*["'][^"']*src\/services\/comingSoon\.js["']/.test(ler(f)));
+    expect(importa).toBe(true);
+  });
+
+  it("nenhum módulo do Dashboard declara a sua própria lista «Em breve»", () => {
+    expect(linhasCom(DASHBOARD, /\b(const|let|var)\s+COMING_SOON\b/)).toEqual([]);
   });
 });
 
 /**
  * R6.6 — «o Checkout conclui a encomenda sem enviar SMS de confirmação».
  *
- * Isto **já é verdade** na linha de base: a leitura do código confirma que não
- * existe envio de SMS em nenhum caminho da Plataforma. `api/_shared.js` apenas
- * credita saldo (`creditSms`) depois de um pagamento confirmado, e `api/payment.js`,
- * `api/webhook.js` e `api/payment-status.js` só tocam em SMS para registar a
- * compra de créditos. O valor destes testes é serem a guarda de que continua
- * assim: se alguém acrescentar envio ao caminho do Checkout, falham aqui.
+ * Nenhum caminho da Plataforma envia SMS: o SMS de confirmação está «Em breve».
+ * O valor destes testes é serem a guarda de que continua assim: se alguém
+ * acrescentar um envio ao caminho do checkout, falham aqui.
  */
 describe("Checkout conclui a encomenda sem enviar SMS (R6.6)", () => {
-  /** Vistas e bibliotecas que compõem o caminho do Checkout na SPA. */
+  /** Vistas e bibliotecas que compõem o caminho do checkout na SPA. */
   const CHECKOUT_SPA = [
     "web/views/checkout.ts",
     "web/templates/checkoutLayouts.ts",
     "web/lib/cart.ts",
     "web/lib/cartDrawer.ts",
     "web/lib/paymentsApi.ts",
-  ];
-  /** Funções serverless que fecham a encomenda depois do pagamento. */
+  ].filter((f) => existsSync(join(ROOT, f)));
+  /** Funções serverless que fecham a encomenda. */
   const CHECKOUT_SERVIDOR = [
     "api/payment.js",
     "api/payment-status.js",
-    "api/webhook.js",
+    "api/payment-webhook.js",
+    "api/_payments.js",
+    "api/_provider.js",
     "api/_shared.js",
   ];
-  const CAMINHO = [...CHECKOUT_SPA, ...CHECKOUT_SERVIDOR].map((f) => ({ f, texto: ler(f) }));
+  const CAMINHO = [...CHECKOUT_SPA, ...CHECKOUT_SERVIDOR];
 
   /** Nomes que denunciam um envio de mensagem. */
   const ENVIO = /\b(send|dispatch|deliver|notify|enviar|envia)[_-]?sms\b|\bsms[_-]?(send|dispatch|deliver|enviar|message)/i;
   /** Serviços de SMS de terceiros: chegar a um deles é enviar mensagens. */
   const FORNECEDOR = /twilio|vonage|nexmo|messagebird|africa'?stalking|infobip|clickatell|plivo|bulksms|smsgateway/i;
 
+  it("o caminho do checkout existe (a guarda não está a ler ficheiros vazios)", () => {
+    expect(CHECKOUT_SPA).toContain("web/views/checkout.ts");
+    for (const f of CHECKOUT_SERVIDOR) expect(existsSync(join(ROOT, f)), f).toBe(true);
+  });
+
   it("nenhum ficheiro do caminho invoca um envio de SMS", () => {
-    const infratores: string[] = [];
-    for (const { f, texto } of CAMINHO) {
-      texto.split("\n").forEach((linha, i) => {
-        if (ENVIO.test(linha)) infratores.push(`${f}:${i + 1}: ${linha.trim()}`);
-      });
-    }
-    expect(infratores).toEqual([]);
+    expect(linhasCom(CAMINHO, ENVIO)).toEqual([]);
   });
 
   it("nenhum ficheiro do caminho fala com um serviço de SMS de terceiros", () => {
-    const infratores: string[] = [];
-    for (const { f, texto } of CAMINHO) {
-      texto.split("\n").forEach((linha, i) => {
-        if (FORNECEDOR.test(linha)) infratores.push(`${f}:${i + 1}: ${linha.trim()}`);
-      });
-    }
-    expect(infratores).toEqual([]);
+    expect(linhasCom(CAMINHO, FORNECEDOR)).toEqual([]);
   });
 
   it("nenhuma linha que mencione SMS faz uma chamada de rede", () => {
-    // Um envio precisa de sair da Plataforma. Todas as linhas de SMS que existem
-    // hoje são consultas ao Supabase (`sms_purchases`, `sms_credits`); nenhuma
-    // abre um pedido HTTP.
-    const infratores: string[] = [];
-    for (const { f, texto } of CAMINHO) {
-      texto.split("\n").forEach((linha, i) => {
-        if (!/sms/i.test(linha)) return;
-        if (/\bfetch\s*\(|\baxios\b|https?:\/\//i.test(linha)) infratores.push(`${f}:${i + 1}: ${linha.trim()}`);
-      });
-    }
+    const infratores = linhasCom(CAMINHO, /sms/i).filter((l) => /\bfetch\s*\(|\baxios\b|https?:\/\//i.test(l));
     expect(infratores).toEqual([]);
   });
 
-  it("o Checkout da SPA não importa sequer o módulo de SMS", () => {
+  it("o checkout da SPA não importa o módulo de SMS", () => {
     for (const f of CHECKOUT_SPA) {
-      const texto = ler(f);
-      expect(texto, `${f} importa o módulo de saldo de SMS`).not.toContain("supabase/sms.js");
-      expect(texto, `${f} importa o checkout de compra de SMS`).not.toContain("smsCheckout.js");
+      expect(ler(f), `${f} importa o módulo de saldo de SMS`).not.toContain("supabase/sms.js");
     }
-  });
-
-  it("creditSms apenas soma ao saldo: não envia nada e não gasta saldo", () => {
-    const bloco = trecho(SHARED, "export async function creditSms", "\nexport ");
-    expect(bloco).toContain("sms_credits: cur + qty");
-    expect(bloco).not.toContain("fetch(");
-    // Gastar saldo é o efeito colateral de um envio; se aparecer, houve envio.
-    expect(bloco).not.toMatch(/sms_credits:\s*(cur\s*-|Math\.max)/);
   });
 });

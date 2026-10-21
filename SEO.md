@@ -402,7 +402,11 @@ exatamente o que o Google recebeu.
 
 ---
 
-## 7. Pendente
+## 7. Pendente (FECHADO — ver §8)
+
+> Os três pontos desta secção foram resolvidos. Ficam aqui porque descrevem o
+> que estava mal e porquê; a §8 descreve o que foi feito.
+
 
 ### 7.1 `mobisno.store` e `sualoja.digital` redirecionam para `www`
 
@@ -463,3 +467,104 @@ descobre a ler a fonte dos dois lados.
 | `1d4b436` | SSR real, ligações indexáveis, dados estruturados, diretório, sitemaps, fontes (37 ficheiros) |
 | `6110cc6` | A raiz `/` passa a ser pré-renderizada (`index.html` tapava o rewrite) |
 | `151f120` | Bloco pré-renderizado escondido do visitante; ecrã de carregamento com a marca. **Revertido** — foi o que impediu a indexação de todas as lojas (§3.3) |
+
+---
+
+## 8. A loja verdadeira no primeiro ecrã (e o que mudou na indexação)
+
+> Esta secção substitui a §7: os três pendentes que ela listava estão fechados.
+
+### 8.1 O defeito: duas páginas, uma depois da outra
+
+Abrir uma loja mostrava **primeiro uma página em bruto e depois a loja**. Não era
+lentidão de rede: o servidor escrevia dentro de `#app` uma versão simplificada da
+loja (o bloco `.mb-ssr`, construído em `api/_seo.js`) e a SPA, ao arrancar,
+substituía-a pelo HTML do modelo verdadeiro. Duas páginas diferentes em
+sequência, com um salto visível entre elas — e, no telemóvel, as imagens a serem
+pedidas duas vezes.
+
+A versão simplificada resolvia o problema para o Google (havia conteúdo no HTML)
+e criava um para as pessoas.
+
+### 8.2 Como funciona agora
+
+O servidor desenha a página com o **mesmo código** que a SPA, e a SPA **adota** o
+que já está no ecrã:
+
+1. `web/ssr/entry.ts` expõe `renderStorePage` e `renderLandingPage`. Elas chamam
+   as mesmas funções que as vistas (`storeHomeHtml`, `productPageHtml`,
+   `categoryPageHtml` em `web/views/storeHtml.ts`; `landingHtml()`) sobre os
+   mesmos dados (`storefrontFromRows`, que usa os mesmos conversores de linha que
+   `web/lib/storeCache.ts`).
+2. `scripts/build-ssr.mjs` empacota-as com o esbuild em **`api/_ssr/render.mjs`**
+   (ESM, Node 18). O ficheiro vai no repositório — `api/` é JavaScript sem passo
+   de compilação — e é regenerado dentro do `web:build`, que é o que a Vercel
+   corre. `tests/ssrBundle.test.ts` reconstrói em memória e compara byte a byte:
+   se alguém mudar um modelo e não voltar a gerar, o teste falha com «Corre
+   `npm run ssr:build`».
+3. `api/prerender.js` importa o pacote (`import()` dinâmico, dentro de
+   `try/catch`), desenha a página e injeta no `<div id="app">`:
+   - o HTML do modelo;
+   - `data-ssr="<fnv1a do HTML>"` — a impressão digital;
+   - as cores e os atributos que as vistas aplicam depois de desenhar
+     (`--brand`, `--brand-ink`, `data-ink`, `data-theme`, `data-icons`), mais as
+     folhas do primeiro ecrã no `<head>` (`web/ssr/look.ts`).
+4. `render()` em `web/lib/dom.ts`, **no primeiro desenho**, compara `data-ssr`
+   com a impressão digital do HTML que a vista acabou de construir. Se são
+   iguais, **mantém o DOM** em vez de escrever `innerHTML`: nada pisca, as
+   imagens não são pedidas outra vez, e o atributo é removido para os desenhos
+   seguintes serem normais.
+5. As linhas cruas do Supabase continuam embutidas em `#mb-ssr-data`, por isso a
+   SPA não vai à rede para desenhar a primeira página.
+
+Os modelos leem `location` através dos ajudantes de `web/lib/routing.ts`. O
+servidor define um `location` construído a partir do pedido **imediatamente
+antes** de desenhar e repõe o anterior logo a seguir; o render é síncrono, por
+isso dois pedidos na mesma instância nunca se cruzam
+(`tests/ssrRender.test.ts` verifica-o).
+
+**Se o pacote falhar** — ficheiro em falta, erro no render, dados insuficientes —
+`api/prerender.js` volta à versão simplificada. A página continua indexável; é só
+o primeiro ecrã que deixa de ser bonito.
+
+**Páginas com o modelo verdadeiro:** início da loja, página de produto, listagem
+de categoria e a página inicial da plataforma. **Ainda com a versão
+simplificada:** `/lojas`, as páginas legais, as 404 e os caminhos privados (são
+texto, ou `noindex`).
+
+### 8.3 O que mudou na indexação
+
+| Antes | Agora |
+|---|---|
+| As lojas-modelo (`modelo-…`) eram indexadas e competiam com as lojas dos clientes pelas mesmas palavras | `noindex, follow` em todas as páginas delas, fora dos sitemaps e fora de `/lojas` (`isModelStore` em `api/_seo.js`) |
+| Canónicos, `og:url`, sitemap e a linha `Sitemap:` do robots apontavam para o apex, que responde **308** para `www.` | Tudo deriva do host do pedido, aceitando só a família do apex (`platformOrigin`); qualquer outro host cai no apex |
+| A descrição de uma loja sem SEO próprio era texto igual em todas, e prometia Multicaixa Express e Referência Bancária a lojas que não os têm | Descrição específica da loja, e os métodos digitais só são nomeados quando a loja os tem **e** há fornecedor ligado |
+| As páginas da plataforma anunciavam «11.000 Kz por mês, ou 120.000 Kz por ano» e «domínio próprio incluído» | `platformPages()` deriva o preço de `PLAN_PRICE_KZ`, a FAQ de `platformFaq()` e o que está «Em breve» de `comingSoon.ts` |
+| `FAQPage` em JSON-LD sem as perguntas na página | As mesmas perguntas (`platformFaq`) na secção visível da página inicial e no JSON-LD |
+| Uma listagem de categoria vazia era indexável | `noindex` quando não tem produtos |
+
+Há também `GOOGLE_SITE_VERIFICATION` (opcional, separada por vírgulas): cada
+token sai como `<meta name="google-site-verification">` em todas as páginas
+pré-renderizadas.
+
+### 8.4 O que só o dono do domínio pode fazer
+
+O código está feito; isto não se automatiza:
+
+1. **Search Console — propriedade de Domínio.** Criar uma propriedade do tipo
+   **Domínio** para `sualoja.digital` e outra para `mobisno.store`, e verificar
+   cada uma com o registo **TXT** no DNS. Uma propriedade de Domínio cobre o
+   apex, o `www.` e **todos os subdomínios** — é a única forma de ver, num só
+   sítio, as lojas de todos os clientes. Uma propriedade de prefixo de URL por
+   loja não escala, e é por isso que o Search Console «não conseguia indexar»:
+   não havia propriedade que cobrisse `<loja>.sualoja.digital`.
+2. **Submeter os sitemaps**: `https://sualoja.digital/sitemap.xml` (o índice, que
+   lista o sitemap de cada loja publicada) e `https://mobisno.store/sitemap.xml`.
+   O de cada loja é `https://<loja>.sualoja.digital/sitemap.xml`.
+3. **Escolher o domínio principal na Vercel** (apex ou `www.`) e manter a escolha.
+   O código acompanha o host, mas se o apex redirecionar para `www.` e as
+   ligações externas apontarem para o apex, cada visita do rastreador começa por
+   um 308.
+4. Uma loja nova não aparece no Google por existir: precisa de ligações e de
+   tempo. `/lojas` dá-lhe a primeira (de um domínio já indexado); o resto é o
+   Dono a partilhar o endereço.

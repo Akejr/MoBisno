@@ -22,6 +22,7 @@ import { resolveSections, filterForCategoryPage, headerCategories, allProductsHr
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { mobileMenuParts } from "./headers.js";
 import { productGalleryHtml } from "./gallery.js";
+import type { BlockStyle } from "./blocks.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -40,10 +41,40 @@ const STYLE = `<style>
   .lx-root .material-symbols-outlined{font-family:'Material Symbols Outlined' !important}
   .lx-noscroll{scrollbar-width:none;-ms-overflow-style:none}
   .lx-noscroll::-webkit-scrollbar{display:none}
+  /* Pesquisa: cantos RETOS e Montserrat, como o resto do modelo. Nem os chips de
+     categoria levam raio aqui, e a pesquisa não é excepção. */
+  .lx-root{--mb-search-radius:2px;--mb-search-h:42px;--mb-search-bg:#fcf9f8;--mb-search-border:rgba(28,27,27,.2);--mb-search-ink:#1c1b1b;--mb-search-ph:rgba(70,71,66,.6);--mb-search-font:'Montserrat',sans-serif}
 </style>`;
 
 let mbGridVariant: ProductVariant | undefined;
 let mbLogoScale: number | undefined;
+
+/**
+ * Desenho das secções acrescentadas, na linguagem deste modelo
+ * (`MODELO-GUIA.md` §9.3). Sem isto, uma secção acrescentada saía com a
+ * tipografia preta e os cantos arredondados do desenho genérico — no meio de um
+ * modelo serifado, creme e de cantos retos.
+ *
+ * Nada aqui é inventado: são as mesmas classes e as mesmas cores que o modelo
+ * já usa nas suas próprias secções (`lx-serif` nos títulos, `lx-body` no corpo,
+ * `#1c1b1b`/`#464742`, o `#777871` das notas secundárias, superfície
+ * `#f6f3f2`, e `radius: ""` porque no Lumière nem os chips de categoria fogem à
+ * regra dos cantos retos). Nomes e citações ficam na serifada dos títulos, como
+ * os nomes das boutiques e o carrossel de testemunhos do próprio modelo.
+ */
+const BLOCK_STYLE: BlockStyle = {
+  heading: "lx-serif",
+  headingStyle: "color:#1c1b1b",
+  body: "lx-body font-light leading-relaxed",
+  bodyStyle: "color:#464742",
+  muted: "lx-body",
+  mutedStyle: "color:#777871",
+  surface: "border border-black/5",
+  surfaceStyle: "background:#fcf9f8",
+  radius: "",
+  band: "",
+  bandStyle: "background:#f6f3f2",
+};
 
 /* ------------------------------- Helpers ------------------------------- */
 
@@ -100,7 +131,7 @@ function headerHtml(view: StoreRenderView): string {
         </div>
       </div>`
     : "";
-  const icons = `<div class="flex items-center gap-1 shrink-0">
+  const icons = `<div data-search-host class="flex items-center gap-1 shrink-0 min-w-0">
       <button type="button" data-search-btn class="p-2 rounded-full hover:bg-black/5 transition-colors" style="color:#1c1b1b"><span class="material-symbols-outlined">search</span></button>
       <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex p-2 rounded-full hover:bg-black/5 transition-colors" style="color:#1c1b1b">
         <span class="material-symbols-outlined">shopping_bag</span>
@@ -116,7 +147,7 @@ function headerHtml(view: StoreRenderView): string {
             ${mnav.button}
             <a href="${esc(homeHref(view))}" data-edit-logo class="flex items-center min-w-0">${brandHtml(view)}</a>
           </div>
-          <nav class="hidden lg:flex items-center gap-8">${links}${catsMenu}</nav>
+          <nav data-search-collapse class="hidden lg:flex items-center gap-8">${links}${catsMenu}</nav>
           ${icons}
         </div>
       </div>
@@ -335,9 +366,11 @@ function boutiquesSection(custom?: StoreCustomization): string {
   </section>`;
   }
 
-  // Sem pontos definidos: mapa único a partir da morada do rodapé.
+  // Sem pontos definidos: mapa único a partir da morada do rodapé. Passa pela
+  // mesma `mapEmbedSrc` das lojas com pontos (decisão D4: uma só função de mapa
+  // em toda a Plataforma) — era um URL montado à mão aqui, com outro zoom.
   const location = cx(custom, "footer.location", "Luanda, Angola");
-  const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(location)}&z=14&output=embed`;
+  const mapSrc = mapEmbedSrc({ address: location });
   return `
   <section class="${CONTAINER} py-20 md:py-28" data-lx-boutiques>
     <h2 data-edit="lumiere.boutiquesTitle" class="lx-serif text-3xl md:text-4xl text-center mb-12" style="color:#1c1b1b">${esc(title)}</h2>
@@ -375,7 +408,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} pb-20 md:pb-28">
       ${sectionsArea(view, custom)}
     </main>
-    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#1c1b1b)", variant: "galeria" })}
+    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#1c1b1b)", variant: "galeria", style: BLOCK_STYLE })}
     <div data-lumiere-slot="testimonials">${custom?.lumiere?.hideTestimonials ? "" : testimonialSection(custom)}</div>
     <div data-lumiere-slot="boutiques">${custom?.lumiere?.hideBoutiques ? "" : boutiquesSection(custom)}</div>
     ${footerHtml(view, custom, labels)}
@@ -502,6 +535,25 @@ export const lumiereTemplate: StoreTemplate = {
   previewUrl: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?q=80&w=600",
   ready: true,
   defaultBrand: "#1c1b1b",
+  /**
+   * Testemunhos e mapa são **nativos** deste modelo: o carrossel editorial
+   * (`data-lx-testi`, alimentado por `custom.testimonials`) e «As nossas lojas»
+   * (`lumiere.boutiques[]`). Já estão no ecrã e editam-se lá — oferecê-los no
+   * «Adicionar secção» era convidar o Dono a duplicar o que tem, e foi o defeito
+   * reportado. Cada um esconde-se com `lumiere.hideTestimonials` /
+   * `lumiere.hideBoutiques`, não removendo a secção acrescentada.
+   *
+   * As duas que restam desenham-se com as variantes de cantos retos e
+   * composição editorial, coerentes com o resto do modelo. Fundos: o creme da
+   * página e a areia das faixas (testemunhos, rodapé).
+   */
+  sections: {
+    native: ["testimonials", "location"],
+    allowed: ["info", "text"],
+    variants: { info: "lado", text: "linha" },
+    style: BLOCK_STYLE,
+    backgrounds: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
+  },
   render,
   renderProduct,
   renderCategory,

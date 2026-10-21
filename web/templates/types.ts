@@ -102,15 +102,14 @@ export interface StoreCustomization {
      */
     messageTemplate?: string;
   };
-  /**
-   * Flag público (não sensível) de pagamentos online. Espelha
-   * `store_payments.online_enabled` para o storefront decidir se mostra o
-   * checkout online. A chave MoMenu vive só no servidor; a iniciação real é
-   * sempre revalidada na função serverless.
+  /*
+   * Não há aqui nada sobre pagamentos digitais, e é de propósito: a visibilidade
+   * de Multicaixa Express e Referência Bancária decide-se só por
+   * `digitalPaymentsVisible(store)` (`src/services/paymentVisibility.ts`), a
+   * partir da coluna `stores.digital_payments`, que o Dono não escreve. O antigo
+   * espelho `payments.onlineEnabled` vivia nesta Personalização — editável pelo
+   * próprio Dono — e saiu.
    */
-  payments?: {
-    onlineEnabled?: boolean;
-  };
   /** Variante de layout do checkout (4 modelos). */
   checkout?: {
     variant?: "dividido" | "moderno" | "compacto" | "minimal";
@@ -184,32 +183,18 @@ export interface StoreCustomization {
   /** Cor de fundo da secção de produtos (padrão branco em modelos que a suportam). */
   productsBg?: string;
 
-  /**
-   * Logótipos gerados por IA e guardados pelo dono ("Meus logótipos" no painel).
-   * URLs de PNG com fundo transparente no object storage.
-   */
-  logos?: string[];
-
-  /** Ícone (Material Symbols) escolhido para cada categoria (modelos com grelha de categorias). */
-  categoryIcons?: Record<string, string>;
-
-  /** Definições específicas do modelo "FoodMart" (mercearia). */
-  foodmart?: {
-    /** Slides do banner principal (o cliente pode adicionar/remover). */
-    banners?: { tag?: string; title?: string; subtitle?: string; ctaLabel?: string; ctaTarget?: string; imageUrl?: string }[];
+  /** Definições específicas do modelo Tech Essentials. */
+  techEssentials?: {
+    /** Esconde a faixa de marcas (secção removível, `MODELO-GUIA.md` §7). */
+    hideBrands?: boolean;
     /**
-     * Dois blocos de anúncio ao lado do banner principal. `bg` = cor do cartão,
-     * `tagBg` = cor da etiqueta, `ctaLabel`/`ctaIcon`/`ctaTarget` = botão.
+     * Marcas que a loja vende, na faixa abaixo do hero. São **sempre quatro**:
+     * o desenho é uma fila de quatro e menos do que isso deixa a fila
+     * desequilibrada. Cada uma mostra o logótipo carregado pelo Dono ou, sem
+     * imagem, o nome em palavra-marca — que é como a referência do modelo as
+     * apresenta.
      */
-    ads?: { tag?: string; title?: string; ctaLabel?: string; ctaIcon?: string; ctaTarget?: string; imageUrl?: string; bg?: string; tagBg?: string }[];
-    /** Faixa promocional (secção de desconto), com botão editável. */
-    promo?: { title?: string; text?: string; enabled?: boolean; ctaLabel?: string; ctaIcon?: string; ctaTarget?: string };
-    /** Telefone de apoio ao cliente mostrado no cabeçalho. */
-    supportPhone?: string;
-    /** Faixa de garantias/benefícios antes do rodapé (ícone + textos editáveis). */
-    features?: { icon?: string; title?: string; text?: string }[];
-    /** Cor dos ícones da faixa de garantias. */
-    featuresIconColor?: string;
+    brands?: { imageUrl?: string; name?: string }[];
   };
 
   /** Definições específicas do modelo Lumière Chic. */
@@ -246,14 +231,6 @@ export interface StoreCustomization {
   __locked?: boolean;
   /** (Interno) Versão do conteúdo de fábrica de um modelo (para re-sincronizar). */
   __v?: number;
-  /**
-   * (Interno) Marca de demonstração: uma loja-modelo apresenta os métodos de
-   * pagamento online mesmo sem `payments.onlineEnabled`. Escrita SÓ pelo
-   * semeador nas lojas-modelo e NUNCA herdada — `applyModelToStore` e
-   * `applyRawToStore` removem-na da cópia aplicada à loja do cliente, como já
-   * fazem a `__template`. É a diferença face a `__basedOn`, esse é copiado.
-   */
-  __demoPayments?: boolean;
 }
 
 /** Bloco de conteúdo de uma loja (secção adicional editável). */
@@ -273,6 +250,150 @@ export type ContentBlock =
    */
   | { type: "location"; title?: string; places?: { name?: string; address?: string; lat?: number; lng?: number }[]; address?: string; lat?: number; lng?: number; variant?: "classico" | "cartao" | "estilizado" };
 
+/** Tipo de uma secção acrescentável (bloco de conteúdo). */
+export type BlockType = ContentBlock["type"];
+
+/**
+ * Desenho das secções acrescentadas, na linguagem visual do modelo.
+ *
+ * ## Porque é por parâmetro
+ *
+ * Uma secção acrescentada tem de sair **100% no desenho do modelo** onde é
+ * acrescentada (`MODELO-GUIA.md` §9.3). `blocks.ts` é partilhado por todos os
+ * modelos, por isso não pode chumbar `text-gray-900`, `font-black` e
+ * `rounded-2xl` e esperar que sirvam ao Lumière, que é serifado, creme e de
+ * cantos retos. O modelo passa a sua tipografia e os seus cantos, tal como já
+ * faz em `variationPickerHtml` e em `categoryFilterHtml` — é o padrão da casa.
+ *
+ * Os campos de classe são **sem o tamanho**: o tamanho é da variante. Os de
+ * `…Style` são CSS inline do próprio modelo (constantes do código, nunca dados
+ * do Dono). Todos são opcionais; um modelo que não passe `style` nenhum fica
+ * com o desenho genérico de sempre, byte a byte.
+ *
+ * Vive aqui, e não em `blocks.ts`, para este ficheiro de tipos não arrastar
+ * código de DOM para quem só precisa dos tipos (os testes compilam sem DOM).
+ */
+export interface BlockStyle {
+  /** Aparência do título de secção. */
+  heading?: string;
+  /** Estilo inline do título (cor própria do modelo). */
+  headingStyle?: string;
+  /** Aparência do texto corrido. */
+  body?: string;
+  /** Estilo inline do texto corrido. */
+  bodyStyle?: string;
+  /** Nomes curtos — autor de um testemunho, nome de uma loja no mapa. Ausente = o do título. */
+  name?: string;
+  /** Estilo inline dos nomes curtos. */
+  nameStyle?: string;
+  /** Citação em destaque (testemunhos «Editorial»). Ausente = a do título. */
+  quote?: string;
+  /** Estilo inline da citação. */
+  quoteStyle?: string;
+  /** Texto secundário (o cargo de quem dá o testemunho). Ausente = o do corpo. */
+  muted?: string;
+  /** Estilo inline do texto secundário. */
+  mutedStyle?: string;
+  /** Superfície de um cartão (fundo, moldura, sombra). */
+  surface?: string;
+  /** Estilo inline da superfície. */
+  surfaceStyle?: string;
+  /** Classe de cantos aplicada a cartões, imagens e mapas. `""` = cantos retos. */
+  radius?: string;
+  /** Faixa tonal de fundo das secções que assentam sobre uma banda. */
+  band?: string;
+  /** Estilo inline da faixa tonal. */
+  bandStyle?: string;
+}
+
+/** Variante de cada tipo de secção, extraída do próprio `ContentBlock`. */
+export type BlockVariant<T extends BlockType> = NonNullable<Extract<ContentBlock, { type: T }>["variant"]>;
+
+/**
+ * Secções acrescentáveis de um Modelo_De_Loja.
+ *
+ * ## Porque é que isto existe
+ *
+ * O menu «Adicionar secção» do editor decidia o que oferecer comparando
+ * `store.templateId` com identificadores escritos à mão — a mercearia e o modelo
+ * escuro —, e esses dois modelos já tinham saído do `TEMPLATE_REGISTRY`, pelo
+ * que as comparações nunca disparavam. Pior: não havia forma de dizer «este
+ * modelo já tem esta secção». O Lumière tem testemunhos e mapa próprios, e o
+ * menu oferecia os dois outra vez; a secção acrescentada aparecia duplicada e
+ * **com o desenho de outro modelo**, porque `newBlock` criava o bloco sem
+ * `variant` e o desenho caía num padrão genérico.
+ *
+ * ## A regra
+ *
+ * Toda a secção acrescentada tem de sair com o desenho do modelo onde é
+ * acrescentada. Um modelo declara aqui tudo o que o editor precisa de saber
+ * sobre as suas secções, e passa `style` no seu `BlockCtx` (`blocks.ts`) para o
+ * desenho seguir a sua tipografia, os seus cantos e a sua paleta. O editor lê
+ * isto por `sectionRules.ts` e **nunca** compara `store.templateId`. Um modelo
+ * que não declare nada fica com o comportamento de sempre.
+ *
+ * Ver `MODELO-GUIA.md` §9.3 e `.kiro/steering/modelos-secoes.md`.
+ */
+export interface TemplateSections {
+  /**
+   * Secções que o modelo **já traz** no seu desenho. Não são oferecidas no menu
+   * «Adicionar secção»: já estão no ecrã e editam-se onde estão. Oferecê-las é
+   * convidar o Dono a duplicar o que já tem.
+   */
+  native?: readonly BlockType[];
+  /**
+   * Secções que o modelo aceita acrescentar. Ausente = todas as que não são
+   * `native`. Lista vazia = nenhuma.
+   */
+  allowed?: readonly BlockType[];
+  /**
+   * Variante com que cada secção **acrescentada** se desenha neste modelo. É
+   * gravada no bloco no momento em que ele é criado, para o desenho não passar
+   * a depender de um valor por omissão que muda com o tempo.
+   */
+  variants?: {
+    info?: BlockVariant<"info">;
+    text?: BlockVariant<"text">;
+    testimonials?: BlockVariant<"testimonials">;
+    location?: BlockVariant<"location">;
+  };
+  /**
+   * O desenho com que o modelo desenha os blocos — **o mesmo** objeto que passa
+   * no `style` do `BlockCtx` de `blocksHtml` ({@link BlockStyle}). Declarado
+   * aqui para o editor desenhar as miniaturas do seletor de variantes com ele, em
+   * vez de as mostrar no desenho genérico. Ausente = desenho genérico.
+   */
+  style?: BlockStyle;
+  /**
+   * Cores de fundo que o Dono pode dar a uma secção (`blocks[i].bg` e
+   * `productsBg`), além de «Padrão» e «Branco», que o editor oferece sempre.
+   * Têm de ser cores que o modelo **já usa** — é o que mantém a página coerente.
+   * Ausente = uma só cor clara genérica.
+   */
+  backgrounds?: readonly SectionBackground[];
+  /**
+   * Prepara a Personalização para edição: materializa os arrays com fallback
+   * que o modelo desenha (`MODELO-GUIA.md` §6.1). O editor chama-o **antes da
+   * baseline** `savedJson` — sem isso, editar um item com `setPath` num array que
+   * não existe criava um objeto `{0:…}` sem `.length`, o modelo voltava aos
+   * valores por omissão e a edição perdia-se.
+   *
+   * Regras: escreve **exactamente o que a loja já mostra** (abrir o editor não
+   * pode mudar o aspeto nem marcar alterações), é idempotente, e não toca no que
+   * já está na forma certa — para o JSON gravado não mudar de forma nem de ordem
+   * de chaves.
+   */
+  materialize?(custom: StoreCustomization): void;
+}
+
+/** Uma cor de fundo de secção, como o Dono a vê no seletor do editor. */
+export interface SectionBackground {
+  /** Nome curto mostrado ao passar o rato (`title` da amostra). */
+  label: string;
+  /** Cor em CSS (`#hex`). */
+  value: string;
+}
+
 export interface StoreTemplate {
   /** Identificador estável (igual ao `templateId` guardado na Loja). */
   id: string;
@@ -284,6 +405,12 @@ export interface StoreTemplate {
   ready?: boolean;
   /** Cor de marca por omissão do modelo (usada quando o dono não escolheu uma). */
   defaultBrand?: string;
+  /**
+   * Secções acrescentáveis: o que o modelo já tem, o que aceita e com que
+   * desenho. Ver {@link TemplateSections} — é o que garante que uma secção
+   * acrescentada sai 100% no desenho do modelo.
+   */
+  sections?: TemplateSections;
   /** Produz o HTML da loja publicada a partir do view model + customização. */
   render(view: StoreRenderView, custom?: StoreCustomization): string;
   /**

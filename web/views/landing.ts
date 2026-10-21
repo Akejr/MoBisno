@@ -1,317 +1,59 @@
-/** Página inicial — hero com "image accordion" interativo + CTAs dinâmicos. */
-import { platformNavHtml, platformFooterHtml, mountSectionNav, consumePendingSection, scrollToSection } from "../templates/platformChrome.js";
-import { mountGlowCards } from "../lib/glowCards.js";
-import { render, $, go, esc } from "../lib/dom.js";
+/**
+ * Página inicial: desenha `landingHtml()`, liga o movimento e troca os botões
+ * de quem tem sessão.
+ *
+ * O topo entra só com CSS (`LANDING_CSS`); as secções de baixo entram ao rolar,
+ * por `mountLandingMotion` (`web/lib/landingMotion.ts`).
+ */
+import { mountSectionNav, consumePendingSection, scrollToSection } from "../templates/platformChrome.js";
+import { render, renderedFromSsr, $ } from "../lib/dom.js";
 import { currentOwnerId } from "../composition.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { applyPlatformSeo } from "../lib/seo.js";
-import { PRICE_KZ, PLAN_HIGHLIGHTS, yearlySavingKz } from "../../src/services/plans.js";
+import { mountLandingMotion } from "../lib/landingMotion.js";
+import { landingHtml, landingNavActions, landingHeroActions } from "./landingHtml.js";
 
-/* Preços apresentados: vêm do catálogo, para a página nunca discordar do que é
-   realmente cobrado no checkout. */
-const kz = (n: number): string => n.toLocaleString("pt-PT");
-const PRECO_MENSAL = kz(PRICE_KZ.mensal);
-const PRECO_ANUAL = kz(PRICE_KZ.anual);
-const POUPANCA_ANUAL = `${kz(yearlySavingKz())} Kz`;
-const DESTAQUES = PLAN_HIGHLIGHTS;
-
-const ACCENT = "#F95901";
-
-interface AccordionItem { title: string; imageUrl: string; }
-
-const accordionItems: AccordionItem[] = [
-  { title: "Sem código", imageUrl: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Editor visual ao vivo", imageUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Pagamentos integrados", imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Vendas no WhatsApp", imageUrl: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?q=80&w=1200&auto=format&fit=crop" },
-  { title: "Domínio .sualoja.digital", imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
-];
-
-const CAP_BASE = "absolute text-white text-base font-semibold whitespace-nowrap transition-all duration-500 ease-in-out drop-shadow";
-
+/**
+ * Desenha a página inicial.
+ *
+ * O HTML vem de `landingHtml()`, o mesmo que o servidor pré-renderiza, e é
+ * desenhado **antes** de se saber se há sessão: o primeiro ecrã é o do servidor,
+ * adotado tal como está, e quem tem sessão vê os botões trocados para «Abrir
+ * Dashboard» assim que ela é lida.
+ */
 export async function renderLanding(): Promise<void> {
-  const loggedIn = (await currentOwnerId()) !== null;
+  render(landingHtml());
+  const adotada = renderedFromSsr();
 
-  // `whitespace-nowrap` e `shrink-0` são o que impede o rótulo de partir em duas
-  // linhas no telemóvel — sem eles «Abrir Dashboard» virava um quadrado alto. O
-  // rótulo encurta abaixo de `sm` em vez de a caixa encolher.
-  //
-  // O `gap` não é estética: num contentor `inline-flex` cada nó de texto vira um
-  // item de flex, e o espaço no início e no fim de cada item é **descartado**. Era
-  // por isso que se lia «Criarminhaloja» — o espaço estava escrito no HTML, e o
-  // flex comia-o. O espaçamento tem de vir do `gap`.
-  const navActions = loggedIn
-    ? `<button id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">dashboard</span><span class="hidden sm:inline">Abrir</span>Dashboard</button>`
-    : `<button id="cta-login" class="hidden sm:inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg text-sm transition-colors">Login</button>
-       <button id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</button>`;
-
-  // `justify-center` em cada botão: no telemóvel a coluna já não os estica à
-  // largura toda, mas o `inline-flex` sem alinhamento deixava o rótulo encostado
-  // à esquerda assim que a caixa fosse maior do que o conteúdo.
-  const heroActions = loggedIn
-    ? `<button id="cta-hero-painel" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]">dashboard</span> Abrir Dashboard</button>`
-    : `<button id="cta-hero" class="inline-flex items-center justify-center gap-2 text-white font-semibold px-8 py-3 rounded-lg shadow-lg transition-colors duration-300 active:scale-95" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined text-[20px]">arrow_forward</span></button>
-       <button id="cta-hero-login" class="inline-flex items-center justify-center border border-gray-300 text-gray-800 font-semibold px-8 py-3 rounded-lg hover:bg-gray-50 transition-colors">Já tenho conta</button>`;
-
-  const accordion = accordionItems.map((it, idx) => `
-    <div data-acc data-index="${idx}" class="relative h-[360px] sm:h-[440px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-700 ease-in-out shrink-0" style="width:3.5rem">
-      <img src="${esc(it.imageUrl)}" alt="${esc(it.title)}" class="absolute inset-0 w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x450/1a1a1a/ffffff?text=MôBisno'" />
-      <div class="absolute inset-0 bg-black/40"></div>
-      <span data-cap class="${CAP_BASE} bottom-24 left-1/2 -translate-x-1/2 rotate-90">${esc(it.title)}</span>
-    </div>`).join("");
-
-  render(`
-  <div class="min-h-screen flex flex-col bg-white font-sans text-gray-900">
-    ${platformNavHtml({
-      // A marca da landing tem manipulador próprio (`#brand`), por isso não é a
-      // ligação `<a href="/">` que as outras páginas usam.
-      brandHtml: `<div class="flex items-center gap-2 cursor-pointer" id="brand">
-          <img id="brand-logo" src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:24px" />
-        </div>`,
-      actionsHtml: navActions,
-    })}
-
-    <main class="flex-grow flex flex-col">
-      <!-- Hero com image accordion -->
-      <section class="max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 md:py-20">
-        <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
-          <div class="w-full lg:w-1/2 text-center lg:text-left">
-            <!-- O texto completo fica no HTML de propósito: e o que o Google le e
-                 o que aparece se o JavaScript nao correr. A maquina de escrever
-                 apaga-o e reescreve-o, e por isso um enriquecimento e nao a
-                 fonte. Sem acentos graves neste comentario: vive dentro de um
-                 template literal. -->
-            <h1 class="text-4xl md:text-6xl font-black leading-[1.05] tracking-tight">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
-            <p class="mt-6 text-lg text-gray-600 max-w-xl lg:w-[30rem] mx-auto lg:mx-0">Escolhe um modelo, adiciona os teus produtos e personaliza a loja ao teu gosto. Recebe encomendas pelo WhatsApp e pagamentos por Multicaixa Express ou Referência Bancária, sem precisares de saber programar.</p>
-            <!-- items-center evita que a coluna do telemovel estique os botoes a
-                 largura toda: em flex-col o alinhamento por omissao e stretch. Em
-                 linha, no computador, passa a centrar na vertical, que e o que se
-                 quer de qualquer forma. -->
-            <div class="mt-8 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">${heroActions}</div>
-          </div>
-
-          <div class="w-full lg:w-1/2">
-            <div id="accordion" class="flex flex-row items-center justify-center lg:justify-end gap-3 overflow-x-auto p-2">
-              ${accordion}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Funcionalidades (bento grid com brilho que segue o rato) -->
-      <!-- Os identificadores das secções são o destino das ligações do
-           cabeçalho (HOME_SECTIONS em templates/platformChrome.ts). Ao renomear
-           um, renomear lá também. O scroll-mt-20 impede a barra fixa de tapar o
-           título. Sem acentos graves aqui: este comentário vive dentro de um
-           template literal e fechá-lo-iam. -->
-      <section id="funcionalidades" class="scroll-mt-20 w-full bg-gray-100 py-14 border-t border-gray-100">
-        <div class="max-w-5xl mx-auto px-margin-mobile md:px-margin-desktop">
-          <div class="text-center max-w-2xl mx-auto mb-8">
-            <h2 class="text-3xl md:text-4xl font-black tracking-tight">Tudo o que precisa para vender</h2>
-            <p class="text-gray-600 mt-3">Ferramentas simples e poderosas para a sua loja online.</p>
-          </div>
-          <div class="mb-bento">
-            ${bento({ span: "bento-col-2 bento-row-2", icon: "palette", title: "Editor visual ao vivo", body: "Edite a sua loja diretamente no preview — logótipo, cores, textos, secções e produtos. Sem código.", big: true })}
-            ${bento({ icon: "travel_explore", title: "SEO Otimizado", body: "A sua loja preparada para o Google — títulos, descrições e links amigáveis." })}
-            ${bento({ icon: "payments", title: "Pagamentos locais", body: "Multicaixa, Referência bancária e finalização rápida por WhatsApp." })}
-            ${bento({ span: "bento-row-2", icon: "sms", title: "SMS de confirmação", body: "O seu cliente recebe um SMS com a confirmação da compra — mais confiança e menos desistências." })}
-            ${bento({ span: "bento-col-2", icon: "local_shipping", title: "Cálculo automático da taxa de entrega", body: "Defina as taxas por zona de Luanda e o total é calculado automaticamente no checkout." })}
-            ${bento({ icon: "public", title: "Endereço próprio", body: "Receba o seu endereço nome.sualoja.digital, ou use o seu próprio." })}
-            ${bento({ icon: "sell", title: "Códigos de desconto", body: "Crie cupões de percentagem ou valor fixo e acompanhe os usos." })}
-          </div>
-        </div>
-      </section>
-
-      <!-- Integrações (órbita semicircular) -->
-      <section id="integracoes" class="scroll-mt-20 w-full bg-white py-16 border-t border-gray-100 overflow-hidden">
-        <div class="max-w-5xl mx-auto px-margin-mobile md:px-margin-desktop text-center">
-          <h2 class="text-3xl md:text-4xl font-black tracking-tight">Integrações</h2>
-          <p class="text-gray-600 mt-3 max-w-2xl mx-auto">A sua loja conectada a vários serviços de forma automática.</p>
-          <div id="orbit" class="relative mx-auto mt-8"></div>
-        </div>
-      </section>
-
-      <!-- Preços -->
-      <section id="precos" class="scroll-mt-20 w-full bg-white py-16 border-t border-gray-100">
-        <div class="max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop">
-          <div class="text-center max-w-2xl mx-auto">
-            <h2 class="text-3xl md:text-5xl font-black tracking-tight">Um preço por loja. Tudo incluído.</h2>
-            <p class="text-gray-600 mt-3">Sem escalões e sem funcionalidades reservadas. Criar a loja e vê-la é grátis — a subscrição serve para a pôr online. Tem mais do que uma loja? Paga o mesmo por cada uma que estiver publicada, e despublica quando quiser.</p>
-          </div>
-          <div class="mb-12"></div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch max-w-3xl mx-auto">
-            ${priceCard({
-              name: "Mensal", desc: "Por loja publicada. Pague mês a mês, cancele quando quiser.",
-              price: PRECO_MENSAL, period: "/mês",
-              cta: "Criar a minha loja", features: DESTAQUES,
-            })}
-            ${priceCard({
-              name: "Anual", desc: `Por loja publicada. Um pagamento por ano — poupa ${POUPANCA_ANUAL}.`, featured: true,
-              price: PRECO_ANUAL, period: "/ano",
-              cta: "Criar a minha loja", features: DESTAQUES,
-            })}
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <!-- Rodapé partilhado. Era uma cópia escrita à mão aqui, igual à de
-         platformChrome.ts até ao dia em que uma das duas mudasse — e nenhuma
-         verificação apanharia a divergência. Sem acentos graves neste
-         comentário: vive dentro de um template literal. -->
-    ${platformFooterHtml()}
-  </div>`);
-
-  // --- Image accordion (hover no desktop, toque no telemóvel) ---
-  const items = Array.from(document.querySelectorAll<HTMLElement>("[data-acc]"));
-  function setActive(active: number): void {
-    items.forEach((el, idx) => {
-      const on = idx === active;
-      el.style.width = on ? "20rem" : "3.5rem";
-      const cap = el.querySelector<HTMLElement>("[data-cap]");
-      if (cap) {
-        cap.className = on
-          ? `${CAP_BASE} bottom-5 left-1/2 -translate-x-1/2 rotate-0`
-          : `${CAP_BASE} bottom-24 left-1/2 -translate-x-1/2 rotate-90`;
-      }
-    });
-  }
-  // Cards reagem ao rato (hover) e ao toque; o texto à esquerda fica fixo.
-  items.forEach((el, idx) => {
-    el.addEventListener("mouseenter", () => setActive(idx));
-    el.addEventListener("click", () => setActive(idx));
-  });
-  setActive(items.length - 1);
-
-  $("#brand")?.addEventListener("click", () => go("#/"));
-  $("#cta-nav")?.addEventListener("click", () => go("#/criar"));
-  $("#cta-hero")?.addEventListener("click", () => go("#/criar"));
-  $("#cta-login")?.addEventListener("click", () => go("#/login"));
-  $("#cta-hero-login")?.addEventListener("click", () => go("#/login"));
-  $("#cta-painel")?.addEventListener("click", () => go("#/painel"));
-  $("#cta-hero-painel")?.addEventListener("click", () => go("#/painel"));
-
-  mountBento();
-  mountTypewriter();
+  mountTypewriter(adotada);
+  // Antes do salto para uma secção pedida noutra página: a secção de destino
+  // fica preparada e entra com movimento quando lá se chega.
+  mountLandingMotion(document.getElementById("app") ?? document);
   mountSectionNav();
   // Chegámos aqui por um clique numa secção feito noutra página: o destino ficou
   // guardado e é agora que existe algo para onde rolar. `requestAnimationFrame`
-  // dá um frame ao layout — sem isso a posição é calculada antes de as secções
+  // dá um frame ao layout; sem isso a posição é calculada antes de as secções
   // terem altura, e a página fica a meio.
   const pending = consumePendingSection();
   if (pending) requestAnimationFrame(() => scrollToSection(pending));
-  mountIntegrations();
   mountAiAgent(document.getElementById("app"), { screen: "site" });
   applyPlatformSeo();
-}
 
-/** Cartão de preço. */
-function priceCard(o: { name: string; desc: string; price: string; period: string; features: readonly string[]; cta: string; featured?: boolean }): string {
-  const border = o.featured ? `border-2` : "border border-gray-200";
-  const style = o.featured ? `style="border-color:${ACCENT};box-shadow:0 24px 60px -24px rgba(249,89,1,.4)"` : "";
-  const btn = o.featured
-    ? `style="background:${ACCENT};color:#fff" class="w-full mt-8 text-center font-bold rounded-lg py-3 hover:opacity-90 transition-opacity"`
-    : `class="w-full mt-8 text-center font-bold rounded-lg py-3 bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors"`;
-  const href = "#/criar";
-  const target = "";
-  return `<div data-card class="relative rounded-2xl ${border} bg-white p-8 flex flex-col text-left overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl" ${style}>
-    ${o.featured ? `<div class="absolute top-0 right-0 text-[11px] font-bold text-white px-4 py-1.5 rounded-bl-xl" style="background:${ACCENT}">MAIS POPULAR</div>` : ""}
-    <h3 class="text-2xl font-bold text-gray-900">${esc(o.name)}</h3>
-    <p class="text-gray-500 mt-2 text-sm">${esc(o.desc)}</p>
-    <div class="flex items-baseline mt-6">
-      <span class="text-2xl font-bold text-gray-900 mr-1">Kz</span><span data-price class="text-4xl font-black text-gray-900 tracking-tight">${esc(o.price)}</span><span data-period class="text-gray-400 ml-2">${esc(o.period)}</span>
-    </div>
-    <ul class="mt-7 space-y-3 flex-grow">
-      ${o.features.map((f) => `<li class="flex items-start gap-2.5 text-gray-700 text-sm"><span class="material-symbols-outlined text-[20px]" style="color:${ACCENT}">check_circle</span> ${esc(f)}</li>`).join("")}
-    </ul>
-    <a href="${href}"${target} ${btn}>${esc(o.cta)}</a>
-  </div>`;
-}
-
-
-/** Secção de Integrações — logos em órbita semicircular sobre a loja. */
-function mountIntegrations(): void {
-  const host = document.getElementById("orbit");
-  if (!host) return;
-  const ICONS = [
-    { name: "Multicaixa Express", img: "/integrations/Express.png" },
-    { name: "Multicaixa (ATM)", img: "/integrations/ATM.png" },
-    { name: "WhatsApp", img: "/integrations/Whatsapp.png" },
-    { name: "GoDaddy", img: "/integrations/Godaddy.png" },
-  ];
-
-  const build = () => {
-    const vw = window.innerWidth;
-    const base = Math.min(vw * 0.86, 600);
-    const height = base * 0.6;
-    const cx = base / 2;
-    const cy = height - 8; // base da semicircunferência (centro em baixo)
-    const R = base * 0.42;
-    const Rin = base * 0.26;
-    const iconSize = vw < 480 ? 46 : 58;
-
-    host.style.width = `${base}px`;
-    host.style.height = `${height}px`;
-
-    const svg =
-      `<svg width="${base}" height="${height}" class="absolute inset-0" style="overflow:visible">` +
-      `<path d="M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}" fill="none" stroke="#ececec" stroke-width="1.5"/>` +
-      `<path d="M ${cx - Rin} ${cy} A ${Rin} ${Rin} 0 0 1 ${cx + Rin} ${cy}" fill="none" stroke="#f3f3f3" stroke-width="1.5"/>` +
-      `</svg>`;
-
-    const icons = ICONS.map((it, i) => {
-      const angle = (i / (ICONS.length - 1)) * 180;
-      const x = R * Math.cos((angle * Math.PI) / 180);
-      const y = R * Math.sin((angle * Math.PI) / 180);
-      const left = cx + x - iconSize / 2;
-      const top = cy - y - iconSize / 2;
-      return `<div class="absolute group" style="left:${left}px;top:${top}px;z-index:5">
-        <div class="bg-white rounded-2xl border border-gray-100 flex items-center justify-center transition-transform hover:scale-110" style="width:${iconSize}px;height:${iconSize}px;box-shadow:0 10px 26px -10px rgba(0,0,0,.22)">
-          <img src="${esc(it.img)}" alt="${esc(it.name)}" style="width:${Math.round(iconSize * 0.62)}px;height:${Math.round(iconSize * 0.62)}px;object-fit:contain" />
-        </div>
-        <div class="absolute left-1/2 -translate-x-1/2 top-[calc(100%+8px)] hidden group-hover:block whitespace-nowrap rounded-lg bg-black px-2 py-1 text-xs text-white shadow-lg">${esc(it.name)}</div>
-      </div>`;
-    }).join("");
-
-    const center = `<div class="absolute -translate-x-1/2 -translate-y-1/2" style="left:${cx}px;top:${cy}px;z-index:6">
-      <div class="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center" style="box-shadow:0 12px 30px -10px rgba(249,89,1,.35)"><img src="/logo-header.png" alt="MôBisno" style="height:22px" /></div>
-    </div>`;
-
-    const glow = `<div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(circle at 50% 100%, rgba(249,89,1,.12), transparent 60%)"></div>`;
-
-    host.innerHTML = `${glow}${svg}${icons}${center}`;
-  };
-
-  build();
-  window.addEventListener("resize", build, { passive: true });
-}
-
-/** Cartão do bento grid. */
-function bento(o: { span?: string; icon?: string; title: string; body: string; big?: boolean }): string {
-  return `<div class="bento-item ${o.span ?? ""} flex flex-col justify-center">
-    <h3 class="${o.big ? "text-2xl" : "text-xl"} font-bold text-gray-900">${o.title}</h3>
-    <p class="mt-2 text-gray-600 ${o.big ? "text-base" : "text-sm"}">${o.body}</p>
-  </div>`;
+  // Sessão: só troca os botões. Se a página entretanto mudou, não toca em nada.
+  let loggedIn = false;
+  try { loggedIn = (await currentOwnerId()) !== null; } catch { loggedIn = false; }
+  if (!loggedIn) return;
+  const navCta = $("#cta-nav");
+  const heroActions = $("#hero-actions");
+  if (!navCta || !heroActions) return;
+  const navBox = navCta.parentElement;
+  if (navBox) navBox.innerHTML = landingNavActions(true);
+  heroActions.innerHTML = landingHeroActions(true);
 }
 
 /**
- * Estilos + brilho que segue o rato nos cartões do bento.
- *
- * A implementação saiu para `web/lib/glowCards.ts` quando o diretório de lojas
- * passou a usar o mesmo efeito — duas cópias do CSS com o mesmo `id` de folha
- * faziam a segunda ser ignorada sem nada falhar.
- */
-function mountBento(): void {
-  mountGlowCards();
-}
-
-/**
- * Milissegundos por carácter.
- *
- * A 55 ms as dez letras entravam em pouco mais de meio segundo e o efeito passava
- * despercebido — dava a sensação de o texto aparecer de repente, não de estar a
- * ser escrito. A 130 ms a frase leva cerca de 1,3 s, que é o ritmo a que se lê
- * alguém a escrever.
+ * Milissegundos por carácter. A 130 ms a frase leva cerca de 1,3 s, que é o
+ * ritmo a que se lê alguém a escrever.
  */
 const TYPE_SPEED_MS = 130;
 
@@ -322,30 +64,24 @@ const TYPE_SPEED_MS = 130;
  *
  * O elemento chega com o texto completo, e é essa a versão que o Google lê, que
  * um leitor de ecrã anuncia e que aparece se o JavaScript não correr. Esta função
- * guarda-o, esvazia o elemento e reescreve-o — é enriquecimento, nunca a fonte.
- * Foi o mesmo princípio que a página pré-renderizada nos ensinou: conteúdo que só
- * existe depois do JavaScript é conteúdo que o motor de busca pode não ver.
+ * guarda-o, esvazia o elemento e reescreve-o: é enriquecimento, nunca a fonte.
  *
- * ## Porque é que o texto cresce sem empurrar nada
+ * ## Página vinda do servidor: só o cursor
+ *
+ * Quando a página foi adotada do HTML pré-renderizado (`adotada`), o texto já
+ * esteve no ecrã. Apagá-lo para o voltar a escrever era o salto que a
+ * pré-renderização existe para evitar: fica o texto e acrescenta-se só o cursor
+ * a piscar. A escrita letra a letra continua nas navegações dentro da SPA.
  *
  * «em minutos» é o **último** elemento do título, por isso pode crescer com as
- * letras sem reposicionar mais nada. Se algum dia deixar de ser o último, é
- * preciso reservar a largura final à partida — senão o resto da linha salta a
- * cada carácter.
- *
- * A segunda linha inteira («online em minutos») está envolvida num
- * `whitespace-nowrap` para o navegador não a poder partir a meio enquanto o texto
- * é escrito.
- *
- * O cursor herda a cor do elemento (`currentColor`), por isso acompanha o laranja
- * do texto sem precisar de ser configurado à parte.
+ * letras sem reposicionar mais nada.
  */
-function mountTypewriter(): void {
+function mountTypewriter(adotada: boolean): void {
   if (!document.getElementById("mb-type-style")) {
     const st = document.createElement("style");
     st.id = "mb-type-style";
-    // Cursor rectangular com piscar em degraus (`steps`), não uma pulsação suave:
-    // um cursor de texto acende e apaga, não desvanece.
+    // Cursor rectangular com piscar em degraus (`steps`): um cursor de texto
+    // acende e apaga, não desvanece.
     st.textContent =
       ".mb-caret{display:inline-block;width:.5ch;height:.86em;vertical-align:-.06em;margin-left:.06em;background:currentColor}"
       + "@media(prefers-reduced-motion:no-preference){.mb-caret{animation:mb-blink 1s steps(1,end) infinite}"
@@ -365,6 +101,11 @@ function mountTypewriter(): void {
   caret.className = "mb-caret";
   caret.setAttribute("aria-hidden", "true");
 
+  if (adotada) {
+    el.appendChild(caret);
+    return;
+  }
+
   // `aria-label` mantém o nome acessível completo enquanto o conteúdo visível
   // está a ser construído; sem isso um leitor de ecrã leria texto a meio.
   el.setAttribute("aria-label", full);
@@ -373,12 +114,12 @@ function mountTypewriter(): void {
 
   let i = 0;
   const step = (): void => {
-    // A vista pode ter sido substituída a meio (navegação): sem isto o temporizador
-    // continuava a escrever num nó que já não está na página.
+    // A vista pode ter sido substituída a meio (navegação): sem isto o
+    // temporizador continuava a escrever num nó que já não está na página.
     if (!el.isConnected) return;
     i += 1;
     caret.before(document.createTextNode(full.charAt(i - 1)));
     if (i < full.length) window.setTimeout(step, TYPE_SPEED_MS);
   };
-  window.setTimeout(step, 320); // deixa o hero assentar antes de começar
+  window.setTimeout(step, 320); // deixa o topo assentar antes de começar
 }

@@ -168,6 +168,26 @@ describe("Formulario_De_Produto — gravação na Personalização (decisão D1,
   });
 });
 
+describe("Formulario_De_Produto — a disponibilidade não muda sozinha", () => {
+  // Guardar uma edição gravava sempre `available: true`: um produto que o Dono
+  // tinha tirado da loja voltava a aparecer só porque ele corrigiu o preço.
+  it("editar mantém a disponibilidade do produto, e um produto novo nasce disponível", () => {
+    expect(FORM).toContain("const availableOn = product ? product.available !== false : true;");
+    expect(FORM).toMatch(/data-available type="checkbox" \$\{availableOn \? "checked" : ""\}/);
+  });
+
+  it("o que é gravado é o interruptor, nunca um `true` fixo", () => {
+    expect(FORM).toContain('const available = host.querySelector<HTMLInputElement>("[data-available]")!.checked;');
+    expect(FORM).toMatch(/const input = \{[^}]*\bavailable, stock \}/);
+    expect(FORM).not.toContain("available: true");
+  });
+
+  it("o interruptor tem nome e diz o que acontece quando é desligado", () => {
+    expect(FORM).toContain("Disponível na loja");
+    expect(FORM).toContain("fica escondido dos clientes");
+  });
+});
+
 describe("Formulario_De_Produto — o Painel não apaga fotos extra nem Variação (R12.4)", () => {
   // `applyProductExtras` apaga a entrada quando o formulário está vazio. Fora do editor
   // (separador «Produtos» do Painel) não há Personalização em memória, por isso, sem

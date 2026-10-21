@@ -26,8 +26,12 @@ import { join } from "node:path";
 const ROOT = join(__dirname, "..");
 const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
 
-/** Modelos registados com página de categoria própria (ver `registry.ts`). */
-const MODELOS = ["galeria", "desportivo", "beauty", "lumiere"] as const;
+/**
+ * Modelos registados com página de categoria própria (ver `registry.ts`), pelo
+ * nome do **ficheiro** — o Tech Essentials é `tech-essentials` no registo e
+ * `techEssentials.ts` no disco.
+ */
+const MODELOS = ["galeria", "desportivo", "beauty", "lumiere", "techEssentials"] as const;
 
 const FILTER = read("web/templates/categoryFilter.ts");
 /** Só o corpo da função — os comentários do módulo falam de `<a>` e de `#F95901`. */
@@ -59,10 +63,13 @@ function productCardDe(src: string): string {
   return src.slice(i, src.indexOf("\n}", i));
 }
 
-describe("Barra de filtros — presente nos quatro modelos registados", () => {
-  it("os quatro modelos verificados são os que estão no registo", () => {
-    // Se um modelo novo entrar no registo, esta asserção obriga a incluí-lo aqui.
+describe("Barra de filtros — presente nos cinco modelos registados", () => {
+  it("os cinco modelos verificados são exactamente os que estão no registo", () => {
     for (const m of MODELOS) expect(REGISTRY).toContain(`from "./${m}.js"`);
+    // E o contrário: um modelo novo no registo obriga a incluí-lo aqui — era
+    // assim que o Tech Essentials tinha ficado de fora sem nada falhar.
+    const registados = [...REGISTRY.matchAll(/import \{ \w+Template \} from "\.\/(\w+)\.js"/g)].map((x) => x[1]!);
+    expect([...registados].sort()).toEqual([...MODELOS].sort());
   });
 
   it("cada renderCategory desenha a barra com os rótulos partilhados", () => {

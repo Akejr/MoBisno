@@ -1,9 +1,10 @@
 /**
  * Normalizador de Identificadores (IdentifierService).
  *
- * Lógica pura central para o provisionamento de subdomínios no formato
- * `[identificador].mobisno.com` (ver design.md → "2. Normalizador de
- * Identificadores"). Responsável por:
+ * Lógica pura central para o provisionamento de subdomínios. O subdomínio
+ * gravado é `[identificador].mobisno.store` (restrição da base de dados); o
+ * endereço público das lojas é `[identificador].sualoja.digital`
+ * (`src/services/domains.ts`). Responsável por:
  *  - normalizar um nome de Loja num Identificador_de_Loja (`normalize`);
  *  - validar o formato de um identificador (`isValidFormat`);
  *  - compor o subdomínio completo (`toSubdomain`);
@@ -12,8 +13,10 @@
  * Requisitos: 4.1, 4.2, 4.4, 4.7, 4.8.
  */
 
-/** Sufixo de domínio comum a todos os subdomínios de Loja. */
-export const SUBDOMAIN_SUFFIX = ".mobisno.store";
+import { LEGACY_STORE_APEX, isModelIdentifier } from "./domains.js";
+
+/** Sufixo de domínio gravado em `stores.subdomain`. */
+export const SUBDOMAIN_SUFFIX = `.${LEGACY_STORE_APEX}`;
 
 /** Comprimento mínimo válido de um Identificador_de_Loja (Requisito 4.7). */
 export const MIN_IDENTIFIER_LENGTH = 2;
@@ -67,7 +70,7 @@ export interface IdentifierService {
   isValidFormat(identifier: string): boolean;
   /** Verifica disponibilidade: não usado e não reservado (Requisito 4.5). */
   isAvailable(identifier: string): Promise<boolean>;
-  /** Compõe o subdomínio completo `${identifier}.mobisno.com` (Requisito 4.4). */
+  /** Compõe o subdomínio gravado `${identifier}.mobisno.store` (Requisito 4.4). */
   toSubdomain(identifier: string): string;
 }
 
@@ -84,8 +87,9 @@ export interface IdentifierService {
  * Garante que o resultado contém apenas `[a-z0-9-]`.
  */
 export function normalizeIdentifier(name: string): string {
-  // 1. Minúsculas.
-  let identifier = name.toLowerCase();
+  // 1. Sem acentos e em minúsculas: «Café Ndombe» → «cafe ndombe». Sem tirar os
+  //    acentos primeiro, o «é» virava hífen e o endereço saía «caf-ndombe».
+  let identifier = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   // 2. Substituir tudo o que não seja [a-z0-9] (espaços, acentos, símbolos,
   //    caracteres não alfanuméricos) por hífen.
   identifier = identifier.replace(/[^a-z0-9]/g, "-");
@@ -140,6 +144,11 @@ export function createIdentifierService(
     async isAvailable(identifier: string): Promise<boolean> {
       // Reservado => indisponível (Requisito 4.5).
       if (reserved.has(identifier.toLowerCase())) {
+        return false;
+      }
+      // O prefixo das lojas-modelo é da Plataforma (também imposto na base de
+      // dados, gatilho `stores_guard` da migração 0022).
+      if (isModelIdentifier(identifier)) {
         return false;
       }
       // Já associado a outra Loja => indisponível (Requisito 4.5).

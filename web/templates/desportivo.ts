@@ -21,6 +21,7 @@ import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js"
 import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
+import type { BlockStyle } from "./blocks.js";
 import type { StoreTemplate, StoreRenderView, StoreCustomization } from "./types.js";
 import type { StoreProductView } from "../../src/storefront/storeRenderer.js";
 
@@ -33,10 +34,35 @@ const HERO_FALLBACK = "https://images.unsplash.com/photo-1579952363873-27f3bade9
 const DEFAULT_SUBTITLE = "Produtos originais. Qualidade premium. Entrega em toda Angola.";
 const DEFAULT_CTA = "COMPRAR AGORA";
 const DEFAULT_PHONE = "+244 900 000 000";
+
+/**
+ * Desenho das secções acrescentadas, na linguagem deste modelo
+ * (`MODELO-GUIA.md` §9.3): a paleta `neutral` que o modelo usa de ponta a ponta
+ * (e não `gray`), e os cantos discretos do cartão de produto — `rounded-sm` nas
+ * imagens, `rounded-lg` nos controlos.
+ */
+const BLOCK_STYLE: BlockStyle = {
+  heading: "font-black tracking-tight text-neutral-900",
+  body: "text-neutral-600 leading-relaxed",
+  muted: "text-neutral-400",
+  surface: "bg-white border border-neutral-200",
+  radius: "rounded-lg",
+  band: "bg-neutral-50 border-y border-neutral-100",
+};
+
 /** Altura do logótipo do cabeçalho (definida em menuFor a cada render). */
 let mbLogoScale: number | undefined;
 /** Disposição dos produtos escolhida (definida em menuFor a cada render). */
 let mbGridVariant: ProductVariant | undefined;
+
+/**
+ * Aspeto do campo de pesquisa **neste** modelo: cantos de 8px e moldura
+ * `neutral-300`, como o seletor de quantidade e os botões de contorno. Um só
+ * desenho de pesquisa para os quatro modelos estava errado — este é reto e
+ * anguloso, o Lumière é de cantos retos e serifado, o Beauty é tonal sem
+ * molduras.
+ */
+const SEARCH_VARS = "--mb-search-radius:8px;--mb-search-h:40px;--mb-search-bg:#fff;--mb-search-border:#d4d4d4;--mb-search-ink:#171717;--mb-search-ph:rgba(23,23,23,.45)";
 
 /** Aspeto do cartão de produto (omissão do modelo: quadrado). */
 function cardAspect(): string {
@@ -119,16 +145,16 @@ function headerHtml(view: StoreRenderView, _menuLabels: string[], custom?: Store
       </div>`
     : "";
   return `
-    <header class="sticky top-0 z-50 bg-white border-b border-neutral-100">
+    <header class="sticky top-0 z-50 bg-white border-b border-neutral-100" style="${SEARCH_VARS}">
       ${mnav.head}
       <div class="${CONTAINER}">
         <div class="relative flex items-center justify-between h-14 md:h-16">
           <div class="flex items-center gap-1 min-w-0">
             ${mnav.button}
-            <nav class="hidden lg:flex items-center gap-6 text-sm font-medium text-neutral-700">${menu}${categoriesMenu}</nav>
+            <nav data-search-collapse class="hidden lg:flex items-center gap-6 text-sm font-medium text-neutral-700">${menu}${categoriesMenu}</nav>
           </div>
           <a href="${esc(storeHomeHref(view))}" data-edit-logo class="absolute left-1/2 -translate-x-1/2">${brandHtml(view)}</a>
-          <div class="flex items-center gap-3 text-neutral-700 shrink-0">
+          <div data-search-host class="flex items-center gap-3 text-neutral-700 shrink-0 min-w-0">
             <button type="button" data-search-btn class="hover:opacity-70 transition-opacity"><span class="material-symbols-outlined">search</span></button>
             <a href="${esc(cartHref(view))}" data-cart-link class="relative inline-flex">
               <span class="material-symbols-outlined">shopping_cart</span>
@@ -276,7 +302,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
     <main id="produtos" class="${CONTAINER} py-12 md:py-16 flex-grow">
       ${sectionsArea(view, custom)}
     </main>
-    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#DC2626)" })}
+    ${blocksHtml(custom, { container: CONTAINER, brand: "var(--brand,#DC2626)", style: BLOCK_STYLE })}
 
     ${footerHtml(view, custom, menuLabels)}
   </div>`;
@@ -421,6 +447,17 @@ export const desportivoTemplate: StoreTemplate = {
   previewUrl: "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=600",
   ready: true,
   defaultBrand: "#DC2626",
+  /**
+   * Nenhuma secção nativa: este modelo não traz testemunhos nem mapa, por isso
+   * as quatro podem ser acrescentadas. As variantes são as de maior contraste,
+   * a par do Bebas Neue e das faixas de marca do resto do modelo. Fundos: o
+   * `neutral-100` das faixas claras e o `neutral-900` das faixas escuras.
+   */
+  sections: {
+    variants: { info: "lado", text: "destaque", testimonials: "cards", location: "classico" },
+    style: BLOCK_STYLE,
+    backgrounds: [{ label: "Cinza claro", value: "#f5f5f5" }, { label: "Escuro", value: "#171717" }],
+  },
   render,
   renderProduct,
   renderCategory,

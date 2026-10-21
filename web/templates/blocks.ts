@@ -2,23 +2,68 @@
  * Blocos de conteúdo editáveis das lojas (secções adicionais abaixo dos
  * produtos). Renderização partilhada por todos os modelos, com hooks
  * `data-edit-block` / `data-edit` para o editor.
+ *
+ * ## Dois desenhos, a mesma estrutura
+ *
+ * - **Genérico** — quando o modelo não passa `style` no seu {@link BlockCtx}.
+ *   É emitido **byte a byte** como as lojas publicadas o têm desde antes de
+ *   `style` existir: `tests/blocksDefault.test.ts` compara-o com o HTML guardado
+ *   em `tests/fixtures/blocksDefault.json`. Por isso cada elemento leva aqui a
+ *   sua classe genérica escrita por extenso, mesmo quando parece repetida — o
+ *   desenho genérico nunca foi uniforme (`rounded-3xl` num sítio, `rounded-2xl`
+ *   noutro) e uniformizá-lo mudaria lojas que já estão no ar.
+ * - **Do modelo** — quando o modelo passa o seu {@link BlockStyle}: a mesma
+ *   estrutura, com a tipografia, os cantos e a paleta dele (`MODELO-GUIA.md`
+ *   §9.3). Aplica-se a todos os blocos do modelo, os novos e os já gravados.
+ *
+ * Cada `<section>` leva `data-block-type` e `data-block-variant` — a variante
+ * que de facto desenhou. É por aí que o editor sabe o que está no ecrã, sem
+ * deduzir nada do identificador do modelo.
  */
 import { esc } from "../lib/dom.js";
 import { resolveLocations, mapEmbedSrc, type StorePlace } from "../../src/services/locations.js";
-import type { ContentBlock, StoreCustomization } from "./types.js";
+import { safeCssColor } from "../../src/services/storeCustom.js";
+import type { BlockStyle, ContentBlock, StoreCustomization } from "./types.js";
+
+/** O desenho de um modelo (`types.ts`), reexportado para quem desenha blocos. */
+export type { BlockStyle };
 
 export const DEFAULT_INFO_IMG = "https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000";
 
 /** Morada apresentada quando nem a localização nem o rodapé têm morada. */
 const DEFAULT_LOCATION_ADDRESS = "Luanda, Angola";
 
-/** Estilo de cor de fundo de uma secção (vazio = fundo padrão/transparente). */
+/**
+ * Estilo de cor de fundo de uma secção (vazio = fundo padrão/transparente).
+ *
+ * A cor vem do JSON da loja e entra num atributo `style`, por isso passa por
+ * `safeCssColor`: `esc` impede que se saia do atributo, mas não que se escreva
+ * outro CSS lá dentro (`url(…)`, `position:fixed…`). Uma cor válida sai igual.
+ */
 function bgStyle(bg?: string): string {
-  return bg && bg.trim() ? ` style="background:${esc(bg)}"` : "";
+  const cor = safeCssColor(bg, "");
+  return cor ? ` style="background:${esc(cor)}"` : "";
 }
 
-/** Cria um bloco novo com conteúdo por omissão, pelo tipo. */
-export function newBlock(type: ContentBlock["type"]): ContentBlock {
+/**
+ * Cria um bloco novo com conteúdo por omissão, pelo tipo.
+ *
+ * `variant` é a variante com que o **modelo** desenha esta secção
+ * (`StoreTemplate.sections.variants`). É gravada no bloco à criação, e não
+ * deixada em aberto, para o desenho de uma secção acrescentada não depender de
+ * um valor por omissão que muda com o tempo — era exactamente isso que fazia um
+ * testemunho acrescentado no Lumière sair no desenho de outro modelo. Quem
+ * chama do editor usa `newBlockFor` de `./sectionRules.js`, que já lê o modelo.
+ */
+export function newBlock(type: ContentBlock["type"], variant?: string): ContentBlock {
+  const b = newBlockContent(type);
+  // O `variant` de cada membro da união é uma cadeia fechada; a validação real
+  // é a do modelo, que só declara variantes que existem.
+  if (variant) (b as { variant?: string }).variant = variant;
+  return b;
+}
+
+function newBlockContent(type: ContentBlock["type"]): ContentBlock {
   switch (type) {
     case "info":
       return { type: "info", title: "O nosso compromisso", text: "Conte aqui a sua história, os seus valores ou o que torna a sua loja especial.", imageUrl: DEFAULT_INFO_IMG, imageSide: "left" };
@@ -39,13 +84,107 @@ export function newBlock(type: ContentBlock["type"]): ContentBlock {
   }
 }
 
+/** O desenho de um modelo ({@link BlockStyle}), com as omissões preenchidas. */
+type Look = Required<BlockStyle>;
+
+/**
+ * Omissões de um modelo que declara `style` só em parte: o vocabulário do
+ * desenho genérico, para um campo em falta não sair vazio.
+ */
+const LOOK_DEFAULTS = {
+  heading: "font-black tracking-tight text-gray-900",
+  body: "text-gray-500 leading-relaxed",
+  surface: "bg-white border border-gray-100 shadow-sm",
+  radius: "rounded-2xl",
+  band: "bg-gray-50 border-y border-gray-100",
+} as const;
+
+/**
+ * O desenho do modelo, ou `null` quando ele não declara nenhum — e aí cada
+ * elemento usa a sua classe genérica, tal e qual.
+ */
+function lookOf(ctx: BlockCtx): Look | null {
+  const s = ctx.style;
+  if (!s) return null;
+  const heading = s.heading ?? LOOK_DEFAULTS.heading;
+  const headingStyle = s.headingStyle ?? "";
+  const body = s.body ?? LOOK_DEFAULTS.body;
+  const bodyStyle = s.bodyStyle ?? "";
+  return {
+    heading,
+    headingStyle,
+    body,
+    bodyStyle,
+    // Nomes e citações seguem o título, e o texto secundário segue o corpo,
+    // quando o modelo não os declara: nunca caem no desenho genérico.
+    name: s.name ?? heading,
+    nameStyle: s.nameStyle ?? (s.name === undefined ? headingStyle : ""),
+    quote: s.quote ?? heading,
+    quoteStyle: s.quoteStyle ?? (s.quote === undefined ? headingStyle : ""),
+    muted: s.muted ?? body,
+    mutedStyle: s.mutedStyle ?? (s.muted === undefined ? bodyStyle : ""),
+    surface: s.surface ?? LOOK_DEFAULTS.surface,
+    surfaceStyle: s.surfaceStyle ?? "",
+    radius: s.radius ?? LOOK_DEFAULTS.radius,
+    band: s.band ?? LOOK_DEFAULTS.band,
+    bandStyle: s.bandStyle ?? "",
+  };
+}
+
+/** Junta classes sem espaços a mais quando uma parte vem vazia (ex.: `radius: ""`). */
+function cx(...parts: string[]): string {
+  return parts.filter((p) => p.trim() !== "").join(" ");
+}
+
+/** Atributo `style` só quando há declarações (evita `style=""` no HTML). */
+function styleAttr(...decls: string[]): string {
+  const v = decls.filter((d) => d.trim() !== "").join(";");
+  return v ? ` style="${v}"` : "";
+}
+
+/**
+ * Atributos de aparência de um elemento: `class="…"` (e `style`, se houver).
+ *
+ * Sem desenho de modelo devolve a classe genérica `generic` **tal e qual** — é
+ * o que mantém as lojas publicadas byte a byte. Com desenho de modelo, `styled`
+ * devolve `[classe, …declarações de style]`.
+ */
+function look(L: Look | null, generic: string, styled: (L: Look) => string[]): string {
+  if (!L) return `class="${generic}"`;
+  const [cls = "", ...decls] = styled(L);
+  return `class="${cls}"${styleAttr(...decls)}`;
+}
+
+/** Aparência genérica de todos os títulos de secção. */
+const GENERIC_HEADING = "font-black tracking-tight text-gray-900";
+
+/**
+ * Atributos de um título: as classes de tamanho e posição da variante
+ * (`before`/`after`) à volta da aparência — a do modelo ou a genérica.
+ */
+function headingAttrs(L: Look | null, before: string, after = ""): string {
+  return L
+    ? `class="${cx(before, L.heading, after)}"${styleAttr(L.headingStyle)}`
+    : `class="${cx(before, GENERIC_HEADING, after)}"`;
+}
+
 export interface BlockCtx {
   /** Classe do contentor (largura) do modelo. */
   container: string;
   /** Cor de destaque (ex.: "var(--brand,#4f46e5)"). */
   brand: string;
-  /** Variante visual (ex.: "galeria" para um estilo de testemunhos próprio). */
+  /**
+   * Variante visual por omissão dos blocos gravados **sem** `variant`. Só os
+   * testemunhos a distinguem: `"galeria"` desenha-os em «Editorial». É o que as
+   * lojas publicadas sempre tiveram e por isso fica (`MODELO-GUIA.md` §9.3,
+   * compatibilidade); as secções novas levam a variante do modelo gravada.
+   */
   variant?: "default" | "galeria";
+  /**
+   * Tipografia, cantos e paleta do modelo. Ver {@link BlockStyle}. Ausente =
+   * desenho genérico de sempre.
+   */
+  style?: BlockStyle;
   /**
    * Morada do rodapé da loja (`footer.location`). Último recurso do bloco de
    * mapa quando nem `places` nem `address`/`lat`/`lng` estão preenchidos (R5.8).
@@ -71,32 +210,47 @@ export function infoByVariant(variant: "lado" | "sobreposto" | "cartao", b: Extr
   const fallback = "this.onerror=null;this.src='https://placehold.co/800x600/eef2ff/64748b?text=Imagem'";
   const title = esc(b.title ?? "");
   const text = esc(b.text ?? "");
+  const L = lookOf(ctx);
 
   if (variant === "sobreposto") {
+    const frame = look(L, "relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end",
+      (L) => [cx("relative", L.radius, "overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end")]);
+    // Sobre a imagem escura o texto é sempre claro. No desenho do modelo a cor
+    // vai inline, **depois** do estilo do modelo: uma classe de cor do modelo
+    // colidiria com a do texto claro sem vencedor previsível.
+    const h2 = look(L, "text-3xl md:text-4xl font-black tracking-tight text-white",
+      (L) => [cx("text-3xl md:text-4xl", L.heading), L.headingStyle, "color:#fff"]);
+    const p = look(L, "mt-4 text-white/85 text-lg leading-relaxed",
+      (L) => [cx("mt-4 text-lg", L.body), L.bodyStyle, "color:rgba(255,255,255,.85)"]);
     return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="sobreposto" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
-        <div data-edit-block-image="${i}" class="relative rounded-3xl overflow-hidden min-h-[340px] md:min-h-[440px] flex items-end">
+        <div data-edit-block-image="${i}" ${frame}>
           <img src="${imgUrl}" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="${fallback}" />
           <div class="absolute inset-0" style="background:linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.15) 60%, transparent)"></div>
           <div class="relative p-8 md:p-12 max-w-xl">
-            <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-4xl font-black tracking-tight text-white">${title}</h2>
-            <p data-edit="blocks.${i}.text" class="mt-4 text-white/85 text-lg leading-relaxed">${text}</p>
+            <h2 data-edit="blocks.${i}.title" ${h2}>${title}</h2>
+            <p data-edit="blocks.${i}.text" ${p}>${text}</p>
           </div>
         </div>
       </div>
     </section>`;
   }
 
+  const h2 = headingAttrs(L, "text-2xl md:text-3xl");
+  const p = look(L, "mt-4 text-gray-500 text-lg leading-relaxed", (L) => [cx("mt-4 text-lg", L.body), L.bodyStyle]);
+
   if (variant === "cartao") {
+    const card = look(L, "max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden",
+      (L) => [cx("max-w-2xl mx-auto", L.surface, L.radius, "overflow-hidden"), L.surfaceStyle]);
     return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="cartao" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
-        <div class="max-w-2xl mx-auto bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div ${card}>
           <div data-edit-block-image="${i}" class="relative aspect-[16/9] bg-gray-100">
             <img src="${imgUrl}" alt="" class="w-full h-full object-cover" onerror="${fallback}" />
           </div>
           <div class="p-8 md:p-10 text-center">
-            <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-            <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${text}</p>
+            <h2 data-edit="blocks.${i}.title" ${h2}>${title}</h2>
+            <p data-edit="blocks.${i}.text" ${p}>${text}</p>
           </div>
         </div>
       </div>
@@ -104,12 +258,14 @@ export function infoByVariant(variant: "lado" | "sobreposto" | "cartao", b: Extr
   }
 
   // "lado" (omissão): foto ao lado do texto.
-  const img = `<div data-edit-block-image="${i}" class="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100">
+  const frame = look(L, "relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100",
+    (L) => [cx("relative aspect-[4/3]", L.radius, "overflow-hidden bg-gray-100")]);
+  const img = `<div data-edit-block-image="${i}" ${frame}>
     <img src="${imgUrl}" alt="" class="w-full h-full object-cover" onerror="${fallback}" />
   </div>`;
   const txt = `<div>
-    <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-    <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed">${text}</p>
+    <h2 data-edit="blocks.${i}.title" ${h2}>${title}</h2>
+    <p data-edit="blocks.${i}.text" ${p}>${text}</p>
   </div>`;
   const left = b.imageSide !== "right";
   return `<section data-edit-block="${i}" data-block-type="info" data-block-variant="lado" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
@@ -135,42 +291,52 @@ function textBlock(b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: B
 export function textByVariant(variant: "centrado" | "destaque" | "linha", b: Extract<ContentBlock, { type: "text" }>, i: number, ctx: BlockCtx): string {
   const title = esc(b.title ?? "");
   const text = esc(b.text ?? "");
+  const L = lookOf(ctx);
 
   if (variant === "destaque") {
+    const h2 = headingAttrs(L, "text-3xl md:text-5xl", "leading-[1.05]");
+    const p = look(L, "md:col-span-7 text-gray-500 text-lg md:text-xl leading-relaxed whitespace-pre-line",
+      (L) => [cx("md:col-span-7 text-lg md:text-xl whitespace-pre-line", L.body), L.bodyStyle]);
     return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="destaque" class="relative py-14 md:py-20"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-10 items-start">
           <div class="md:col-span-5 flex items-start gap-4">
             <span class="mt-2 inline-block w-1.5 h-12 rounded-full shrink-0" style="background:${ctx.brand}"></span>
-            <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 leading-[1.05]">${title}</h2>
+            <h2 data-edit="blocks.${i}.title" ${h2}>${title}</h2>
           </div>
-          <p data-edit="blocks.${i}.text" class="md:col-span-7 text-gray-500 text-lg md:text-xl leading-relaxed whitespace-pre-line">${text}</p>
+          <p data-edit="blocks.${i}.text" ${p}>${text}</p>
         </div>
       </div>
     </section>`;
   }
 
+  const h2 = headingAttrs(L, "text-2xl md:text-4xl");
+
   if (variant === "linha") {
+    const p = look(L, "mt-5 text-gray-500 text-lg leading-relaxed whitespace-pre-line",
+      (L) => [cx("mt-5 text-lg whitespace-pre-line", L.body), L.bodyStyle]);
     return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="linha" class="relative py-14 md:py-20"${bgStyle(b.bg)}>
       <div class="${ctx.container}">
         <div class="max-w-3xl mx-auto text-center">
           <div class="flex items-center justify-center gap-4">
             <span class="h-px flex-1 max-w-[80px]" style="background:linear-gradient(90deg,transparent,#d1d5db)"></span>
-            <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${title}</h2>
+            <h2 data-edit="blocks.${i}.title" ${h2}>${title}</h2>
             <span class="h-px flex-1 max-w-[80px]" style="background:linear-gradient(90deg,#d1d5db,transparent)"></span>
           </div>
-          <p data-edit="blocks.${i}.text" class="mt-5 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${text}</p>
+          <p data-edit="blocks.${i}.text" ${p}>${text}</p>
         </div>
       </div>
     </section>`;
   }
 
   // "centrado" (omissão).
+  const p = look(L, "mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line",
+    (L) => [cx("mt-4 text-lg whitespace-pre-line", L.body), L.bodyStyle]);
   return `<section data-edit-block="${i}" data-block-type="text" data-block-variant="centrado" class="relative py-12 md:py-16"${bgStyle(b.bg)}>
     <div class="${ctx.container}">
       <div class="max-w-3xl mx-auto text-center">
-        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-4xl font-black tracking-tight text-gray-900">${title}</h2>
-        <p data-edit="blocks.${i}.text" class="mt-4 text-gray-500 text-lg leading-relaxed whitespace-pre-line">${text}</p>
+        <h2 data-edit="blocks.${i}.title" ${h2}>${title}</h2>
+        <p data-edit="blocks.${i}.text" ${p}>${text}</p>
       </div>
     </div>
   </section>`;
@@ -200,10 +366,17 @@ function testiAvatar(t: TestiItem, i: number, j: number, ctx: BlockCtx, sizeCls 
   return `<span ${clone ? "" : `data-testi-avatar="${j}"`} class="relative ${sizeCls} rounded-full flex items-center justify-center font-bold text-white shrink-0" style="background:${ctx.brand}"><span ${edit}>${letter}</span></span>`;
 }
 
+/**
+ * Variante com que um bloco de testemunhos é desenhado: a gravada no bloco ou,
+ * nos blocos gravados sem ela, a omissão de sempre (`ctx.variant` «galeria» =
+ * «Editorial»). Exportada para o `data-block-variant` e o teste dizerem o mesmo.
+ */
+export function testimonialsVariantOf(b: Extract<ContentBlock, { type: "testimonials" }>, ctx: BlockCtx): "cards" | "editorial" | "marquee" {
+  return b.variant ?? (ctx.variant === "galeria" ? "editorial" : "cards");
+}
+
 function testimonialsBlock(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
-  // Modelo escolhido no bloco; se ausente, usa o padrão do template (galeria = editorial).
-  const variant = b.variant ?? (ctx.variant === "galeria" ? "editorial" : "cards");
-  return testimonialsByVariant(variant, b, i, ctx);
+  return testimonialsByVariant(testimonialsVariantOf(b, ctx), b, i, ctx);
 }
 
 /** Renderiza os testemunhos numa variante específica (usado também nas miniaturas). */
@@ -213,29 +386,41 @@ export function testimonialsByVariant(
   i: number,
   ctx: BlockCtx,
 ): string {
-  if (variant === "editorial") return testimonialsGaleria(b, i, ctx);
+  if (variant === "editorial") return testimonialsEditorial(b, i, ctx);
   if (variant === "marquee") return testimonialsMarquee(b, i, ctx);
   return testimonialsCards(b, i, ctx);
 }
 
+/** Atributos do nome de quem dá o testemunho (`generic` = a classe de sempre). */
+function testiNameAttrs(L: Look | null, generic: string): string {
+  return look(L, generic, (L) => [cx("text-sm", L.name), L.nameStyle]);
+}
+
 function testimonialsCards(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  const L = lookOf(ctx);
   const items = b.items ?? [];
+  const card = look(L, "relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm",
+    (L) => [cx("relative", L.surface, L.radius, "p-6"), L.surfaceStyle]);
+  const quote = look(L, "mt-2 text-gray-600 leading-relaxed", (L) => [cx("mt-2", L.body), L.bodyStyle]);
+  const name = testiNameAttrs(L, "font-semibold text-gray-900 text-sm");
+  const role = look(L, "text-gray-400 text-xs", (L) => [cx("text-xs", L.muted), L.mutedStyle]);
   const cards = items.map((t, j) => {
-    return `<div data-testi-item="${j}" class="relative bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+    return `<div data-testi-item="${j}" ${card}>
       <span class="material-symbols-outlined text-[28px]" style="color:${ctx.brand}">format_quote</span>
-      <p data-edit="blocks.${i}.items.${j}.text" class="mt-2 text-gray-600 leading-relaxed">${esc(t.text ?? "")}</p>
+      <p data-edit="blocks.${i}.items.${j}.text" ${quote}>${esc(t.text ?? "")}</p>
       <div class="mt-5 flex items-center gap-3">
         ${testiAvatar(t, i, j, ctx)}
         <div>
-          <p data-edit="blocks.${i}.items.${j}.name" class="font-semibold text-gray-900 text-sm">${esc(t.name ?? "")}</p>
-          <p data-edit="blocks.${i}.items.${j}.role" class="text-gray-400 text-xs">${esc(t.role ?? "")}</p>
+          <p data-edit="blocks.${i}.items.${j}.name" ${name}>${esc(t.name ?? "")}</p>
+          <p data-edit="blocks.${i}.items.${j}.role" ${role}>${esc(t.role ?? "")}</p>
         </div>
       </div>
     </div>`;
   }).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative bg-gray-50 border-y border-gray-100">
+  const band = look(L, "relative bg-gray-50 border-y border-gray-100", (L) => [cx("relative", L.band), L.bandStyle]);
+  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="cards" ${band}>
     <div class="${ctx.container} py-14 md:py-20">
-      <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center">${esc(b.title ?? "")}</h2>
+      <h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "text-2xl md:text-3xl", "text-center")}>${esc(b.title ?? "")}</h2>
       <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">${cards}</div>
     </div>
   </section>`;
@@ -270,10 +455,11 @@ function placeMap(p: StorePlace, ctx: BlockCtx, extra: string): string {
  * Nome da localização, editável (`MODELO-GUIA.md` §6.1). Só é emitido quando
  * existe: um nó vazio não seria clicável no editor e acrescentaria espaço em
  * branco às lojas gravadas no formato de localização única, que nunca teve nome.
+ * `attrs` são os atributos de aparência (`look`).
  */
-function placeName(p: StorePlace, i: number, j: number, cls: string): string {
+function placeName(p: StorePlace, i: number, j: number, attrs: string): string {
   const name = (p.name ?? "").trim();
-  return name ? `<p data-edit="blocks.${i}.places.${j}.name" class="${cls}">${esc(name)}</p>` : "";
+  return name ? `<p data-edit="blocks.${i}.places.${j}.name" ${attrs}>${esc(name)}</p>` : "";
 }
 
 /** Morada da localização, editável (`MODELO-GUIA.md` §6.1). */
@@ -282,8 +468,8 @@ function placeAddressHtml(p: StorePlace, i: number, j: number): string {
 }
 
 /** Linha "ícone + morada" usada nos cabeçalhos e nas legendas dos mapas. */
-function placeAddressLine(p: StorePlace, i: number, j: number, ctx: BlockCtx, cls: string): string {
-  return `<p class="${cls}"><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${placeAddressHtml(p, i, j)}</p>`;
+function placeAddressLine(p: StorePlace, i: number, j: number, ctx: BlockCtx, attrs: string): string {
+  return `<p ${attrs}><span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">location_on</span> ${placeAddressHtml(p, i, j)}</p>`;
 }
 
 function locationBlockSection(variant: string, i: number, inner: string, ctx: BlockCtx): string {
@@ -293,9 +479,9 @@ function locationBlockSection(variant: string, i: number, inner: string, ctx: Bl
 }
 
 /** Cabeçalho centrado com o título da secção (usado quando há vários mapas). */
-function locationHeading(title: string, i: number): string {
+function locationHeading(title: string, i: number, L: Look | null): string {
   return `<div class="text-center max-w-2xl mx-auto mb-8">
-        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
+        <h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "text-2xl md:text-3xl")}>${title}</h2>
       </div>`;
 }
 
@@ -305,11 +491,15 @@ function locationGrid(i: number, cards: string, cols = " md:grid-cols-2"): strin
 }
 
 /** Mapa "estilizado" (cinza + tinta da marca + selo), reutilizado nas duas formas. */
-function stylizedMap(p: StorePlace, ctx: BlockCtx, height: string): string {
-  return `<div class="relative rounded-3xl overflow-hidden border border-gray-100 shadow-md">
+function stylizedMap(p: StorePlace, ctx: BlockCtx, height: string, L: Look | null): string {
+  const frame = look(L, "relative rounded-3xl overflow-hidden border border-gray-100 shadow-md",
+    (L) => [cx("relative", L.radius, "overflow-hidden", L.surface), L.surfaceStyle]);
+  const ring = look(L, "pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl",
+    (L) => [cx("pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5", L.radius)]);
+  return `<div ${frame}>
           <div style="filter:grayscale(1) contrast(1.05) brightness(1.02)">${placeMap(p, ctx, `height:${height}`)}</div>
           <div class="pointer-events-none absolute inset-0" style="background:${ctx.brand};mix-blend-mode:multiply;opacity:.28"></div>
-          <div class="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-3xl"></div>
+          <div ${ring}></div>
           <div class="pointer-events-none absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full shadow text-sm font-semibold text-gray-800">
             <span class="material-symbols-outlined text-[18px]" style="color:${ctx.brand}">pin_drop</span> Estamos aqui
           </div>
@@ -334,80 +524,105 @@ export function locationByVariant(variant: "classico" | "cartao" | "estilizado",
   const title = esc(b.title ?? "");
   const single = places.length === 1;
   const first = places[0] as StorePlace;
+  const L = lookOf(ctx);
 
   if (variant === "cartao") {
     // Um cartão por localização: coluna de texto à esquerda, mapa à direita.
+    const frame = look(L, "grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm",
+      (L) => [cx("grid grid-cols-1 md:grid-cols-3 gap-0", L.radius, "overflow-hidden", L.surface), L.surfaceStyle]);
+    // No desenho genérico o fundo branco é da coluna de texto; no do modelo é a
+    // superfície do cartão inteiro que o dá.
+    const column = look(L, "md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white",
+      () => ["md:col-span-1 p-8 md:p-10 flex flex-col justify-center"]);
+    const name = look(L, "mt-3 text-xl font-black tracking-tight text-gray-900", (L) => [cx("mt-3 text-xl", L.heading), L.headingStyle]);
+    const address = look(L, "mt-3 text-gray-500 leading-relaxed", (L) => [cx("mt-3", L.body), L.bodyStyle]);
     const card = (p: StorePlace, j: number, withTitle: boolean): string =>
-      `<div data-edit-place="${j}" class="grid grid-cols-1 md:grid-cols-3 gap-0 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
-          <div class="md:col-span-1 p-8 md:p-10 flex flex-col justify-center bg-white">
+      `<div data-edit-place="${j}" ${frame}>
+          <div ${column}>
             <span class="material-symbols-outlined" style="font-size:32px;color:${ctx.brand}">location_on</span>
-            ${withTitle ? `<h2 data-edit="blocks.${i}.title" class="mt-3 text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>` : ""}
-            ${placeName(p, i, j, "mt-3 text-xl font-black tracking-tight text-gray-900")}
-            <p class="mt-3 text-gray-500 leading-relaxed">${placeAddressHtml(p, i, j)}</p>
+            ${withTitle ? `<h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "mt-3 text-2xl md:text-3xl")}>${title}</h2>` : ""}
+            ${placeName(p, i, j, name)}
+            <p ${address}>${placeAddressHtml(p, i, j)}</p>
           </div>
           <div class="md:col-span-2 min-h-[300px]">${placeMap(p, ctx, "height:100%;min-height:300px")}</div>
         </div>`;
     if (single) return locationBlockSection("cartao", i, card(first, 0, true), ctx);
     const cards = places.map((p, j) => card(p, j, false)).join("");
-    return locationBlockSection("cartao", i, `${locationHeading(title, i)}${locationGrid(i, cards, "")}`, ctx);
+    return locationBlockSection("cartao", i, `${locationHeading(title, i, L)}${locationGrid(i, cards, "")}`, ctx);
   }
+
+  // Nome e morada por baixo do título (uma localização) ou de cada mapa (várias).
+  const nameTop = look(L, "mt-2 font-semibold text-gray-900", (L) => [cx("mt-2", L.name), L.nameStyle]);
+  const addressTop = look(L, "mt-2 text-gray-500 inline-flex items-center gap-1.5",
+    (L) => [cx("mt-2 inline-flex items-center gap-1.5", L.body), L.bodyStyle]);
+  const nameCard = look(L, "font-semibold text-gray-900", (L) => [cx(L.name), L.nameStyle]);
+  const addressCard = look(L, "mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5",
+    (L) => [cx("mt-1 text-sm inline-flex items-center gap-1.5", L.body), L.bodyStyle]);
 
   if (variant === "estilizado") {
     if (single) {
       return locationBlockSection("estilizado", i, `<div class="text-center max-w-2xl mx-auto mb-8">
-        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-        ${placeName(first, i, 0, "mt-2 font-semibold text-gray-900")}
-        ${placeAddressLine(first, i, 0, ctx, "mt-2 text-gray-500 inline-flex items-center gap-1.5")}
+        <h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "text-2xl md:text-3xl")}>${title}</h2>
+        ${placeName(first, i, 0, nameTop)}
+        ${placeAddressLine(first, i, 0, ctx, addressTop)}
       </div>
-      <div data-edit-place="0">${stylizedMap(first, ctx, "420px")}</div>`, ctx);
+      <div data-edit-place="0">${stylizedMap(first, ctx, "420px", L)}</div>`, ctx);
     }
     const cards = places.map((p, j) => `<div data-edit-place="${j}" class="flex flex-col">
-        ${stylizedMap(p, ctx, "320px")}
+        ${stylizedMap(p, ctx, "320px", L)}
         <div class="mt-4 text-center">
-          ${placeName(p, i, j, "font-semibold text-gray-900")}
-          ${placeAddressLine(p, i, j, ctx, "mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5")}
+          ${placeName(p, i, j, nameCard)}
+          ${placeAddressLine(p, i, j, ctx, addressCard)}
         </div>
       </div>`).join("");
-    return locationBlockSection("estilizado", i, `${locationHeading(title, i)}${locationGrid(i, cards)}`, ctx);
+    return locationBlockSection("estilizado", i, `${locationHeading(title, i, L)}${locationGrid(i, cards)}`, ctx);
   }
 
   // "classico" (omissão).
+  const mapFrame = look(L, "rounded-2xl overflow-hidden border border-gray-100 shadow-sm",
+    (L) => [cx(L.radius, "overflow-hidden", L.surface), L.surfaceStyle]);
   if (single) {
     return locationBlockSection("classico", i, `<div class="text-center max-w-2xl mx-auto mb-8">
-        <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900">${title}</h2>
-        ${placeName(first, i, 0, "mt-2 font-semibold text-gray-900")}
-        ${placeAddressLine(first, i, 0, ctx, "mt-2 text-gray-500 inline-flex items-center gap-1.5")}
+        <h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "text-2xl md:text-3xl")}>${title}</h2>
+        ${placeName(first, i, 0, nameTop)}
+        ${placeAddressLine(first, i, 0, ctx, addressTop)}
       </div>
-      <div data-edit-place="0" class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">${placeMap(first, ctx, "height:400px")}</div>`, ctx);
+      <div data-edit-place="0" ${mapFrame}>${placeMap(first, ctx, "height:400px")}</div>`, ctx);
   }
   const cards = places.map((p, j) => `<div data-edit-place="${j}" class="flex flex-col">
-        <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">${placeMap(p, ctx, "height:300px")}</div>
+        <div ${mapFrame}>${placeMap(p, ctx, "height:300px")}</div>
         <div class="mt-4 text-center">
-          ${placeName(p, i, j, "font-semibold text-gray-900")}
-          ${placeAddressLine(p, i, j, ctx, "mt-1 text-gray-500 text-sm inline-flex items-center gap-1.5")}
+          ${placeName(p, i, j, nameCard)}
+          ${placeAddressLine(p, i, j, ctx, addressCard)}
         </div>
       </div>`).join("");
-  return locationBlockSection("classico", i, `${locationHeading(title, i)}${locationGrid(i, cards)}`, ctx);
+  return locationBlockSection("classico", i, `${locationHeading(title, i, L)}${locationGrid(i, cards)}`, ctx);
 }
 
-/** Variante de testemunhos para o modelo Galeria (editorial, minimalista). */
-function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+/** Variante de testemunhos «Editorial» (minimalista, citação em destaque). */
+function testimonialsEditorial(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  const L = lookOf(ctx);
   const items = b.items ?? [];
+  const quote = look(L, "text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900",
+    (L) => [cx("text-lg md:text-xl leading-relaxed", L.quote), L.quoteStyle]);
+  const name = testiNameAttrs(L, "text-sm font-semibold text-gray-900");
+  const role = look(L, "text-[11px] uppercase tracking-widest text-gray-400 mt-0.5",
+    (L) => [cx("text-[11px] uppercase tracking-widest mt-0.5", L.muted), L.mutedStyle]);
   const cards = items.map((t, j) => {
     return `<div data-testi-item="${j}" class="relative pt-6" style="border-top:2px solid ${ctx.brand}">
-      <p data-edit="blocks.${i}.items.${j}.text" class="text-lg md:text-xl font-medium leading-relaxed tracking-tight text-gray-900">${esc(t.text ?? "")}</p>
+      <p data-edit="blocks.${i}.items.${j}.text" ${quote}>${esc(t.text ?? "")}</p>
       <div class="mt-6 flex items-center gap-3">
         ${testiAvatar(t, i, j, ctx)}
         <div class="leading-tight">
-          <p data-edit="blocks.${i}.items.${j}.name" class="text-sm font-semibold text-gray-900">${esc(t.name ?? "")}</p>
-          <p data-edit="blocks.${i}.items.${j}.role" class="text-[11px] uppercase tracking-widest text-gray-400 mt-0.5">${esc(t.role ?? "")}</p>
+          <p data-edit="blocks.${i}.items.${j}.name" ${name}>${esc(t.name ?? "")}</p>
+          <p data-edit="blocks.${i}.items.${j}.role" ${role}>${esc(t.role ?? "")}</p>
         </div>
       </div>
     </div>`;
   }).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative py-16 md:py-24">
+  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="editorial" class="relative py-16 md:py-24">
     <div class="${ctx.container}">
-      <h2 data-edit="blocks.${i}.title" class="text-3xl md:text-5xl font-black tracking-tight text-gray-900 max-w-2xl">${esc(b.title ?? "")}</h2>
+      <h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "text-3xl md:text-5xl", "max-w-2xl")}>${esc(b.title ?? "")}</h2>
       <div data-edit-testimonials="${i}" class="grid grid-cols-1 md:grid-cols-3 gap-10 mt-12">${cards}</div>
     </div>
   </section>`;
@@ -415,27 +630,36 @@ function testimonialsGaleria(b: Extract<ContentBlock, { type: "testimonials" }>,
 
 /** Variante "Carrossel" — faixa horizontal com scroll infinito (pausa ao passar o rato). */
 function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>, i: number, ctx: BlockCtx): string {
+  const L = lookOf(ctx);
   const items = b.items ?? [];
+  const frame = look(L, "mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm",
+    (L) => [cx("mb-mq-card relative shrink-0 w-[300px]", L.surface, L.radius, "p-6"), L.surfaceStyle]);
+  const quote = look(L, "mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5",
+    (L) => [cx("mt-1 text-[15px] line-clamp-5", L.body), L.bodyStyle]);
+  const name = testiNameAttrs(L, "font-semibold text-gray-900 text-sm");
+  const role = look(L, "text-gray-400 text-xs", (L) => [cx("text-xs", L.muted), L.mutedStyle]);
   const card = (t: TestiItem, j: number, clone: boolean): string => {
     const attrs = clone ? `aria-hidden="true"` : `data-testi-item="${j}"`;
     const te = clone ? "" : `data-edit="blocks.${i}.items.${j}.text"`;
     const ne = clone ? "" : `data-edit="blocks.${i}.items.${j}.name"`;
     const re = clone ? "" : `data-edit="blocks.${i}.items.${j}.role"`;
-    return `<div ${attrs} class="mb-mq-card relative shrink-0 w-[300px] bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+    return `<div ${attrs} ${frame}>
       <span class="material-symbols-outlined text-[26px]" style="color:${ctx.brand}">format_quote</span>
-      <p ${te} class="mt-1 text-gray-600 leading-relaxed text-[15px] line-clamp-5">${esc(t.text ?? "")}</p>
+      <p ${te} ${quote}>${esc(t.text ?? "")}</p>
       <div class="mt-5 flex items-center gap-3">
         ${testiAvatar(t, i, j, ctx, "w-10 h-10", clone)}
         <div>
-          <p ${ne} class="font-semibold text-gray-900 text-sm">${esc(t.name ?? "")}</p>
-          <p ${re} class="text-gray-400 text-xs">${esc(t.role ?? "")}</p>
+          <p ${ne} ${name}>${esc(t.name ?? "")}</p>
+          <p ${re} ${role}>${esc(t.role ?? "")}</p>
         </div>
       </div>
     </div>`;
   };
   const originals = items.map((t, j) => card(t, j, false)).join("");
   const clones = items.map((t, j) => card(t, j, true)).join("");
-  return `<section data-edit-block="${i}" data-block-type="testimonials" class="relative overflow-hidden bg-gray-50 border-y border-gray-100">
+  const band = look(L, "relative overflow-hidden bg-gray-50 border-y border-gray-100",
+    (L) => [cx("relative overflow-hidden", L.band), L.bandStyle]);
+  return `<section data-edit-block="${i}" data-block-type="testimonials" data-block-variant="marquee" ${band}>
     <style>
       @keyframes mbMqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
       .mb-mq-mask{position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
@@ -445,7 +669,7 @@ function testimonialsMarquee(b: Extract<ContentBlock, { type: "testimonials" }>,
       .mb-mq-card:hover{transform:translateY(-4px);box-shadow:0 16px 36px -16px rgba(0,0,0,.3)}
     </style>
     <div class="${ctx.container} pt-14 md:pt-20 pb-8">
-      <h2 data-edit="blocks.${i}.title" class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 text-center">${esc(b.title ?? "")}</h2>
+      <h2 data-edit="blocks.${i}.title" ${headingAttrs(L, "text-2xl md:text-3xl", "text-center")}>${esc(b.title ?? "")}</h2>
     </div>
     <div class="mb-mq-mask pb-16 md:pb-20">
       <div data-edit-testimonials="${i}" class="mb-mq-track">${originals}${clones}</div>

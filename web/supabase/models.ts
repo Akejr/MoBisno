@@ -135,13 +135,13 @@ export async function createTemplateModel(
   }
 
   const source = base ? JSON.parse(JSON.stringify(base)) as StoreCustomization : starterCustomization();
+  // Uma loja-modelo não finge pagamentos digitais: como qualquer loja, mostra-os
+  // só quando `digitalPaymentsVisible(store)` o diz (coluna
+  // `stores.digital_payments`, `src/services/paymentVisibility.ts`).
   const customization: StoreCustomization = {
     ...source,
     __template: { id: created.value.id, name, description },
     __v: MODEL_VERSION,
-    // Marca de demonstração: só as lojas-modelo mostram os métodos de pagamento
-    // online sem os terem ativos. Nunca é herdada (ver `applyModelToStore`).
-    __demoPayments: true,
   };
   const ok = await saveCustomization(adminId, created.value.id, customization);
   if (!ok) return null;
@@ -194,6 +194,52 @@ function lumiereBase(): StoreCustomization {
     ],
   };
 }
+
+/**
+ * Customização base do modelo "Tech Essentials".
+ *
+ * Todo o texto em português de Portugal: a loja-modelo é o que o visitante vê na
+ * galeria de modelos e na pré-visualização, e é a partir dela que o Dono começa
+ * a escrever a sua. Um texto em inglês aqui aparecia na loja dele.
+ */
+function techEssentialsBase(): StoreCustomization {
+  return {
+    colors: { primary: "#0058be", text: "#0b1c30" },
+    theme: { style: "moderno" },
+    hero: {
+      title: "Tecnologia que trabalha para si.",
+      subtitle: "Equipamento escolhido a dedo, com garantia e entrega em toda Angola. Compre com a confiança de quem conhece o que vende.",
+      ctaLabel: "Ver produtos",
+    },
+    footer: {
+      about: "Equipamento electrónico para quem trabalha e joga a sério. Garantia, apoio e entrega em toda Angola.",
+      location: "Luanda, Angola",
+    },
+    productPerks: [
+      { icon: "verified", text: "Garantia de 12 meses em todos os equipamentos" },
+      { icon: "local_shipping", text: "Entrega em Luanda em 24 a 48 horas" },
+      { icon: "support_agent", text: "Apoio técnico pelo WhatsApp antes e depois da compra" },
+    ],
+    /*
+     * As marcas da faixa **não** vêm daqui: os quatro logótipos por omissão
+     * vivem no próprio modelo (`defaultTechBrands` em
+     * `web/templates/techEssentials.ts`). Estavam nesta base, e por isso não
+     * apareciam na galeria de modelos nem na pré-visualização, que desenham o
+     * modelo com uma personalização vazia — tal como uma loja acabada de criar.
+     */
+  };
+}
+
+const TECH_PRODUCTS: DemoProductInput[] = [
+  { name: "Portátil NexusBook 14", price: 1250000, category: "Portáteis", featured: true, description: "Ecrã de 14 polegadas, 16 GB de memória e 512 GB de armazenamento. Leve o suficiente para levar todos os dias.", imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=600" },
+  { name: "Auscultadores Aura ANC", price: 285000, category: "Áudio", featured: true, description: "Cancelamento de ruído activo e 30 horas de bateria. Para trabalhar em qualquer sítio.", imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=600" },
+  { name: "Relógio Chrono Série 5", price: 245000, category: "Vestíveis", description: "Medição de actividade e notificações no pulso, com bracelete de titânio.", imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600" },
+  { name: "Telefone Nexa Pro", price: 820000, category: "Telefones", featured: true, description: "Câmara tripla, ecrã de 120 Hz e bateria para o dia inteiro.", imageUrl: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=600" },
+  { name: "Teclado Mecânico Compacto", price: 95000, category: "Acessórios", description: "Formato de 65%, retroiluminação e ligação sem fios.", imageUrl: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?q=80&w=600" },
+  { name: "Rato Sem Fios Precision", price: 48000, category: "Acessórios", description: "Sensor de 8000 DPI e silencioso ao clique.", imageUrl: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?q=80&w=600" },
+  { name: "Monitor 27\" 4K", price: 690000, category: "Monitores", description: "Painel IPS de 27 polegadas com cobertura de cor para trabalho gráfico.", imageUrl: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?q=80&w=600" },
+  { name: "Coluna Portátil Sonic Mini", price: 72000, category: "Áudio", description: "Resistente à água, com 12 horas de música.", imageUrl: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?q=80&w=600" },
+];
 
 /** Modelos de fábrica que o admin pode importar como lojas-modelo editáveis. */
 export interface FactoryModel {
@@ -253,10 +299,12 @@ export function defaultFactoryModels(): FactoryModel[] {
   // o Semeador renomear a loja-modelo já existente em vez de criar outra.
   if (vermelho) out.push({ name: vermelho.name, description: vermelho.description, templateId: "galeria", base: vermelho.customization, products: VERMELHO_PRODUCTS, previousNames: ["Ekolo sports", "Vermelho Moderno"] });
   out.push({ name: "Lumière Chic", description: "Luxo minimalista para beleza e cosmética — tipografia editorial e tons creme.", templateId: "lumiere", base: lumiereBase(), products: LUMIERE_PRODUCTS });
-  // «Neon Lab» e «FoodMart» saíram desta lista (R1.5): o Semeador deixa de as
-  // saber criar ou recriar, e é isso que torna definitiva a eliminação feita
-  // pelo administrador. Sem esta remoção, a deteção de modelo «em falta» do
-  // painel voltava a semeá-las logo após a eliminação.
+  out.push({ name: "Tech Essentials", description: "Minimalismo moderno para electrónica e informática — muito espaço branco, cartões limpos e azul eléctrico nas acções.", templateId: "tech-essentials", base: techEssentialsBase(), products: TECH_PRODUCTS });
+  // Os dois modelos que saíram do registo (o escuro e a mercearia) saíram também
+  // desta lista (R1.5): o Semeador deixa de os saber criar ou recriar, e é isso
+  // que torna definitiva a eliminação feita pelo administrador. Sem esta
+  // remoção, a deteção de modelo «em falta» do painel voltava a semeá-los logo
+  // após a eliminação.
   return out;
 }
 
@@ -356,7 +404,6 @@ export async function seedDefaultModels(adminId: string): Promise<number> {
           ...(JSON.parse(JSON.stringify(fm.base)) as StoreCustomization),
           __template: found.customization.__template ?? { id: found.storeId, name: fm.name, description: fm.description },
           __v: MODEL_VERSION,
-          __demoPayments: true,
         };
         await saveCustomization(adminId, found.storeId, refreshed);
       }
@@ -387,17 +434,8 @@ export async function applyModelToStore(
 ): Promise<boolean> {
   const applied: StoreCustomization = JSON.parse(JSON.stringify(model.customization));
   delete (applied as { __template?: unknown }).__template;
-  // A marca de demonstração nunca é herdada: a loja do cliente só mostra os
-  // métodos online quando os ativa em `payments.onlineEnabled`.
-  delete applied.__demoPayments;
-  // O espelho `payments` também NUNCA é herdado. O estado real de pagamentos de
-  // uma loja vive em `store_payments` (fonte de verdade que `api/payment.js`
-  // consulta) e uma loja nova nasce sem lá ter linha, ou com `online_enabled` a
-  // `false`. Copiar o `payments` da loja-modelo faria o checkout anunciar
-  // Multicaixa Express e Referência Bancária que o servidor depois recusa com
-  // `PAYMENTS_NOT_ENABLED`. O Dono ativa-os no separador «Pagamentos», e é essa
-  // gravação que volta a escrever o espelho.
-  delete applied.payments;
+  // Os pagamentos digitais não vêm na Personalização: a loja do cliente mostra-os
+  // só quando `stores.digital_payments` (dela) o permite. Nada a limpar aqui.
   applied.__basedOn = model.storeId;
   applied.__locked = true;
   const { error } = await supabase
@@ -418,12 +456,6 @@ export async function applyRawToStore(
 ): Promise<boolean> {
   const applied: StoreCustomization = JSON.parse(JSON.stringify(customization));
   delete (applied as { __template?: unknown }).__template;
-  // Idem: a marca de demonstração fica na loja-modelo, não passa para a cópia.
-  delete applied.__demoPayments;
-  // Idem para o espelho `payments`: a verdade está em `store_payments`, e a loja
-  // do cliente nasce sem pagamentos online. Herdar o espelho anunciaria métodos
-  // que o servidor recusa (`PAYMENTS_NOT_ENABLED`).
-  delete applied.payments;
   applied.__locked = true;
   const { error } = await supabase
     .from("stores")

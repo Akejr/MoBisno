@@ -25,7 +25,7 @@
  * dono do repositório.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(__dirname, "..");
@@ -55,11 +55,25 @@ describe("fieldColors — a cor do campo sobe até ao botão e pinta os ícones"
       "[data-hero-cta]",
       "[data-add-cart]",
       "[data-edit-whatsapp]",
-      "[data-fm-banner-cta]",
-      "[data-fm-ad-cta]",
-      "[data-fm-promo-cta]",
     ]) {
       expect(lista, `marcador de botão em falta: ${marcador}`).toContain(marcador);
+    }
+    // Os marcadores `data-fm-*` eram do modelo de mercearia, que saiu do
+    // repositório: nenhum modelo os desenha, e listá-los era código morto.
+    expect(lista).not.toContain("data-fm-");
+  });
+
+  it("todo o marcador de botão listado é desenhado por algum modelo", () => {
+    // A guarda contrária: um marcador que nenhum modelo usa é resto de um modelo
+    // que saiu, e fica a enganar quem lê a lista.
+    const lista = trecho(FIELD_COLORS, "export const BUTTON_ANCESTORS", "export const BUTTON_ANCESTOR_SELECTOR");
+    const marcadores = [...lista.matchAll(/"\[(data-[a-z-]+)\]"/g)].map((m) => m[1]!);
+    const fontes = readdirSync(join(ROOT, "web/templates"))
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => ler(`web/templates/${f}`))
+      .join("\n");
+    for (const m of marcadores) {
+      expect(fontes, `marcador sem modelo que o desenhe: ${m}`).toContain(m);
     }
   });
 

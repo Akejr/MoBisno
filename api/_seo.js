@@ -10,7 +10,14 @@
  * loja. Isso é o que torna o site indexável: os motores de busca recebem texto,
  * títulos e ligações no HTML da resposta, em vez de um `<div id="app">` vazio
  * que só ganha conteúdo depois de executar JavaScript.
+ *
+ * Desde que o servidor desenha as lojas e a página inicial com os modelos
+ * verdadeiros (`api/_ssr/render.mjs`, ver `api/prerender.js`), o conteúdo
+ * `.mb-ssr` deste módulo é a **alternativa**: só sai quando o pacote não carrega,
+ * lança ou não consegue desenhar a página.
  */
+
+import { PLAN_PRICE_KZ, PLAN_PERIOD_MS, PLATFORM_FEE_RATE } from "./_shared.js";
 
 export const STORE_APEX = "sualoja.digital";
 export const PLATFORM_APEX = "mobisno.store";
@@ -104,46 +111,361 @@ export function identifierFromHost(host) {
   return null;
 }
 
+/* --------------------------------- Origens -------------------------------- */
+
+/** Host do pedido, normalizado: minúsculas, sem porta e sem ponto final. */
+export function normalizeHost(host) {
+  return (String(host ?? "").trim().toLowerCase().split(":")[0] ?? "").replace(/\.$/, "");
+}
+
+/**
+ * Origem das páginas da PLATAFORMA para este pedido. Espelha
+ * `src/services/seo.ts:platformOriginForHost`.
+ *
+ * `mobisno.store` redireciona (308) para `www.mobisno.store` na Vercel, e os
+ * canónicos, o `og:url`, o sitemap e a linha `Sitemap:` do robots apontavam para
+ * o apex — um redirecionamento em cada URL que o Google recebia. A origem passa
+ * a ser a do pedido, mas só dentro da família do apex (o apex ou `www.`):
+ * qualquer outro host (pré-visualização da Vercel, `Host` forjado, subdomínio de
+ * loja) dá o apex.
+ */
+export function platformOrigin(host) {
+  const h = normalizeHost(host);
+  return h === PLATFORM_APEX || h === `www.${PLATFORM_APEX}` ? `https://${h}` : `https://${PLATFORM_APEX}`;
+}
+
+/** O mesmo para o domínio das lojas (`sualoja.digital` ou `www.sualoja.digital`). */
+export function storeApexOrigin(host) {
+  const h = normalizeHost(host);
+  return h === STORE_APEX || h === `www.${STORE_APEX}` ? `https://${h}` : `https://${STORE_APEX}`;
+}
+
+/** O host é o apex (ou `www.`) do domínio das lojas? */
+export function isStoreApexHost(host) {
+  const h = normalizeHost(host);
+  return h === STORE_APEX || h === `www.${STORE_APEX}`;
+}
+
+/* -------------------------------- Indexação -------------------------------- */
+
+/** Espelha `src/services/seo.ts:ROBOTS_INDEX`. */
+export const ROBOTS_INDEX = "index, follow, max-image-preview:large, max-snippet:-1";
+
+/**
+ * Espelha `src/services/seo.ts:robotsContent`. `follow` só conta com `noindex`:
+ * as lojas-modelo saem com `noindex, follow`.
+ */
+export function robotsContent({ noindex, follow } = {}) {
+  if (!noindex) return ROBOTS_INDEX;
+  return follow ? "noindex, follow" : "noindex, nofollow";
+}
+
+/** Espelha `MODEL_STORE_PREFIX` de `src/services/domains.ts`. */
+export const MODEL_STORE_PREFIX = "modelo-";
+
+/** Espelha `src/services/domains.ts:isModelIdentifier`. */
+export function isModelIdentifier(identifier) {
+  return typeof identifier === "string" && identifier.toLowerCase().startsWith(MODEL_STORE_PREFIX);
+}
+
+/**
+ * Espelha `src/services/seo.ts:isModelStore`: identificador `modelo-…` ou a marca
+ * `customization.__template`. As lojas-modelo saem com `noindex, follow` e ficam
+ * fora dos sitemaps e do diretório `/lojas`.
+ *
+ * Nas consultas que extraem só `tpl:customization->__template`, passar
+ * `{ identifier, customization: { __template: tpl } }`.
+ */
+export function isModelStore(store) {
+  if (!store) return false;
+  if (isModelIdentifier(store.identifier)) return true;
+  const c = store.customization;
+  const tpl = c && typeof c === "object" && !Array.isArray(c) ? c.__template : undefined;
+  return !(tpl === undefined || tpl === null || tpl === false);
+}
+
+/* --------------------------- Factos de uma loja --------------------------- */
+
+/**
+ * Espelha `shippingFromCustom` de `web/lib/seo.ts`: a taxa de entrega que o Dono
+ * configurou, ou `null`. Nunca inventar portes.
+ */
+export function shippingFromCustom(custom) {
+  const d = custom && custom.delivery;
+  if (!d) return null;
+  if (d.mode === "perArea") {
+    const fees = Object.values(d.fees ?? {}).filter((n) => Number.isFinite(n));
+    return fees.length ? { cost: Math.min(...fees) } : null;
+  }
+  return Number.isFinite(d.flatFee) ? { cost: Number(d.flatFee) } : null;
+}
+
+/** Rótulo dos destacados no menu (`FEATURED_LABEL` de `web/templates/sectionsModel.ts`). */
+const FEATURED_LABEL = "Destaques";
+
+/**
+ * O que é verdade nesta loja, para as descrições geradas. Espelha
+ * `storeSeoFacts` de `web/views/storeHtml.ts`, a partir das LINHAS:
+ *
+ *  - só contam os produtos com `available === true`, como em
+ *    `storefrontFromRows` (`web/ssr/storefrontRows.ts`);
+ *  - `categories`: as categorias dos produtos, pela ordem em que aparecem e sem
+ *    «Destaques» (o mesmo que `headerCategories(view)` sem esse rótulo);
+ *  - `delivery`: o Dono configurou taxas de entrega;
+ *  - `digitalPayments`: decidido por quem chama. No servidor é
+ *    `store.digital_payments === true` **e** `getPaymentProvider() !== null`
+ *    (`api/_provider.js`) — a mesma regra de `digitalPaymentsVisible` no
+ *    navegador.
+ */
+export function storeSeoFactsOf({ products, custom, digitalPayments } = {}) {
+  const list = Array.isArray(products) ? products.filter((p) => p && p.available === true) : [];
+  const categories = [];
+  for (const p of list) {
+    const c = p.category;
+    if (c && !categories.includes(c)) categories.push(c);
+  }
+  return {
+    categories: categories.filter((c) => c !== FEATURED_LABEL),
+    productNames: list.map((p) => p.name),
+    delivery: shippingFromCustom(custom) !== null,
+    digitalPayments: digitalPayments === true,
+  };
+}
+
+/** Junta uma lista em português: «a», «a e b», «a, b e c». */
+function joinPt(items) {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
+
+/** Até três exemplos, com «e mais» quando há mais. */
+function examplesPt(items) {
+  const clean = (items || []).map((s) => String(s ?? "").trim()).filter(Boolean);
+  if (clean.length > 3) return `${clean.slice(0, 3).join(", ")} e mais`;
+  return joinPt(clean);
+}
+
+/**
+ * Espelha `src/services/seo.ts:howToBuy` — como se compra nesta loja, só o que é
+ * verdade. O WhatsApp existe em todas as lojas; o resto depende de `facts`.
+ */
+export function howToBuy(facts) {
+  const pay = facts && facts.digitalPayments
+    ? "Encomendas por WhatsApp e pagamento por Multicaixa Express ou Referência Bancária"
+    : "Encomendas por WhatsApp";
+  return `${pay}${facts && facts.delivery ? ", com entrega" : ""}.`;
+}
+
 /* --------------------------- Títulos e descrições -------------------------- */
 
 export function storeTitle(storeName) {
   return `${String(storeName).trim()} | Compras em Angola`;
 }
 
-export function storeDescription(storeName, custom) {
-  const base = custom && String(custom).trim()
-    ? String(custom).trim()
-    : `Compre online na ${String(storeName).trim()} em Angola. Pagamento por Multicaixa Express, Referência Bancária e WhatsApp, com entrega em Luanda. Faça a sua encomenda de forma rápida e segura.`;
-  return truncate(base, 160);
+/** Espelha `src/services/seo.ts:storeDescription`. */
+export function storeDescription(storeName, custom, facts) {
+  if (custom && String(custom).trim()) return truncate(String(custom).trim(), 160);
+  const what = examplesPt(facts && facts.categories && facts.categories.length ? facts.categories : ((facts && facts.productNames) || []));
+  return truncate(`Compre online na ${String(storeName).trim()}, em Angola${what ? `: ${what}` : ""}. ${howToBuy(facts)}`, 160);
 }
 
 export function productTitle(productName, storeName) {
   return `${String(productName).trim()} — ${String(storeName).trim()}`;
 }
 
-export function productDescription({ name, description, priceLabel, storeName }) {
+/** Espelha `src/services/seo.ts:productDescription`. */
+export function productDescription({ name, description, priceLabel, storeName, facts }) {
   const desc = String(description ?? "").trim();
   if (desc) return truncate(desc, 160);
   const price = priceLabel ? ` por ${priceLabel}` : "";
-  return truncate(
-    `Compre ${String(name).trim()}${price} na ${String(storeName).trim()}. Pagamento seguro por Multicaixa Express, Referência e WhatsApp, com entrega em Luanda (Angola).`,
-    160,
-  );
+  return truncate(`Compre ${String(name).trim()}${price} na ${String(storeName).trim()}, em Angola. ${howToBuy(facts)}`, 160);
 }
 
 export function categoryTitle(category, storeName) {
   return `${String(category).trim()} — ${String(storeName).trim()} | Comprar em Angola`;
 }
 
-export function categoryDescription({ category, storeName, count = 0, sampleNames = [], priceFrom = null }) {
+/** Espelha `src/services/seo.ts:categoryDescription`. */
+export function categoryDescription({ category, storeName, count, sampleNames, priceFrom, facts }) {
   const cat = String(category).trim();
-  const quantos = count > 0 ? `${count} ${count === 1 ? "produto" : "produtos"} de ${cat}` : cat;
-  const exemplos = sampleNames.length ? ` ${sampleNames.slice(0, 3).join(", ")} e mais.` : "";
+  const store = String(storeName).trim();
+  const n = count ?? 0;
+  const quantos = n > 0 ? `${n} ${n === 1 ? "produto" : "produtos"} de ${cat}` : cat;
+  const exemplos = sampleNames && sampleNames.length ? ` ${sampleNames.slice(0, 3).join(", ")} e mais.` : "";
   const desde = priceFrom ? ` Desde ${priceFrom}.` : "";
+  return truncate(`${quantos} na ${store}.${desde}${exemplos} ${howToBuy(facts)}`, 160);
+}
+
+/* ------------------------------- Plataforma ------------------------------- */
+
+/** Dias de um período pago, a partir de `PLAN_PERIOD_MS` de `api/_shared.js`. */
+const PLAN_PERIOD_DAYS = Math.round(PLAN_PERIOD_MS / (24 * 3600 * 1000));
+
+/** Espelha `src/services/seo.ts:kzWhole` — «10.000 Kz», sem cêntimos. */
+export function kzWhole(value) {
+  return formatKz(value).replace(/,00 Kz$/, " Kz");
+}
+
+/** Espelha `src/services/seo.ts:planPeriodLabel` — «/mês» (30 dias). */
+export function planPeriodLabel() {
+  return PLAN_PERIOD_DAYS === 30 ? "/mês" : ` por ${PLAN_PERIOD_DAYS} dias`;
+}
+
+/**
+ * Espelha `src/services/seo.ts:platformPriceLabel` — «10.000 Kz/mês». O preço é
+ * `PLAN_PRICE_KZ` de `api/_shared.js`, o mesmo que o servidor cobra; nunca
+ * escrito à mão num texto.
+ */
+export function platformPriceLabel() {
+  return `${kzWhole(PLAN_PRICE_KZ)}${planPeriodLabel()}`;
+}
+
+/** Espelha `src/services/seo.ts:platformTitle`. */
+export function platformTitle() {
+  return "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais";
+}
+
+/**
+ * Espelha `src/services/seo.ts:platformDescription`: um plano, tudo incluído,
+ * WhatsApp em todas as lojas. Nada do que está «Em breve».
+ */
+export function platformDescription() {
   return truncate(
-    `${quantos} na ${String(storeName).trim()}.${desde}${exemplos} Entrega em Luanda e em Angola, com pagamento por Multicaixa Express, Referência Bancária ou WhatsApp.`,
+    `Crie a sua loja online em Angola: modelos prontos, editor visual e encomendas por WhatsApp. Lojas e produtos ilimitados por ${platformPriceLabel()}, tudo incluído.`,
     160,
   );
+}
+
+/**
+ * Espelha `comingSoonList()` de `src/services/comingSoon.ts`: os nomes das
+ * funcionalidades «Em breve», pela mesma ordem. Ao ligar uma lá (bandeira a
+ * `false`), tirá-la daqui — `tests/seoInfra.test.ts` compara as duas listas.
+ */
+export const COMING_SOON_LIST = [
+  "SMS de confirmação de compra",
+  "Domínio próprio",
+  "Marketing e pixels (Meta Pixel e Google Analytics)",
+];
+
+/** Espelha `src/services/seo.ts:DIGITAL_PAYMENTS_LABEL`. */
+export const DIGITAL_PAYMENTS_LABEL = "Multicaixa Express e Referência Bancária";
+
+/**
+ * Espelha `src/services/seo.ts:digitalPaymentsNote`. No servidor,
+ * `paymentsReady` é `getPaymentProvider() !== null` (`api/_provider.js`): sem
+ * fornecedor ligado, os pagamentos digitais são «em breve» e nunca aparecem
+ * como disponíveis.
+ */
+export function digitalPaymentsNote(paymentsReady) {
+  return paymentsReady === true
+    ? `${DIGITAL_PAYMENTS_LABEL} para empresas registadas, depois de a MôBisno aprovar os documentos da empresa.`
+    : `${DIGITAL_PAYMENTS_LABEL} em breve, para empresas registadas, depois de a MôBisno aprovar os documentos da empresa.`;
+}
+
+/** Espelha `src/services/seo.ts:platformComingSoon`. */
+export function platformComingSoon(paymentsReady) {
+  const pagamentos = paymentsReady === true ? [] : [`${DIGITAL_PAYMENTS_LABEL} para empresas registadas`];
+  return [...pagamentos, ...COMING_SOON_LIST];
+}
+
+/**
+ * Espelha `PLATFORM_FEE_LABEL` de `src/services/fees.ts`: a comissão por
+ * extenso, a partir da taxa que o servidor usa para a calcular.
+ */
+export const PLATFORM_FEE_LABEL = `${Number((PLATFORM_FEE_RATE * 100).toFixed(2))}%`;
+
+/** Espelha `platformFeeNote` de `src/services/seo.ts`. */
+export function platformFeeNote() {
+  return `As vendas por WhatsApp não têm comissão nenhuma. Nas vendas recebidas por ${DIGITAL_PAYMENTS_LABEL}, a MôBisno fica com ${PLATFORM_FEE_LABEL} do valor da encomenda; o resto é levantado para a conta bancária da sua empresa.`;
+}
+
+/**
+ * Espelha `platformAddressNote` de `src/services/seo.ts`.
+ *
+ * O domínio próprio está «Em breve» enquanto estiver na lista espelhada
+ * (`COMING_SOON_LIST`) — é a mesma fonte que a página de preços usa.
+ */
+export function platformAddressNote() {
+  const porLigar = COMING_SOON_LIST.some((x) => /dom[íi]nio pr[óo]prio/i.test(x));
+  return porLigar
+    ? `A loja fica em nomedaloja.${STORE_APEX} desde o primeiro dia. O domínio próprio está «Em breve» e ainda não está incluído na subscrição.`
+    : `A loja fica em nomedaloja.${STORE_APEX} desde o primeiro dia, e pode também ligar um domínio próprio.`;
+}
+
+/**
+ * Espelha `src/services/seo.ts:platformFaq` — é a alternativa do servidor para
+ * quando o pacote SSR não está disponível. Com o pacote, a pré-renderização usa
+ * o `platformFaq` dele, o mesmo que desenhou a secção visível.
+ */
+export function platformFaq(paymentsReady) {
+  const breve = platformComingSoon(paymentsReady);
+  const faq = [
+    {
+      question: "Preciso de saber programar?",
+      answer: "Não. A loja é personalizada num editor visual, por cima da própria página: logótipo, cores, textos, secções, categorias e produtos. Não há código para escrever nem nada para instalar.",
+    },
+    {
+      question: "Como crio uma loja online em Angola?",
+      answer: `Registe-se na MôBisno, escolha um modelo pronto, personalize os textos, as fotografias e as cores e adicione os seus produtos. A loja fica no endereço nomedaloja.${STORE_APEX}, sem precisar de conhecimentos técnicos.`,
+    },
+    {
+      question: "Já vendo pelo Instagram e pelo WhatsApp. Para que preciso de uma loja?",
+      answer: "Para o cliente escolher sozinho. Em vez de enviar fotografias uma a uma e repetir preços, envia um link com o catálogo inteiro, com preço, stock e variações. A encomenda chega-lhe ao WhatsApp escrita, a qualquer hora, mesmo quando não está a responder: produtos, variações, zona de entrega, desconto e total. E a loja é uma página que o Google indexa, o que um perfil de rede social não é.",
+    },
+    {
+      question: "Quanto custa?",
+      answer: `${platformPriceLabel()}, com tudo incluído. Há um só plano, sem escalões: lojas e produtos ilimitados. Criar a loja e vê-la é grátis; a subscrição serve para a publicar.`,
+    },
+    {
+      question: "A MôBisno fica com uma parte das minhas vendas?",
+      answer: `${platformFeeNote()} A fatura da venda é emitida pela sua empresa, não pela MôBisno.`,
+    },
+    {
+      question: "Que pagamentos posso receber?",
+      answer: paymentsReady === true
+        ? "Todas as lojas recebem encomendas por WhatsApp. O Multicaixa Express e a Referência Bancária ficam disponíveis para empresas registadas, depois de a MôBisno aprovar os documentos da empresa."
+        : "Todas as lojas recebem encomendas por WhatsApp. O Multicaixa Express e a Referência Bancária chegam em breve, para empresas registadas, depois de a MôBisno aprovar os documentos da empresa; até lá, as encomendas são feitas por WhatsApp.",
+    },
+    {
+      question: "E se eu não tiver empresa registada?",
+      answer: "Pode criar a loja, publicá-la e receber encomendas por WhatsApp, sem comissão nenhuma. São os pagamentos digitais que exigem empresa registada: a MôBisno pede a Matrícula e a Certidão e só liga o Multicaixa Express e a Referência Bancária depois de as aprovar.",
+    },
+    {
+      question: "Posso usar o meu domínio próprio?",
+      answer: platformAddressNote(),
+    },
+  ];
+  if (breve.length) {
+    faq.push({
+      question: "O que ainda não está disponível?",
+      answer: `Em breve: ${joinPt(breve.map((b) => `«${b}»`))}. Ainda não estão incluídos na subscrição.`,
+    });
+  }
+  return faq;
+}
+
+/** Espelha `src/services/seo.ts:directoryDescription`. */
+export function directoryDescription(total) {
+  const n = Number.isFinite(total) && total > 0 ? Math.floor(total) : 0;
+  const quantas = n === 1 ? "1 loja online angolana criada" : `${n} lojas online angolanas criadas`;
+  return truncate(`${quantas} com a MôBisno. Compre em Kwanzas, com encomendas por WhatsApp em todas as lojas.`, 160);
+}
+
+/* ------------------------- Verificação do Search Console ------------------------- */
+
+/**
+ * `<meta name="google-site-verification">` a partir da variável de ambiente
+ * `GOOGLE_SITE_VERIFICATION` (opcional, separada por vírgulas — uma por
+ * propriedade de prefixo de URL). Sai em todas as páginas pré-renderizadas. A
+ * verificação por DNS (propriedade de Domínio) dispensa isto.
+ */
+export function siteVerificationTags(raw) {
+  const tokens = [];
+  for (const t of String(raw ?? "").split(",")) {
+    const v = t.trim();
+    if (v && v.length <= 200 && !tokens.includes(v)) tokens.push(v);
+  }
+  return tokens.map((v) => `<meta name="google-site-verification" content="${esc(v)}" />`).join("\n    ");
 }
 
 /* --------------------------------- Meta tags -------------------------------- */
@@ -164,14 +486,15 @@ function priceValidUntil() {
  */
 export function metaTags({
   title, description, canonical, image, imageWidth, imageHeight, imageType,
-  type, siteName, noindex, jsonLd,
+  type, siteName, noindex, follow, jsonLd,
 }) {
   const t = esc(title);
   const d = esc(description);
   const img = image ? esc(image) : "";
   const tags = [
     `<meta name="description" content="${d}" />`,
-    `<meta name="robots" content="${noindex ? "noindex, nofollow" : "index, follow, max-image-preview:large, max-snippet:-1"}" />`,
+    // A mesma diretiva que a SPA escreve (`robotsContent` dos dois lados).
+    `<meta name="robots" content="${robotsContent({ noindex, follow })}" />`,
     `<link rel="canonical" href="${esc(canonical)}" />`,
     `<meta property="og:title" content="${t}" />`,
     `<meta property="og:description" content="${d}" />`,
@@ -210,7 +533,8 @@ export function breadcrumbJsonLd(items) {
   };
 }
 
-export function storeJsonLd({ storeName, url, logoUrl, description, address, telephone, priceRange }) {
+/** Espelha `src/services/seo.ts:storeJsonLd`. */
+export function storeJsonLd({ storeName, url, logoUrl, description, address, telephone, priceRange, sameAs, facts }) {
   const base = String(url).replace(/\/+$/, "");
   const node = {
     "@context": "https://schema.org",
@@ -218,14 +542,16 @@ export function storeJsonLd({ storeName, url, logoUrl, description, address, tel
     "@id": `${base}/#store`,
     name: storeName,
     url: `${base}/`,
-    description: storeDescription(storeName, description),
+    description: storeDescription(storeName, description, facts),
     currenciesAccepted: CURRENCY,
-    paymentAccepted: "Multicaixa Express, Referência Bancária, WhatsApp",
+    // Só o que a loja aceita de facto: os digitais exigem aprovação e fornecedor.
+    paymentAccepted: facts && facts.digitalPayments ? "Multicaixa Express, Referência Bancária, WhatsApp" : "WhatsApp",
     areaServed: { "@type": "Country", name: COUNTRY },
   };
   if (logoUrl) { node.image = logoUrl; node.logo = logoUrl; }
   if (telephone) node.telephone = telephone;
   if (priceRange) node.priceRange = priceRange;
+  if (sameAs && sameAs.length) node.sameAs = [...sameAs];
   if (address && (address.street || address.city)) {
     node.address = {
       "@type": "PostalAddress",
@@ -257,8 +583,12 @@ export function collectionJsonLd({ name, url, description, items }) {
   };
 }
 
+/**
+ * Espelha `src/services/seo.ts:productJsonLd` nos campos que o servidor emite
+ * (os portes só com o custo; sem política de devoluções, que o servidor não lê).
+ */
 export function productJsonLd({
-  name, description, image, price, url, storeName, sku, category, available, rating, shipping,
+  name, description, image, price, url, storeName, sku, category, available, rating, shipping, facts,
 }) {
   const offer = {
     "@type": "Offer",
@@ -281,7 +611,7 @@ export function productJsonLd({
     "@context": "https://schema.org",
     "@type": "Product",
     name,
-    description: productDescription({ name, description, storeName }),
+    description: productDescription({ name, description, storeName, facts }),
     brand: { "@type": "Brand", name: storeName },
     offers: offer,
   };
@@ -297,6 +627,7 @@ export function productJsonLd({
   return node;
 }
 
+/** Espelha `src/services/seo.ts:platformJsonLd`. */
 export function platformJsonLd(baseUrl) {
   const base = String(baseUrl).replace(/\/+$/, "");
   return [
@@ -307,6 +638,7 @@ export function platformJsonLd(baseUrl) {
       name: PLATFORM_NAME,
       url: `${base}/`,
       logo: `${base}/logo-header.png`,
+      description: platformDescription(),
       areaServed: { "@type": "Country", name: COUNTRY },
     },
     {
@@ -644,8 +976,9 @@ function topBar(storeName, logoUrl, homeHref) {
   return `<div class="mb-ssr-top"><a href="${esc(homeHref)}">${logo}<strong>${esc(storeName)}</strong></a></div>`;
 }
 
-function footer(storeName) {
-  return `<div class="mb-ssr-foot">${esc(storeName)} · Loja online em Angola · Pagamento por Multicaixa Express, Referência Bancária e WhatsApp · Criada com <a href="https://${PLATFORM_APEX}/">MôBisno</a></div>`;
+/** Rodapé do conteúdo `.mb-ssr`: diz só como se compra nesta loja (`howToBuy`). */
+function footer(storeName, facts) {
+  return `<div class="mb-ssr-foot">${esc(storeName)} · Loja online em Angola · ${esc(howToBuy(facts).replace(/\.$/, ""))} · Criada com <a href="https://${PLATFORM_APEX}/">MôBisno</a></div>`;
 }
 
 function productCards(products, base) {
@@ -717,7 +1050,7 @@ export function locationsHtml(custom) {
  * `custom` é a `customization` da Loja e é opcional: sem ela a página sai como
  * antes, apenas sem as localizações.
  */
-export function storeHomeHtml({ storeName, description, logoUrl, products, categories, base, brand, custom }) {
+export function storeHomeHtml({ storeName, description, logoUrl, products, categories, base, brand, custom, facts }) {
   const nav = categories.length
     ? `<nav class="mb-ssr-nav">${categories.map((c) => `<a href="${esc(base)}/categoria/${esc(categorySlug(c))}">${esc(c)}</a>`).join("")}</nav>`
     : "";
@@ -731,12 +1064,12 @@ export function storeHomeHtml({ storeName, description, logoUrl, products, categ
     ${nav}
     ${grid}
     ${locationsHtml(custom)}
-    ${footer(storeName)}
+    ${footer(storeName, facts)}
   </div>`;
 }
 
 /** Conteúdo de uma página de listagem (categoria ou todos os produtos). */
-export function categoryHtml({ storeName, category, description, logoUrl, products, base, brand, custom }) {
+export function categoryHtml({ storeName, category, description, logoUrl, products, base, brand, custom, facts }) {
   const grid = products.length
     ? `<ul class="mb-ssr-grid">${productCards(products, base)}</ul>`
     : `<p>Ainda não há produtos nesta categoria.</p>`;
@@ -746,7 +1079,7 @@ export function categoryHtml({ storeName, category, description, logoUrl, produc
     <h1>${esc(category)}</h1>
     <p>${esc(description)}</p>
     ${grid}
-    ${footer(storeName)}
+    ${footer(storeName, facts)}
   </div>`;
 }
 
@@ -756,7 +1089,7 @@ export function categoryHtml({ storeName, category, description, logoUrl, produc
  * `custom` é a `customization` da Loja e é opcional: sem ela a página sai como
  * antes, apenas sem o texto das Variação (R4.18).
  */
-export function productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom }) {
+export function productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom, facts }) {
   const img = product.image_url
     ? `<img src="${esc(product.image_url)}" alt="${esc(product.name)}" />`
     : "";
@@ -780,10 +1113,10 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
         ${stock}
         ${variationsText}
         <p>${esc(full || description)}</p>
-        <p>Entrega em Luanda e em todo o Angola. Pagamento por Multicaixa Express, Referência Bancária ou WhatsApp.</p>
+        <p>${esc(howToBuy(facts))}</p>
       </div>
     </div>
-    ${footer(storeName)}
+    ${footer(storeName, facts)}
   </div>`;
 }
 
@@ -791,11 +1124,14 @@ export function productHtml({ storeName, product, description, logoUrl, base, br
  * Conteúdo genérico para uma página da plataforma (mobisno.store).
  * `extraHtml` é HTML já construído (e já escapado) a acrescentar no fim — usado
  * pelo diretório de lojas para a grelha de ligações.
+ *
+ * Cada secção tem `items` (lista), `faq` (perguntas e respostas visíveis — as
+ * mesmas que o `FAQPage` declara) ou `text`.
  */
-export function platformHtml({ heading, intro, sections = [], links = [], extraHtml = "" }) {
+export function platformHtml({ heading, intro, sections = [], links = [], extraHtml = "", host }) {
   /**
-   * O cromo desta página aponta para o apex **em absoluto**, e não com caminhos
-   * relativos.
+   * O cromo desta página aponta para a plataforma **em absoluto**, e não com
+   * caminhos relativos.
    *
    * Não é preferência: esta função também desenha a página de «loja não
    * encontrada», que é servida a partir do subdomínio pedido
@@ -803,12 +1139,19 @@ export function platformHtml({ heading, intro, sections = [], links = [], extraH
    * `naoexiste.sualoja.digital/criar`, que não existe — quem tentava sair da
    * página de erro aterrava noutro erro. É o mesmo raciocínio de
    * `platformHomeUrl()` na SPA.
+   *
+   * A origem é a do pedido quando este é da plataforma (`www.` ou o apex) e o
+   * apex em qualquer outro caso (`platformOrigin`): numa loja, as ligações vão
+   * para a plataforma; na plataforma, não passam por um redirecionamento.
    */
-  const platform = `https://${PLATFORM_APEX}`;
+  const platform = platformOrigin(host);
   const secoes = sections.map((s) => {
-    const corpo = s.items
+    const corpo = s.faq
+      ? `<div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto text-left">${s.faq.map((f) =>
+          `<div class="rounded-2xl border border-gray-200 bg-white p-6"><h3 class="text-base font-bold text-gray-900">${esc(f.question)}</h3><p class="mt-2 text-sm text-gray-600 leading-relaxed">${esc(f.answer)}</p></div>`).join("")}</div>`
+      : s.items
       ? `<ul class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-3xl mx-auto text-left">${s.items.map((i) =>
-          `<li class="flex items-start gap-2.5 text-gray-700 text-sm"><span class="material-symbols-outlined text-[20px] shrink-0" style="color:${ACCENT_KZ}">check_circle</span> ${esc(i)}</li>`).join("")}</ul>`
+          `<li class="flex items-start gap-2.5 text-gray-700 text-sm"><span class="material-symbols-outlined text-[20px] shrink-0" style="color:${ACCENT_KZ}" aria-hidden="true">check_circle</span> ${esc(i)}</li>`).join("")}</ul>`
       : `<p class="mt-4 text-gray-600 max-w-3xl mx-auto">${esc(s.text ?? "")}</p>`;
     return `<section class="w-full border-t border-gray-100 py-14">
       <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center">
@@ -890,7 +1233,16 @@ export function ssrDataScript(data) {
   return `<script type="application/json" id="${SSR_DATA_ID}">${json}</script>`;
 }
 
-export function inject(shell, { title, tags, bodyHtml, lang, ssrData }) {
+/**
+ * Injeta o SEO e o conteúdo no shell da SPA.
+ *
+ * `bodyHtml` vai para dentro de `#app`. Quando vem do pacote dos modelos
+ * verdadeiros (`api/_ssr/render.mjs`), vem acompanhado de `appAttrs` — que leva
+ * `data-ssr`, a impressão digital do HTML — e de `headHtml`, as folhas de estilo
+ * do primeiro ecrã. É por `data-ssr` que a SPA reconhece o seu próprio HTML e
+ * **adota** o DOM que já está no ecrã em vez de o reescrever (`web/lib/dom.ts`).
+ */
+export function inject(shell, { title, tags, bodyHtml, lang, ssrData, appAttrs = "", headHtml = "" }) {
   let out = shell
     .replace(/\s*<meta\s+name="description"[^>]*>/gi, "")
     .replace(/\s*<meta\s+name="keywords"[^>]*>/gi, "")
@@ -903,12 +1255,13 @@ export function inject(shell, { title, tags, bodyHtml, lang, ssrData }) {
   out = out.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`);
   if (!/<title>/i.test(out)) out = out.replace(/<head>/i, `<head>\n    <title>${esc(title)}</title>`);
   if (lang) out = out.replace(/<html[^>]*lang="[^"]*"/i, `<html lang="${esc(lang)}"`);
-  out = out.replace(/<\/head>/i, `    ${tags}\n  </head>`);
+  const verificacao = siteVerificationTags(process.env.GOOGLE_SITE_VERIFICATION);
+  out = out.replace(/<\/head>/i, `    ${tags}${verificacao ? `\n    ${verificacao}` : ""}\n${headHtml ? `    ${headHtml}\n` : ""}  </head>`);
 
   const dentro = `${bodyHtml || ""}${ssrData ? ssrDataScript(ssrData) : ""}`;
-  if (dentro) {
-    out = out.replace(/<div id="app"[^>]*>\s*<\/div>/i, (m) =>
-      m.replace(/>\s*<\/div>$/, `>${dentro}</div>`));
+  if (dentro || appAttrs) {
+    out = out.replace(/<div id="app"([^>]*)>\s*<\/div>/i, (_m, attrs) =>
+      `<div id="app"${attrs}${appAttrs}>${dentro}</div>`);
   }
   return out;
 }

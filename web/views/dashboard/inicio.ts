@@ -1,0 +1,104 @@
+/**
+ * Separador «Início» do Dashboard do Dono.
+ *
+ * Responde a três perguntas, por esta ordem: a loja está no ar? Está a ter
+ * movimento? O que falta fazer? Por isso tem três cartões e mais nada — o estado
+ * da loja (com o botão de publicar), o funil de compra dos últimos 30 dias e os
+ * «Próximos passos», calculados a partir dos dados reais da loja.
+ *
+ * As vendas, o saldo e os levantamentos saíram daqui para o separador
+ * «Pagamentos»: só existem para as empresas aprovadas para pagamentos digitais,
+ * e no «Início» de toda a gente eram quatro cartões a zero.
+ */
+import { esc, go, toast, withBusy } from "../../lib/dom.js";
+import { assetRepository, getOwnerName, productRepository, setStoreState } from "../../composition.js";
+import { getCustomization } from "../../supabase/customization.js";
+import { getStoreAnalytics } from "../../supabase/analytics.js";
+import { getPaymentVerification } from "../../supabase/payments.js";
+import { canPublishStore } from "../../../src/services/billing.js";
+import type { DashCtx } from "./context.js";
+import { BTN_LINK, card, cardHead, icon } from "./ui.js";
+import { deliveryConfigured, funnelHtml, nextSteps, nextStepsHtml, storeStatusHtml, whatsappConfigured } from "./markup.js";
+import { copyText } from "./forms.js";
+
+export async function renderInicio(ctx: DashCtx): Promise<void> {
+  ctx.loading();
+  const { store, billing, ownerId } = ctx;
+  // Seis leituras independentes, numa onda só: o ecrã custa o tempo da mais lenta.
+  const [products, ownerName, analytics, custom, logo, verification] = await Promise.all([
+    productRepository.listByStore(store.id),
+    getOwnerName(ownerId),
+    getStoreAnalytics(store.id),
+    getCustomization(store.id),
+    assetRepository.findLogo(store.id),
+    getPaymentVerification(store.id),
+  ]);
+
+  const publicar = canPublishStore(billing);
+  const passos = nextSteps({
+    products: products.length,
+    hasLogo: logo !== null,
+    whatsappOk: whatsappConfigured(custom),
+    deliveryOk: deliveryConfigured(custom.delivery),
+    published: store.state === "Publicada",
+    accessActive: billing.accessActive,
+    verification: verification.status,
+  });
+  const primeiroNome = ownerName.trim().split(/\s+/)[0] || store.name;
+
+  const pintado = ctx.paint(`
+    <section class="mb-6">
+      <h2 class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 break-words">Olá, ${esc(primeiroNome)}</h2>
+      <p class="mt-1 text-gray-600">O resumo da loja <strong class="text-gray-900">${esc(store.name)}</strong>.</p>
+    </section>
+    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
+      <div class="xl:col-span-3 space-y-6 min-w-0">
+        ${storeStatusHtml({ state: store.state, billing, canPublish: publicar.allowed, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })}
+        ${card(`
+          ${cardHead({
+            icon: "filter_alt", title: "Funil de compra", subtitle: "Últimos 30 dias",
+            aside: `<a href="#/painel/analises" class="${BTN_LINK}">Ver análises ${icon("arrow_forward", "text-[16px]")}</a>`,
+          })}
+          <div class="mt-5">${funnelHtml({ visits: analytics.visits30, views: analytics.views30, carts: analytics.carts30, whatsapp: analytics.whatsapp30 })}</div>`)}
+      </div>
+      <div class="xl:col-span-2 min-w-0">
+        ${card(`${cardHead({ icon: "checklist", title: "Próximos passos", subtitle: "O que falta para a loja vender." })}${nextStepsHtml(passos)}`)}
+      </div>
+    </div>`);
+  if (!pintado) return;
+
+  document.getElementById("copy-url")?.addEventListener("click", async () => {
+    if (await copyText(ctx.storeUrl)) toast("Endereço copiado.");
+    else toast(`Copie o endereço à mão: ${ctx.storeUrl.replace(/^https?:\/\//, "")}`, "error");
+  });
+  const botao = document.getElementById("toggle-state") as HTMLButtonElement | null;
+  botao?.addEventListener("click", () => void mudarEstado(ctx, botao.dataset.next === "Publicada"));
+  document.querySelectorAll<HTMLButtonElement>("[data-step-publish]").forEach((b) =>
+    b.addEventListener("click", () => void mudarEstado(ctx, true)));
+}
+
+/**
+ * Publica ou despublica a loja.
+ *
+ * Publicar passa por `canPublishStore` antes de ir à base de dados: o gatilho
+ * `stores_publish_requires_plan` recusaria na mesma, mas com um erro do Postgres
+ * em vez de uma frase — e sem levar o Dono ao ecrã onde se resolve.
+ */
+async function mudarEstado(ctx: DashCtx, publicar: boolean): Promise<void> {
+  if (publicar) {
+    if (!canPublishStore(ctx.billing).allowed) {
+      toast("Ative a subscrição para publicar a loja.", "error");
+      go("#/painel/plano");
+      return;
+    }
+  } else if (!confirm("Despublicar a loja? Deixa de estar visível para os clientes até a voltar a publicar.")) {
+    return;
+  }
+  const ok = await withBusy(
+    () => setStoreState(ctx.ownerId, ctx.store.id, publicar ? "Publicada" : "Rascunho"),
+    publicar ? "A publicar…" : "A despublicar…",
+  );
+  if (!ok) { toast("Não foi possível mudar o estado da loja.", "error"); return; }
+  toast(publicar ? "Loja publicada." : "Loja despublicada.");
+  await ctx.reload();
+}

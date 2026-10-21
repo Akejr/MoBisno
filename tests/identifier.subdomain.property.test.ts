@@ -36,7 +36,8 @@ describe("IdentifierService — composição de subdomínio (propriedade)", () =
 
         const subdomain = toSubdomain(identifier);
 
-        // Composição determinística: exatamente identificador + ".mobisno.com".
+        // Composição determinística: exatamente identificador + SUBDOMAIN_SUFFIX
+        // (".mobisno.store", o domínio gravado em `stores.subdomain`).
         expect(subdomain).toBe(`${identifier}${SUBDOMAIN_SUFFIX}`);
 
         // Round trip: remover o sufixo devolve o identificador original.

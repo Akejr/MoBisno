@@ -22,11 +22,13 @@
  *
  * | Gerador | Testes que o consomem |
  * |---|---|
- * | `customizationArb` | Propriedade 1 (`paymentVisibility.property`), Propriedade 3 (`storeCustom.property`) |
+ * | `lojaPagamentosArb`, `fornecedorLigadoArb` | Propriedade 1 (`paymentVisibility.property`) |
+ * | `customizationArb` | Propriedade 3 (`storeCustom.property`) |
  * | `orderLineArb`, `orderLinesArb`, `orderExtrasArb` | Propriedade 4 (`cartMessage.property`) |
  * | `adminSnapshotArb`, `lojaModeloArb` | Propriedade 5 (`adminMetrics.property`) |
  * | `combinationArb`, `precoBaseArb`, `modoDePrecoArb` | Propriedade 2 (`variations.property`) |
  * | `variationsArb`, `variationsIncoerentesArb` | exemplos das Variação (`variations`) |
+ * | `perfilDaBaseDeDadosArb`, `instanteArb` | paridade da conta ativa (`planParity`) |
  */
 
 import fc from "fast-check";
@@ -73,7 +75,7 @@ const valorNaoStringArb: fc.Arbitrary<unknown> = fc.oneof(
 
 /**
  * Valores que não são booleanos, para pôr em campos que o código compara com
- * `=== true` (`payments.onlineEnabled`, `__demoPayments`).
+ * `=== true` (`stores.digital_payments`, `profiles.is_admin`).
  *
  * Os interessantes são os **truthy que não são `true`** (`"true"`, `1`, `{}`,
  * `[]`): é neles que uma comparação com coerção (`!!`) divergiria da comparação
@@ -82,7 +84,7 @@ const valorNaoStringArb: fc.Arbitrary<unknown> = fc.oneof(
 const valorNaoBooleanoArb: fc.Arbitrary<unknown> = fc.oneof(
   fc.constantFrom<unknown[]>("true", "false", "", "1", 1, 0, -1, null, undefined),
   fc.array(fc.boolean(), { maxLength: 2 }),
-  fc.record({ onlineEnabled: fc.boolean() }),
+  fc.record({ valor: fc.boolean() }),
 );
 
 /** Números de telefone plausíveis, tal como uma Loja real os grava. */
@@ -110,46 +112,10 @@ const campoTelefoneArb: fc.Arbitrary<unknown> = fc.oneof(
 // ---------------------------------------------------------------------------
 
 /**
- * `payments`: ausente (por `requiredKeys: []` no registo de topo), objeto com
- * `onlineEnabled` a `true`, a `false` ou de tipo errado, ou o próprio
- * `payments` de tipo errado.
- */
-const paymentsArb: fc.Arbitrary<unknown> = fc.oneof(
-  {
-    arbitrary: fc.record(
-      {
-        onlineEnabled: fc.oneof(
-          // `true` com peso extra: é o único valor que ativa a regra, e sem
-          // peso ficariam poucos casos ativos em 100 iterações.
-          { arbitrary: fc.constant(true), weight: 3 },
-          { arbitrary: fc.constant(false), weight: 2 },
-          { arbitrary: valorNaoBooleanoArb, weight: 3 },
-        ),
-        multicaixa: fc.boolean(),
-        reference: fc.boolean(),
-      },
-      { requiredKeys: [] },
-    ),
-    weight: 3,
-  },
-  { arbitrary: valorNaoStringArb, weight: 1 },
-);
-
-/**
- * `__demoPayments`: a marca de demonstração. Gera `true`, `false` e tipos
- * errados; a **ausência** vem de `requiredKeys: []`. Os três casos que a
- * Propriedade 1 precisa de distinguir.
- */
-const demoPaymentsArb: fc.Arbitrary<unknown> = fc.oneof(
-  fc.boolean(),
-  valorNaoBooleanoArb,
-);
-
-/**
- * `__basedOn` e `__template`: as duas marcas que a regra de pagamento **deixou
- * de ler**. Estão aqui precisamente para o teste confirmar que acrescentá-las
- * ou removê-las não muda nada. `__basedOn` é copiado para a Loja do cliente ao
- * aplicar um Modelo_De_Loja — é essa a origem da avaria que o R3 corrige.
+ * `__basedOn` e `__template`: as marcas de modelo. Nenhum módulo puro decide
+ * nada a partir delas — nem a leitura da Personalização (Propriedade 3) nem os
+ * pagamentos (Propriedade 1). Estão aqui como ruído realista: `__basedOn` é
+ * copiado para a Loja do cliente ao aplicar um Modelo_De_Loja.
  */
 const marcaDeModeloArb: fc.Arbitrary<unknown> = fc.oneof(
   fc.constantFrom("vermelho-moderno", "neonlab", "foodmart", "lumiere"),
@@ -212,11 +178,7 @@ const whatsappArb: fc.Arbitrary<unknown> = fc.oneof(
  * desde `{}` até uma Personalização com todos os campos preenchidos com
  * valores hostis. Casos cobertos, campo a campo:
  *
- *  - `payments` ausente, de tipo errado, ou com `onlineEnabled` a `true`, a
- *    `false` ou de tipo errado (`"true"`, `1`, `{}`, `[]`, `null`, `undefined`);
- *  - `__demoPayments` presente (`true`/`false`), ausente e de tipo errado;
- *  - `__basedOn` e `__template` presentes e ausentes — a regra de pagamento
- *    tem de ser insensível a ambos;
+ *  - `__basedOn` e `__template` presentes e ausentes, como ruído realista;
  *  - `footer.phone` e `whatsapp.phone` plausíveis, vazios, só com espaços e de
  *    tipo errado (número, objeto, array, `null`, `undefined`, booleano);
  *  - `productPerks` bem formada, malformada (entradas sem `icon`/`text`, com
@@ -229,8 +191,6 @@ const whatsappArb: fc.Arbitrary<unknown> = fc.oneof(
 export const customizationArb: fc.Arbitrary<Record<string, unknown>> = fc
   .record(
     {
-      payments: paymentsArb,
-      __demoPayments: demoPaymentsArb,
       __basedOn: marcaDeModeloArb,
       __template: marcaDeModeloArb,
       __v: fc.integer({ min: 0, max: 9 }),
@@ -370,9 +330,13 @@ const DIA_MS = 86_400_000;
  *    {@link MONTHS_IN_EVOLUTION} meses). Um instantâneo sem momento de
  *    referência próprio faria a Propriedade 5 depender do calendário do dia em
  *    que corre — passaria hoje e falharia sozinha num 1 de janeiro;
- *  - **as cinco coleções estão sempre presentes.** A ausência delas é
+ *  - **as quatro coleções estão sempre presentes.** A ausência delas é
  *    totalidade, coberta pelos exemplos da tarefa 12.6; o que a propriedade
- *    precisa é de dados a sério.
+ *    precisa é de dados a sério. (Os pedidos de verificação são derivados das
+ *    Lojas pelo próprio teste da Propriedade 5.)
+ *
+ * As contagens de Produtos por Loja saíram com a lista «Lojas sem Produtos»,
+ * que deixou de existir no Painel_Admin.
  */
 export interface AdminSnapshot extends AdminMetricsInput {
   readonly now: number;
@@ -380,7 +344,6 @@ export interface AdminSnapshot extends AdminMetricsInput {
   readonly stores: readonly StoreLike[];
   readonly withdrawals: readonly WithdrawalLike[];
   readonly transactions: readonly ServiceTxLike[];
-  readonly productCounts: ReadonlyMap<string, number>;
 }
 
 /**
@@ -640,7 +603,6 @@ const customizationDeLojaModeloArb: fc.Arbitrary<unknown> = fc.oneof(
       name: fc.constantFrom("Lumière Chic", "Ekolo Sports"),
     }),
     __v: fc.integer({ min: 1, max: 9 }),
-    __demoPayments: fc.constant(true),
   }),
   fc.record({ __template: fc.constant(true) }),
   fc.record({ __template: fc.constantFrom("lumiere", "foodmart") }),
@@ -756,7 +718,7 @@ function levantamentosArb(nowMs: number, lojas: readonly StoreLike[]): fc.Arbitr
 }
 
 /**
- * Transações de serviço, com identificadores `tx-<i>`.
+ * Pagamentos de subscrição (`plan_payments`), com identificadores `tx-<i>`.
  *
  * Correlações com as contas: `ownerId` aponta sobretudo para contas que
  * existem, uma fatia para uma **conta de Administrador** (excluída pelo R7.8) e
@@ -764,9 +726,10 @@ function levantamentosArb(nowMs: number, lojas: readonly StoreLike[]): fc.Arbitr
  *
  * `status` privilegia `paid`, o único que gera receita, e cobre os três estados
  * por resolver (`open`, `failed`, `expired`) mais `cancelled`. `service`
- * privilegia `plan`, o único que conta para a conversão de teste para pago;
- * `"PLAN"` e `" plan "` estão lá porque essa comparação **não** normaliza, ao
- * contrário da de `status`.
+ * privilegia `plan`, o único que conta para a receita. Os outros valores são de
+ * serviços que já não existem — linhas antigas que o módulo tem de ignorar sem
+ * as contar —, e `"PLAN"` e `" plan "` estão lá porque essa comparação **não**
+ * normaliza, ao contrário da de `status`.
  */
 function transacoesArb(nowMs: number, contas: readonly AccountLike[]): fc.Arbitrary<ServiceTxLike[]> {
   const idsDeContas = contas.map((conta) => conta.id);
@@ -777,10 +740,10 @@ function transacoesArb(nowMs: number, contas: readonly AccountLike[]): fc.Arbitr
   const transacaoArb = fc.record({
     service: fc.oneof(
       { arbitrary: fc.constant("plan"), weight: 5 },
-      { arbitrary: fc.constantFrom("sms", "logo"), weight: 3 },
+      { arbitrary: fc.constantFrom("servico-antigo", "outro"), weight: 3 },
       { arbitrary: fc.constantFrom<(string | null | undefined)[]>("PLAN", " plan ", null, undefined), weight: 1 },
     ),
-    description: fc.constantFrom("Plano Profissional", "Créditos de SMS", "Logótipo por IA", ""),
+    description: fc.constantFrom("Subscrição MôBisno (30 dias)", "Ativação manual", ""),
     ownerId: fc.oneof(
       { arbitrary: fc.constantFrom(...idsDeContas), weight: 6 },
       { arbitrary: donoAdminArb, weight: 3 },
@@ -808,44 +771,12 @@ function transacoesArb(nowMs: number, contas: readonly AccountLike[]): fc.Arbitr
 }
 
 /**
- * Contagens de Produtos por Loja, num `Map` **real** — o tipo é
- * `ReadonlyMap<string, number>` e o módulo chama `counts.get(...)`.
- *
- * Cada Loja do instantâneo cai numa de quatro categorias: ausente do `Map`,
- * zero, contagem positiva, ou contagem inválida (negativa, fracionária, `NaN`).
- * Ausente e zero são o mesmo para a lista «Lojas sem Produtos», e é isso que se
- * quer confirmar. Metade das amostras leva ainda uma entrada órfã, de uma Loja
- * que não está no instantâneo.
- */
-function contagensDeProdutosArb(lojas: readonly StoreLike[]): fc.Arbitrary<ReadonlyMap<string, number>> {
-  const total = lojas.length;
-  const contagemArb: fc.Arbitrary<number | null> = fc.oneof(
-    { arbitrary: fc.constant(null), weight: 3 },
-    { arbitrary: fc.constant(0), weight: 3 },
-    { arbitrary: fc.integer({ min: 1, max: 200 }), weight: 4 },
-    { arbitrary: fc.constantFrom(-2, 0.4, 3.7, Number.NaN), weight: 1 },
-  );
-
-  return fc
-    .tuple(fc.array(contagemArb, { minLength: total, maxLength: total }), fc.boolean())
-    .map(([contagens, comOrfa]) => {
-      const mapa = new Map<string, number>();
-      contagens.forEach((contagem, i) => {
-        const loja = lojas[i];
-        if (contagem !== null && loja !== undefined) mapa.set(loja.id, contagem);
-      });
-      if (comOrfa) mapa.set("loja-inexistente", 7);
-      return mapa;
-    });
-}
-
-/**
  * Instantâneo arbitrário do Painel_Admin, para a Propriedade 5.
  *
  * Gerado em cadeia a partir do **momento de referência**, e é essa a decisão
  * central deste gerador: `now` fica dentro do próprio instantâneo e todas as
  * datas são calculadas a partir dele — datas de pagamento dentro e fora do mês
- * corrente, fins de teste dentro e fora da janela de
+ * corrente, fins de subscrição dentro e fora da janela de
  * {@link ATTENTION_WINDOW_DAYS} dias, datas de criação espalhadas pelos
  * {@link MONTHS_IN_EVOLUTION} meses da evolução e mais antigas. Sem isto, as
  * métricas dependeriam do calendário do dia em que o teste corre.
@@ -865,15 +796,13 @@ export const adminSnapshotArb: fc.Arbitrary<AdminSnapshot> = fc
           .record({
             withdrawals: levantamentosArb(now, stores),
             transactions: transacoesArb(now, accounts),
-            productCounts: contagensDeProdutosArb(stores),
           })
-          .map(({ withdrawals, transactions, productCounts }) => ({
+          .map(({ withdrawals, transactions }) => ({
             now,
             accounts,
             stores,
             withdrawals,
             transactions,
-            productCounts,
           })),
       ),
     ),
@@ -1191,3 +1120,139 @@ export const variationsIncoerentesArb: fc.Arbitrary<ProductVariations> = fc
     }
     return { ...v, combinations };
   });
+
+// ---------------------------------------------------------------------------
+// Pagamentos digitais (`src/services/paymentVisibility.ts`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Valor de `stores.digital_payments` tal como pode chegar ao navegador: o
+ * booleano (a coluna é `boolean not null`) e os tipos errados que um mapeador
+ * descuidado produziria. `true` tem peso próprio: é o único valor que liga a
+ * regra, e sem peso ficariam poucos casos ativos em 100 iterações.
+ */
+const digitalPaymentsArb: fc.Arbitrary<unknown> = fc.oneof(
+  { arbitrary: fc.constant(true), weight: 4 },
+  { arbitrary: fc.constant(false), weight: 2 },
+  { arbitrary: valorNaoBooleanoArb, weight: 3 },
+);
+
+/**
+ * Personalização de uma Loja antiga, com as marcas que **decidiam** os
+ * pagamentos digitais e deixaram de decidir: o espelho `payments.onlineEnabled`
+ * (que o próprio Dono escrevia), a marca de demonstração `__demoPayments` e as
+ * marcas de modelo. Continuam gravadas em Lojas antigas; estão aqui só para a
+ * Propriedade 1 provar que a regra as ignora — com `true` em peso, que é o
+ * valor que as ligava.
+ */
+const personalizacaoAntigaArb: fc.Arbitrary<unknown> = fc.oneof(
+  {
+    arbitrary: fc.record(
+      {
+        payments: fc.record(
+          { onlineEnabled: fc.oneof(fc.constant(true), valorNaoBooleanoArb) },
+          { requiredKeys: [] },
+        ),
+        __demoPayments: fc.oneof(fc.constant(true), valorNaoBooleanoArb),
+        __basedOn: marcaDeModeloArb,
+        __template: marcaDeModeloArb,
+      },
+      { requiredKeys: [] },
+    ),
+    weight: 4,
+  },
+  { arbitrary: valorNaoStringArb, weight: 1 },
+);
+
+/**
+ * Loja arbitrária para a decisão de visibilidade dos pagamentos digitais.
+ *
+ * Três formas, porque a função é **total** e diz que aceita qualquer valor:
+ *
+ *  - uma Loja com `digitalPayments` em todos os valores de
+ *    {@link digitalPaymentsArb} (ou ausente) e Personalização antiga;
+ *  - valores que nem são Lojas (`null`, `undefined`, números, texto, listas);
+ *  - qualquer coisa (`fc.anything()`), para a totalidade não depender da
+ *    imaginação de quem escreveu o gerador.
+ */
+export const lojaPagamentosArb: fc.Arbitrary<unknown> = fc.oneof(
+  {
+    arbitrary: fc.record(
+      {
+        id: fc.constantFrom("loja-1", "loja-2"),
+        identifier: fc.constantFrom("ekolo", "lumiere-chic", "modelo-galeria"),
+        state: fc.constantFrom("Publicada", "Rascunho"),
+        digitalPayments: digitalPaymentsArb,
+        customization: personalizacaoAntigaArb,
+      },
+      { requiredKeys: [] },
+    ),
+    weight: 8,
+  },
+  { arbitrary: fc.constantFrom<unknown[]>(null, undefined, 0, 1, "", "loja", true, false, []), weight: 1 },
+  { arbitrary: fc.anything(), weight: 1 },
+);
+
+/**
+ * Estado do fornecedor de pagamentos: o booleano e, com menos peso, valores
+ * que só por coerção seriam «ligado».
+ */
+export const fornecedorLigadoArb: fc.Arbitrary<unknown> = fc.oneof(
+  { arbitrary: fc.boolean(), weight: 4 },
+  { arbitrary: valorNaoBooleanoArb, weight: 1 },
+);
+
+// ---------------------------------------------------------------------------
+// Perfis da base de dados (`accountActive` de `api/_shared.js`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Momento de referência: os instantes fixos de {@link MOMENTOS_DE_REFERENCIA}
+ * (fronteiras de mês e de ano) e um instante qualquer entre 2024 e 2030.
+ */
+export const instanteArb: fc.Arbitrary<number> = fc.oneof(
+  fc.constantFrom(...MOMENTOS_DE_REFERENCIA),
+  fc.integer({ min: Date.UTC(2024, 0, 1), max: Date.UTC(2030, 0, 1) }),
+);
+
+/** Linha de `profiles` tal como as funções serverless a leem. */
+export interface PerfilDaBaseDeDados {
+  readonly is_admin?: unknown;
+  readonly plan_expires_at?: unknown;
+}
+
+/**
+ * Linha de `profiles` com valores hostis, para comparar o espelho do servidor
+ * (`accountActive`) com a fonte de verdade (`resolveBilling`).
+ *
+ *  - `is_admin`: o booleano e tipos errados que só por coerção dariam `true`;
+ *  - `plan_expires_at`: ao milissegundo da fronteira (−1, 0, +1 ms), longe dela
+ *    para os dois lados, noutro formato que o `Date.parse` aceita, como número,
+ *    ausente, vazia e ilegível.
+ *
+ * Os dois campos podem faltar (`requiredKeys: []`): uma coluna que não veio no
+ * `select` chega como `undefined`.
+ */
+export function perfilDaBaseDeDadosArb(nowMs: number): fc.Arbitrary<PerfilDaBaseDeDados> {
+  const desvioArb = fc.oneof(
+    { arbitrary: fc.constantFrom(-1, 0, 1), weight: 2 },
+    { arbitrary: fc.integer({ min: -400 * DIA_MS, max: 400 * DIA_MS }), weight: 5 },
+  );
+  const dataArb: fc.Arbitrary<unknown> = fc.oneof(
+    { arbitrary: desvioArb.map((d) => iso(nowMs + d)), weight: 6 },
+    { arbitrary: desvioArb.map((d) => new Date(nowMs + d).toUTCString()), weight: 1 },
+    { arbitrary: desvioArb.map((d) => nowMs + d), weight: 1 },
+    { arbitrary: fc.constantFrom<unknown[]>(null, undefined, "", "   "), weight: 2 },
+    { arbitrary: dataInvalidaArb, weight: 2 },
+  );
+  return fc.record(
+    {
+      is_admin: fc.oneof(
+        { arbitrary: fc.boolean(), weight: 4 },
+        { arbitrary: valorNaoBooleanoArb, weight: 2 },
+      ),
+      plan_expires_at: dataArb,
+    },
+    { requiredKeys: [] },
+  );
+}

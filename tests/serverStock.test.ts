@@ -34,9 +34,9 @@
  * ## Como se chega ao módulo
  *
  * `api/_shared.js` importa o cliente do Supabase, por isso não pode ser
- * importado estaticamente aqui. Usa-se o contorno de `tests/logoApi.test.ts`:
- * `await import()` com o especificador numa **constante**, o que impede o `tsc`
- * de seguir o import. O `db` é falso, com a forma que o módulo toca:
+ * importado estaticamente aqui. Usa-se o contorno habitual dos testes de
+ * `api/` (também em `tests/serverOrder.test.ts`): `await import()` com o
+ * especificador numa **constante**, o que impede o `tsc` de seguir o import. O `db` é falso, com a forma que o módulo toca:
  * `from().select().in()`, `from().select().eq().maybeSingle()` e
  * `from().update().eq()`.
  */
@@ -63,6 +63,7 @@ interface ApiShared {
   checkStock(db: unknown, products: readonly Linha[], storeId?: string): Promise<string | null>;
   decrementStock(db: unknown, products: readonly Linha[], storeId?: string): Promise<void>;
   cleanProducts(products: readonly Linha[]): Linha[];
+  providerProducts(products: readonly Linha[]): Linha[];
   isValidProduct(p: Linha): boolean;
   combinationStockOf(custom: unknown, productId: string, variantKey: unknown): number | undefined;
   variantKeyOfValues(values: unknown): string;
@@ -70,7 +71,7 @@ interface ApiShared {
 }
 
 const {
-  checkStock, decrementStock, cleanProducts, isValidProduct,
+  checkStock, decrementStock, cleanProducts, providerProducts, isValidProduct,
   combinationStockOf, variantKeyOfValues, asVariantKey,
 } = (await import(ESPECIFICADOR_SHARED)) as unknown as ApiShared;
 
@@ -387,10 +388,19 @@ describe("cleanProducts / isValidProduct — `variantKey` aceita e preservada", 
   it("preserva a `variantKey` quando é texto com conteúdo", async () => {
     const [limpo] = cleanProducts([{ ...linha(2, AZUL_M), iva: 14 }]);
 
+    // Só os campos do contrato da linha. O `iva` era da API MoMenu, que saiu:
+    // `cleanProducts` já não copia campos que não conhece.
     expect(limpo).toEqual({
       id: PID, productName: "Ténis Runner", productPrice: 45000, productQuantity: 2,
-      iva: 14, variantKey: AZUL_M,
+      variantKey: AZUL_M,
     });
+  });
+
+  it("providerProducts tira a `variantKey` do que segue para o fornecedor, e só ela", async () => {
+    // A Combinação é interna à Plataforma (stock); fica em `orders.products`.
+    const [paraFornecedor] = providerProducts([{ ...linha(2, AZUL_M), iva: 14 }]);
+
+    expect(paraFornecedor).toEqual({ id: PID, productName: "Ténis Runner", productPrice: 45000, productQuantity: 2, iva: 14 });
   });
 
   it("omite a `variantKey` ausente, vazia ou de tipo errado, sem invalidar a linha", async () => {

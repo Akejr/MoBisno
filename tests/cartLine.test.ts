@@ -20,7 +20,10 @@
  * separador, e o que precisa de ser guardado são os valores literais das chaves.
  */
 import { describe, it, expect } from "vitest";
-import { cartLineKey, type CartLineIdentity } from "../src/services/cartLine.js";
+import {
+  cartLineKey, orderRequestLines, usableVariantKey, exceedsOrderLimits, MAX_LINE_QUANTITY, MAX_ORDER_LINES,
+  type CartLineIdentity,
+} from "../src/services/cartLine.js";
 
 /**
  * Separador dos valores **dentro** de uma `variantKey`, produzido por
@@ -153,5 +156,65 @@ describe('cartLineKey — limite documentado: `productId` sem `"|"`', () => {
     expect(cartLineKey({ productId: "a|b" })).not.toBe(
       cartLineKey({ productId: "a", variantKey: "b" }),
     );
+  });
+});
+
+describe("orderRequestLines — as linhas que o checkout pede ao servidor", () => {
+  // O navegador deixou de dizer preços: `/api/payment` recebe só o Produto, a
+  // Combinação e a quantidade, e calcula o montante a partir da base de dados.
+  // A paridade com `requestedLines` do servidor está em `tests/serverOrder.test.ts`.
+
+  it("leva o id, a Combinação e a quantidade — e nunca o preço nem o nome", () => {
+    const linhas = orderRequestLines([
+      { productId: "p1", variantKey: AZUL_M, quantity: 2 },
+      { productId: "p2", quantity: 1 },
+    ]);
+
+    expect(linhas).toEqual([
+      { id: "p1", variantKey: AZUL_M, quantity: 2 },
+      { id: "p2", quantity: 1 },
+    ]);
+    expect(Object.keys(linhas[1]!)).toEqual(["id", "quantity"]);
+  });
+
+  it("um item legado, ou com a `variantKey` manipulada, segue sem Combinação", () => {
+    // A mesma regra de `lineKeyOf`: só texto com conteúdo conta.
+    for (const crua of [undefined, "", null, 7, {}, []]) {
+      const [linha] = orderRequestLines([{ productId: "p1", variantKey: crua, quantity: 1 }]);
+      expect(linha, JSON.stringify(crua)).toEqual({ id: "p1", quantity: 1 });
+      expect(linha, JSON.stringify(crua)).not.toHaveProperty("variantKey");
+    }
+    expect(usableVariantKey(AZUL_M)).toBe(AZUL_M);
+  });
+
+  it("soma as linhas da mesma Combinação e separa Combinação diferentes", () => {
+    expect(orderRequestLines([
+      { productId: "p1", variantKey: AZUL_M, quantity: 2 },
+      { productId: "p1", variantKey: AZUL_L, quantity: 1 },
+      { productId: "p1", variantKey: AZUL_M, quantity: 3 },
+      { productId: "p1", quantity: 1 },
+    ])).toEqual([
+      { id: "p1", variantKey: AZUL_M, quantity: 5 },
+      { id: "p1", variantKey: AZUL_L, quantity: 1 },
+      { id: "p1", quantity: 1 },
+    ]);
+  });
+
+  it("descarta linhas sem id ou com quantidade que não seja inteira positiva", () => {
+    expect(orderRequestLines([
+      { productId: "", quantity: 1 },
+      { productId: "p1", quantity: 0 },
+      { productId: "p1", quantity: 1.5 },
+      { productId: "p1", quantity: -2 },
+      { productId: " p2 ", quantity: 1 },
+    ])).toEqual([{ id: "p2", quantity: 1 }]);
+  });
+
+  it("exceedsOrderLimits: o servidor cortaria em silêncio, o checkout recusa antes", () => {
+    expect(exceedsOrderLimits([{ id: "p1", quantity: MAX_LINE_QUANTITY }])).toBe(false);
+    expect(exceedsOrderLimits([{ id: "p1", quantity: MAX_LINE_QUANTITY + 1 }])).toBe(true);
+    const muitas = Array.from({ length: MAX_ORDER_LINES + 1 }, (_, i) => ({ id: `p${i}`, quantity: 1 }));
+    expect(exceedsOrderLimits(muitas)).toBe(true);
+    expect(exceedsOrderLimits(muitas.slice(1))).toBe(false);
   });
 });

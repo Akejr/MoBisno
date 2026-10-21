@@ -16,7 +16,7 @@ import { renderStore, type StoreViewModel } from "../../src/storefront/storeRend
 import type { StorefrontResult } from "../../src/services/storefrontResolver.js";
 import { BANNER_POLICY, LOGO_POLICY } from "../../src/services/fileService.js";
 import { getTemplate } from "../templates/registry.js";
-import { newBlock } from "../templates/blocks.js";
+import { sectionMenu, newBlockFor, BLOCK_LABELS, sectionBackgrounds, materializeForEditing } from "../templates/sectionRules.js";
 import {
   testimonialsByVariant, TESTIMONIAL_VARIANTS,
   infoByVariant, INFO_VARIANTS,
@@ -39,28 +39,17 @@ import { openMapPicker } from "../lib/mapPicker.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
 import { mountTestimonials } from "../lib/testimonialsCarousel.js";
-import { mountFoodmartCarousels } from "../lib/foodmartCarousel.js";
-import { foodmartDefaultFeatures } from "../templates/foodmart.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
+import { loadPreviewDoc, previewHeadHtml, inertEmbedsHtml } from "../lib/storePreviewDoc.js";
 import { resolveLocations, type StorePlace } from "../../src/services/locations.js";
-import type { StoreCustomization, ContentBlock } from "../templates/types.js";
+import { safeCssColor } from "../../src/services/storeCustom.js";
+import { digitalPaymentsVisible } from "../../src/services/paymentVisibility.js";
+import type { StoreCustomization, ContentBlock, BlockType } from "../templates/types.js";
 import type { Store, Product } from "../../src/models/index.js";
 import { openProductForm } from "../lib/productForm.js";
 import { openWhatsappForm } from "../lib/whatsappForm.js";
 
 const ACCENT = "#F95901";
-
-/** Galeria alargada de ícones para categorias (Material Symbols). */
-const FM_CATEGORY_ICONS = [
-  "nutrition", "grocery", "bakery_dining", "local_bar", "wine_bar", "liquor",
-  "egg", "egg_alt", "icecream", "cake", "local_pizza", "lunch_dining",
-  "ramen_dining", "restaurant", "coffee", "emoji_food_beverage", "local_cafe", "water_drop",
-  "kitchen", "blender", "set_meal", "kebab_dining", "rice_bowl", "bento",
-  "fastfood", "local_drink", "sports_bar", "tapas", "soup_kitchen", "dinner_dining",
-  "spa", "eco", "agriculture", "park", "yard", "grass",
-  "pets", "cruelty_free", "medication", "cleaning_services", "soap", "sanitizer",
-  "shopping_basket", "shopping_cart", "storefront", "redeem", "checkroom", "toys",
-];
 
 /** Ícones predefinidos para as garantias da página de produto. */
 const PERK_ICON_CHOICES = [
@@ -168,19 +157,23 @@ export async function renderEditor(): Promise<void> {
   const backHref = appState.editorReturn ?? "/painel";
 
   const custom: StoreCustomization = await getCustomization(store.id);
-  // FoodMart: materializa a faixa de garantias para ficar 100% editável (ícone,
-  // textos e cor). Feito ANTES da baseline para não marcar alterações por si só.
-  if (store.templateId === "foodmart") {
-    if (!custom.foodmart) custom.foodmart = {};
-    if (!custom.foodmart.features || !custom.foodmart.features.length) {
-      custom.foodmart.features = foodmartDefaultFeatures();
-    }
-  }
+  /**
+   * O modelo desta loja. Tudo o que o editor faz de diferente por modelo vem da
+   * **declaração** dele (`StoreTemplate.sections`, lida por `sectionRules.ts`):
+   * o que se pode acrescentar, com que desenho, que cores de fundo, o que se
+   * materializa. Nunca de comparar `store.templateId` com um identificador
+   * escrito aqui — uma condição dessas deixa de disparar em silêncio no dia em
+   * que o modelo muda de nome ou sai do registo (`MODELO-GUIA.md` §9.3).
+   */
+  const tpl = getTemplate(store.templateId);
   // Blocos de localização: materializa a lista `places` (R5.1, `MODELO-GUIA.md`
-  // §6.1). Também ANTES da baseline — escreve o que a Loja já mostrava, pelo que
-  // abrir o editor numa Loja gravada no formato de localização única não marca
+  // §6.1). ANTES da baseline — escreve o que a Loja já mostrava, pelo que abrir
+  // o editor numa Loja gravada no formato de localização única não marca
   // alterações.
   materializeBlockPlaces(custom);
+  // Arrays com fallback próprios do modelo (ex.: as quatro marcas do Tech
+  // Essentials). Também ANTES da baseline, pela mesma razão.
+  materializeForEditing(tpl, custom);
   /** Loja baseada num modelo pronto: edição estrutural bloqueada (só textos/fotos/cores). */
   const locked = custom.__locked === true;
   /**
@@ -196,20 +189,13 @@ export async function renderEditor(): Promise<void> {
   let productsById = new Map<string, Product>();
 
   /**
-   * Paleta de cores de fundo para as secções, com as cores JÁ EXISTENTES em
-   * cada modelo (para manter a UI coerente). "Padrão" = sem fundo.
+   * Paleta de cores de fundo para as secções: «Padrão» (sem fundo), «Branco» e
+   * as cores que o **modelo declara** (`sections.backgrounds`) — as que ele já
+   * usa. Estava num mapa por `templateId` aqui, e o modelo que lá faltava
+   * recebia o creme de outro.
    */
   function sectionBgChoices(): { label: string; value: string }[] {
-    const byModel: Record<string, { label: string; value: string }[]> = {
-      lumiere: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
-      beauty: [{ label: "Creme", value: "#fcf9f8" }, { label: "Areia", value: "#f6f3f2" }],
-      galeria: [{ label: "Cinza claro", value: "#f9fafb" }, { label: "Cinza", value: "#f3f4f6" }],
-      desportivo: [{ label: "Cinza claro", value: "#f5f5f5" }, { label: "Escuro", value: "#171717" }],
-      // Neon Lab: fundo branco por omissão, com opções escuras (preto/carvão).
-      neonlab: [{ label: "Preto", value: "#121317" }, { label: "Carvão", value: "#1a1b1f" }, { label: "Cartão", value: "#1C1C1E" }],
-    };
-    const surfaces = byModel[store!.templateId] ?? [{ label: "Claro", value: "#f6f3f2" }];
-    return [{ label: "Padrão", value: "" }, { label: "Branco", value: "#ffffff" }, ...surfaces];
+    return sectionBackgrounds(tpl);
   }
 
   /** Categorias distintas existentes (para o formulário de produto). */
@@ -222,7 +208,13 @@ export async function renderEditor(): Promise<void> {
   }
 
   const storeUrl = publicStoreUrl(store.identifier);
-  const defaultColor = getTemplate(store.templateId).defaultBrand ?? "#DC2626";
+  const defaultColor = tpl.defaultBrand ?? "#DC2626";
+  /**
+   * Cor de marca da loja, pronta a entrar em CSS. O JSON é editável à mão (e o
+   * Administrador abre o editor das lojas dos outros): uma «cor» que não é cor
+   * fica pela cor do modelo (`safeCssColor`).
+   */
+  const brandColor = (): string => safeCssColor(custom.colors?.primary, defaultColor);
 
   // --- Histórico para "Desfazer" (apenas a personalização editável) ---
   const history: string[] = [];
@@ -230,6 +222,8 @@ export async function renderEditor(): Promise<void> {
   let lastView: StoreViewModel | null = null;
   let arcTarget: number | "add" = "add";
   let blockImgTarget = 0;
+  /** Qual das quatro marcas do Tech Essentials está a receber logótipo. */
+  let techBrandTarget = 0;
   let testiTarget: { i: number; j: number } = { i: 0, j: 0 };
   function snapshot(): void {
     const json = JSON.stringify(custom);
@@ -242,7 +236,7 @@ export async function renderEditor(): Promise<void> {
     Object.assign(custom, parsed);
   }
   function syncColorUI(): void {
-    const value = custom.colors?.primary ?? defaultColor;
+    const value = brandColor();
     const ci = $("#color") as HTMLInputElement | null; if (ci) ci.value = value;
     const dot = $("#color-dot"); if (dot) dot.style.background = value;
   }
@@ -277,17 +271,17 @@ export async function renderEditor(): Promise<void> {
         </div>
         <div class="flex items-center gap-1 md:gap-2">
           <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor de destaque">
-            <span class="w-6 h-6 rounded-full border border-gray-200" id="color-dot" style="background:${esc(custom.colors?.primary ?? defaultColor)}"></span>
+            <span class="w-6 h-6 rounded-full border border-gray-200" id="color-dot" style="background:${esc(brandColor())}"></span>
             <span class="hidden sm:inline">Cor</span>
             <input id="color" type="color" value="${esc(custom.colors?.primary ?? defaultColor)}" class="absolute inset-0 opacity-0 cursor-pointer" />
           </label>
           <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor dos textos">
-            <span class="w-6 h-6 rounded-full border border-gray-200" id="ink-dot" style="background:${esc(custom.colors?.text ?? "#111827")}"></span>
+            <span class="w-6 h-6 rounded-full border border-gray-200" id="ink-dot" style="background:${esc(safeCssColor(custom.colors?.text, "#111827"))}"></span>
             <span class="hidden sm:inline">Texto</span>
             <input id="ink" type="color" value="${esc(custom.colors?.text ?? "#111827")}" class="absolute inset-0 opacity-0 cursor-pointer" />
           </label>
           <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor dos ícones">
-            <span class="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center" id="icon-dot" style="color:${esc(custom.colors?.icon ?? custom.colors?.text ?? "#111827")}"><span class="material-symbols-outlined text-[16px]">star</span></span>
+            <span class="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center" id="icon-dot" style="color:${esc(safeCssColor(custom.colors?.icon ?? custom.colors?.text, "#111827"))}"><span class="material-symbols-outlined text-[16px]">star</span></span>
             <span class="hidden sm:inline">Ícones</span>
             <input id="icon-color" type="color" value="${esc(custom.colors?.icon ?? custom.colors?.text ?? "#111827")}" class="absolute inset-0 opacity-0 cursor-pointer" />
           </label>
@@ -313,6 +307,7 @@ export async function renderEditor(): Promise<void> {
     <input id="block-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="testi-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
     <input id="footer-logo-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
+    <input id="tech-brand-input" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
     <div id="mb-text-tools" class="fixed left-1/2 -translate-x-1/2 bottom-5 z-[70] hidden items-center gap-3 bg-neutral-900 text-white rounded-full shadow-2xl px-4 py-2.5">
       <span class="text-xs font-medium">Cor deste texto</span>
       <label class="relative w-7 h-7 rounded-full border-2 border-white/30 cursor-pointer overflow-hidden block" title="Escolher cor">
@@ -368,7 +363,7 @@ export async function renderEditor(): Promise<void> {
   </style>`);
 
   function bind(preview: HTMLElement): void {
-    preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
+    preview.style.setProperty("--brand", brandColor());
     applyInk(preview, custom);
     applyTheme(preview, custom);
     applyFieldColors(preview, custom);
@@ -692,7 +687,8 @@ export async function renderEditor(): Promise<void> {
       if (blk.dataset.blockType === "location") mountLocationEditor(blk, i);
     });
 
-    // Cor de fundo da secção de produtos (modelos que a suportam, ex.: Neon Lab).
+    // Cor de fundo da secção de produtos, nos modelos que marquem a secção com
+    // `data-edit-products-bg` (hoje nenhum dos registados o faz).
     const prodBgHost = preview.querySelector<HTMLElement>("[data-edit-products-bg]");
     if (prodBgHost) {
       prodBgHost.style.position = prodBgHost.style.position || "relative";
@@ -724,153 +720,6 @@ export async function renderEditor(): Promise<void> {
       });
       prodBgHost.appendChild(btn);
       prodBgHost.appendChild(pop);
-    }
-
-    // FoodMart: escolher o ícone de cada categoria (galeria de ícones).
-    preview.querySelectorAll<HTMLElement>("[data-fm-cat]").forEach((cell) => {
-      const cat = cell.dataset.fmCat!;
-      cell.style.position = cell.style.position || "relative";
-      const cur = custom.categoryIcons?.[cat] ?? "";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.title = "Escolher ícone";
-      btn.className = "mb-ov-btn absolute top-2 right-2 z-20 w-7 h-7 rounded-full bg-white shadow border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900";
-      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit</span>`;
-      const pop = document.createElement("div");
-      pop.className = "mb-ov-btn absolute z-30 hidden top-10 right-2 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 grid grid-cols-6 gap-1 w-64 max-h-64 overflow-y-auto";
-      pop.innerHTML = FM_CATEGORY_ICONS
-        .map((ic) => `<button type="button" data-ic="${ic}" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-neutral-100 ${ic === cur ? "ring-2 ring-[#F95901]" : ""}" style="color:#333"><span class="material-symbols-outlined text-[20px]">${ic}</span></button>`)
-        .join("");
-      btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
-      pop.querySelectorAll<HTMLElement>("[data-ic]").forEach((b) =>
-        b.addEventListener("click", (e) => {
-          e.preventDefault();
-          snapshot();
-          if (!custom.categoryIcons) custom.categoryIcons = {};
-          custom.categoryIcons[cat] = b.dataset.ic!;
-          void rebuild();
-        }));
-      cell.appendChild(btn);
-      cell.appendChild(pop);
-    });
-
-    // ---- FoodMart: cartões de anúncio, faixa promo e garantias ----
-    if (store!.templateId === "foodmart") {
-      const FM_CARD_BGS = ["#eaf5ea", "#fdeaea", "#eef1f3", "#fff4e0", "#e8f0fe", "#f3e8ff", "#fde8f3", "#e0f7f4", "#f5f5f5", "#ffffff"];
-      const FM_TAG_BGS = ["#dc3545", "#3fb95a", "#FFC43F", "#6995B1", "#f97316", "#8b5cf6", "#0ea5e9", "#111827"];
-      const FM_CTA_ICONS = ["arrow_forward", "shopping_cart", "local_mall", "bolt", "redeem", "sell", "trending_flat", "chevron_right"];
-      const FM_ICON_COLORS = [ACCENT, "#222222", "#6995B1", "#3fb95a", "#dc3545", "#f97316", "#8b5cf6", "#0ea5e9"];
-
-      /** Popover de controlos, aberto por um botão "tune" (lado direito ou esquerdo). */
-      const fmTune = (host: HTMLElement, build: (pop: HTMLElement) => void, side: "right" | "left" = "right"): void => {
-        host.style.position = host.style.position || "relative";
-        const pos = side === "left" ? "top-2 left-2" : "top-2 right-2";
-        const popPos = side === "left" ? "top-11 left-2" : "top-11 right-2";
-        const btn = document.createElement("button");
-        btn.type = "button"; btn.title = "Editar";
-        btn.className = `mb-ov-btn absolute ${pos} z-30 w-8 h-8 rounded-full bg-white shadow border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900`;
-        btn.innerHTML = `<span class="material-symbols-outlined text-[16px]">tune</span>`;
-        const pop = document.createElement("div");
-        pop.className = `mb-ov-btn absolute z-40 hidden ${popPos} bg-white border border-neutral-200 rounded-xl shadow-xl p-3 w-64 text-left space-y-3 normal-case tracking-normal`;
-        build(pop);
-        btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
-        host.appendChild(btn); host.appendChild(pop);
-      };
-
-      const swatchRow = (pop: HTMLElement, label: string, colors: string[], current: string | undefined, onPick: (c: string) => void): void => {
-        const wrap = document.createElement("div");
-        wrap.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1">${esc(label)}</p><div class="flex flex-wrap gap-1.5"></div>`;
-        const row = wrap.querySelector("div")!;
-        colors.forEach((c) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = `w-7 h-7 rounded-lg border ${c === current ? "ring-2 ring-[#F95901]" : "border-neutral-200"}`;
-          b.style.background = c;
-          b.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onPick(c); void rebuild(); });
-          row.appendChild(b);
-        });
-        pop.appendChild(wrap);
-      };
-
-      const iconRow = (pop: HTMLElement, label: string, icons: string[], current: string | undefined, onPick: (ic: string) => void): void => {
-        const wrap = document.createElement("div");
-        wrap.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1">${esc(label)}</p><div class="grid grid-cols-6 gap-1"></div>`;
-        const grid = wrap.querySelector("div")!;
-        icons.forEach((ic) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.className = `w-8 h-8 rounded-lg flex items-center justify-center hover:bg-neutral-100 ${ic === current ? "ring-2 ring-[#F95901]" : ""}`;
-          b.style.color = "#333";
-          b.innerHTML = `<span class="material-symbols-outlined text-[18px]">${ic}</span>`;
-          b.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onPick(ic); void rebuild(); });
-          grid.appendChild(b);
-        });
-        pop.appendChild(wrap);
-      };
-
-      const selectRow = (pop: HTMLElement, label: string, current: string | undefined, onPick: (v: string) => void): void => {
-        const cats = currentCategories();
-        const wrap = document.createElement("div");
-        wrap.innerHTML = `<p class="text-[11px] font-semibold text-neutral-500 mb-1">${esc(label)}</p>`;
-        const sel = document.createElement("select");
-        sel.className = "w-full text-sm border border-neutral-300 rounded-lg px-2 py-1.5 bg-white text-neutral-800";
-        sel.innerHTML = `<option value="">Secção de produtos</option>` +
-          cats.map((c) => `<option value="${esc(c)}" ${c === current ? "selected" : ""}>${esc(c)}</option>`).join("");
-        sel.addEventListener("change", () => { snapshot(); onPick(sel.value); void rebuild(); });
-        wrap.appendChild(sel);
-        pop.appendChild(wrap);
-      };
-
-      const c = custom as Record<string, any>;
-
-      // Cartões de anúncio do hero ("20% desconto"…): cor do cartão, cor da
-      // etiqueta, ícone e destino do botão. (Textos são editáveis inline.)
-      preview.querySelectorAll<HTMLElement>("[data-fm-ad]").forEach((card) => {
-        const i = Number(card.dataset.fmAd);
-        const ad = custom.foodmart?.ads?.[i];
-        fmTune(card, (pop) => {
-          swatchRow(pop, "Cor do cartão", FM_CARD_BGS, ad?.bg, (v) => setPath(c, `foodmart.ads.${i}.bg`, v));
-          swatchRow(pop, "Cor da etiqueta", FM_TAG_BGS, ad?.tagBg, (v) => setPath(c, `foodmart.ads.${i}.tagBg`, v));
-          iconRow(pop, "Ícone do botão", FM_CTA_ICONS, ad?.ctaIcon ?? "arrow_forward", (v) => setPath(c, `foodmart.ads.${i}.ctaIcon`, v));
-          selectRow(pop, "Destino do botão", ad?.ctaTarget, (v) => setPath(c, `foodmart.ads.${i}.ctaTarget`, v));
-        });
-      });
-
-      // Faixa promocional final: ícone + destino do botão.
-      const promoEl = preview.querySelector<HTMLElement>("[data-fm-promo]");
-      if (promoEl) {
-        fmTune(promoEl, (pop) => {
-          iconRow(pop, "Ícone do botão", FM_CTA_ICONS, custom.foodmart?.promo?.ctaIcon ?? "arrow_forward", (v) => setPath(c, "foodmart.promo.ctaIcon", v));
-          selectRow(pop, "Destino do botão", custom.foodmart?.promo?.ctaTarget, (v) => setPath(c, "foodmart.promo.ctaTarget", v));
-        }, "left");
-      }
-
-      // Faixa de garantias: cor dos ícones (secção) + ícone por cartão.
-      const featsEl = preview.querySelector<HTMLElement>("[data-fm-features]");
-      if (featsEl) {
-        fmTune(featsEl, (pop) => {
-          swatchRow(pop, "Cor dos ícones", FM_ICON_COLORS, custom.foodmart?.featuresIconColor, (v) => setPath(c, "foodmart.featuresIconColor", v));
-        }, "left");
-        featsEl.querySelectorAll<HTMLElement>("[data-fm-feature]").forEach((cell) => {
-          const i = Number(cell.dataset.fmFeature);
-          const cur = custom.foodmart?.features?.[i]?.icon ?? "";
-          cell.style.position = cell.style.position || "relative";
-          const btn = document.createElement("button");
-          btn.type = "button"; btn.title = "Escolher ícone";
-          btn.className = "mb-ov-btn absolute top-0 right-0 z-20 w-7 h-7 rounded-full bg-white shadow border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900";
-          btn.innerHTML = `<span class="material-symbols-outlined text-[15px]">edit</span>`;
-          const pop = document.createElement("div");
-          pop.className = "mb-ov-btn absolute z-30 hidden top-8 right-0 bg-white border border-neutral-200 rounded-xl shadow-xl p-2 grid grid-cols-6 gap-1 w-64 max-h-64 overflow-y-auto";
-          pop.innerHTML = FM_CATEGORY_ICONS
-            .map((ic) => `<button type="button" data-ic="${ic}" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-neutral-100 ${ic === cur ? "ring-2 ring-[#F95901]" : ""}" style="color:#333"><span class="material-symbols-outlined text-[20px]">${ic}</span></button>`)
-            .join("");
-          btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); pop.classList.toggle("hidden"); });
-          pop.querySelectorAll<HTMLElement>("[data-ic]").forEach((b) =>
-            b.addEventListener("click", (e) => { e.preventDefault(); snapshot(); setPath(c, `foodmart.features.${i}.icon`, b.dataset.ic!); void rebuild(); }));
-          cell.appendChild(btn);
-          cell.appendChild(pop);
-        });
-      }
     }
 
     // Logótipo do rodapé — clicar abre o upload (overlay por hover).
@@ -998,35 +847,46 @@ export async function renderEditor(): Promise<void> {
       const addSec = document.createElement("div");
       addSec.className = "mb-ov-btn mt-10 relative";
       const menuItem = (icon: string, title: string, desc: string, val: string): string =>
-        `<button data-add="${val}" class="w-full flex items-start gap-3 text-left px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors">
-          <span class="material-symbols-outlined text-[20px] text-neutral-500 mt-0.5">${icon}</span>
-          <span><span class="block text-sm font-semibold text-neutral-900">${title}</span><span class="block text-xs text-neutral-500">${desc}</span></span>
+        `<button type="button" data-add="${esc(val)}" class="w-full flex items-start gap-3 text-left px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition-colors">
+          <span class="material-symbols-outlined text-[20px] text-neutral-500 mt-0.5" aria-hidden="true">${esc(icon)}</span>
+          <span><span class="block text-sm font-semibold text-neutral-900">${esc(title)}</span><span class="block text-xs text-neutral-500">${esc(desc)}</span></span>
         </button>`;
-      // O modelo "FoodMart" só permite adicionar secções de produtos (as
-      // restantes secções não fazem sentido nesta mercearia).
-      const productsOnly = store!.templateId === "foodmart";
-      // Em modelos prontos (locked) só se pode adicionar produtos e informação
-      // com foto; o resto das secções fica reservado ao construtor livre.
+      /*
+       * O que se pode acrescentar é **declarado pelo modelo**
+       * (`StoreTemplate.sections`, lido por `sectionMenu`), não deduzido aqui.
+       *
+       * Isto comparava `store.templateId` com dois identificadores escritos à
+       * mão (a mercearia e o modelo escuro), ambos de modelos que já tinham
+       * saído do registo — condições mortas que nunca disparavam. E nada sabia que o
+       * Lumière já traz testemunhos e mapa, pelo que o menu os oferecia outra
+       * vez e a secção acrescentada aparecia duplicada, com o desenho de outro
+       * modelo. Ver `MODELO-GUIA.md` §9.3.
+       */
       const addParts = [
         menuItem("storefront", "Secção de produtos", "Mostra produtos de uma categoria", "produto"),
+        // `structural: !locked` — num modelo pronto só entram as secções de
+        // conteúdo simples, que é o que `__locked` sempre permitiu.
+        ...sectionMenu(tpl, { structural: !locked }).map((s) => menuItem(s.icon, s.title, s.desc, s.type)),
       ];
-      if (!productsOnly) {
-        addParts.push(menuItem("image", "Informação com foto", "Foto ao lado de título e texto", "info"));
-        addParts.push(menuItem("title", "Título e texto", "Texto centrado de destaque", "text"));
-        if (!locked) {
-          // O modelo "Neon Lab" não usa secção de testemunhos.
-          if (store!.templateId !== "neonlab") addParts.push(menuItem("format_quote", "Testemunhos", "Opiniões de clientes", "testimonials"));
-          addParts.push(menuItem("location_on", "Localização", "Mapa com a morada da loja", "location"));
-        }
-      }
       const addItems = addParts.join("");
+      // As secções que o modelo já traz editam-se onde estão. Dizê-lo aqui evita
+      // o Dono procurar no menu o que nunca vai encontrar.
+      const nativas = (tpl.sections?.native ?? []).map((t) => BLOCK_LABELS[t]);
+      const nativasNota = nativas.length
+        ? `<p class="px-3 pt-2 pb-1 text-xs text-neutral-400 border-t border-neutral-100 mt-1">${esc(nativas.join(" e "))} já ${nativas.length > 1 ? "fazem" : "faz"} parte deste modelo — ${nativas.length > 1 ? "edite-os" : "edite-o"} na própria secção.</p>`
+        : "";
       addSec.innerHTML = `
-        <button data-add-toggle class="w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors"><span class="material-symbols-outlined">add</span> Adicionar secção</button>
+        <button type="button" data-add-toggle aria-haspopup="true" aria-expanded="false" class="w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors"><span class="material-symbols-outlined" aria-hidden="true">add</span> Adicionar secção</button>
         <div data-add-menu class="hidden absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 z-[70]">
-          ${addItems}
+          ${addItems}${nativasNota}
         </div>`;
       const menu = addSec.querySelector<HTMLElement>("[data-add-menu]")!;
-      addSec.querySelector("[data-add-toggle]")!.addEventListener("click", (e) => { e.preventDefault(); menu.classList.toggle("hidden"); });
+      const toggle = addSec.querySelector<HTMLElement>("[data-add-toggle]")!;
+      toggle.addEventListener("click", (e) => {
+        e.preventDefault();
+        const aberto = menu.classList.toggle("hidden") === false;
+        toggle.setAttribute("aria-expanded", aberto ? "true" : "false");
+      });
       addSec.querySelectorAll<HTMLElement>("[data-add]").forEach((b) =>
         b.addEventListener("click", (e) => {
           e.preventDefault();
@@ -1037,7 +897,9 @@ export async function renderEditor(): Promise<void> {
             const next = !used.has("__featured__") ? "__featured__" : (cats.find((c) => !used.has(c)) ?? "__all__");
             (custom.sections ?? (custom.sections = [])).push({ category: next });
           } else {
-            (custom.blocks ?? (custom.blocks = [])).push(newBlock(val as "info" | "text" | "testimonials" | "location"));
+            // `newBlockFor` grava a variante do modelo no bloco: é o que faz a
+            // secção nascer com o desenho deste modelo e não com o genérico.
+            (custom.blocks ?? (custom.blocks = [])).push(newBlockFor(tpl, val as BlockType));
           }
           void rebuild();
         }));
@@ -1058,7 +920,7 @@ export async function renderEditor(): Promise<void> {
         openWhatsappForm({
           phone: custom.whatsapp?.phone ?? custom.footer?.phone ?? "",
           template: custom.whatsapp?.messageTemplate ?? "",
-          brand: custom.colors?.primary ?? defaultColor,
+          brand: brandColor(),
           onSave: async (phone, template) => {
             snapshot();
             setPath(custom as Record<string, any>, "whatsapp.phone", phone);
@@ -1072,9 +934,10 @@ export async function renderEditor(): Promise<void> {
 
     // Linhas tracejadas a separar as secções (apenas no editor) + botão de modelo.
     if (structuralEditing && currentScreen === "home") {
-      const blockLabel: Record<string, string> = {
-        info: "Informação", text: "Texto", testimonials: "Testemunhos", location: "Localização",
-      };
+      // Os nomes das secções vêm de `BLOCK_LABELS`, o mesmo sítio de onde saem
+      // os rótulos do menu «Adicionar secção»: duas cópias divergiam à primeira
+      // vez que alguém renomeasse uma secção.
+      const blockLabel: Record<string, string> = BLOCK_LABELS;
       const mkDiv = (label: string): HTMLElement => {
         const d = document.createElement("div");
         d.className = "mb-sec-divider";
@@ -1132,9 +995,12 @@ export async function renderEditor(): Promise<void> {
         };
         const list = lists[type];
         if (list) {
-          const cur = (custom.blocks?.[i] as { variant?: string } | undefined)?.variant ?? blockDefVariant(type);
+          // A variante é a que o bloco **desenhou** (`data-block-variant`, posto
+          // por `blocks.ts`), não uma omissão deduzida aqui do identificador do
+          // modelo — um bloco sem `variant` segue a omissão do próprio modelo.
+          const cur = blk.dataset.blockVariant ?? list[0]!.id;
           const label = list.find((v) => v.id === cur)?.label ?? list[0]!.label;
-          blk.parentElement?.insertBefore(mkBar({ label: `Modelo: ${label}`, icon: "style", onClick: (anchor) => openBlockPicker(anchor, i) }), blk);
+          blk.parentElement?.insertBefore(mkBar({ label: `Modelo: ${label}`, icon: "style", onClick: (anchor) => openBlockPicker(anchor, i, cur) }), blk);
         }
       });
 
@@ -1169,7 +1035,7 @@ export async function renderEditor(): Promise<void> {
   /** HTML da loja para o ecrã atual (home ou página de produto). `null` se não houver produto. */
   function storeHtmlFor(view: StoreViewModel): string | null {
     if (view.kind !== "render") return "";
-    const template = getTemplate(store!.templateId);
+    const template = tpl;
     if (currentScreen === "product") {
       const sample = view.products[0] ?? null;
       if (!sample) return null;
@@ -1203,7 +1069,7 @@ export async function renderEditor(): Promise<void> {
     mountTestimonials(preview);
     mountTestimonialEditor(preview);
     mountLumiereSections(preview);
-    mountFoodmartCarousels(preview);
+    mountTechEssentialsSections(preview);
     if (previewOpen) renderPreviewDrawer(view);
   }
 
@@ -1218,7 +1084,9 @@ export async function renderEditor(): Promise<void> {
   function checkoutPreviewHtml(variant: CheckoutVariant): string {
     const items = checkoutSampleItems();
     const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
-    const online = !!custom.payments?.onlineEnabled;
+    // Os pagamentos digitais aparecem no checkout pela mesma decisão da loja
+    // publicada (`stores.digital_payments`), não por um campo da Personalização.
+    const online = digitalPaymentsVisible(store);
     const areas = deliveredAreas(custom.delivery);
     const selectedArea = areas[0]?.name ?? null;
     const deliveryFee = areas[0]?.fee ?? 0;
@@ -1234,7 +1102,7 @@ export async function renderEditor(): Promise<void> {
     if (view.kind !== "render") return;
     const preview = $("#preview")!;
     const variant = (custom.checkout?.variant ?? "dividido") as CheckoutVariant;
-    const template = getTemplate(store!.templateId);
+    const template = tpl;
     const inner = checkoutPreviewHtml(variant);
     const wrapped = template.renderCheckout ? template.renderCheckout(view, inner, custom) : inner;
     // O botão "Trocar modelo do checkout" só aparece com a edição estrutural
@@ -1246,7 +1114,7 @@ export async function renderEditor(): Promise<void> {
         <span class="mb-sec-divider !my-0 !mb-0" style="flex:0"><span>Checkout</span></span>
         ${swapBtn}
       </div>${wrapped}`;
-    preview.style.setProperty("--brand", custom.colors?.primary ?? defaultColor);
+    preview.style.setProperty("--brand", brandColor());
     applyInk(preview, custom);
     applyTheme(preview, custom);
     applyFieldColors(preview, custom);
@@ -1468,31 +1336,71 @@ export async function renderEditor(): Promise<void> {
   }
 
   /**
+   * Botão flutuante «Remover secção» no canto de uma secção removível.
+   *
+   * Vive fora de `mountLumiereSections` porque há mais de um modelo com secções
+   * removíveis (o Tech Essentials tem a faixa de marcas). Duas cópias do botão
+   * divergiam no rótulo ou no aspeto à primeira alteração.
+   */
+  function addRemoveBtn(host: HTMLElement, onRemove: () => void): void {
+    host.style.position = host.style.position || "relative";
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.className = "mb-ov-btn absolute top-4 right-4 z-20 inline-flex items-center gap-1 bg-white/95 hover:bg-white text-red-600 text-xs font-semibold px-3 py-1.5 rounded-full shadow";
+    rm.innerHTML = `<span class="material-symbols-outlined text-[16px]">delete</span> Remover secção`;
+    rm.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onRemove(); void rebuild(); });
+    host.appendChild(rm);
+  }
+
+  /** Placeholder «Adicionar secção» quando o slot está vazio (secção removida). */
+  function addSlotAddBtn(slot: HTMLElement, label: string, onAdd: () => void): void {
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "mb-ov-btn block mx-auto my-8 border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 px-8 flex items-center justify-center gap-2 transition-colors";
+    add.innerHTML = `<span class="material-symbols-outlined">add</span> ${esc(label)}`;
+    add.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onAdd(); void rebuild(); });
+    slot.appendChild(add);
+  }
+
+  /**
+   * Faixa de marcas do Tech Essentials: remover/repor a secção e carregar o
+   * logótipo de cada uma das **quatro** marcas.
+   *
+   * O nome de cada marca é `data-edit`, por isso já é editável por clique; o que
+   * falta ligar aqui é a imagem, que segue o mesmo padrão do logótipo do rodapé
+   * (overlay ao passar o rato → input de ficheiro).
+   */
+  function mountTechEssentialsSections(preview: HTMLElement): void {
+    const slot = preview.querySelector<HTMLElement>('[data-tx-slot="brands"]');
+    if (!slot) return;
+    const section = slot.querySelector<HTMLElement>("[data-tx-brands]");
+    if (!section) {
+      addSlotAddBtn(slot, "Adicionar faixa de marcas", () => setPath(custom as Record<string, any>, "techEssentials.hideBrands", false));
+      return;
+    }
+    addRemoveBtn(section, () => setPath(custom as Record<string, any>, "techEssentials.hideBrands", true));
+
+    section.querySelectorAll<HTMLElement>("[data-tx-brand]").forEach((box) => {
+      const i = Number(box.dataset.txBrand);
+      box.style.position = "relative";
+      box.style.cursor = "pointer";
+      const ov = document.createElement("div");
+      ov.className = "mb-ov-btn absolute inset-0 z-20 flex items-center justify-center transition-opacity";
+      ov.style.opacity = "0";
+      ov.innerHTML = `<span class="bg-white/95 text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Logótipo</span>`;
+      box.appendChild(ov);
+      box.addEventListener("mouseenter", () => { ov.style.opacity = "1"; });
+      box.addEventListener("mouseleave", () => { ov.style.opacity = "0"; });
+      ov.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); techBrandTarget = i; ($("#tech-brand-input") as HTMLInputElement).click(); });
+    });
+  }
+
+  /**
    * Secções opcionais do Lumière (testemunhos e lojas/mapa): remover/repor e,
    * no mapa, definir os pontos (pins) das lojas. A secção de produtos nunca é
    * removível — só estas.
    */
   function mountLumiereSections(preview: HTMLElement): void {
-    // Botão flutuante "Remover secção" no canto de uma secção.
-    const addRemoveBtn = (host: HTMLElement, onRemove: () => void): void => {
-      host.style.position = host.style.position || "relative";
-      const rm = document.createElement("button");
-      rm.type = "button";
-      rm.className = "mb-ov-btn absolute top-4 right-4 z-20 inline-flex items-center gap-1 bg-white/95 hover:bg-white text-red-600 text-xs font-semibold px-3 py-1.5 rounded-full shadow";
-      rm.innerHTML = `<span class="material-symbols-outlined text-[16px]">delete</span> Remover secção`;
-      rm.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onRemove(); void rebuild(); });
-      host.appendChild(rm);
-    };
-    // Placeholder "Adicionar secção" quando o slot está vazio (secção removida).
-    const addSlotAddBtn = (slot: HTMLElement, label: string, onAdd: () => void): void => {
-      const add = document.createElement("button");
-      add.type = "button";
-      add.className = "mb-ov-btn block mx-auto my-8 border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 px-8 flex items-center justify-center gap-2 transition-colors";
-      add.innerHTML = `<span class="material-symbols-outlined">add</span> ${esc(label)}`;
-      add.addEventListener("click", (e) => { e.preventDefault(); snapshot(); onAdd(); void rebuild(); });
-      slot.appendChild(add);
-    };
-
     // --- Testemunhos ---
     const tSlot = preview.querySelector<HTMLElement>('[data-lumiere-slot="testimonials"]');
     if (tSlot) {
@@ -1583,11 +1491,21 @@ export async function renderEditor(): Promise<void> {
     }
   }
 
-  /** Documento completo (Tailwind + fontes + marca) para o iframe de pré-visualização. */
+  /**
+   * Documento completo (estilos da página + fontes + marca) para o iframe de
+   * pré-visualização.
+   *
+   * O `iframe` é carregado com `sandbox` **sem** `allow-scripts`
+   * (`loadPreviewDoc`): o documento tem a origem do editor, e o editor é aberto
+   * pelo Administrador nas lojas dos outros. Por isso nada aqui depende de
+   * JavaScript — o Tailwind é a folha compilada desta página
+   * (`previewHeadHtml`), não o de CDN que se gerava a si próprio num `<script>`
+   * — e as cores do Dono passam por `safeCssColor` antes de entrarem em CSS.
+   */
   function buildIframeDoc(innerHtml: string): string {
-    const brand = custom.colors?.primary ?? defaultColor;
-    const ink = custom.colors?.text?.trim();
-    const iconC = custom.colors?.icon?.trim();
+    const brand = brandColor();
+    const ink = safeCssColor(custom.colors?.text, "");
+    const iconC = safeCssColor(custom.colors?.icon, "");
     const tvars: Record<string, { radius: string; head: string; body?: string }> = {
       moderno: { radius: "1rem", head: "Inter, sans-serif" },
       classico: { radius: "0.35rem", head: "'Noto Serif', serif" },
@@ -1624,13 +1542,7 @@ export async function renderEditor(): Promise<void> {
     // computador e telemóvel não paga travessia nenhuma.
     const bodyHtml = iconC || ink ? markIconTextButtonsInHtml(innerHtml) : innerHtml;
     return `<!DOCTYPE html><html lang="pt-AO"><head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet" />
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+${previewHeadHtml()}
 <style>
 .material-symbols-outlined{font-variation-settings:"FILL" 0,"wght" 400,"GRAD" 0,"opsz" 24;vertical-align:middle}
 body{font-family:Inter,sans-serif;margin:0}
@@ -1664,13 +1576,17 @@ ${fieldCss}
       body.innerHTML = `<div class="h-full flex items-center justify-center text-neutral-400 text-sm p-8 text-center">Adicione um produto para pré-visualizar a página de produto.</div>`;
       return;
     }
-    const doc = buildIframeDoc(html);
+    // Os mapas embutidos herdariam o `sandbox` e ficariam em branco: dão lugar a
+    // um marcador estático do mesmo tamanho (`inertEmbedsHtml`).
+    const doc = buildIframeDoc(inertEmbedsHtml(html));
+    // `sandbox=""` já na marcação: o `iframe` nasce restrito, antes de qualquer
+    // documento, e `loadPreviewDoc` volta a pô-lo antes do `srcdoc`.
     if (previewMode === "mobile") {
       body.innerHTML = `<div class="min-h-full flex items-start justify-center py-8 px-4">
         <div style="width:390px;max-width:100%;background:#0c0c0c;border-radius:48px;padding:12px;box-shadow:0 30px 70px -20px rgba(0,0,0,.55)">
           <div style="position:relative;height:760px;border-radius:36px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
             <div style="height:34px;flex:none;position:relative;background:#fff"><div style="position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:26px;background:#0c0c0c;border-radius:9999px"></div></div>
-            <iframe class="mb-pv-frame" style="flex:1;width:100%;border:0;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
+            <iframe sandbox="" class="mb-pv-frame" style="flex:1;width:100%;border:0;background:#fff;display:block" title="Pré-visualização no telemóvel"></iframe>
           </div>
         </div>
       </div>`;
@@ -1681,11 +1597,11 @@ ${fieldCss}
       const scale = Math.min(1, W / logical);
       const fh = Math.round(H / scale);
       body.innerHTML = `<div style="width:${W}px;height:${H}px;overflow:hidden;background:#fff;margin:0 auto">
-        <iframe class="mb-pv-frame" style="width:${logical}px;height:${fh}px;border:0;background:#fff;transform:scale(${scale});transform-origin:top left;display:block" title="Pré-visualização no computador"></iframe>
+        <iframe sandbox="" class="mb-pv-frame" style="width:${logical}px;height:${fh}px;border:0;background:#fff;transform:scale(${scale});transform-origin:top left;display:block" title="Pré-visualização no computador"></iframe>
       </div>`;
     }
     const iframe = body.querySelector<HTMLIFrameElement>("iframe.mb-pv-frame");
-    if (iframe) iframe.srcdoc = doc;
+    if (iframe) loadPreviewDoc(iframe, doc);
   }
 
   function openPreview(): void {
@@ -1878,8 +1794,8 @@ ${fieldCss}
     const panel = document.createElement("div");
     panel.className = "absolute bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 w-[320px]";
 
-    const brand = custom.colors?.primary ?? defaultColor;
-    const ink = custom.colors?.text ?? "#111827";
+    const brand = brandColor();
+    const ink = safeCssColor(custom.colors?.text, "#111827");
     const innerW = 296; // 320 - 2*12 (padding)
     const scale = innerW / PREVIEW_W;
     const previewArea = renderPreview
@@ -2007,14 +1923,15 @@ ${fieldCss}
     return `<div class="w-full max-w-[1180px] mx-auto px-8 py-6"><div class="${gridColsClass(v)}">${cards}</div></div>`;
   }
 
-  function blockDefVariant(type: string): string {
-    if (type === "info") return "lado";
-    if (type === "text") return "centrado";
-    if (type === "location") return "classico";
-    return store!.templateId === "galeria" ? "editorial" : "cards"; // testimonials
-  }
-
-  function openBlockPicker(anchor: HTMLElement, i: number): void {
+  /**
+   * Seletor de variante de um bloco. `current` é a variante que o bloco está a
+   * desenhar, lida do `data-block-variant` da secção.
+   *
+   * As miniaturas saem no desenho do **modelo** (`sections.style`, o mesmo que
+   * ele passa a `blocksHtml`): mostrar a variante no desenho genérico era
+   * prometer um aspeto que a secção não ia ter.
+   */
+  function openBlockPicker(anchor: HTMLElement, i: number, current: string): void {
     const blk = custom.blocks?.[i] as { type: string; variant?: string } | undefined;
     if (!blk) return;
     const lists: Record<string, { id: string; label: string }[]> = {
@@ -2022,18 +1939,19 @@ ${fieldCss}
     };
     const list = lists[blk.type];
     if (!list) return;
+    const ctx = { ...PREV_CTX, style: tpl.sections?.style, footerLocation: custom.footer?.location };
     const renderPreview = (id: string): string => {
       const b = (custom.blocks?.[i] ?? { type: blk.type }) as ContentBlock;
-      if (blk.type === "info") return infoByVariant(id as "lado" | "sobreposto" | "cartao", b as Extract<ContentBlock, { type: "info" }>, i, PREV_CTX);
-      if (blk.type === "text") return textByVariant(id as "centrado" | "destaque" | "linha", b as Extract<ContentBlock, { type: "text" }>, i, PREV_CTX);
-      if (blk.type === "location") return locationByVariant(id as "classico" | "cartao" | "estilizado", b as Extract<ContentBlock, { type: "location" }>, i, PREV_CTX);
-      return testimonialsByVariant(id as "cards" | "editorial" | "marquee", b as Extract<ContentBlock, { type: "testimonials" }>, i, PREV_CTX);
+      if (blk.type === "info") return infoByVariant(id as "lado" | "sobreposto" | "cartao", b as Extract<ContentBlock, { type: "info" }>, i, ctx);
+      if (blk.type === "text") return textByVariant(id as "centrado" | "destaque" | "linha", b as Extract<ContentBlock, { type: "text" }>, i, ctx);
+      if (blk.type === "location") return locationByVariant(id as "classico" | "cartao" | "estilizado", b as Extract<ContentBlock, { type: "location" }>, i, ctx);
+      return testimonialsByVariant(id as "cards" | "editorial" | "marquee", b as Extract<ContentBlock, { type: "testimonials" }>, i, ctx);
     };
     openVariantPicker(
       anchor,
       "Modelo da secção",
       list.map((v) => ({ id: v.id, label: v.label })),
-      blk.variant ?? blockDefVariant(blk.type),
+      blk.variant ?? current,
       (id) => {
         const bb = custom.blocks?.[i] as { variant?: string } | undefined;
         if (!bb) return;
@@ -2146,6 +2064,36 @@ ${fieldCss}
     const b = custom.blocks?.[blockImgTarget] as { imageUrl?: string } | undefined;
     if (b) b.imageUrl = stored.url;
     toast("Imagem atualizada.");
+    await rebuild();
+    input.value = "";
+  });
+
+  /*
+   * Logótipo de uma marca da faixa do Tech Essentials.
+   *
+   * Usa a política do logótipo (`LOGO_POLICY`) e não a dos banners: uma marca é
+   * um logótipo, aceita SVG e é pequena. É o mesmo caminho do logótipo do
+   * rodapé.
+   */
+  $("#tech-brand-input")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const content = await fileToUint8Array(await compressImageFile(file));
+    const validation = panel.services.fileService.validate({ content, fileName: file.name }, LOGO_POLICY);
+    if (!validation.ok) { toast(validation.error.message, "error"); input.value = ""; return; }
+    const stored = await withBusy(
+      () => panel.services.fileService.store(store!.id, "logo", validation.value),
+      "A carregar logótipo…",
+    );
+    snapshot();
+    // A lista já foi materializada ao abrir o editor; voltar a pedir ao modelo é
+    // a rede de segurança (ex.: depois de um «Desfazer» para um estado antigo).
+    // O número de lugares é o do modelo — o editor não o repete.
+    materializeForEditing(tpl, custom);
+    const marca = custom.techEssentials?.brands?.[techBrandTarget];
+    if (marca) marca.imageUrl = stored.url;
+    toast("Logótipo da marca atualizado.");
     await rebuild();
     input.value = "";
   });

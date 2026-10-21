@@ -7,23 +7,20 @@
  * (`/`, `/produto/<id>`, `/categoria/<x>`, `/carrinho`).
  */
 
-/**
- * Domínio do PAINEL/marca (MôBisno). É aqui que vivem a landing, o login e o
- * painel. O apex do domínio das lojas redireciona para cá.
- */
-export const PLATFORM_APEX = "mobisno.store";
+import { PLATFORM_APEX, STORE_APEX, LEGACY_STORE_APEX } from "../../src/services/domains.js";
 
 /**
- * Domínio onde vivem as LOJAS dos clientes: `nomedaloja.sualoja.digital`.
- * É o domínio usado para construir as URLs públicas.
+ * Domínios da Plataforma. Vivem em `src/services/domains.ts` (sem DOM), para o
+ * domínio, os testes e a pré-renderização no servidor usarem os mesmos; são
+ * reexportados aqui para quem já os importava de `routing`.
  */
-export const STORE_APEX = "sualoja.digital";
+export { PLATFORM_APEX, STORE_APEX };
 
 /**
  * Apexes onde um subdomínio é tratado como loja. Inclui `mobisno.store` por
  * retrocompatibilidade (lojas antigas em `nomedaloja.mobisno.store`).
  */
-const STORE_APEXES: readonly string[] = [STORE_APEX, "mobisno.store"];
+const STORE_APEXES: readonly string[] = [STORE_APEX, LEGACY_STORE_APEX];
 
 /** Evento disparado em cada navegação interna (ouvido pelo router). */
 export const ROUTE_EVENT = "mb:route";
@@ -58,13 +55,16 @@ export function isStoreApexRoot(): boolean {
 
 /**
  * Identificador da loja "ativa": o subdomínio em produção ou, no domínio
- * principal/preview, o segmento `/loja/<id>` do caminho. `null` se nenhum.
+ * principal/preview, o segmento `/loja/<id>` do caminho — ou
+ * `/previsualizar/<id>`, a pré-visualização privada do Dono, para a pesquisa e
+ * o carrinho também funcionarem lá. `null` se nenhum.
  */
 export function currentStoreIdentifier(): string | null {
   const sub = storeSubdomain();
   if (sub) return sub;
-  const m = location.pathname.match(/^\/loja\/([^/]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+  const m = location.pathname.match(/^\/(?:loja|previsualizar)\/([^/]+)/);
+  if (!m) return null;
+  try { return decodeURIComponent(m[1]); } catch { return m[1]; }
 }
 
 /**

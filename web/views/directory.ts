@@ -42,7 +42,8 @@ import { platformNavHtml, platformFooterHtml, PLATFORM_ACCENT, mountSectionNav }
 import { mountGlowCards, ensureGlowCardStyle } from "../lib/glowCards.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import { getTemplate } from "../templates/registry.js";
-import { storePreviewDoc } from "../lib/storePreviewDoc.js";
+import { storePreviewDoc, loadPreviewDoc } from "../lib/storePreviewDoc.js";
+import { safeCssColor } from "../../src/services/storeCustom.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 
 /** Largura do desenho pedido ao modelo. Encolhido depois para caber no cartão. */
@@ -61,11 +62,13 @@ interface DirectoryStore {
   brand: unknown;
 }
 
-/** Cor de marca utilizável, ou o laranja da plataforma. */
+/**
+ * Cor de marca utilizável, ou o laranja da plataforma. Entra num `style` desta
+ * página pública, por isso passa pela mesma validação de todas as cores do Dono
+ * (`safeCssColor`).
+ */
 function brandOf(value: unknown): string {
-  return typeof value === "string" && /^#[0-9a-fA-F]{3,8}$/.test(value.trim())
-    ? value.trim()
-    : PLATFORM_ACCENT;
+  return safeCssColor(value, PLATFORM_ACCENT);
 }
 
 /**
@@ -276,7 +279,9 @@ function mountStorePreviews(root: ParentNode): void {
       const html = getTemplate(view.templateId).render(view, custom);
       if (!html) return;
       const frame = makeFrame(`Pré-visualização da loja ${view.storeName}`);
-      frame.srcdoc = storePreviewDoc(html, custom);
+      // `sandbox` sem scripts, antes do `srcdoc`: o conteúdo é de um Dono
+      // qualquer e o `iframe` teria a origem — e a sessão — da plataforma.
+      loadPreviewDoc(frame, storePreviewDoc(html, custom));
       attach(slot, frame);
     } catch {
       /* a capa com a inicial fica — nunca um espaço vazio */

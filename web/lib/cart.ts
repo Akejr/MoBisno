@@ -1,8 +1,10 @@
 /**
  * Carrinho de compras simples por loja, persistido em localStorage.
  *
- * É deliberadamente leve (sem dependências de DOM) e isolado por `storeId`, para
- * que cada loja publicada tenha o seu próprio carrinho no browser do cliente.
+ * É deliberadamente leve e isolado por `storeId`, para que cada loja publicada
+ * tenha o seu próprio carrinho no browser do cliente. O DOM só aparece em dois
+ * utilitários do fim do ficheiro: o emblema do carrinho e a região viva que
+ * anuncia as alterações aos leitores de ecrã.
  *
  * ## Estado chaveado por linha, não por Produto (R4.13, R4.14)
  *
@@ -36,7 +38,7 @@
  * identidade de uma linha, e todas as outras a usam.
  */
 
-import { cartLineKey, type CartLineIdentity } from "../../src/services/cartLine.js";
+import { cartLineKey, usableVariantKey, type CartLineIdentity } from "../../src/services/cartLine.js";
 
 export { cartLineKey };
 export type { CartLineIdentity };
@@ -78,8 +80,7 @@ function key(storeId: string): string {
  * — a chave dos carrinhos legados.
  */
 export function lineKeyOf(item: Pick<CartItem, "productId" | "variantKey">): string {
-  const variantKey = typeof item.variantKey === "string" && item.variantKey !== "" ? item.variantKey : undefined;
-  return cartLineKey({ productId: item.productId, variantKey });
+  return cartLineKey({ productId: item.productId, variantKey: usableVariantKey(item.variantKey) });
 }
 
 /** Lê o carrinho da loja. */
@@ -176,4 +177,31 @@ export function updateCartBadge(storeId: string): void {
     el.textContent = String(n);
     el.classList.toggle("hidden", n === 0);
   });
+}
+
+/** Id da região viva partilhada pelo carrinho, pela gaveta e pelo checkout. */
+const LIVE_REGION_ID = "mb-cart-live";
+
+/**
+ * Anuncia uma mensagem aos leitores de ecrã («Quantidade de Boné: 3»,
+ * «Código aplicado…»).
+ *
+ * A região vive no `<body>`, **fora** do conteúdo que as vistas redesenham: uma
+ * região viva criada já com o texto lá dentro não é anunciada, e o carrinho e o
+ * checkout redesenham-se a cada alteração. Esvaziar e voltar a escrever faz a
+ * mesma mensagem ser anunciada duas vezes seguidas, quando se repete.
+ */
+export function announce(message: string): void {
+  let el = document.getElementById(LIVE_REGION_ID);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = LIVE_REGION_ID;
+    el.className = "sr-only";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  const region = el;
+  region.textContent = "";
+  window.setTimeout(() => { region.textContent = message; }, 60);
 }

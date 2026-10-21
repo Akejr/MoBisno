@@ -1,163 +1,179 @@
 /**
- * Espelho público do estado de pagamentos — as três portas fechadas (R3.1, R3.13).
+ * Guarda: o espelho de pagamentos, a marca de demonstração e a MoMenu saíram —
+ * e não voltam.
  *
- * `store_payments` é a **fonte de verdade** do estado de pagamentos de uma Loja
- * (é o que `api/payment.js` consulta antes de aceitar uma compra), mas essa
- * tabela é deliberadamente sem leitura pública (migração `0008_payments.sql`).
- * Por isso o storefront decide a partir de um **espelho** não sensível,
- * `customization.payments.onlineEnabled`, lido pela decisão única de
- * `src/services/paymentVisibility.ts` (D2).
+ * Durante muito tempo, o checkout decidia se mostrava Multicaixa Express e
+ * Referência Bancária a partir de `customization.payments.onlineEnabled`, um
+ * **espelho** que o próprio Dono escrevia na sua Personalização, e de uma marca
+ * de demonstração (`__demoPayments`). O servidor decidia por outra coluna. Os
+ * dois divergiram, e o resultado confirmado em produção foi um checkout a
+ * anunciar pagamentos que o servidor recusava.
  *
- * Um espelho que diverge da verdade produz exatamente o defeito confirmado em
- * produção: o checkout anuncia Multicaixa Express e Referência Bancária, e o
- * servidor recusa a compra com `PAYMENTS_NOT_ENABLED`. Havia três portas por onde
- * a divergência entrava:
+ * A correção não foi sincronizar o espelho: foi apagá-lo. Quem decide agora é
+ * `digitalPaymentsVisible(store)` (`src/services/paymentVisibility.ts`), a partir
+ * de `stores.digital_payments`, que só a aprovação da verificação de empresa
+ * liga. A integração MoMenu saiu com ele, e o fornecedor novo liga-se num só
+ * sítio (`api/_provider.js`).
  *
- *  1. `applyModelToStore`/`applyRawToStore` copiavam o `payments` da Loja_Modelo
- *     para a Loja do cliente — que nasce sem linha em `store_payments`;
- *  2. o manipulador de `#save-online` escrevia o espelho mesmo quando
- *     `savePaymentConfig` falhava;
- *  3. as Lojas já afetadas ficavam divergentes para sempre, sem migração.
- *
- * As asserções são sobre o **texto-fonte**: `web/supabase/models.ts` importa o
- * cliente do Supabase e `web/views/dashboard.ts` depende do DOM, e `tests/`
- * compila com `lib: ["ES2022"]`, sem DOM, pelo que nenhum dos módulos pode ser
- * importado. É o mesmo padrão `readFileSync` de `tests/seedRename.test.ts` e de
- * `tests/comingSoon.test.ts`.
+ * Esta guarda percorre **todos** os ficheiros de `web/` (menos `web/dist`, que é
+ * gerado) e de `api/`: nenhum pode voltar a nomear o espelho, a marca, as
+ * decisões antigas ou a MoMenu. E confirma que os ficheiros apagados continuam
+ * apagados — um `api/webhook.js` esquecido era um endpoint público que marcava
+ * encomendas como pagas sem verificar quem pedia.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 
 const ROOT = join(__dirname, "..");
-const ler = (p: string): string => readFileSync(join(ROOT, p), "utf8");
 
-const MODELS = ler("web/supabase/models.ts");
-const DASHBOARD = ler("web/views/dashboard.ts");
+/** Extensões de código e texto que a guarda lê (nunca `.env`: tem segredos). */
+const EXTENSOES = /\.(ts|js|mjs|cjs|html|css|json)$/i;
 
-/** Recorta o texto entre dois marcadores, falhando com mensagem útil. */
-function trecho(texto: string, inicio: string, fim: string): string {
-  const i = texto.indexOf(inicio);
-  expect(i, `marcador inicial não encontrado: ${inicio}`).toBeGreaterThan(-1);
-  const j = texto.indexOf(fim, i + inicio.length);
-  expect(j, `marcador final não encontrado: ${fim}`).toBeGreaterThan(i);
-  return texto.slice(i, j);
+/** Todos os ficheiros de texto de uma pasta, recursivamente, menos as excluídas. */
+function ficheiros(pasta: string, excluir: readonly string[] = []): string[] {
+  const out: string[] = [];
+  const andar = (abs: string): void => {
+    for (const e of readdirSync(abs, { withFileTypes: true })) {
+      const caminho = join(abs, e.name);
+      const rel = relative(ROOT, caminho).split(sep).join("/");
+      if (excluir.some((x) => rel === x || rel.startsWith(`${x}/`))) continue;
+      if (e.isDirectory()) {
+        if (e.name === "node_modules") continue;
+        andar(caminho);
+      } else if (EXTENSOES.test(e.name)) {
+        out.push(rel);
+      }
+    }
+  };
+  andar(join(ROOT, pasta));
+  return out.sort();
 }
 
-/** Recorta o corpo de uma função de topo, do nome dela até ao `}` da coluna 0. */
-function corpo(texto: string, inicio: string): string {
-  const i = texto.indexOf(inicio);
-  expect(i, `função não encontrada: ${inicio}`).toBeGreaterThan(-1);
-  const j = texto.indexOf("\n}", i + inicio.length);
-  expect(j, `fim da função não encontrado: ${inicio}`).toBeGreaterThan(i);
-  return texto.slice(i, j);
+const ALVOS = [...ficheiros("web", ["web/dist"]), ...ficheiros("api")];
+
+/**
+ * O ficheiro com os **comentários apagados** (substituídos por espaços, para as
+ * linhas continuarem a ser as mesmas).
+ *
+ * A guarda é sobre o que o programa **faz**, não sobre o que os comentários
+ * contam. Um módulo que explica porque é que o espelho foi apagado — e o que
+ * aconteceu em produção enquanto existiu — é documentação que vale a pena ter; o
+ * defeito era o código ler a bandeira. Sem esta distinção, a guarda obrigava a
+ * apagar a história junto com o código, e a próxima pessoa a mexer nos
+ * pagamentos voltava a inventar o mesmo espelho por não saber que já tinha
+ * falhado.
+ *
+ * As cadeias de texto são atravessadas sem serem interpretadas, para um `//`
+ * dentro de um URL (`"https://…"`) não passar por início de comentário.
+ */
+function semComentarios(texto: string): string {
+  let out = "";
+  let i = 0;
+  const vazio = (s: string): string => s.replace(/[^\n]/g, " ");
+  while (i < texto.length) {
+    const c = texto[i]!;
+    const d = texto[i + 1];
+    if (c === "/" && d === "*") {
+      const fim = texto.indexOf("*/", i + 2);
+      const bloco = fim < 0 ? texto.slice(i) : texto.slice(i, fim + 2);
+      out += vazio(bloco);
+      i += bloco.length;
+    } else if (c === "/" && d === "/") {
+      const fim = texto.indexOf("\n", i);
+      const linha = fim < 0 ? texto.slice(i) : texto.slice(i, fim);
+      out += vazio(linha);
+      i += linha.length;
+    } else if (c === '"' || c === "'" || c === "`") {
+      // Atravessa a cadeia inteira (com escapes) e copia-a tal como está.
+      let j = i + 1;
+      while (j < texto.length && texto[j] !== c) {
+        if (texto[j] === "\\") j += 1;
+        j += 1;
+      }
+      out += texto.slice(i, Math.min(j + 1, texto.length));
+      i = j + 1;
+    } else {
+      out += c;
+      i += 1;
+    }
+  }
+  return out;
 }
 
-describe("Porta 1 — o espelho `payments` nunca é herdado de um modelo (R3.13)", () => {
-  const APLICADORES: readonly [string, string][] = [
-    ["applyModelToStore", corpo(MODELS, "export async function applyModelToStore(")],
-    ["applyRawToStore", corpo(MODELS, "export async function applyRawToStore(")],
-  ];
-
-  for (const [nome, fn] of APLICADORES) {
-    it(`${nome} remove \`payments\` da cópia aplicada à loja do cliente`, () => {
-      // A Loja do cliente nasce sem linha em `store_payments` (ou com
-      // `online_enabled` a `false`). Herdar o espelho da Loja_Modelo faria o
-      // checkout anunciar métodos que `api/payment.js` recusa.
-      expect(fn).toMatch(/delete applied\.payments;/);
-    });
-
-    it(`${nome} continua a remover \`__template\` e \`__demoPayments\``, () => {
-      // Regressão de D2: a marca de demonstração é escrita só pelo Semeador nas
-      // Loja_Modelo e nunca herdada; `__template` é a marca de Loja_Modelo.
-      expect(fn).toMatch(/delete \(applied as \{ __template\?: unknown \}\)\.__template;/);
-      expect(fn).toMatch(/delete applied\.__demoPayments;/);
-    });
-
-    it(`${nome} remove o espelho antes de gravar a Personalização`, () => {
-      // A ordem é o que importa: apagar depois do `update` não apagaria nada.
-      expect(fn.indexOf("delete applied.payments;")).toBeLessThan(fn.indexOf(".update("));
+/** Ocorrências de `padrao` no **código** de cada ficheiro, como `ficheiro:linha: texto`. */
+function ocorrencias(padrao: RegExp, opts: { comentarios?: boolean } = {}): string[] {
+  const achados: string[] = [];
+  for (const f of ALVOS) {
+    const bruto = readFileSync(join(ROOT, f), "utf8");
+    const texto = opts.comentarios === true ? bruto : semComentarios(bruto);
+    texto.split(/\r?\n/).forEach((linha, i) => {
+      if (padrao.test(linha)) achados.push(`${f}:${i + 1}: ${linha.trim().slice(0, 160)}`);
     });
   }
-});
+  return achados;
+}
 
-describe("Porta 2 — o espelho só é escrito depois de a verdade ter sido gravada", () => {
-  const BLOCO = trecho(DASHBOARD, '$("#save-online")?.addEventListener', "\n  async function renderLogotipo");
-
-  /** Devolução antecipada quando a fonte de verdade não foi gravada. */
-  const guarda = /if \(!okSave\)\s*\{[^}]*toast\([^)]*\)[^}]*return;\s*\}/;
-
-  it("grava primeiro `store_payments` (a fonte de verdade)", () => {
-    expect(BLOCO).toContain("savePaymentConfig(store!.id, next)");
-  });
-
-  it("devolve antes de tocar na Personalização quando a gravação falha", () => {
-    expect(BLOCO).toMatch(guarda);
-  });
-
-  it("a guarda vem entre a gravação da verdade e a escrita do espelho (ordem)", () => {
-    const verdade = BLOCO.indexOf("savePaymentConfig(");
-    const falha = BLOCO.search(guarda);
-    const espelho = BLOCO.indexOf("const mirrored =");
-    const gravaEspelho = BLOCO.indexOf("saveCustomization(");
-    expect(verdade).toBeGreaterThan(-1);
-    expect(falha).toBeGreaterThan(verdade);
-    expect(espelho).toBeGreaterThan(falha);
-    expect(gravaEspelho).toBeGreaterThan(espelho);
-  });
-
-  it("o espelho escreve o mesmo booleano que foi gravado em `store_payments`", () => {
-    expect(BLOCO).toMatch(/payments: \{ \.\.\.\(custom\.payments \?\? \{\}\), onlineEnabled: enabled \}/);
-    expect(BLOCO).toMatch(/onlineEnabled: enabled,/); // o `next` de savePaymentConfig
+describe("A guarda lê o que diz que lê", () => {
+  it("percorre web/ e api/, e deixa web/dist de fora", () => {
+    expect(ALVOS).toContain("web/main.ts");
+    expect(ALVOS).toContain("api/payment.js");
+    expect(ALVOS.some((f) => f.startsWith("web/dist/"))).toBe(false);
+    expect(ALVOS.some((f) => /(^|\/)\.env/.test(f))).toBe(false);
   });
 });
 
-describe("Porta 3 — auto-reparação do espelho divergente ao abrir «Pagamentos»", () => {
-  const BLOCO = trecho(DASHBOARD, "async function renderPagamentos()", "const waPhone =");
+describe("Nenhum código de web/ nem de api/ lê o que saiu", () => {
+  // Os comentários podem (e devem) contar a história: o que falhou em produção
+  // enquanto o espelho existiu é a razão de ele não voltar. O que a guarda
+  // recusa é o programa a lê-lo — incluindo dentro de uma cadeia de texto, que
+  // é a forma como uma coluna chega a um pedido ao Supabase.
+  const PROIBIDOS: readonly [string, RegExp][] = [
+    ["o espelho customization.payments.onlineEnabled", /onlineEnabled/i],
+    ["a marca de demonstração __demoPayments", /__demoPayments/i],
+    ["a decisão antiga isPaymentsDemo", /isPaymentsDemo/i],
+    ["a decisão antiga onlinePaymentsVisible", /onlinePaymentsVisible/i],
+    ["a integração MoMenu", /momenu/i],
+  ];
 
-  it("lê a verdade e o espelho antes de decidir", () => {
-    expect(BLOCO).toContain("getPaymentConfig(store!.id)");
-    expect(BLOCO).toContain("getCustomization(store!.id)");
+  for (const [nome, padrao] of PROIBIDOS) {
+    it(`ninguém nomeia ${nome}`, () => {
+      expect(ocorrencias(padrao)).toEqual([]);
+    });
+  }
+
+  it("nenhum pedido nomeia uma coluna que a base de dados já largou", () => {
+    // Um `select`, `insert` ou `update` com uma coluna inexistente falha o
+    // pedido inteiro — não devolve as outras colunas a `null`. A 0023 largou as
+    // três primeiras; a 0019, as duas últimas.
+    expect(ocorrencias(/\b(online_enabled|momenu_api_key|plan_stores|trial_ends_at|next_plan)\b/)).toEqual([]);
+  });
+});
+
+describe("Os ficheiros apagados continuam apagados", () => {
+  const APAGADOS = [
+    // O webhook da MoMenu aceitava qualquer POST: bastava conhecer o
+    // `transactionId`, que o próprio comprador recebia.
+    "api/webhook.js",
+    "api/logo.js",
+    "web/lib/logoApi.ts",
+    "web/lib/logoCompose.ts",
+    "web/lib/logoPurchase.ts",
+    "web/lib/smsCheckout.ts",
+  ];
+
+  for (const f of APAGADOS) {
+    it(`${f} não existe`, () => {
+      expect(existsSync(join(ROOT, f))).toBe(false);
+    });
+  }
+
+  it("nada importa nem chama o que foi apagado", () => {
+    expect(ocorrencias(/logoApi|logoCompose|logoPurchase|smsCheckout|\/api\/webhook\b|\/api\/logo\b/)).toEqual([]);
   });
 
-  it("deteta a divergência com igualdade estrita ao booleano", () => {
-    // Mesma comparação estrita do resto de R3: `"true"`, `1` ou `{}` no espelho
-    // contam como desativado, e por isso divergem de uma verdade ativa.
-    expect(BLOCO).toContain("(custom.payments?.onlineEnabled === true) !== cfg.onlineEnabled");
-  });
-
-  it("corrige o espelho a partir da verdade, numa só escrita", () => {
-    expect(BLOCO).toMatch(/payments: \{ \.\.\.\(custom\.payments \?\? \{\}\), onlineEnabled: cfg\.onlineEnabled \}/);
-    expect(BLOCO).toContain("saveCustomization(ownerId, store!.id, repaired)");
-    // Uma só escrita da Personalização neste trecho.
-    expect(BLOCO.match(/saveCustomization\(/g)).toHaveLength(1);
-  });
-
-  it("não escreve nada quando não há divergência (idempotência)", () => {
-    // A escrita vive dentro do `if` da divergência: sem divergência, o ramo não
-    // corre e abrir o separador não toca na base de dados.
-    const deteta = BLOCO.indexOf("!== cfg.onlineEnabled");
-    const escreve = BLOCO.indexOf("saveCustomization(");
-    expect(deteta).toBeGreaterThan(-1);
-    expect(escreve).toBeGreaterThan(deteta);
-    const dentroDoIf = trecho(BLOCO, "!== cfg.onlineEnabled", "saveCustomization(");
-    // Nada fecha o `if` entre a condição e a escrita.
-    expect(dentroDoIf).not.toContain("\n    }");
-  });
-
-  it("adota a correção em memória, para o ecrã desenhar o estado corrigido", () => {
-    // O que importa é o `custom` ser **mutável**: sem isso a correção não pode
-    // ser adotada e o ecrã desenhava o espelho velho. De onde vem o valor é
-    // indiferente — hoje chega do `Promise.all` que carrega a verdade e o
-    // espelho de uma vez (antes era um `await` próprio, em fila). A leitura de
-    // `getCustomization` é afirmada em «lê a verdade e o espelho antes de decidir».
-    expect(BLOCO).toMatch(/let custom = /);
-    expect(BLOCO).toMatch(/if \(okRepair\) custom = repaired;/);
-  });
-
-  it("uma falha da correção é silenciosa para o Dono e vai para console.error", () => {
-    expect(BLOCO).toContain("console.error(");
-    // Não há aviso ao Dono em nenhum dos dois desfechos: a correção é invisível.
-    expect(BLOCO).not.toContain("toast(");
+  it("o vercel.json não reescreve para os endpoints apagados", () => {
+    const vercel = readFileSync(join(ROOT, "vercel.json"), "utf8");
+    expect(vercel).not.toMatch(/\/api\/(webhook|logo)\b/);
   });
 });

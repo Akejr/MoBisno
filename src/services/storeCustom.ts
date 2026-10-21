@@ -134,3 +134,85 @@ export function normalizePerks(custom: unknown): { icon: string; text: string }[
   if (list.length > 0) return list;
   return DEFAULT_PERKS.map((p) => ({ icon: p.icon, text: p.text }));
 }
+
+/* ----------------------------- Cores em CSS ----------------------------- */
+
+/**
+ * Os 148 nomes de cor do CSS (CSS Color 4), mais `transparent`. Sem
+ * `currentcolor` nem palavras-chave globais (`inherit`, `initial`…): nada disso
+ * é uma cor que o Dono escolha, e cada exceção é mais uma porta.
+ */
+const CSS_NAMED_COLORS: ReadonlySet<string> = new Set([
+  "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
+  "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",
+  "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan",
+  "darkgoldenrod", "darkgray", "darkgreen", "darkgrey", "darkkhaki", "darkmagenta",
+  "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
+  "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink",
+  "deepskyblue", "dimgray", "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen",
+  "fuchsia", "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "green", "greenyellow",
+  "grey", "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender",
+  "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan",
+  "lightgoldenrodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink", "lightsalmon",
+  "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey", "lightsteelblue",
+  "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine",
+  "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue",
+  "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream",
+  "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange",
+  "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred",
+  "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "rebeccapurple",
+  "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell",
+  "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen",
+  "steelblue", "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white",
+  "whitesmoke", "yellow", "yellowgreen", "transparent",
+]);
+
+/** `#rgb`, `#rgba`, `#rrggbb` e `#rrggbbaa`. */
+const CSS_HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+/** Um argumento numérico: número, com percentagem ou unidade de ângulo opcionais. */
+const CSS_NUMBER = String.raw`[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|deg|grad|rad|turn)?`;
+
+/**
+ * `rgb()`/`rgba()`/`hsl()`/`hsla()` com argumentos **só numéricos**, na sintaxe
+ * de vírgulas (3 ou 4 argumentos) ou na de espaços (3, com `/ alfa` opcional).
+ * Nada de `var()`, `calc()` ou funções aninhadas.
+ */
+const CSS_FUNCTION_COLOR = new RegExp(
+  String.raw`^(?:rgba?|hsla?)\(\s*${CSS_NUMBER}(?:\s*,\s*${CSS_NUMBER}\s*,\s*${CSS_NUMBER}(?:\s*,\s*${CSS_NUMBER})?|\s+${CSS_NUMBER}\s+${CSS_NUMBER}(?:\s*\/\s*${CSS_NUMBER})?)\s*\)$`,
+  "i",
+);
+
+/**
+ * Uma cor escolhida pelo Dono, pronta a entrar em CSS — ou `fallback`.
+ *
+ * ## Porque é que existe
+ *
+ * As cores da Personalização (`colors.primary`, `colors.text`, `colors.icon`,
+ * `fieldColors`, `blocks[i].bg`) são texto livre gravado em JSON, e o JSON é
+ * editável por qualquer Dono (e à mão no Painel_Admin). Interpoladas em CSS sem
+ * validação, uma «cor» como `red;}</style><script>…` sai do bloco `<style>` e
+ * passa a ser HTML; `url(https://…)` faz o navegador de quem vê a página pedir
+ * um endereço à escolha do Dono. E quem vê a página não é só o Dono: o
+ * diretório `/lojas` desenha as lojas de toda a gente, e o Administrador abre o
+ * editor das lojas dos outros. `esc()` não chega — impede que se saia do
+ * atributo, mas não que se escreva CSS dentro dele.
+ *
+ * Aceita **só** o que é uma cor e nada mais: `#hex` de 3, 4, 6 ou 8 dígitos,
+ * `rgb()`/`rgba()`/`hsl()`/`hsla()` com argumentos numéricos e os nomes de cor
+ * do CSS. Tudo o resto — incluindo `var()`, `url()`, `;`, `}` e `<` — devolve
+ * `fallback`. Total: nunca lança, para qualquer entrada.
+ *
+ * @param value Cor de origem desconhecida (JSON da base de dados).
+ * @param fallback O que devolver quando `value` não é uma cor. `""` para «nada».
+ * @returns A cor sem espaços nas pontas, ou `fallback`.
+ */
+export function safeCssColor(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const v = value.trim();
+  // Nenhuma cor válida passa de umas dezenas de caracteres; o teto poupa as
+  // expressões regulares a entradas absurdas.
+  if (v === "" || v.length > 64) return fallback;
+  if (CSS_HEX_COLOR.test(v) || CSS_FUNCTION_COLOR.test(v) || CSS_NAMED_COLORS.has(v.toLowerCase())) return v;
+  return fallback;
+}

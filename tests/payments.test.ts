@@ -1,18 +1,32 @@
+/**
+ * Domínio de pagamentos (`src/services/payments.ts`), independente do
+ * fornecedor.
+ *
+ * A integração MoMenu saiu, e com ela a taxa de 2 %, a validação do checkout
+ * feita a partir dos preços do navegador e os mapas de estados da MoMenu. O
+ * preço de uma encomenda passou a ser calculado no servidor
+ * (`api/_payments.js`) e a comissão da plataforma vive em
+ * `src/services/fees.ts`. O que fica aqui é o que vale para qualquer
+ * fornecedor: totais, linhas válidas, telemóveis angolanos e o ciclo de vida de
+ * uma encomenda — e é isso que estes exemplos fixam.
+ *
+ * O **mínimo de um pagamento** voltou, mas não é o da MoMenu: a Wiza aceita uma
+ * cobrança abaixo de 100 Kz, o cliente paga e o valor não é creditado. Por isso
+ * `MIN_PAYMENT_KZ` existe nos dois lados — aqui, para o checkout recusar antes
+ * de criar a cobrança, e em `api/_wizapay.js`, que é quem a cria. Os dois
+ * valores são comparados mais abaixo.
+ */
 import { describe, it, expect } from "vitest";
-import { isOk, isErr } from "../src/models/index.js";
+import * as payments from "../src/services/payments.js";
 import {
-  FEE_RATE,
-  MIN_PAYMENT_KZ,
+  PAYMENTS_PROVIDER_READY,
   round2,
   productsTotal,
-  computeFee,
-  computeNet,
   isValidProduct,
-  validateCheckout,
   normalizeAoPhone,
-  mapMomenuStatus,
-  mapStatusString,
+  isValidAoPhone,
   isReferenceExpired,
+  MIN_PAYMENT_KZ,
   orderEffectiveStatus,
   canDeleteOrder,
   type PaymentProduct,
@@ -26,96 +40,93 @@ const prod = (over: Partial<PaymentProduct> = {}): PaymentProduct => ({
   ...over,
 });
 
-describe("payments — taxas e totais", () => {
-  it("FEE_RATE é 2% e o mínimo é 100 KZ", () => {
-    expect(FEE_RATE).toBe(0.02);
-    expect(MIN_PAYMENT_KZ).toBe(100);
+describe("payments — o que saiu com a MoMenu", () => {
+  it("não sobra taxa, validação de checkout nem mapas de estados do fornecedor antigo", () => {
+    // A comissão da plataforma não está aqui: vive em `src/services/fees.ts`,
+    // é aplicada no servidor e é comparada por `tests/fees.test.ts`. Um
+    // `computeFee` neste módulo era a taxa calculada no navegador.
+    for (const nome of [
+      "FEE_RATE", "computeFee", "computeNet", "validateCheckout",
+      "mapMomenuStatus", "mapStatusString",
+    ]) {
+      expect(payments, nome).not.toHaveProperty(nome);
+    }
   });
 
-  it("computeFee e computeNet repartem o valor exatamente", () => {
-    expect(computeFee(10000)).toBe(200);
-    expect(computeNet(10000)).toBe(9800);
-    expect(round2(computeFee(10000) + computeNet(10000))).toBe(10000);
-  });
-
-  it("productsTotal soma preço × quantidade", () => {
-    expect(productsTotal([prod({ productPrice: 2500, productQuantity: 2 }), prod({ productPrice: 1000, productQuantity: 1 })])).toBe(6000);
+  it("a bandeira do fornecedor é um booleano", () => {
+    // É ela que decide, no navegador, se os pagamentos digitais aparecem.
+    expect(typeof PAYMENTS_PROVIDER_READY).toBe("boolean");
   });
 });
 
-describe("payments — validação de produto", () => {
-  it("aceita um produto válido", () => {
-    expect(isValidProduct(prod())).toBe(true);
-    expect(isValidProduct(prod({ iva: 14 }))).toBe(true);
+describe("payments — o mínimo de uma cobrança é o mesmo nos dois lados", () => {
+  // Especificador em constante: mantém `api/` fora do programa do `tsc`.
+  const ESPECIFICADOR_WIZA = "../api/_wizapay.js";
+
+  it("MIN_PAYMENT_KZ é um valor positivo e finito", () => {
+    expect(Number.isFinite(MIN_PAYMENT_KZ)).toBe(true);
+    expect(MIN_PAYMENT_KZ).toBeGreaterThan(0);
   });
-  it("rejeita nome vazio, preço ≤ 0, quantidade não inteira e IVA inválido", () => {
+
+  it("é o mesmo valor que api/_wizapay.js valida antes de criar a cobrança", async () => {
+    // Se os dois divergirem, o checkout deixa passar um total que o servidor
+    // recusa (ou, pior, aceita e o Dono não recebe).
+    const wiza = (await import(ESPECIFICADOR_WIZA)) as { MIN_PAYMENT_KZ: number };
+    expect(wiza.MIN_PAYMENT_KZ).toBe(MIN_PAYMENT_KZ);
+  });
+});
+
+describe("payments — totais", () => {
+  it("productsTotal soma preço × quantidade", () => {
+    expect(productsTotal([prod({ productPrice: 2500, productQuantity: 2 }), prod({ productPrice: 1000 })])).toBe(6000);
+    expect(productsTotal([])).toBe(0);
+  });
+
+  it("arredonda a 2 casas sem ruído de vírgula flutuante", () => {
+    expect(round2(0.1 + 0.2)).toBe(0.3);
+    expect(round2(1.005)).toBe(1.01);
+    expect(productsTotal([prod({ productPrice: 0.1, productQuantity: 3 })])).toBe(0.3);
+  });
+});
+
+describe("payments — validação de uma linha", () => {
+  it("aceita uma linha válida, com ou sem Combinação", () => {
+    expect(isValidProduct(prod())).toBe(true);
+    expect(isValidProduct(prod({ variantKey: "Azul\u001FM" }))).toBe(true);
+  });
+
+  it("rejeita nome vazio, preço ≤ 0 ou não finito, e quantidade não inteira ou ≤ 0", () => {
     expect(isValidProduct(prod({ productName: "  " }))).toBe(false);
     expect(isValidProduct(prod({ productPrice: 0 }))).toBe(false);
     expect(isValidProduct(prod({ productPrice: -5 }))).toBe(false);
+    expect(isValidProduct(prod({ productPrice: Number.NaN }))).toBe(false);
+    expect(isValidProduct(prod({ productPrice: Number.POSITIVE_INFINITY }))).toBe(false);
     expect(isValidProduct(prod({ productQuantity: 1.5 }))).toBe(false);
     expect(isValidProduct(prod({ productQuantity: 0 }))).toBe(false);
-    expect(isValidProduct(prod({ iva: 9 }))).toBe(false);
+    expect(isValidProduct(prod({ productQuantity: -1 }))).toBe(false);
+  });
+
+  it("rejeita o que nem é uma linha", () => {
+    expect(isValidProduct(null as unknown as PaymentProduct)).toBe(false);
+    expect(isValidProduct({ productName: 7 } as unknown as PaymentProduct)).toBe(false);
   });
 });
 
-describe("payments — validateCheckout", () => {
-  it("aceita MCX com telefone e produtos válidos", () => {
-    const r = validateCheckout({ method: "mcx", products: [prod({ productPrice: 2500 })], phoneNumber: "923456789" });
-    expect(isOk(r)).toBe(true);
-    if (isOk(r)) expect(r.value.amount).toBe(2500);
-  });
-
-  it("aceita Referência sem telefone", () => {
-    const r = validateCheckout({ method: "reference", products: [prod({ productPrice: 5000 })] });
-    expect(isOk(r)).toBe(true);
-  });
-
-  it("rejeita sem produtos", () => {
-    const r = validateCheckout({ method: "reference", products: [] });
-    expect(isErr(r) && r.error).toBe("MISSING_PRODUCTS");
-  });
-
-  it("rejeita produto inválido", () => {
-    const r = validateCheckout({ method: "reference", products: [prod({ productPrice: 0 })] });
-    expect(isErr(r) && r.error).toBe("INVALID_PRODUCT");
-  });
-
-  it("rejeita abaixo do mínimo (100 KZ)", () => {
-    const r = validateCheckout({ method: "reference", products: [prod({ productPrice: 50, productQuantity: 1 })] });
-    expect(isErr(r) && r.error).toBe("BELOW_MINIMUM");
-  });
-
-  it("rejeita amount que não bate com os produtos", () => {
-    const r = validateCheckout({ method: "reference", products: [prod({ productPrice: 2500 })], amount: 3000 });
-    expect(isErr(r) && r.error).toBe("AMOUNT_MISMATCH");
-  });
-
-  it("rejeita MCX sem telefone", () => {
-    const r = validateCheckout({ method: "mcx", products: [prod({ productPrice: 2500 })] });
-    expect(isErr(r) && r.error).toBe("MISSING_PHONE");
-  });
-});
-
-describe("payments — telefone e estados", () => {
-  it("normalizeAoPhone garante prefixo 244", () => {
+describe("payments — telemóvel angolano", () => {
+  it("normalizeAoPhone garante o prefixo 244", () => {
     expect(normalizeAoPhone("923456789")).toBe("244923456789");
     expect(normalizeAoPhone("244923456789")).toBe("244923456789");
     expect(normalizeAoPhone("+244 923 456 789")).toBe("244923456789");
+    expect(normalizeAoPhone("")).toBe("");
   });
 
-  it("mapMomenuStatus mapeia operationStatus", () => {
-    expect(mapMomenuStatus("1")).toBe("paid");
-    expect(mapMomenuStatus("3")).toBe("cancelled");
-    expect(mapMomenuStatus("4")).toBe("failed");
-    expect(mapMomenuStatus("5")).toBe("failed");
-    expect(mapMomenuStatus(undefined)).toBe("open");
-  });
-
-  it("mapStatusString mapeia o status textual", () => {
-    expect(mapStatusString("paid")).toBe("paid");
-    expect(mapStatusString("pending")).toBe("open");
-    expect(mapStatusString("expired")).toBe("cancelled");
-    expect(mapStatusString("rejected")).toBe("failed");
+  it("isValidAoPhone aceita 9 algarismos a começar por 9, com ou sem 244", () => {
+    for (const valido of ["923456789", "+244 923 456 789", "244923456789", "(+244) 912-345-678"]) {
+      expect(isValidAoPhone(valido), valido).toBe(true);
+    }
+    for (const invalido of ["", "823456789", "92345678", "2449234567890", "+351 912 345 678", "telefone"]) {
+      expect(isValidAoPhone(invalido), invalido).toBe(false);
+    }
   });
 });
 
@@ -190,22 +201,5 @@ describe("payments — canDeleteOrder", () => {
   it("as falhadas e as canceladas ficam de fora (decisão: só as expiradas)", () => {
     expect(canDeleteOrder(enc({ status: "failed", dueDate: ONTEM }), AGORA)).toBe(false);
     expect(canDeleteOrder(enc({ status: "cancelled", dueDate: ONTEM }), AGORA)).toBe(false);
-  });
-
-  it("o que é apagável é sempre expirado, e o que não expirou nunca é apagável", () => {
-    const casos: OrderLifecycle[] = [
-      enc({ dueDate: ONTEM }),
-      enc({ dueDate: AMANHA }),
-      enc({ dueDate: null }),
-      enc({ status: "paid", paidAt: ONTEM, dueDate: ONTEM }),
-      enc({ status: "failed", dueDate: ONTEM }),
-      enc({ status: "cancelled", dueDate: ONTEM }),
-      enc({ method: "mcx", dueDate: ONTEM }),
-      enc({ method: "whatsapp", dueDate: null }),
-    ];
-    for (const c of casos) {
-      if (canDeleteOrder(c, AGORA)) expect(orderEffectiveStatus(c, AGORA)).toBe("expired");
-      else expect(orderEffectiveStatus(c, AGORA) === "expired" && !c.paidAt).toBe(false);
-    }
   });
 });

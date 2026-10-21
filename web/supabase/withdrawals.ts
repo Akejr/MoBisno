@@ -2,9 +2,16 @@
  * Pedidos de levantamento (Supabase). O dono solicita; a plataforma processa
  * depois (/admin). O "disponível para levantar" é o líquido recebido menos os
  * levantamentos já pedidos/pagos (não rejeitados).
+ *
+ * O dinheiro vai para a conta bancária **aprovada** na verificação de empresa
+ * (`store_payments`, migração 0023): é essa conta que o painel passa aqui, e
+ * só quando a verificação está aprovada.
  */
 import { supabase } from "./client.js";
-import type { PaymentConfig } from "./payments.js";
+import type { PaymentVerification } from "./payments.js";
+
+/** Conta para onde vai o levantamento: os dados bancários da verificação aprovada. */
+export type WithdrawalAccount = Pick<PaymentVerification, "bankName" | "beneficiaryName" | "iban">;
 
 export type WithdrawalStatus = "requested" | "approved" | "paid" | "rejected";
 
@@ -54,7 +61,7 @@ export async function requestWithdrawal(
   storeId: string,
   ownerId: string,
   amount: number,
-  bank: Pick<PaymentConfig, "bankName" | "beneficiaryName" | "iban">,
+  bank: WithdrawalAccount,
 ): Promise<boolean> {
   const { error } = await supabase.from("withdrawals").insert({
     store_id: storeId,

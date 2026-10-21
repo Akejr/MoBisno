@@ -4,6 +4,9 @@ dist/
 coverage/
 .DS_Store
 
+# Configuração local de ferramentas de edição (não pertence ao projeto)
+.claude/
+
 # Variáveis de ambiente (a anon key é pública, mas mantemos fora do git por hábito)
 .env
 **/.env

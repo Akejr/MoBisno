@@ -8,6 +8,10 @@
  * Domínio puro: sem DOM, sem `localStorage`, sem dependências. `web/lib/cart.ts`
  * — que depende de `localStorage` e por isso fica fora do programa de testes —
  * consome-o para chavear o estado.
+ *
+ * É também daqui que saem as **linhas pedidas ao servidor** num pagamento
+ * digital (`orderRequestLines`): a mesma identidade de linha, com a quantidade
+ * e sem preço — o servidor calcula o montante a partir da base de dados.
  */
 
 /**
@@ -55,4 +59,81 @@ export interface CartLineIdentity {
  */
 export function cartLineKey(line: CartLineIdentity): string {
   return `${line.productId}${LINE_SEP}${line.variantKey ?? ""}`;
+}
+
+/* ------------------------- Linhas pedidas ao servidor ------------------------- */
+
+/**
+ * `variantKey` utilizável, ou `undefined`: só texto com conteúdo conta como
+ * Combinação escolhida.
+ *
+ * É a regra de `lineKeyOf` em `web/lib/cart.ts` e de `asVariantKey` em
+ * `api/_shared.js`. Um item legado de `localStorage` (sem o campo) e um item com
+ * a chave manipulada à mão dão os dois `undefined` — e a linha segue como
+ * seguia antes das Variação.
+ */
+export function usableVariantKey(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/**
+ * Número máximo de linhas de uma encomenda digital. Espelha `MAX_ORDER_LINES`
+ * de `api/_payments.js`: o servidor **descarta em silêncio** as linhas a mais, e
+ * cobraria a encomenda sem elas — por isso o checkout recusa antes de enviar.
+ */
+export const MAX_ORDER_LINES = 100;
+
+/**
+ * Quantidade máxima por linha. Espelha `MAX_LINE_QUANTITY` de
+ * `api/_payments.js`, que também descarta em silêncio a linha que a excede.
+ */
+export const MAX_LINE_QUANTITY = 999;
+
+/**
+ * Linha de uma encomenda tal como o navegador a pede a `/api/payment`: o
+ * Produto, a Combinação e a quantidade. **Nunca o preço** — o servidor lê-o da
+ * base de dados (`priceStoreOrder` em `api/_payments.js`).
+ */
+export interface OrderRequestLine {
+  readonly id: string;
+  readonly variantKey?: string;
+  readonly quantity: number;
+}
+
+/** O mínimo de um item de Carrinho que a encomenda lê. */
+export interface OrderRequestSource {
+  readonly productId: string;
+  readonly variantKey?: unknown;
+  readonly quantity: number;
+}
+
+/**
+ * Linhas a enviar ao servidor a partir do Carrinho.
+ *
+ * Mesmas regras de `requestedLines` em `api/_payments.js`, para o servidor
+ * receber exatamente o que o comprador viu: `id` aparado, quantidade inteira
+ * positiva, `variantKey` só quando utilizável, e linhas da **mesma** Combinação
+ * do mesmo Produto somadas numa só (a chave é `cartLineKey`). A ordem é a do
+ * Carrinho. Os limites (`MAX_ORDER_LINES`, `MAX_LINE_QUANTITY`) **não** são
+ * aplicados aqui — quem chama verifica-os com `exceedsOrderLimits` e recusa,
+ * em vez de cortar a encomenda sem o comprador saber.
+ */
+export function orderRequestLines(items: readonly OrderRequestSource[]): OrderRequestLine[] {
+  const out = new Map<string, { id: string; variantKey?: string; quantity: number }>();
+  for (const item of items) {
+    const id = typeof item?.productId === "string" ? item.productId.trim() : "";
+    const quantity = Number(item?.quantity);
+    if (!id || !Number.isInteger(quantity) || quantity <= 0) continue;
+    const variantKey = usableVariantKey(item.variantKey);
+    const key = cartLineKey({ productId: id, variantKey });
+    const prev = out.get(key);
+    if (prev) prev.quantity += quantity;
+    else out.set(key, variantKey === undefined ? { id, quantity } : { id, variantKey, quantity });
+  }
+  return [...out.values()];
+}
+
+/** A encomenda excede os limites do servidor (linhas a mais ou quantidade a mais numa linha)? */
+export function exceedsOrderLimits(lines: readonly OrderRequestLine[]): boolean {
+  return lines.length > MAX_ORDER_LINES || lines.some((l) => l.quantity > MAX_LINE_QUANTITY);
 }

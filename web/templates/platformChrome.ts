@@ -7,14 +7,14 @@
  * conhecida: uma delas muda e as outras ficam para trás sem nada falhar. Este
  * módulo existe para as páginas da SPA partilharem o original.
  *
- * **O que este módulo NÃO resolve:** `api/_seo.js` corre em JavaScript sem passo
- * de compilação e não pode importar daqui (a mesma parede que obriga a espelhar
- * `src/services/` — `SEO.md` §5.2). O cromo do HTML pré-renderizado continua a
- * ser o do `platformHtml`, mais simples. Quem chega vê o cromo simples até a SPA
- * arrancar. Fechar isso exige a paridade real de renderização, que é trabalho
- * de outra dimensão.
+ * **Pré-renderização.** A página inicial é desenhada no servidor com este mesmo
+ * cromo: `web/views/landingHtml.ts` entra no pacote `api/_ssr/render.mjs`
+ * (`web/ssr/entry.ts`), e a SPA adota o HTML em vez de o reescrever. As outras
+ * páginas da plataforma (legais, diretório) continuam a ser servidas com o cromo
+ * simplificado do `platformHtml` de `api/_seo.js` até a SPA arrancar.
  */
 import { esc } from "../lib/dom.js";
+import { PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
 
 /** Laranja da plataforma. Só interface da MôBisno — as Lojas usam `var(--brand)`. */
 export const PLATFORM_ACCENT = "#F95901";
@@ -23,13 +23,19 @@ export const PLATFORM_ACCENT = "#F95901";
 const PLATFORM_LABEL = "MôBisno";
 
 /**
- * Secções da página inicial que o cabeçalho oferece. O `id` tem de existir na
- * `web/views/landing.ts` — se lá for renomeado, a ligação deixa de encontrar
- * nada e o clique não faz visivelmente nada.
+ * Secções da página inicial que o cabeçalho oferece. O `id` tem de existir no
+ * HTML de `web/views/landingHtml.ts` — se lá for renomeado, a ligação deixa de
+ * encontrar nada e o clique não faz visivelmente nada.
+ * `tests/landingCopy.test.ts` desenha a página e confirma que cada `id` existe.
+ *
+ * `integracoes` passou a `pagamentos` quando a secção deixou de se chamar
+ * «Integrações» e passou a responder à pergunta que de facto se faz: como é que
+ * o dinheiro entra.
  */
 export const HOME_SECTIONS: readonly { id: string; label: string }[] = [
+  { id: "como-funciona", label: "Como funciona" },
   { id: "funcionalidades", label: "Funcionalidades" },
-  { id: "integracoes", label: "Integrações" },
+  { id: "pagamentos", label: "Pagamentos" },
   { id: "precos", label: "Preços" },
 ];
 
@@ -115,12 +121,14 @@ export function platformNavHtml(opts: { brandHtml?: string; actionsHtml?: string
   // Escondidas abaixo de `md`: ao lado da marca e das ações não cabem num
   // telemóvel, e um menu sanduíche é outra conversa.
   const sections = HOME_SECTIONS.map((s) =>
-    `<a href="/" data-goto="${esc(s.id)}" class="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors">${esc(s.label)}</a>`).join("");
+    `<a href="/" data-goto="${esc(s.id)}" class="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap">${esc(s.label)}</a>`).join("");
+  // `gap-4` em `md` e `gap-6` só a partir de `lg`: com quatro secções, a marca e
+  // as ações, o espaçamento largo deixava de caber à largura de um tablet.
   return `
     <nav class="bg-white/90 backdrop-blur sticky top-0 border-b border-gray-100 z-50">
       <div class="flex justify-between items-center gap-3 md:gap-4 px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
         <div class="shrink-0 min-w-0">${brand}</div>
-        <div class="hidden md:flex items-center gap-6 shrink-0">${sections}</div>
+        <div class="hidden md:flex items-center gap-4 lg:gap-6 shrink-0">${sections}</div>
         <div class="flex items-center gap-2 sm:gap-3 shrink-0">${actions}</div>
       </div>
     </nav>`;
@@ -130,49 +138,57 @@ export function platformNavHtml(opts: { brandHtml?: string; actionsHtml?: string
  * Rodapé da plataforma, em quatro colunas. **Uma só definição** — a página
  * inicial também usa esta, depois de ter tido uma cópia escrita à mão.
  *
- * As ligações do Dashboard usam o esquema `#/` da aplicação **privada**, que é
- * legítimo e não é indexado; as páginas públicas (`/lojas`, `/criar`, legais)
- * usam caminhos reais, como o `SEO.md` §5.1 exige.
+ * Todas as ligações são caminhos reais (`/criar`, `/login`, `/painel`,
+ * `/lojas`, legais), como o `SEO.md` §5.1 exige: o rodapé sai no HTML
+ * pré-renderizado da página inicial e tem de funcionar sem JavaScript. «Preços»
+ * usa o mesmo mecanismo das secções do cabeçalho (`data-goto`, ligado por
+ * `mountSectionNav`): rola na página inicial e, fora dela, navega para lá.
  */
 export function platformFooterHtml(): string {
-  const social = (href: string, label: string, icon: string, target = false): string =>
-    `<a href="${esc(href)}"${target ? ' target="_blank" rel="noopener"' : ""} aria-label="${esc(label)}" class="w-9 h-9 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:text-white transition-colors" onmouseover="this.style.background='${PLATFORM_ACCENT}';this.style.borderColor='${PLATFORM_ACCENT}'" onmouseout="this.style.background='';this.style.borderColor=''"><span class="material-symbols-outlined text-[18px]">${icon}</span></a>`;
+  const link = (href: string, label: string, extra = ""): string =>
+    `<li><a href="${esc(href)}"${extra} class="text-gray-500 hover:text-gray-900 transition-colors">${esc(label)}</a></li>`;
+  const mail = `mailto:${PLATFORM_CONTACT_EMAIL}`;
 
-  const link = (href: string, label: string, target = false): string =>
-    `<li><a href="${esc(href)}"${target ? ' target="_blank" rel="noopener"' : ""} class="text-gray-500 hover:text-gray-900 transition-colors">${esc(label)}</a></li>`;
-
+  // Só contactos verdadeiros: o email geral. As ligações de WhatsApp
+  // (`wa.me/244900000000`) e de Instagram (`#`) eram marcadores de posição —
+  // um número que não é de ninguém e uma ligação para lado nenhum.
   return `
     <footer class="bg-white border-t border-gray-100">
       <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-14">
         <div class="grid grid-cols-2 md:grid-cols-12 gap-10">
           <div class="col-span-2 md:col-span-4 flex flex-col gap-4">
             <img src="/logo-header.png" alt="${esc(PLATFORM_LABEL)}" style="height:26px" class="w-auto object-contain self-start" />
-            <p class="text-sm text-gray-500 max-w-xs leading-relaxed">A forma mais simples de criar a sua loja online em Angola. Modelos prontos, pagamentos locais e venda pelo WhatsApp.</p>
-            <div class="flex items-center gap-2 mt-1">
-              ${social("https://wa.me/244900000000", "WhatsApp", "chat", true)}
-              ${social("mailto:geral@mobisno.store", "Email", "mail")}
-              ${social("#", "Instagram", "photo_camera")}
-            </div>
+            <!-- Sem superlativos: «a forma mais simples» não é verificável. O que
+                 a loja faz é que é. -->
+            <p class="text-sm text-gray-500 max-w-xs leading-relaxed">Lojas online angolanas, sem programar: modelos prontos, editor visual e encomendas por WhatsApp em todas as lojas.</p>
+            <a href="${esc(mail)}" class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">mail</span>${esc(PLATFORM_CONTACT_EMAIL)}</a>
           </div>
+          <!-- Os titulos das colunas sao h3, e nao h4: a pagina acima deles
+               acaba em h2, e saltar de h2 para h4 deixa um degrau vazio na
+               arvore de titulos — um leitor de ecra anuncia uma seccao de nivel
+               quatro sem a de nivel tres existir. O teste landingCopy guarda-o.
+               (Sem acentos graves aqui: isto esta dentro de um template literal.) -->
           <div class="md:col-span-3">
-            <h4 class="text-sm font-bold text-gray-900 mb-4">Plataforma</h4>
+            <h3 class="text-sm font-bold text-gray-900 mb-4">Plataforma</h3>
             <ul class="space-y-3 text-sm">
-              ${link("#/criar", "Criar loja")}
-              ${link("#/login", "Entrar")}
-              ${link("#/painel", "Dashboard")}
-              ${link("#", "Preços")}
+              ${link("/criar", "Criar loja")}
+              ${link("/login", "Entrar")}
+              ${link("/painel", "Dashboard")}
+              ${link("/", "Preços", ' data-goto="precos"')}
             </ul>
           </div>
           <div class="md:col-span-3">
-            <h4 class="text-sm font-bold text-gray-900 mb-4">Recursos</h4>
+            <h3 class="text-sm font-bold text-gray-900 mb-4">Recursos</h3>
             <ul class="space-y-3 text-sm">
               ${link("/lojas", "Lojas criadas na MôBisno")}
+              ${link("/modelos", "Modelos prontos")}
               ${link("/criar", "Criar loja online")}
-              ${link("https://wa.me/244900000000", "Contacto", true)}
+              ${link("/", "Perguntas frequentes", ' data-goto="perguntas"')}
+              ${link(mail, "Contacto")}
             </ul>
           </div>
           <div class="md:col-span-2">
-            <h4 class="text-sm font-bold text-gray-900 mb-4">Legal</h4>
+            <h3 class="text-sm font-bold text-gray-900 mb-4">Legal</h3>
             <ul class="space-y-3 text-sm">
               ${link("/termos", "Termos")}
               ${link("/privacidade", "Privacidade")}

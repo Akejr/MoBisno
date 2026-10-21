@@ -17,14 +17,15 @@
  * ícones desse botão passam a receber a mesma cor.
  */
 import type { StoreCustomization } from "../templates/types.js";
+import { safeCssColor } from "../../src/services/storeCustom.js";
 
 /**
  * Ascendentes tratados como «botão». `a`, `button` e `[role="button"]` cobrem
  * hoje todos os casos dos modelos (nenhum marcador de CTA vive num `div`), mas
  * os marcadores próprios ficam listados para o comportamento não se perder se
  * algum deles passar a assentar noutro elemento: `data-hero-cta` (heroes,
- * lumiere), `data-add-cart` e `data-edit-whatsapp` (páginas de produto) e os
- * CTAs do foodmart (`data-fm-banner-cta`, `data-fm-ad-cta`, `data-fm-promo-cta`).
+ * lumiere, tech essentials), `data-add-cart` e `data-edit-whatsapp` (páginas de
+ * produto).
  */
 export const BUTTON_ANCESTORS: readonly string[] = [
   "a",
@@ -33,10 +34,16 @@ export const BUTTON_ANCESTORS: readonly string[] = [
   "[data-hero-cta]",
   "[data-add-cart]",
   "[data-edit-whatsapp]",
-  "[data-fm-banner-cta]",
-  "[data-fm-ad-cta]",
-  "[data-fm-promo-cta]",
 ];
+
+/**
+ * Caminho de campo que pode entrar num seletor de CSS escrito em texto.
+ *
+ * Os caminhos são os de `data-edit` (`hero.title`, `blocks.0.items.1.name`):
+ * letras, dígitos, `.`, `_` e `-`. As chaves de `fieldColors` vêm do JSON da
+ * loja, e uma chave com `"`, `]` ou `<` sairia do seletor de `fieldColorCss`.
+ */
+const SAFE_FIELD_PATH = /^[A-Za-z0-9_.-]{1,120}$/;
 
 /** Seletor único dos ascendentes «botão». */
 export const BUTTON_ANCESTOR_SELECTOR = BUTTON_ANCESTORS.join(",");
@@ -122,7 +129,10 @@ export function applyFieldColors(root: HTMLElement | null, custom: StoreCustomiz
   if (!root) return;
   const map = custom?.fieldColors;
   if (!map) return;
-  for (const [path, color] of Object.entries(map)) {
+  for (const [path, raw] of Object.entries(map)) {
+    // O JSON é da loja: uma «cor» que não é cor fica de fora, como se não
+    // estivesse lá (`safeCssColor`).
+    const color = safeCssColor(raw, "");
     if (!color) continue;
     paintFieldColor(root, path, color, map);
   }
@@ -135,10 +145,16 @@ export function applyFieldColors(root: HTMLElement | null, custom: StoreCustomiz
  * porque a regra dos ícones depende de `:has()`. `:not([data-edit] *)` evita
  * roubar o ícone de outro campo — o ícone do próprio campo é coberto pela regra
  * anterior.
+ *
+ * Cor e caminho vêm do JSON da loja e são escritos **em texto** dentro de um
+ * `<style>`: uma entrada com uma cor que não é cor (`safeCssColor`) ou com um
+ * caminho fora de `SAFE_FIELD_PATH` fica de fora — senão `red}</style>…` saía
+ * do bloco de estilo e passava a ser HTML.
  */
 export function fieldColorCss(map: Record<string, string> | undefined): string {
   return Object.entries(map ?? {})
-    .filter(([, c]) => !!c)
+    .map(([p, c]): [string, string] => [p, safeCssColor(c, "")])
+    .filter(([p, c]) => !!c && SAFE_FIELD_PATH.test(p))
     .map(([p, c]) => {
       const f = `[data-edit="${p}"]`;
       return (

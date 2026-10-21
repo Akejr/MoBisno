@@ -7,46 +7,33 @@
  * supabase/migrations/0001_init.sql); os filtros aqui são defensivos.
  */
 
-import type { Result, Store, Product, Banner, Asset, AssetKind, ImageFormat, StoreState } from "../../src/models/index.js";
+import type { Result, Store, Product, Banner, Asset, AssetKind } from "../../src/models/index.js";
 import { ok, err } from "../../src/models/index.js";
 import type { StoreRepository, StoreRepositoryError } from "../../src/services/storeRepository.js";
 import type { ProductRepository } from "../../src/services/productRepository.js";
 import type { BannerRepository } from "../../src/services/bannerRepository.js";
 import type { AssetRepository } from "../../src/services/assetRepository.js";
 import { supabase } from "./client.js";
+import { toStore, toProduct, toBanner, toAsset } from "./mappers.js";
 
 /* ------------------------------- mappers -------------------------------- */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/*
+ * Os conversores linha → domínio vivem em `./mappers.ts`, sem o cliente
+ * Supabase, para a pré-renderização no servidor usar exatamente os mesmos
+ * (`web/ssr/entry.ts`). Reexportados aqui para quem já os importava daqui.
+ */
+export { toStore, toProduct, toBanner, toAsset };
 
-export function toStore(r: any): Store {
-  return {
-    id: r.id, ownerId: r.owner_id, name: r.name, storeType: r.store_type,
-    templateId: r.template_id, identifier: r.identifier, subdomain: r.subdomain,
-    state: r.state as StoreState, createdAt: r.created_at,
-  };
-}
+/**
+ * Linha a gravar. `digital_payments` fica de fora de propósito: não é do Dono —
+ * só a aprovação da verificação de empresa o liga (gatilho da migração 0023).
+ */
 function fromStore(s: Store): Record<string, unknown> {
   return {
     id: s.id, owner_id: s.ownerId, name: s.name, store_type: s.storeType,
     template_id: s.templateId, identifier: s.identifier, subdomain: s.subdomain,
     state: s.state, created_at: s.createdAt,
   };
-}
-export function toProduct(r: any): Product {
-  return {
-    id: r.id, storeId: r.store_id, name: r.name, description: r.description ?? "",
-    category: r.category ?? undefined,
-    featured: r.featured === true,
-    physical: r.physical !== false,
-    price: Number(r.price), imageUrl: r.image_url ?? undefined,
-    available: r.available, stock: r.stock ?? null, createdAt: r.created_at,
-  };
-}
-export function toBanner(r: any): Banner {
-  return { id: r.id, storeId: r.store_id, imageUrl: r.image_url, position: r.position, createdAt: r.created_at };
-}
-export function toAsset(r: any): Asset {
-  return { id: r.id, storeId: r.store_id, kind: r.kind as AssetKind, url: r.url, format: r.format as ImageFormat, sizeBytes: r.size_bytes };
 }
 
 /* ----------------------------- StoreRepository -------------------------- */

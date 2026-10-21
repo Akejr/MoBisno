@@ -11,6 +11,156 @@ import type {
 } from "../../src/services/authService.js";
 import { supabase } from "./client.js";
 
+/* ----------------------- Redefinição da palavra-passe ----------------------- */
+
+/**
+ * Rota para onde o link do email traz o Dono de volta: o ecrã de início de
+ * sessão (`web/main.ts` encaminha tudo o que começa por `/login` para
+ * `renderLogin`), que reconhece {@link PASSWORD_RESET_PARAM} e mostra «Definir
+ * nova palavra-passe».
+ */
+export const PASSWORD_RESET_PATH = "/login";
+
+/** Parâmetro que marca, no endereço, o regresso de um link de redefinição. */
+export const PASSWORD_RESET_PARAM = "redefinir";
+
+/**
+ * Endereço de regresso do link de redefinição, na origem da Plataforma.
+ *
+ * Tem de constar de «Redirect URLs» no Supabase (Authentication → URL
+ * Configuration). Um endereço fora da lista é trocado pelo «Site URL»: o Dono
+ * aterrava na página inicial com a sessão aberta e sem lhe ser pedida a
+ * palavra-passe nova.
+ */
+export function passwordResetRedirect(origin: string): string {
+  return `${String(origin ?? "").replace(/\/+$/, "")}${PASSWORD_RESET_PATH}?${PASSWORD_RESET_PARAM}=1`;
+}
+
+/**
+ * O endereço é o regresso de um link de redefinição?
+ *
+ * Duas marcas, porque o Supabase tem dois fluxos: a nossa (`?redefinir=1`, posta
+ * em `redirectTo`) e a do fluxo implícito (`#…&type=recovery`). No fluxo PKCE —
+ * o deste cliente — o Supabase acrescenta `?code=…` e só a primeira existe.
+ */
+export function isPasswordRecoveryUrl(href: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.searchParams.get(PASSWORD_RESET_PARAM) === "1") return true;
+  return new URLSearchParams(url.hash.replace(/^#/, "")).get("type") === "recovery";
+}
+
+/** Resultado de uma operação de palavra-passe: sucesso, ou a frase a mostrar. */
+export type PasswordResult = { ok: true } | { ok: false; reason: string };
+
+/** Mesmo formato de email que o `AuthService` aceita. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const MSG_EMAIL_INVALIDO = "O email indicado não tem um formato válido.";
+const MSG_LIMITE = "Foram feitos demasiados pedidos seguidos. Aguarde alguns minutos e tente de novo.";
+const MSG_LINK_EXPIRADO = "O link para redefinir a palavra-passe já não é válido. Peça um novo.";
+
+/** Estado, código e nome de um erro do Supabase Auth, lidos sem confiar no tipo. */
+function errorInfo(error: unknown): { status: number; code: string; name: string } {
+  const e = (error ?? {}) as { status?: unknown; code?: unknown; name?: unknown };
+  return {
+    status: typeof e.status === "number" ? e.status : 0,
+    code: typeof e.code === "string" ? e.code : "",
+    name: typeof e.name === "string" ? e.name : "",
+  };
+}
+
+/**
+ * Pede o email com o link para redefinir a palavra-passe.
+ *
+ * O sucesso não diz se a conta existe: o Supabase responde da mesma forma para
+ * qualquer email, e o ecrã mostra a mesma frase neutra. As falhas que se
+ * mostram (formato, limite de envios, rede) também não dependem da conta.
+ */
+export async function requestPasswordReset(email: string, origin: string): Promise<PasswordResult> {
+  const clean = (typeof email === "string" ? email : "").trim().toLowerCase();
+  if (!clean) return { ok: false, reason: "Indique o email da sua conta." };
+  if (!EMAIL_RE.test(clean)) return { ok: false, reason: MSG_EMAIL_INVALIDO };
+
+  let error: unknown = null;
+  try {
+    ({ error } = await supabase.auth.resetPasswordForEmail(clean, { redirectTo: passwordResetRedirect(origin) }));
+  } catch (e) {
+    error = e;
+  }
+  if (!error) return { ok: true };
+
+  const e = errorInfo(error);
+  if (e.status === 429 || e.code === "over_email_send_rate_limit" || e.code === "over_request_rate_limit") {
+    return { ok: false, reason: MSG_LIMITE };
+  }
+  if (e.code === "email_address_invalid" || e.code === "validation_failed") return { ok: false, reason: MSG_EMAIL_INVALIDO };
+  return { ok: false, reason: "Não foi possível enviar o email agora. Verifique a ligação e tente de novo." };
+}
+
+/**
+ * Grava a nova palavra-passe na sessão aberta pelo link de recuperação.
+ *
+ * Só exige palavra-passe não vazia, como o resto deste adaptador: o mínimo de
+ * caracteres é a regra do ecrã (`PASSWORD_MIN_LENGTH`), aplicada antes de chegar
+ * aqui.
+ */
+export async function updatePassword(password: string): Promise<PasswordResult> {
+  if (typeof password !== "string" || password.length === 0) {
+    return { ok: false, reason: "Escreva a nova palavra-passe." };
+  }
+  let error: unknown = null;
+  try {
+    ({ error } = await supabase.auth.updateUser({ password }));
+  } catch (e) {
+    error = e;
+  }
+  if (!error) return { ok: true };
+
+  const e = errorInfo(error);
+  if (e.code === "same_password") return { ok: false, reason: "A nova palavra-passe tem de ser diferente da anterior." };
+  if (e.code === "weak_password" || e.name === "AuthWeakPasswordError") {
+    return { ok: false, reason: "Essa palavra-passe é demasiado fraca. Escolha uma mais longa e difícil de adivinhar." };
+  }
+  if (e.status === 429 || e.code === "over_request_rate_limit") return { ok: false, reason: MSG_LIMITE };
+  if (
+    e.name === "AuthSessionMissingError"
+    || ["session_not_found", "session_expired", "bad_jwt", "refresh_token_not_found", "reauthentication_needed"].includes(e.code)
+    || e.status === 401 || e.status === 403
+  ) {
+    return { ok: false, reason: MSG_LINK_EXPIRADO };
+  }
+  return { ok: false, reason: "Não foi possível guardar a nova palavra-passe. Tente de novo." };
+}
+
+/**
+ * Avisa quando o Supabase confirma uma sessão de recuperação (evento
+ * `PASSWORD_RECOVERY` do supabase-js v2). Devolve a função que cancela.
+ */
+export function onPasswordRecovery(cb: () => void): () => void {
+  const { data } = supabase.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") cb();
+  });
+  return () => data.subscription.unsubscribe();
+}
+
+/**
+ * Há sessão neste navegador? Espera que o cliente acabe de ler o link (a troca
+ * do código PKCE é feita quando o cliente arranca).
+ */
+export async function hasActiveSession(): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return !!data.session;
+  } catch {
+    return false;
+  }
+}
+
 function toSession(ownerId: string, email: string, token: string): Session {
   return { ownerId, email, token, createdAt: new Date().toISOString() };
 }

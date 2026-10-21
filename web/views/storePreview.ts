@@ -16,27 +16,27 @@
  * se pede a sessão de quem está a ver.
  */
 import { render, fadeInImages, esc } from "../lib/dom.js";
-import { getTemplate } from "../templates/registry.js";
 import { loadStorePreview } from "../lib/storeCache.js";
-import { brandOf, readableInk } from "../lib/brand.js";
 import { applyInk } from "../lib/ink.js";
 import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { mountParticlesHeroes } from "../lib/particlesHero.js";
 import { mountTestimonials } from "../lib/testimonialsCarousel.js";
+import { updateCartBadge } from "../lib/cart.js";
 import { applyNoindexSeo } from "../lib/seo.js";
 import { currentOwnerId } from "../composition.js";
 import { go } from "../lib/dom.js";
+import { storeHomeHtml, storeBrand, STORE_DRAFT_LABEL } from "./storeHtml.js";
 
 const ACCENT = "#F95901";
 
 /** Barra fixa que impede confundir a pré-visualização com a loja publicada. */
 function previewBar(publicada: boolean): string {
-  return `<div id="mb-preview-bar" style="position:sticky;top:0;z-index:60;background:#111827;color:#fff;font-family:Inter,system-ui,sans-serif">
+  return `<div id="mb-preview-bar" role="status" style="position:sticky;top:0;z-index:60;background:#111827;color:#fff;font-family:Inter,system-ui,sans-serif">
     <div style="max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span class="material-symbols-outlined" style="font-size:19px;color:${ACCENT}">visibility</span>
-      <span style="font-size:13px;font-weight:700">Pré-visualização</span>
+      <span class="material-symbols-outlined" style="font-size:19px;color:${ACCENT}" aria-hidden="true">visibility</span>
+      <span style="font-size:13px;font-weight:700">${publicada ? "Pré-visualização" : esc(STORE_DRAFT_LABEL)}</span>
       <span style="font-size:13px;opacity:.75;flex:1;min-width:180px">${publicada
         ? "Esta loja está publicada. Está a ver a versão atual."
         : "Só você vê esta página. Para a pôr online, ative a subscrição."}</span>
@@ -76,10 +76,10 @@ export async function renderStorePreview(identifier: string): Promise<void> {
     return;
   }
 
-  const template = getTemplate(view.templateId);
-  const app = render(previewBar(result.store.state === "Publicada") + template.render(view, custom));
-  app.style.setProperty("--brand", brandOf(custom, view.templateId));
-  app.style.setProperty("--brand-ink", readableInk(brandOf(custom, view.templateId)));
+  const app = render(previewBar(result.store.state === "Publicada") + storeHomeHtml(view, custom));
+  const { brand, ink } = storeBrand(view, custom);
+  app.style.setProperty("--brand", brand);
+  app.style.setProperty("--brand-ink", ink);
   applyInk(app, custom);
   applyTheme(app, custom);
   applyFieldColors(app, custom);
@@ -87,16 +87,14 @@ export async function renderStorePreview(identifier: string): Promise<void> {
   fadeInImages(app);
   mountParticlesHeroes(app);
   mountTestimonials(app);
+  updateCartBadge(result.store.id);
 
-  // O carrinho e o checkout não são montados de propósito: isto é uma vista da
-  // loja, não uma loja a funcionar. Comprar aqui gravaria encomendas a sério
-  // numa loja que ainda não está aberta ao público.
-  app.querySelectorAll<HTMLElement>("[data-add-cart],[data-cart-link]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    }, true);
-  });
+  // Os produtos, as categorias e o carrinho funcionam dentro da
+  // pré-visualização: as ligações levam a `/loja/<id>/…`, que para o próprio
+  // Dono resolve o rascunho (`loadStorefront` em `web/lib/storeCache.ts`), com a
+  // faixa «Pré-visualização» sempre à vista e fora do índice. Ninguém mais o
+  // consegue abrir. O checkout de um rascunho só pode encomendar por WhatsApp —
+  // os pagamentos digitais exigem a loja publicada e aprovada, no servidor.
 
   app.querySelector<HTMLElement>('[href="#/painel"]')?.addEventListener("click", (e) => {
     e.preventDefault();

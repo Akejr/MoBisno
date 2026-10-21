@@ -34,8 +34,10 @@ import {
   categoryTitle, categoryDescription,
   metaTags, breadcrumbJsonLd, storeJsonLd, collectionJsonLd, productJsonLd,
   platformJsonLd, faqJsonLd,
+  platformOrigin, isModelStore, platformFaq, platformPriceLabel, platformComingSoon,
   storeHomeHtml, categoryHtml, productHtml, platformHtml, inject,
 } from "./_seo.js";
+import { getPaymentProvider } from "./_provider.js";
 
 /** Shell estático em cache por instância (evita um round-trip por pedido). */
 let shellCache = null;
@@ -112,24 +114,74 @@ function addressOf(custom) {
 }
 
 /** Perguntas frequentes da plataforma (respostas verdadeiras sobre o produto). */
-const PLATFORM_FAQ = [
-  {
-    question: "Como crio uma loja online em Angola?",
-    answer: "Registe-se na MôBisno, escolha um modelo, adicione os seus produtos e publique. A loja fica online num endereço próprio (nomedaloja.sualoja.digital), sem precisar de conhecimentos técnicos.",
-  },
-  {
-    question: "Que métodos de pagamento posso aceitar?",
-    answer: "Multicaixa Express, Referência Bancária e encomendas por WhatsApp. Estão todos incluídos na subscrição, sem escalões nem funcionalidades reservadas.",
-  },
-  {
-    question: "Quanto custa?",
-    answer: "11.000 Kz por mês, ou 120.000 Kz por ano — poupa 12.000 Kz face a doze meses avulsos. Um preço único, com lojas e produtos ilimitados. Criar a loja e vê-la é grátis; a subscrição é necessária para a publicar.",
-  },
-  {
-    question: "Posso usar o meu próprio domínio?",
-    answer: "Sim, a subscrição inclui a ligação de um domínio próprio à sua loja.",
-  },
-];
+/* ---------------------- Modelos verdadeiros (pacote SSR) ---------------------- */
+
+/**
+ * Pacote com os MODELOS verdadeiros da loja (`api/_ssr/render.mjs`, gerado por
+ * `scripts/build-ssr.mjs` a partir de `web/ssr/entry.ts`).
+ *
+ * PORQUÊ: durante muito tempo o servidor escrevia uma versão simplificada da
+ * loja dentro de `#app` e a SPA substituía-a pelo modelo verdadeiro assim que
+ * arrancava — o visitante via primeiro uma página em bruto e depois a loja. Com
+ * o pacote, o primeiro ecrã **é** a loja: o HTML é o mesmo que a SPA produziria,
+ * e por isso ela adota o DOM que já está no ecrã em vez de o reescrever
+ * (`data-ssr` + `web/lib/dom.ts`).
+ *
+ * Importado uma vez por instância, com `import()` dinâmico: se o ficheiro não
+ * existir no deploy (ou tiver um erro), a pré-renderização continua a servir a
+ * versão simplificada em vez de responder 500.
+ */
+let ssrPack = null;
+let ssrTentado = false;
+async function ssrPackage() {
+  if (ssrTentado) return ssrPack;
+  ssrTentado = true;
+  try {
+    ssrPack = await import("./_ssr/render.mjs");
+  } catch (e) {
+    console.error("prerender: pacote SSR indisponível", e);
+    ssrPack = null;
+  }
+  return ssrPack;
+}
+
+/** Página de loja desenhada com o modelo verdadeiro, ou `null` em qualquer falha. */
+async function realStorePage(pedido) {
+  const pack = await ssrPackage();
+  if (!pack || typeof pack.renderStorePage !== "function") return null;
+  try {
+    return pack.renderStorePage(pedido);
+  } catch (e) {
+    console.error("prerender: render do modelo falhou", e);
+    return null;
+  }
+}
+
+/** Página inicial da plataforma desenhada com o código verdadeiro, ou `null`. */
+async function realLandingPage(pedido) {
+  const pack = await ssrPackage();
+  if (!pack || typeof pack.renderLandingPage !== "function") return null;
+  try {
+    return pack.renderLandingPage(pedido);
+  } catch (e) {
+    console.error("prerender: render da página inicial falhou", e);
+    return null;
+  }
+}
+
+/**
+ * O que `inject` precisa para a SPA poder adotar o HTML: a impressão digital
+ * (`data-ssr`), as cores e os atributos de `#app`, e as folhas do primeiro ecrã.
+ */
+function ssrInject(page) {
+  if (!page || !page.hash) return {};
+  return { appAttrs: ` data-ssr="${page.hash}"${page.appAttrs || ""}`, headHtml: page.headHtml || "" };
+}
+
+/** O serviço de pagamentos está ligado? Decide o que os textos públicos prometem. */
+function paymentsReady() {
+  return getPaymentProvider() !== null;
+}
 
 export default async function handler(req, res) {
   const host = (req.headers.host || PLATFORM_APEX).split(":")[0];
@@ -175,9 +227,9 @@ export default async function handler(req, res) {
     // Diretório público de lojas: dá a cada loja uma ligação seguida a partir de
     // um domínio já indexado. Sem isto, cada loja nasce órfã num subdomínio novo
     // sem uma única ligação a apontar-lhe — e não é descoberta nem posicionada.
-    if (!identifier && path === "/lojas") return send(await renderDirectory(shell, db));
+    if (!identifier && path === "/lojas") return send(await renderDirectory(shell, db, host));
 
-    if (!identifier) return send(renderPlatform(shell, host, path), isKnownPlatformPath(path) ? 200 : 404);
+    if (!identifier) return send(await renderPlatform(shell, host, path), isKnownPlatformPath(path) ? 200 : 404);
     if (!db) return send(shell);
 
     const canonicalBase = `https://${identifier}.${STORE_APEX}`;
@@ -226,6 +278,16 @@ export default async function handler(req, res) {
     // Dados embutidos no HTML: poupam à SPA três idas ao Supabase (~1s).
     const ssrData = { store, logo: logo || null, banners: banners || [], products };
 
+    // A loja desenhada com o modelo verdadeiro. Quando sai, o HTML servido é o
+    // mesmo que a SPA produziria e ela adota-o; quando não sai (pacote em falta,
+    // erro no render), fica a versão simplificada — a página continua indexável.
+    const real = await realStorePage({ host, path, identifier, rest, rows: ssrData });
+    const realDe = (kind) => (real && real.kind === kind ? real : null);
+
+    // Uma loja-modelo é uma demonstração da galeria: o conteúdo é quase igual
+    // entre elas e duplicaria as lojas dos clientes nos resultados.
+    const modelo = isModelStore(store);
+
     const seoDesc = custom.seo && custom.seo.description;
     const storeDesc = storeDescription(storeName, seoDesc);
     const cats = categoriesOf(products);
@@ -257,6 +319,7 @@ export default async function handler(req, res) {
         title, description, canonical: url,
         image: product.image_url || logoUrl,
         type: "product", siteName: storeName,
+        noindex: modelo, follow: true,
         jsonLd: [
           productJsonLd({
             name: product.name, description: product.description, image: product.image_url,
@@ -266,12 +329,14 @@ export default async function handler(req, res) {
           breadcrumbJsonLd(crumbs),
         ],
       });
+      const page = realDe("product");
       return send(inject(shell, {
         title, tags, lang: LANGUAGE,
         // `custom` traz `productVariations`: é daqui que sai o texto das
         // Variação no HTML servido sem JavaScript (R4.18).
-        bodyHtml: productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom }),
+        bodyHtml: page ? page.html : productHtml({ storeName, product, description, logoUrl, base, brand, outOfStock, custom }),
         ssrData,
+        ...ssrInject(page),
       }));
     }
 
@@ -297,6 +362,8 @@ export default async function handler(req, res) {
         title, description, canonical: url,
         image: (items.find((p) => p.image_url) || {}).image_url || logoUrl,
         type: "website", siteName: storeName,
+        // Uma listagem vazia não tem nada para posicionar.
+        noindex: modelo || items.length === 0, follow: true,
         jsonLd: [
           collectionJsonLd({
             name: label, url, description,
@@ -310,10 +377,12 @@ export default async function handler(req, res) {
           ]),
         ],
       });
+      const page = realDe("category");
       return send(inject(shell, {
         title, tags, lang: LANGUAGE,
-        bodyHtml: categoryHtml({ storeName, category: label, description, logoUrl, products: items, base, brand, custom }),
+        bodyHtml: page ? page.html : categoryHtml({ storeName, category: label, description, logoUrl, products: items, base, brand, custom }),
         ssrData,
+        ...ssrInject(page),
       }));
     }
 
@@ -333,6 +402,7 @@ export default async function handler(req, res) {
     const tags = metaTags({
       title, description: storeDesc, canonical: `${canonicalBase}/`,
       image: logoUrl, type: "website", siteName: storeName,
+      noindex: modelo, follow: true,
       jsonLd: [
         storeJsonLd({
           storeName, url: canonicalBase, logoUrl, description: seoDesc,
@@ -348,15 +418,17 @@ export default async function handler(req, res) {
         }),
       ],
     });
+    const homePage = realDe("home");
     return send(inject(shell, {
       title, tags, lang: LANGUAGE,
-      bodyHtml: storeHomeHtml({
+      bodyHtml: homePage ? homePage.html : storeHomeHtml({
         storeName, description: storeDesc, logoUrl, products, categories: cats, base, brand,
         // `custom` traz os blocos do editor: é daqui que saem as localizações e
         // os mapas no HTML servido sem JavaScript (R5.10).
         custom,
       }),
       ssrData,
+      ...ssrInject(homePage),
     }));
   } catch (e) {
     console.error("prerender", e);
@@ -366,59 +438,82 @@ export default async function handler(req, res) {
 
 /* ------------------------------- Plataforma ------------------------------- */
 
-const PLATFORM_PAGES = {
-  "/": {
-    title: "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais",
-    description: "Crie a sua loja online em Angola em minutos com a MôBisno. Editor visual ao vivo, pagamentos Multicaixa Express e Referência, vendas por WhatsApp, domínio próprio e SEO otimizado.",
-    heading: "Crie a sua loja online em minutos",
-    intro: "A MôBisno é a plataforma angolana que permite a qualquer empreendedor abrir uma loja online, sem conhecimentos técnicos. Escolha um modelo, adicione os seus produtos e comece a vender em Kwanzas, com entrega em Luanda e em todo o país.",
-    sections: [
-      { title: "Tudo o que precisa para vender", items: [
-        "Editor visual ao vivo — muda cores, textos e imagens e vê o resultado na hora",
-        "Pagamento por Multicaixa Express e Referência Bancária",
-        "Encomendas por WhatsApp com mensagem pronta",
-        "Endereço próprio em nomedaloja.sualoja.digital, ou domínio próprio",
-        "SEO otimizado, códigos de desconto, gestão de stock e avaliações",
-      ] },
-      { title: "Preço", items: [
-        "11.000 Kz por mês, ou 120.000 Kz por ano (poupa 12.000 Kz)",
-        "Um preço único, sem escalões: lojas e produtos ilimitados",
-        "Multicaixa Express, Referência Bancária e WhatsApp incluídos",
-        "Criar a loja e vê-la é grátis; a subscrição serve para a publicar",
-      ] },
-      { title: "Perguntas frequentes", text: PLATFORM_FAQ.map((f) => `${f.question} ${f.answer}`).join(" ") },
-    ],
-    links: [
-      { href: "/lojas", label: "Lojas criadas na MôBisno" },
-      { href: "/termos", label: "Termos" },
-      { href: "/privacidade", label: "Privacidade" },
-    ],
-    faq: true,
-  },
-  // NOTA: `/criar` não está aqui de propósito. É o assistente de criação (um
-  // ecrã da aplicação), e a SPA marca-o `noindex`. Servir texto de marketing ao
-  // rastreador e o formulário ao utilizador seria divergência de conteúdo, que
-  // o Google penaliza. A palavra-chave "criar loja online em Angola" é
-  // trabalhada na página inicial, cujo título já é exatamente esse.
-  "/termos": {
-    title: "Termos de Utilização — MôBisno",
-    description: "Termos de utilização da plataforma MôBisno: condições de uso, responsabilidades do titular da loja, pagamentos e cancelamento.",
-    heading: "Termos de Utilização",
-    intro: "Condições que regem a utilização da plataforma MôBisno pelos donos de loja e pelos seus clientes.",
-  },
-  "/privacidade": {
-    title: "Política de Privacidade — MôBisno",
-    description: "Como a MôBisno recolhe, usa e protege os dados pessoais dos donos de loja e dos seus clientes em Angola.",
-    heading: "Política de Privacidade",
-    intro: "Como tratamos os dados pessoais recolhidos na plataforma e nas lojas criadas com a MôBisno.",
-  },
-  "/politica": {
-    title: "Políticas da Plataforma — MôBisno",
-    description: "Políticas gerais da MôBisno: utilização aceitável, conteúdos proibidos, reembolsos e suspensão de contas.",
-    heading: "Políticas da Plataforma",
-    intro: "Regras de utilização aceitável, conteúdos proibidos e condições de suspensão.",
-  },
-};
+/**
+ * Páginas da plataforma servidas pela pré-renderização.
+ *
+ * É uma **função** e não uma constante porque o texto depende de factos que
+ * mudam: o preço (`PLAN_PRICE_KZ`), o que está «Em breve» e se o serviço de
+ * pagamentos já está ligado. Enquanto foi uma constante escrita à mão, estas
+ * páginas anunciaram ao Google «11.000 Kz por mês, ou 120.000 Kz por ano» e
+ * «domínio próprio incluído» — um preço que já não existia e uma funcionalidade
+ * que o Dono não conseguia ligar.
+ *
+ * As perguntas frequentes vêm de `platformFaq`, a mesma lista que a página
+ * inicial mostra: o Google só aceita `FAQPage` quando as perguntas estão
+ * visíveis na página.
+ */
+function platformPages() {
+  const pronto = paymentsReady();
+  const faq = platformFaq(pronto);
+  const breve = platformComingSoon(pronto);
+  const preco = platformPriceLabel();
+  const pagamentos = pronto
+    ? "Pagamento por Multicaixa Express e Referência Bancária, para empresas registadas depois de aprovadas pela MôBisno"
+    : "Multicaixa Express e Referência Bancária em breve, para empresas registadas depois de aprovadas pela MôBisno";
+  return {
+    "/": {
+      title: "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais",
+      description: `Crie a sua loja online em Angola em minutos com a MôBisno. Editor visual ao vivo, encomendas por WhatsApp, endereço próprio e SEO otimizado. ${preco}, com lojas e produtos ilimitados.`,
+      heading: "Crie a sua loja online em minutos",
+      intro: "A MôBisno é a plataforma angolana que permite a qualquer empreendedor abrir uma loja online, sem conhecimentos técnicos. Escolha um modelo pronto, personalize os textos, as fotografias e as cores, adicione os seus produtos e comece a vender em Kwanzas, com entrega em Luanda e em todo o país.",
+      sections: [
+        { title: "Tudo o que o WhatsApp não faz sozinho", items: [
+          "Editor visual ao vivo: muda cores, textos e imagens e vê o resultado na hora",
+          "Encomendas por WhatsApp com mensagem pronta, em todas as lojas",
+          pagamentos,
+          `Endereço próprio em nomedaloja.${STORE_APEX}`,
+          "SEO otimizado, códigos de desconto, gestão de stock, variações e avaliações",
+        ] },
+        { title: "Preço", items: [
+          `${preco}, com tudo incluído`,
+          "Um só plano, sem escalões: lojas e produtos ilimitados",
+          "Criar a loja, personalizá-la e vê-la é grátis; a subscrição serve para a publicar",
+          ...(breve.length ? [`Em breve, ainda não incluído: ${breve.join(", ")}`] : []),
+        ] },
+        { title: "Perguntas frequentes", text: faq.map((f) => `${f.question} ${f.answer}`).join(" ") },
+      ],
+      links: [
+        { href: "/lojas", label: "Lojas criadas na MôBisno" },
+        { href: "/termos", label: "Termos" },
+        { href: "/privacidade", label: "Privacidade" },
+      ],
+      faq: true,
+    },
+    // NOTA: `/criar` não está aqui de propósito. É o assistente de criação (um
+    // ecrã da aplicação), e a SPA marca-o `noindex`. Servir texto de marketing ao
+    // rastreador e o formulário ao utilizador seria divergência de conteúdo, que
+    // o Google penaliza. A palavra-chave «criar loja online em Angola» é
+    // trabalhada na página inicial, cujo título já é exatamente esse.
+    "/termos": {
+      title: "Termos de Utilização — MôBisno",
+      description: "Termos de utilização da plataforma MôBisno: condições de uso, responsabilidades do titular da loja, subscrição, vendas e cancelamento.",
+      heading: "Termos de Utilização",
+      intro: "Condições que regem a utilização da plataforma MôBisno pelos donos de loja e pelos seus clientes.",
+    },
+    "/privacidade": {
+      title: "Política de Privacidade — MôBisno",
+      description: "Como a MôBisno recolhe, usa e protege os dados pessoais dos donos de loja, os dados da empresa enviados para a verificação e os dados dos clientes das lojas.",
+      heading: "Política de Privacidade",
+      intro: "Como tratamos os dados pessoais recolhidos na plataforma e nas lojas criadas com a MôBisno.",
+    },
+    "/politica": {
+      title: "Políticas da Plataforma — MôBisno",
+      description: "Políticas gerais da MôBisno: utilização aceitável, conteúdos proibidos, reembolsos e suspensão de contas.",
+      heading: "Políticas da Plataforma",
+      intro: "Regras de utilização aceitável, conteúdos proibidos e condições de suspensão.",
+    },
+  };
+}
 
 /**
  * Caminhos da aplicação que existem mas não são para indexar: painel, login,
@@ -439,7 +534,7 @@ const PLATFORM_APP_PREFIXES = [
 ];
 
 function isKnownPlatformPath(path) {
-  if (Object.prototype.hasOwnProperty.call(PLATFORM_PAGES, path) || path === "/lojas") return true;
+  if (Object.prototype.hasOwnProperty.call(platformPages(), path) || path === "/lojas") return true;
   const p = path.toLowerCase();
   return PLATFORM_APP_PREFIXES.some((prefixo) => p === prefixo || p.startsWith(`${prefixo}/`));
 }
@@ -462,16 +557,19 @@ function platformShareImage(baseUrl) {
 }
 
 /** HTML de uma página da plataforma (`mobisno.store`). */
-function renderPlatform(shell, host, path) {
-  const baseUrl = `https://${PLATFORM_APEX}`;
-  const page = PLATFORM_PAGES[path];
+async function renderPlatform(shell, host, path) {
+  // A origem é a do pedido quando ele vem da família do apex: o canónico e o
+  // `og:url` deixam de apontar para um URL que redireciona (apex → www.).
+  const baseUrl = platformOrigin(host);
+  const pages = platformPages();
+  const page = pages[path];
 
   if (!page) {
     // Caminho privado (/painel, /login…) ou inexistente: nunca indexar, e nunca
     // apresentar o canónico da homepage (era isso que criava duplicados).
     const title = `${PLATFORM_NAME}`;
     const tags = metaTags({
-      title, description: PLATFORM_PAGES["/"].description,
+      title, description: pages["/"].description,
       canonical: `${baseUrl}${path}`, ...platformShareImage(baseUrl),
       siteName: PLATFORM_NAME, noindex: true,
     });
@@ -480,7 +578,7 @@ function renderPlatform(shell, host, path) {
 
   const canonical = `${baseUrl}${path === "/" ? "/" : path}`;
   const jsonLd = [...platformJsonLd(baseUrl)];
-  if (page.faq) jsonLd.push(faqJsonLd(PLATFORM_FAQ));
+  if (page.faq) jsonLd.push(faqJsonLd(platformFaq(paymentsReady())));
   if (path !== "/") {
     jsonLd.push(breadcrumbJsonLd([
       { name: PLATFORM_NAME, url: `${baseUrl}/` },
@@ -492,12 +590,17 @@ function renderPlatform(shell, host, path) {
     title: page.title, description: page.description, canonical,
     ...platformShareImage(baseUrl), type: "website", siteName: PLATFORM_NAME, jsonLd,
   });
+  // A página inicial sai com o código verdadeiro da landing (o mesmo que a SPA
+  // desenha), para a SPA a poder adotar. As outras páginas da plataforma são
+  // texto: a versão simplificada serve-as bem.
+  const real = path === "/" ? await realLandingPage({ host, path }) : null;
   return inject(shell, {
     title: page.title, tags, lang: LANGUAGE,
-    bodyHtml: platformHtml({
+    bodyHtml: real ? real.html : platformHtml({
       heading: page.heading, intro: page.intro,
-      sections: page.sections ?? [], links: page.links ?? [],
+      sections: page.sections ?? [], links: page.links ?? [], host,
     }),
+    ...ssrInject(real),
   });
 }
 
@@ -507,8 +610,8 @@ function renderPlatform(shell, host, path) {
  * Cada entrada é uma ligação normal (seguida pelo Google) para o subdomínio da
  * loja. É o que transforma cada loja nova de página órfã em página descoberta.
  */
-async function renderDirectory(shell, db) {
-  const baseUrl = `https://${PLATFORM_APEX}`;
+async function renderDirectory(shell, db, host) {
+  const baseUrl = platformOrigin(host);
   const canonical = `${baseUrl}/lojas`;
   let stores = [];
   if (db) {

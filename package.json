@@ -8,7 +8,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "vite --config vite.config.web.ts",
-    "web:build": "vite build --config vite.config.web.ts && node scripts/rename-shell.mjs",
+    "ssr:build": "node scripts/build-ssr.mjs",
+    "web:build": "npm run ssr:build && vite build --config vite.config.web.ts && node scripts/rename-shell.mjs",
     "check:web": "node scripts/check-web.mjs"
   },
   "license": "UNLICENSED",
@@ -18,6 +19,7 @@
     "@tailwindcss/forms": "^0.5.11",
     "@types/node": "^22.10.0",
     "autoprefixer": "^10.5.2",
+    "esbuild": "0.21.5",
     "fast-check": "^3.23.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",

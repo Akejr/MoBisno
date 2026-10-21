@@ -11,6 +11,31 @@ import { assistantContextFor, scopeFor, type AssistantScreen } from "./assistant
 
 const ACCENT = "#F95901";
 const WIDGET_ID = "mb-ai-agent";
+/** Folha de estilos do assistente (pontos a escrever e animações do painel). */
+const STYLE_ID = "mb-ai-agent-style";
+
+/**
+ * Animações do painel, definidas **neste** módulo.
+ *
+ * O painel e o véu usavam `mbBubbleIn`, que só existia na folha de estilos do
+ * assistente de criação (`web/views/wizard.ts`): em todos os outros ecrãs a
+ * animação não existia e o painel aparecia de repente. `mbBubbleIn` tem aqui
+ * exatamente a mesma definição que lá — com as duas folhas na página, ganha a
+ * última, e o resultado é o mesmo. O véu só esmaece (`mbAiFadeIn`): deslocar e
+ * encolher um véu de ecrã inteiro mostrava as margens da página a tremer.
+ */
+const PANEL_KEYFRAMES =
+  "@keyframes mbBubbleIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}"
+  + "@keyframes mbAiFadeIn{from{opacity:0}to{opacity:1}}";
+
+/**
+ * Desmontagem da instância montada agora. Há no máximo uma por página: montar
+ * de novo desmonta a anterior **por inteiro** — o mascote, os ouvintes do
+ * `document` e o temporizador do balão. Antes só o elemento era removido, e
+ * cada ecrã visitado deixava mais um `mousemove`, um `keydown` e um
+ * `setInterval` presos à página, que nunca saíam.
+ */
+let unmountCurrent: (() => void) | null = null;
 
 /** Cria um olho (branco, borda laranja) e devolve {eye, pupil}. */
 function makeEye(): { eye: HTMLElement; pupil: HTMLElement } {
@@ -46,13 +71,20 @@ function makeEye(): { eye: HTMLElement; pupil: HTMLElement } {
 }
 
 /**
- * Monta o mascote no contentor indicado (ou no #app). Remove qualquer instância
- * anterior. Devolve uma função para o desmontar.
+ * Monta o mascote no contentor indicado (ou no #app). Desmonta qualquer
+ * instância anterior. Devolve uma função para o desmontar.
+ *
+ * Também se desmonta sozinho quando o mascote sai da página (o ecrã seguinte
+ * redesenhou o `#app` sem o montar): o primeiro movimento do rato, tecla ou
+ * tique do balão a seguir retira os ouvintes e o temporizador.
  */
 export function mountAiAgent(
   host?: HTMLElement | null,
   opts?: { scope?: "editor" | "site"; screen?: AssistantScreen; bottom?: number },
 ): () => void {
+  unmountCurrent?.();
+  // Um mascote deixado por outra cópia do módulo (recarregamento em
+  // desenvolvimento) também sai.
   document.getElementById(WIDGET_ID)?.remove();
   // `screen` é a forma preferida: diz em que ecrã o utilizador está e traz a
   // orientação desse ecrã. O `scope` continua aceite para quem ainda não passa
@@ -131,6 +163,7 @@ export function mountAiAgent(
 
   let hideTimer = 0;
   const showBubble = (): void => {
+    if (!widget.isConnected) { unmount(); return; }
     bubble.style.opacity = "1";
     bubble.style.transform = "translateY(0) scale(1)";
     window.clearTimeout(hideTimer);
@@ -160,7 +193,10 @@ export function mountAiAgent(
     }
   }
 
-  const onMove = (e: MouseEvent): void => update(e.clientX, e.clientY);
+  const onMove = (e: MouseEvent): void => {
+    if (!widget.isConnected) { unmount(); return; }
+    update(e.clientX, e.clientY);
+  };
   document.addEventListener("mousemove", onMove);
 
   // --------------------------- Chat de perguntas ---------------------------
@@ -205,12 +241,16 @@ export function mountAiAgent(
     typeof matchMedia === "function" ? matchMedia("(max-width: 640px)").matches : window.innerWidth <= 640;
 
   function closeChat(): void {
+    // Só a folha do telemóvel bloqueia o scroll (e só ela tem véu). Repor o
+    // `overflow` sem a folha aberta apagaria o de quem o tivesse posto depois —
+    // e o desmonte chama isto sempre, a cada mudança de ecrã.
+    const eraFolha = backdrop !== null;
     panel?.remove();
     panel = null;
     backdrop?.remove();
     backdrop = null;
     // Devolve o scroll à página e o mascote ao canto.
-    document.body.style.overflow = bodyOverflow;
+    if (eraFolha) document.body.style.overflow = bodyOverflow;
     widget.style.display = "";
   }
 
@@ -277,13 +317,16 @@ export function mountAiAgent(
 
   function openChat(): void {
     if (panel) { closeChat(); return; }
-    if (!document.getElementById("mb-ai-dot-style")) {
+    // `id` novo de propósito: uma folha com o nome antigo (sem as animações do
+    // painel) que tivesse ficado na página não impede a nova de entrar.
+    if (!document.getElementById(STYLE_ID)) {
       const st = document.createElement("style");
-      st.id = "mb-ai-dot-style";
+      st.id = STYLE_ID;
       st.textContent = "@keyframes mbAiDot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}"
         + ".mb-ai-dot{width:6px;height:6px;border-radius:9999px;background:#9ca3af;display:inline-block;animation:mbAiDot 1.2s infinite}"
         // A folha inferior do telemóvel entra a subir, não a crescer de um canto.
-        + "@keyframes mbSheetIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}";
+        + "@keyframes mbSheetIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}"
+        + PANEL_KEYFRAMES;
       document.head.appendChild(st);
     }
     panel = document.createElement("div");
@@ -341,7 +384,7 @@ export function mountAiAgent(
       // Véu atrás da folha: escurece a página, fecha ao toque fora, e impede que
       // um toque a passar ao lado acerte num botão da página que está por baixo.
       backdrop = document.createElement("div");
-      backdrop.style.cssText = "position:fixed;inset:0;z-index:89;background:rgba(0,0,0,.45);animation:mbBubbleIn .2s ease both";
+      backdrop.style.cssText = "position:fixed;inset:0;z-index:89;background:rgba(0,0,0,.45);animation:mbAiFadeIn .2s ease both";
       backdrop.addEventListener("click", closeChat);
       root.appendChild(backdrop);
       // A página atrás deixa de rolar. Era isto que fazia a vista «fugir» quando o
@@ -374,15 +417,25 @@ export function mountAiAgent(
   widget.addEventListener("click", openChat);
 
   // Escape fecha, como qualquer painel sobreposto.
-  const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape" && panel) closeChat(); };
+  const onKey = (e: KeyboardEvent): void => {
+    if (!widget.isConnected) { unmount(); return; }
+    if (e.key === "Escape" && panel) closeChat();
+  };
   document.addEventListener("keydown", onKey);
 
-  return () => {
+  let unmounted = false;
+  /** Desmonta esta instância. Idempotente: chamar duas vezes não faz nada. */
+  function unmount(): void {
+    if (unmounted) return;
+    unmounted = true;
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("keydown", onKey);
     window.clearInterval(bubbleInterval);
     window.clearTimeout(hideTimer);
     closeChat();
     widget.remove();
-  };
+    if (unmountCurrent === unmount) unmountCurrent = null;
+  }
+  unmountCurrent = unmount;
+  return unmount;
 }

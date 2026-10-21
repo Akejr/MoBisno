@@ -1,77 +1,121 @@
 /**
- * Métricas e listas da Visão geral do Painel_Admin (domínio puro, sem DOM).
+ * Painel de Administração — domínio puro (sem DOM, sem Supabase).
  *
- * Quatro funções, três delas uma por secção da Visão geral (R7.1):
+ * Tudo o que o Painel_Admin decide e que se pode testar sem navegador vive
+ * aqui. A vista (`web/views/adminPanel.ts` e `web/views/admin/*`) lê os dados,
+ * chama estas funções e desenha; não agrega nem decide nada por si.
  *
- *  - {@link businessHealth} — as seis métricas de saúde do negócio (R7.2);
- *  - {@link monthlyEvolution} — evolução mensal de receita e de contas (R7.3);
- *  - {@link attentionLists} — as cinco listas de «A precisar de atenção» (R7.4),
- *    cada item com a ligação para o separador que resolve a ação (R7.5);
- *  - {@link overviewCounts} — os cinco totais globais que `adminOverview()` de
- *    `web/supabase/admin.ts` devolve (contas, Lojas, Lojas publicadas, volume de
- *    vendas das Lojas e levantamentos por aprovar). Vive aqui, e não em `web/`,
- *    porque metade desses totais escapava à exclusão do R7.8 enquanto era
- *    contagem crua em base de dados: `salesTotal` somava as encomendas de
- *    demonstração das Loja_Modelo e `accounts` contava as contas de
- *    Administrador. Sendo função pura, a exclusão passa a ser testável (D8).
+ * ## O que há aqui
+ *
+ *  - **Visão geral** — {@link overviewKpis}, os números do topo, e
+ *    {@link attentionLists}, «A precisar de atenção»: verificações de empresa por
+ *    aprovar e levantamentos pedidos;
+ *  - **saúde do negócio** — {@link businessHealth} e {@link monthlyEvolution};
+ *  - **estado de uma conta e de uma loja** — {@link accountStatus} e
+ *    {@link storeStatus}, com os mesmos critérios das métricas;
+ *  - **o que o Administrador grava** — ao ativar ou desativar uma subscrição
+ *    ({@link activationPatch}, {@link deactivationPatch}) e ao aprovar ou
+ *    rejeitar uma verificação de empresa ({@link approvalPatch},
+ *    {@link rejectionPatch}), mais a ordem da fila de aprovações
+ *    ({@link sortVerificationQueue}).
  *
  * **Não consulta nada.** Recebe os dados já lidos por `web/supabase/admin.ts`
- * (`adminOverview`, `listAccounts`, `listStores`, `listAllWithdrawals`,
- * `listServiceTransactions` e `adminStoreProductCounts`) através dos tipos
- * `…Like` deste ficheiro, que são estruturalmente compatíveis com
- * `AdminAccount`, `AdminStore`, `AdminWithdrawal` e `AdminServiceTx` sem criar
- * dependência de `web/` — `src/**` é verificado pelo `tsc` com `lib: ["ES2022"]`,
- * sem DOM (decisão D5).
+ * através dos tipos `…Like` deste ficheiro, estruturalmente compatíveis com
+ * `AdminAccount`, `AdminStore`, `AdminWithdrawal`, `AdminPlanPayment` e
+ * `AdminVerification` sem criar dependência de `web/` — `src/**` é verificado
+ * pelo `tsc` com `lib: ["ES2022"]`, sem DOM.
  *
- * **Exclusão de Loja_Modelo e de contas de Administrador (R7.8).** É aplicada
- * uma única vez, em {@link buildScope}, que produz os conjuntos elegíveis. Todas
- * as agregações leem exclusivamente esses conjuntos — nenhuma toca nos arrays
- * crus de `AdminMetricsInput`. É deliberado: a exclusão é consumida em dezoito
- * agregações distintas (seis métricas, duas séries mensais, cinco listas, cinco
- * totais globais) e um filtro repetido dezoito vezes esquece-se exatamente numa
- * delas — foi precisamente o que aconteceu enquanto os totais globais eram
- * contados em base de dados.
+ * ## Três regras que atravessam o ficheiro
+ *
+ * 1. **Lojas-modelo e contas de Administrador ficam fora de todas as
+ *    contagens.** Uma loja-modelo é uma demonstração da galeria: tem
+ *    `customization.__template`, ou o identificador com o prefixo reservado
+ *    `modelo-` (`isModelIdentifier`), ou vem marcada com `isModel`. A exclusão é
+ *    aplicada uma única vez, em {@link buildScope}, e nenhuma agregação toca nos
+ *    arrays crus: um filtro repetido em cada agregação esquece-se exatamente numa
+ *    delas — foi o que aconteceu enquanto os totais eram contados em base de
+ *    dados.
+ * 2. **Receita da Plataforma = pagamentos de subscrição pagos** (`plan_payments`
+ *    com `status = "paid"`). As compras de SMS e de logótipos saíram do produto, e
+ *    as linhas antigas desses serviços são ignoradas. A receita **não** é o
+ *    volume de vendas das lojas (`orders`): esse dinheiro é dos Donos.
+ * 3. **Uma loja suspensa é uma loja _publicada_ de uma conta sem subscrição
+ *    ativa** — é a que está fora do ar. Um rascunho de uma conta sem subscrição
+ *    não está suspenso: nunca esteve no ar.
  *
  * **Totalidade.** Os dados chegam de JSON e de colunas anuláveis: datas
  * inválidas, montantes `null`, `customization` de qualquer forma. Nenhuma função
- * lança, para qualquer entrada — nem sequer com `input` vazio. Segue o estilo de
- * `src/services/storeCustom.ts` e `src/services/locations.ts`.
- *
- * **Armadilha de nomes, dita de frente:** {@link OverviewCounts.salesTotal} — o
- * que `adminOverview().salesTotal` devolve — é o **volume de vendas das Lojas**
- * (tabela `orders`, dinheiro dos clientes dos Donos); a **receita da Plataforma**
- * é {@link BusinessHealth.monthRevenue} e vem das **transações de serviço**
- * (planos, SMS, logótipos). São grandezas diferentes e levam rótulos distintos e
- * inequívocos na interface (D5).
+ * lança, para qualquer entrada — nem sequer com `input` vazio.
  */
 
-import { resolveBilling, type BillingState } from "./billing.js";
+import { planActivationPatch, resolveBilling, type BillingState } from "./billing.js";
+import { isModelIdentifier } from "./domains.js";
+import { PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "./plans.js";
+import { COMPANY_DOCUMENTS, asVerificationStatus, type VerificationStatus } from "./paymentVerification.js";
 
-/** Meses apresentados na evolução mensal (R7.3). */
+// ---------------------------------------------------------------------------
+// Constantes
+// ---------------------------------------------------------------------------
+
+/** Meses apresentados na evolução mensal. */
 export const MONTHS_IN_EVOLUTION = 6;
 
-/** Janela de aviso, em dias, das contas a expirar (R7.2, R7.4). */
+/** Janela de aviso, em dias, das subscrições a terminar. */
 export const ATTENTION_WINDOW_DAYS = 7;
 
 /** Limite defensivo de meses da evolução: uma entrada absurda não gera milhões. */
 const MAX_EVOLUTION_MONTHS = 60;
 
-/** Estados de transação de serviço que exigem ação do Administrador (R7.4). */
-const STUCK_STATUSES: readonly string[] = ["open", "failed", "expired"];
-
 /** Estado de uma Loja publicada, tal como está gravado em `stores.state`. */
 const PUBLISHED_STATE = "Publicada";
 
+/** Serviço das linhas de subscrição — o único que é receita da Plataforma. */
+const PLAN_SERVICE = "plan";
+
+/** Maior instante que um `Date` aceita (±8,64 × 10¹⁵ ms). */
+const MAX_DATE_MS = 8.64e15;
+
 /**
- * Ligações dos separadores do Painel_Admin que resolvem cada ação (R7.5).
- * Caminhos reais da navegação de `web/views/adminPanel.ts` (`tabOf()`).
+ * Endereços das secções do Painel_Admin: `#/adminPainel/<secção>[/<sub>]`.
+ *
+ * O segundo segmento escolhe o separador de «Pagamentos» ou o filtro inicial de
+ * «Contas» e «Lojas». A vista lê-os com o mesmo esquema; os itens de «A precisar
+ * de atenção» trazem o `href` daqui, para cada linha abrir o ecrã onde a ação se
+ * resolve.
  */
 export const ADMIN_HREFS = {
-  levantamentos: "#/adminPainel/levantamentos",
-  transacoes: "#/adminPainel/transacoes",
+  visao: "#/adminPainel",
+  aprovacoes: "#/adminPainel/aprovacoes",
   contas: "#/adminPainel/contas",
+  contasAtivas: "#/adminPainel/contas/ativas",
   lojas: "#/adminPainel/lojas",
+  lojasPublicadas: "#/adminPainel/lojas/publicadas",
+  modelos: "#/adminPainel/modelos",
+  pagamentos: "#/adminPainel/pagamentos",
+  subscricoes: "#/adminPainel/pagamentos/subscricoes",
+  encomendas: "#/adminPainel/pagamentos/encomendas",
+  levantamentos: "#/adminPainel/pagamentos/levantamentos",
 } as const;
+
+/**
+ * Durações que o Administrador pode ativar à mão, em meses. Cada mês é um
+ * período de `PLAN_PERIOD_DAYS` dias — a mesma unidade que um pagamento de
+ * subscrição compra.
+ */
+export const ACTIVATION_MONTHS = [1, 3, 6, 12] as const;
+
+/** Uma das durações de {@link ACTIVATION_MONTHS}. */
+export type ActivationMonths = (typeof ACTIVATION_MONTHS)[number];
+
+/** Comprimento mínimo do motivo de uma rejeição, em caracteres. */
+export const REJECTION_REASON_MIN = 10;
+
+/** Comprimento máximo do motivo de uma rejeição, em caracteres. */
+export const REJECTION_REASON_MAX = 500;
+
+// ---------------------------------------------------------------------------
+// Tipos de entrada
+// ---------------------------------------------------------------------------
 
 /** Momento de referência aceite pelas funções deste módulo. */
 export type Instant = number | string | Date | null | undefined;
@@ -80,16 +124,13 @@ export type Instant = number | string | Date | null | undefined;
  * Conta da Plataforma. Forma mínima de `AdminAccount` de `web/supabase/admin.ts`.
  *
  * `planExpiresAt` é o único campo de subscrição que existe: é dele que sai
- * «subscrições ativas» e «a expirar». Os campos `plan`, `nextPlan` e
- * `trialEndsAt` foram removidos com os escalões e o teste grátis — mantê-los
- * declarados convidava a apoiar-se em dados que já ninguém escreve, que foi
- * exactamente a origem da avaria do plano vitalício.
+ * «subscrições ativas» e «a terminar». Há um só plano, sem escalões.
  */
 export interface AccountLike {
   readonly id: string;
   readonly email?: string | null | undefined;
   readonly name?: string | null | undefined;
-  /** Conta de Administrador: excluída de todas as agregações (R7.8). */
+  /** Conta de Administrador: excluída de todas as agregações. */
   readonly isAdmin?: boolean | undefined;
   readonly createdAt?: string | null | undefined;
   /** Fim da subscrição paga (ISO) ou `null`. */
@@ -97,12 +138,7 @@ export interface AccountLike {
   readonly storeCount?: number | undefined;
 }
 
-/**
- * Loja. Forma mínima de `AdminStore`, mais `customization` — que `listStores()`
- * não devolve porque já filtra as Loja_Modelo, e que aqui é opcional
- * precisamente por isso: quando vem, `customization.__template` identifica uma
- * Loja_Modelo e exclui-a (R7.8).
- */
+/** Loja. Forma mínima de `AdminStore`. */
 export interface StoreLike {
   readonly id: string;
   readonly name?: string | null | undefined;
@@ -110,10 +146,13 @@ export interface StoreLike {
   readonly ownerEmail?: string | null | undefined;
   readonly ownerName?: string | null | undefined;
   readonly state?: string | null | undefined;
+  /** Identificador público. O prefixo `modelo-` marca uma loja-modelo. */
   readonly identifier?: string | null | undefined;
   readonly createdAt?: string | null | undefined;
-  /** Personalização crua. `__template` presente ⇒ Loja_Modelo. */
+  /** Personalização crua. `__template` presente ⇒ loja-modelo. */
   readonly customization?: unknown;
+  /** Loja-modelo já identificada por quem leu os dados (`listStores`). */
+  readonly isModel?: boolean | undefined;
 }
 
 /** Pedido de levantamento. Forma mínima de `AdminWithdrawal`. */
@@ -123,29 +162,22 @@ export interface WithdrawalLike {
   readonly storeName?: string | null | undefined;
   readonly ownerEmail?: string | null | undefined;
   readonly amount?: number | string | null | undefined;
+  /** `"requested"`, `"approved"`, `"paid"` ou `"rejected"`. */
   readonly status?: string | null | undefined;
   readonly createdAt?: string | null | undefined;
 }
 
 /**
- * Encomenda de uma Loja (tabela `orders`). Forma mínima para o **volume de
- * vendas das Lojas**: só o estado, o montante e a Loja a que pertence.
+ * Pagamento de subscrição (`plan_payments`). Forma mínima de
+ * `AdminPlanPayment`.
  *
- * `storeId` não é decorativo — é o que permite deixar fora as encomendas de
- * demonstração das Loja_Modelo (R7.8). Sem ele, o volume apresentado ao
- * Administrador vinha inflacionado pelas vendas de mentira dos modelos.
+ * O nome do tipo vem do tempo em que a Plataforma vendia também SMS e
+ * logótipos («transações de serviço»). Só `service === "plan"` conta; uma linha
+ * antiga de outro serviço é ignorada em todas as agregações.
  */
-export interface OrderLike {
-  readonly storeId?: string | null | undefined;
-  readonly amount?: number | string | null | undefined;
-  /** `"open"`, `"paid"`, `"failed"` ou `"cancelled"`. */
-  readonly status?: string | null | undefined;
-}
-
-/** Transação de serviço da Plataforma. Forma mínima de `AdminServiceTx`. */
 export interface ServiceTxLike {
   readonly id: string;
-  /** `"plan"`, `"sms"` ou `"logo"`. */
+  /** `"plan"`. Qualquer outro valor (linhas antigas de SMS e logótipos) é ignorado. */
   readonly service?: string | null | undefined;
   readonly description?: string | null | undefined;
   readonly ownerId?: string | null | undefined;
@@ -160,63 +192,89 @@ export interface ServiceTxLike {
   readonly paidAt?: string | null | undefined;
 }
 
-/** Nome do design para {@link AccountLike}. */
-export type AdminAccountLike = AccountLike;
-/** Nome do design para {@link StoreLike}. */
-export type AdminStoreLike = StoreLike;
+/** Nome atual de {@link ServiceTxLike}: um pagamento de subscrição. */
+export type PlanPaymentLike = ServiceTxLike;
+
+/**
+ * Pedido de verificação de empresa (`store_payments`). Forma mínima de
+ * `AdminVerification`.
+ */
+export interface VerificationLike {
+  readonly storeId: string;
+  /** `"none"`, `"pending"`, `"approved"` ou `"rejected"`. */
+  readonly status?: string | null | undefined;
+  readonly submittedAt?: string | null | undefined;
+  readonly reviewedAt?: string | null | undefined;
+  readonly storeName?: string | null | undefined;
+  readonly companyName?: string | null | undefined;
+  readonly ownerEmail?: string | null | undefined;
+}
+
+/** Dados de um pedido que a aprovação exige (o mesmo que a base de dados exige). */
+export interface VerificationDataLike {
+  readonly companyName?: string | null | undefined;
+  readonly companyNif?: string | null | undefined;
+  readonly bankName?: string | null | undefined;
+  readonly beneficiaryName?: string | null | undefined;
+  readonly iban?: string | null | undefined;
+  readonly documents?: {
+    readonly matricula?: string | null | undefined;
+    readonly certidao?: string | null | undefined;
+  } | null | undefined;
+}
 
 /** Dados já lidos da Plataforma, tal como o Painel_Admin os tem em mão. */
 export interface AdminMetricsInput {
   /**
    * Momento de referência. Omitido ⇒ `Date.now()`. Injetado para as métricas
-   * serem determinísticas nos testes e para a evolução de 6 meses ser fixável.
+   * serem determinísticas nos testes.
    */
   readonly now?: Instant;
   readonly accounts?: readonly AccountLike[] | null | undefined;
   readonly stores?: readonly StoreLike[] | null | undefined;
   readonly withdrawals?: readonly WithdrawalLike[] | null | undefined;
+  /** Pagamentos de subscrição (`plan_payments`). */
   readonly transactions?: readonly ServiceTxLike[] | null | undefined;
-  /**
-   * Encomendas das Lojas (tabela `orders`). Só {@link overviewCounts} as lê; as
-   * três secções da Visão geral não dependem delas.
-   */
-  readonly orders?: readonly OrderLike[] | null | undefined;
-  /** Nº de Produtos por Loja (`storeId` → contagem). */
-  readonly productCounts?: ReadonlyMap<string, number> | null | undefined;
+  /** Pedidos de verificação de empresa (`store_payments`). */
+  readonly verifications?: readonly VerificationLike[] | null | undefined;
 }
 
-/** As seis métricas de saúde do negócio (R7.2). Nenhuma é negativa. */
+// ---------------------------------------------------------------------------
+// Tipos de saída
+// ---------------------------------------------------------------------------
+
+/** Saúde do negócio. Nenhuma métrica é negativa. */
 export interface BusinessHealth {
-  /** Receita da Plataforma no mês corrente (transações de serviço pagas). */
+  /** Receita da Plataforma no mês corrente: subscrições pagas com `paidAt` no mês. */
   readonly monthRevenue: number;
+  /** Contas de cliente com subscrição em vigor. */
   readonly activeSubscriptions: number;
-  /** Contas em teste que termina nos próximos {@link ATTENTION_WINDOW_DAYS} dias. */
+  /** Subscrições que terminam nos próximos {@link ATTENTION_WINDOW_DAYS} dias. */
   readonly subscriptionsExpiring: number;
-  /** Conversão de teste para pago, entre 0 e 1 inclusive. */
-  readonly payingRate: number;
+  /** Lojas de cliente com `state === "Publicada"`. */
   readonly publishedStores: number;
+  /** Lojas **publicadas** cujo dono está sem subscrição ativa: estão fora do ar. */
   readonly suspendedStores: number;
 }
 
 /**
- * Os cinco totais globais da Plataforma, todos sobre os conjuntos elegíveis
- * (R7.8). Estruturalmente igual a `AdminOverview` de `web/supabase/admin.ts`,
- * que é o que esta forma existe para preencher. Nenhum total é negativo.
+ * Os números da Visão geral. Cada um corresponde a uma secção do painel, para
+ * onde o cartão leva.
  */
-export interface OverviewCounts {
-  /** Contas de cliente. Contas de Administrador **fora**. */
+export interface OverviewKpis {
+  /** Contas de cliente (Administradores fora). → «Contas» */
   readonly accounts: number;
-  /** Lojas de cliente. Loja_Modelo **fora**. */
-  readonly stores: number;
-  /** Lojas de cliente com `state === "Publicada"`. */
-  readonly published: number;
-  /**
-   * **Volume de vendas das Lojas**: soma das encomendas `paid` das Lojas
-   * elegíveis. Dinheiro dos clientes dos Donos, **não** receita da Plataforma —
-   * essa é {@link BusinessHealth.monthRevenue}.
-   */
-  readonly salesTotal: number;
-  /** Levantamentos com `status === "requested"` de Lojas elegíveis. */
+  /** Lojas de cliente publicadas (lojas-modelo fora). → «Lojas» */
+  readonly publishedStores: number;
+  /** Das publicadas, as que estão fora do ar por o dono não ter subscrição. */
+  readonly suspendedStores: number;
+  /** Contas de cliente com subscrição em vigor. → «Contas» */
+  readonly activeSubscriptions: number;
+  /** Subscrições pagas no mês corrente. → «Pagamentos» */
+  readonly monthRevenue: number;
+  /** Pedidos de verificação de empresa em análise. → «Aprovações» */
+  readonly pendingVerifications: number;
+  /** Levantamentos pedidos e ainda não tratados. → «Pagamentos» */
   readonly pendingWithdrawals: number;
 }
 
@@ -227,32 +285,92 @@ export interface MonthPoint {
   readonly accounts: number;
 }
 
-/** Item de lista com a ligação para o ecrã do Painel_Admin que resolve a ação (R7.5). */
+/** Item de «A precisar de atenção», com a ligação para o ecrã que o resolve. */
 export interface AttentionItem {
   readonly id: string;
   readonly title: string;
   readonly detail: string;
   readonly amount?: number | undefined;
+  /** Momento do pedido (ISO), para a vista dizer há quanto tempo espera. */
+  readonly at?: string | undefined;
   readonly href: string;
 }
 
-/** As cinco listas de «A precisar de atenção» (R7.4). */
+/** As duas listas de «A precisar de atenção», as mais antigas primeiro. */
 export interface AttentionLists {
+  readonly verificationsToReview: readonly AttentionItem[];
   readonly withdrawalsToApprove: readonly AttentionItem[];
-  readonly paymentsStuck: readonly AttentionItem[];
-  readonly accountsExpiring7d: readonly AttentionItem[];
-  readonly storesWithoutProducts: readonly AttentionItem[];
-  readonly storesUnpublished: readonly AttentionItem[];
 }
+
+/** Estado da subscrição de uma conta, como o Administrador o lê. */
+export type AccountStatusKind = "admin" | "active" | "expiring" | "expired" | "none";
+
+/** Estado da subscrição de uma conta, resolvido para um momento. */
+export interface AccountStatus {
+  readonly kind: AccountStatusKind;
+  /** Fim da subscrição em vigor (ISO), ou `null`. */
+  readonly expiresAt: string | null;
+  /** Dias até ao fim (>= 0), ou `null` sem subscrição em vigor. */
+  readonly daysRemaining: number | null;
+  /** Quando terminou a última subscrição (ISO), se `kind === "expired"`. */
+  readonly expiredAt: string | null;
+}
+
+/** Estado de uma loja, como o público a vê. */
+export type StoreStatusKind = "online" | "offline" | "draft";
+
+/** Resultado de construir uma alteração: a alteração, ou a frase do erro. */
+export type AdminPatch<P> =
+  | { readonly ok: true; readonly patch: P }
+  | { readonly ok: false; readonly message: string };
+
+/** O que a ativação manual de uma subscrição grava em `profiles`. */
+export interface PlanPatch {
+  readonly plan_expires_at: string;
+}
+
+/** Quanto vale uma ativação manual: dias e preço, a partir do plano único. */
+export interface ActivationQuote {
+  readonly months: ActivationMonths;
+  readonly days: number;
+  readonly amountKz: number;
+}
+
+/** O que a aprovação grava em `store_payments`. */
+export interface ApprovalPatch {
+  readonly verification_status: "approved";
+  readonly reviewed_at: string;
+  readonly reviewed_by: string;
+  readonly rejection_reason: null;
+}
+
+/** O que a rejeição grava em `store_payments`. */
+export interface RejectionPatch {
+  readonly verification_status: "rejected";
+  readonly reviewed_at: string;
+  readonly reviewed_by: string;
+  readonly rejection_reason: string;
+}
+
+/** Fila de aprovações: os pedidos por decidir e as decisões já tomadas. */
+export interface VerificationQueue<T> {
+  /** Em análise, o mais antigo primeiro (é o que espera há mais tempo). */
+  readonly pending: T[];
+  /** Aprovados e rejeitados, a decisão mais recente primeiro. */
+  readonly history: T[];
+}
+
+/** Filtro do histórico de aprovações. */
+export type HistoryFilter = "all" | "approved" | "rejected";
 
 // ---------------------------------------------------------------------------
 // Leitura defensiva
 // ---------------------------------------------------------------------------
 
 /**
- * Lista utilizável, ou vazia. Guarda de totalidade: os arrays chegam de
- * chamadores JavaScript (`web/`) e podem vir ausentes ou nem ser arrays — e um
- * `for…of` sobre um não-array lançaria.
+ * Lista utilizável, ou vazia. Os arrays chegam de chamadores JavaScript
+ * (`web/`) e podem vir ausentes ou nem ser arrays — e um `for…of` sobre um
+ * não-array lançaria.
  */
 function asList<T>(value: readonly T[] | null | undefined): readonly T[] {
   return Array.isArray(value) ? value : [];
@@ -281,23 +399,34 @@ function textOr(value: unknown, fallback: string): string {
  */
 function asInstant(value: Instant): number | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (value instanceof Date) {
-    const t = value.getTime();
-    return Number.isFinite(t) ? t : null;
-  }
-  if (typeof value === "string") {
-    const t = Date.parse(value);
-    return Number.isFinite(t) ? t : null;
-  }
-  return null;
+  let ms: number;
+  if (typeof value === "number") ms = value;
+  else if (value instanceof Date) ms = value.getTime();
+  else if (typeof value === "string") ms = Date.parse(value);
+  else return null;
+  return Number.isFinite(ms) && Math.abs(ms) <= MAX_DATE_MS ? ms : null;
+}
+
+/** Momento de referência: o dado, ou o relógio. */
+function nowOf(value: Instant): number {
+  return asInstant(value) ?? Date.now();
+}
+
+/** ISO de um instante já validado. */
+function isoOf(ms: number): string {
+  return new Date(ms).toISOString();
+}
+
+/** ISO de uma data de origem desconhecida, ou `undefined` quando não é data. */
+function isoOrUndefined(value: unknown): string | undefined {
+  const ms = asInstant(typeof value === "string" ? value : null);
+  return ms === null ? undefined : isoOf(ms);
 }
 
 /**
  * Montante somável: `0` para `null`, `undefined`, texto não numérico, `NaN`,
- * `Infinity` **e para valores negativos**. O limite inferior a zero é o que
- * garante que nenhuma receita agregada é negativa (Propriedade 5), sem depender
- * da qualidade dos dados gravados.
+ * `Infinity` **e para valores negativos** — é o que garante que nenhuma receita
+ * agregada é negativa, sem depender da qualidade dos dados gravados.
  */
 function asAmount(value: unknown): number {
   const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
@@ -321,81 +450,77 @@ function compareText(a: string, b: string): number {
 }
 
 /**
- * A Loja é uma Loja_Modelo? Convenção da Plataforma: `customization.__template`
- * presente (a mesma de `listStores`, `adminOverview` e `listTemplateModels`).
- * Total: aceita `customization` de qualquer forma.
+ * A Loja é uma loja-modelo (demonstração da galeria)?
+ *
+ * Três marcas, qualquer uma basta: `isModel` (já resolvido por quem leu os
+ * dados), o prefixo reservado `modelo-` no identificador, e
+ * `customization.__template`. As duas últimas são as que a base de dados
+ * protege (`stores_guard`, migração 0022): um Dono não cria uma loja com o
+ * prefixo nem escreve a marca.
  */
 export function isLojaModelo(store: StoreLike | null | undefined): boolean {
-  const custom = asRecord(store?.customization);
+  if (!store) return false;
+  if (store.isModel === true) return true;
+  if (isModelIdentifier(store.identifier)) return true;
+  const custom = asRecord(store.customization);
   if (!custom) return false;
   const marker = custom["__template"];
   return marker !== undefined && marker !== null && marker !== false;
 }
 
 // ---------------------------------------------------------------------------
-// Âmbito: o único sítio onde a exclusão do R7.8 é aplicada
+// Âmbito: o único sítio onde a exclusão é aplicada
 // ---------------------------------------------------------------------------
 
 /**
- * Conjuntos elegíveis, já sem Loja_Modelo e sem contas de Administrador. Todas
+ * Conjuntos elegíveis, já sem lojas-modelo e sem contas de Administrador. Todas
  * as agregações deste módulo leem daqui — e só daqui.
  */
 interface Scope {
   readonly nowMs: number;
   /** Contas elegíveis: sem `isAdmin`. */
   readonly accounts: readonly AccountLike[];
-  /** Faturação resolvida por conta elegível (`resolveBilling`, `src/services/billing.ts`). */
+  /** Faturação resolvida por conta elegível (`resolveBilling`). */
   readonly billing: ReadonlyMap<string, BillingState>;
-  /** Lojas elegíveis: sem Loja_Modelo e sem Lojas de conta de Administrador. */
+  /** Lojas elegíveis: sem lojas-modelo e sem lojas de conta de Administrador. */
   readonly stores: readonly StoreLike[];
-  /** IDs das Lojas elegíveis. */
-  readonly storeIds: ReadonlySet<string>;
-  /** Levantamentos de Lojas elegíveis. */
+  /** Levantamentos de lojas elegíveis. */
   readonly withdrawals: readonly WithdrawalLike[];
-  /** Encomendas de Lojas elegíveis (as de demonstração das Loja_Modelo ficam fora). */
-  readonly orders: readonly OrderLike[];
-  /** Transações de serviço de contas que não são de Administrador. */
+  /** Pagamentos de subscrição de contas que não são de Administrador. */
   readonly transactions: readonly ServiceTxLike[];
-  /** Nº de Produtos por Loja, lido em segurança. */
-  readonly productsOf: (storeId: string) => number;
-}
-
-/** Momento de referência: parâmetro explícito → `input.now` → `Date.now()`. */
-function resolveNow(input: AdminMetricsInput | null | undefined, override?: Instant): number {
-  return asInstant(override) ?? asInstant(input?.now) ?? Date.now();
+  /** Pedidos de verificação de lojas elegíveis. */
+  readonly verifications: readonly VerificationLike[];
 }
 
 /**
- * Aplica a exclusão do R7.8 e devolve os conjuntos elegíveis.
+ * Aplica a exclusão e devolve os conjuntos elegíveis.
  *
  * Regras, todas conservadoras por desenho — nunca **acrescentam** nada às
- * agregações a partir de dados que não sejam elegíveis, o que é o que torna a
- * Propriedade 5 verdadeira por construção e não por remendo:
+ * agregações a partir de dados que não sejam elegíveis, o que torna a
+ * invariância face às lojas-modelo verdadeira por construção:
  *
  *  - **contas** — fora as que têm `isAdmin`;
- *  - **Lojas** — fora as Loja_Modelo (`customization.__template`) e as Lojas
- *    cujo dono é uma conta de Administrador conhecida;
- *  - **levantamentos** — só os de uma Loja **elegível**. Exigir pertença (em vez
- *    de excluir as Loja_Modelo conhecidas) é o que garante que acrescentar uma
- *    Loja_Modelo à entrada nunca pode retirar um levantamento da lista;
- *  - **encomendas** — só as de uma Loja **elegível**, pela mesma razão. As
- *    Loja_Modelo têm Produtos e encomendas de demonstração, e é exatamente por
- *    isso que o volume de vendas não as pode somar;
- *  - **transações de serviço** — fora as de uma conta de Administrador conhecida.
+ *  - **lojas** — fora as lojas-modelo e as lojas cujo dono é uma conta de
+ *    Administrador conhecida;
+ *  - **levantamentos** e **pedidos de verificação** — só os de uma loja
+ *    **elegível**. Exigir pertença (em vez de excluir as lojas-modelo
+ *    conhecidas) é o que garante que acrescentar uma loja-modelo à entrada
+ *    nunca retira nada de uma lista;
+ *  - **pagamentos de subscrição** — só os do serviço `plan`, e fora os de uma
+ *    conta de Administrador conhecida.
  *
- * Uma Loja sem dono conhecido continua elegível: a lista de contas pode não
- * cobrir todos os donos, e apagar Lojas reais das métricas por isso seria pior
- * do que contá-las. O que ela nunca faz é entrar nas Lojas suspensas, porque
- * essa métrica exige faturação resolvida.
+ * Uma loja sem dono conhecido continua elegível: a lista de contas pode não
+ * cobrir todos os donos, e apagar lojas reais das métricas por isso seria pior
+ * do que contá-las. O que ela nunca faz é contar como suspensa, porque essa
+ * métrica exige faturação resolvida.
  */
 function buildScope(input: AdminMetricsInput | null | undefined, override?: Instant): Scope {
-  const nowMs = resolveNow(input, override);
+  const nowMs = asInstant(override) ?? asInstant(input?.now) ?? Date.now();
 
-  // Exclusão 1 — contas de Administrador, na origem de todas as métricas de conta.
-  const rawAccounts = asList(input?.accounts);
+  // Exclusão 1 — contas de Administrador.
   const adminIds = new Set<string>();
   const accounts: AccountLike[] = [];
-  for (const account of rawAccounts) {
+  for (const account of asList(input?.accounts)) {
     if (!account || typeof account.id !== "string") continue;
     if (account.isAdmin === true) {
       adminIds.add(account.id);
@@ -406,20 +531,14 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
 
   const billing = new Map<string, BillingState>();
   for (const account of accounts) {
-    billing.set(
-      account.id,
-      resolveBilling(
-        { planExpiresAt: account.planExpiresAt ?? null, isAdmin: false },
-        nowMs,
-      ),
-    );
+    const raw = typeof account.planExpiresAt === "string" ? account.planExpiresAt : null;
+    billing.set(account.id, resolveBilling({ planExpiresAt: raw, isAdmin: false }, nowMs));
   }
 
-  // Exclusão 2 — Loja_Modelo e Lojas de conta de Administrador.
-  const rawStores = asList(input?.stores);
+  // Exclusão 2 — lojas-modelo e lojas de conta de Administrador.
   const stores: StoreLike[] = [];
   const storeIds = new Set<string>();
-  for (const store of rawStores) {
+  for (const store of asList(input?.stores)) {
     if (!store || typeof store.id !== "string") continue;
     if (isLojaModelo(store)) continue;
     if (typeof store.ownerId === "string" && adminIds.has(store.ownerId)) continue;
@@ -427,31 +546,17 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     storeIds.add(store.id);
   }
 
-  // Exclusão 3 — levantamentos que não pertencem a uma Loja elegível.
-  const rawWithdrawals = asList(input?.withdrawals);
-  const withdrawals = rawWithdrawals.filter(
-    (w) => !!w && typeof w.storeId === "string" && storeIds.has(w.storeId),
+  // Exclusão 3 — levantamentos e pedidos que não pertencem a uma loja elegível.
+  const ofEligibleStore = (storeId: unknown): boolean => typeof storeId === "string" && storeIds.has(storeId);
+  const withdrawals = asList(input?.withdrawals).filter((w) => !!w && ofEligibleStore(w.storeId));
+  const verifications = asList(input?.verifications).filter((v) => !!v && ofEligibleStore(v.storeId));
+
+  // Exclusão 4 — o que não é subscrição, e as subscrições de Administradores.
+  const transactions = asList(input?.transactions).filter(
+    (t) => !!t && asText(t.service) === PLAN_SERVICE && !(typeof t.ownerId === "string" && adminIds.has(t.ownerId)),
   );
 
-  // Exclusão 4 — transações de serviço de contas de Administrador.
-  const rawTransactions = asList(input?.transactions);
-  const transactions = rawTransactions.filter(
-    (t) => !!t && !(typeof t.ownerId === "string" && adminIds.has(t.ownerId)),
-  );
-
-  // Exclusão 5 — encomendas que não pertencem a uma Loja elegível. Mesma regra
-  // de pertença dos levantamentos, e não «excluir as Loja_Modelo conhecidas».
-  const rawOrders = asList(input?.orders);
-  const orders = rawOrders.filter((o) => !!o && typeof o.storeId === "string" && storeIds.has(o.storeId));
-
-  const counts = input?.productCounts;
-  const productsOf = (storeId: string): number => {
-    if (!counts || typeof counts.get !== "function") return 0;
-    const n = counts.get(storeId);
-    return typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-  };
-
-  return { nowMs, accounts, billing, stores, storeIds, withdrawals, orders, transactions, productsOf };
+  return { nowMs, accounts, billing, stores, withdrawals, transactions, verifications };
 }
 
 /** Faturação da conta elegível, ou `null` quando a conta não é elegível/conhecida. */
@@ -460,129 +565,66 @@ function billingOf(scope: Scope, accountId: unknown): BillingState | null {
   return scope.billing.get(accountId) ?? null;
 }
 
-/**
- * A subscrição termina dentro da janela de aviso (R7.2, R7.4).
- *
- * Substitui o critério do teste grátis, que deixou de existir. O que interessa
- * agora ao Administrador é quem está prestes a deixar de pagar — é aí que se
- * perde receita e é aí que uma chamada a tempo a salva.
- */
+/** A subscrição está em vigor e termina dentro da janela de aviso. */
 function subscriptionExpiringSoon(state: BillingState): boolean {
   return state.accessActive && !state.byAdmin && (state.daysRemaining ?? Infinity) <= ATTENTION_WINDOW_DAYS;
 }
 
-/** Transação de serviço paga, com a data de pagamento em milissegundos. */
+/** Pagamento de subscrição pago, com a data de pagamento em milissegundos. */
 function paidAtOf(tx: ServiceTxLike): number | null {
   if (asStatus(tx.status) !== "paid") return null;
   return asInstant(tx.paidAt ?? null);
 }
 
-// ---------------------------------------------------------------------------
-// Totais globais da Plataforma (R7.8) — o que `adminOverview()` apresenta
-// ---------------------------------------------------------------------------
+/** O pedido de verificação está em análise? */
+function isPending(v: VerificationLike): boolean {
+  return asVerificationStatus(asStatus(v.status)) === "pending";
+}
 
-/**
- * Os cinco totais globais da Plataforma, sobre os conjuntos elegíveis (R7.8):
- *
- *  - agregação 14 — **contas de cliente** (contas de Administrador fora);
- *  - agregação 15 — **Lojas de cliente** (Loja_Modelo fora);
- *  - agregação 16 — **Lojas publicadas** (`state === "Publicada"`);
- *  - agregação 17 — **volume de vendas das Lojas**: encomendas `paid` das Lojas
- *    elegíveis. É dinheiro dos clientes dos Donos e não receita da Plataforma —
- *    ver a armadilha de nomes no topo do ficheiro;
- *  - agregação 18 — **levantamentos por aprovar** (`status === "requested"`).
- *
- * Estas contagens eram feitas em base de dados por `adminOverview()`, e metade
- * delas escapava à exclusão do R7.8: o volume de vendas somava as encomendas de
- * demonstração das Loja_Modelo e as contas incluíam as de Administrador. Aqui
- * saem do mesmo âmbito das outras treze agregações, pelo que:
- *
- *  - `published` coincide sempre com `businessHealth().publishedStores`;
- *  - `pendingWithdrawals` coincide sempre com o comprimento de
- *    `attentionLists().withdrawalsToApprove`.
- *
- * @param input Dados já lidos da Plataforma, incluindo `orders`.
- * @param now Momento de referência; tem precedência sobre `input.now`. Nenhum
- *        destes totais depende do tempo — é aceite só para a assinatura ser a
- *        mesma das outras três funções.
- */
-export function overviewCounts(input: AdminMetricsInput, now?: Instant): OverviewCounts {
-  const scope = buildScope(input, now);
+/** Pedidos de verificação em análise. Partilhado pelo KPI e pela lista. */
+function pendingVerificationsOf(scope: Scope): readonly VerificationLike[] {
+  return scope.verifications.filter(isPending);
+}
 
-  // Agregação 17 — volume de vendas: só encomendas pagas de Lojas elegíveis.
-  let salesTotal = 0;
-  for (const order of scope.orders) {
-    if (asStatus(order.status) === "paid") salesTotal += asAmount(order.amount);
-  }
+/** Levantamentos pedidos e ainda não tratados. Partilhado pelo KPI e pela lista. */
+function requestedWithdrawalsOf(scope: Scope): readonly WithdrawalLike[] {
+  return scope.withdrawals.filter((w) => asStatus(w.status) === "requested");
+}
 
-  // Agregação 16 — mesmo critério de `businessHealth().publishedStores`.
-  let published = 0;
-  for (const store of scope.stores) {
-    if (asText(store.state) === PUBLISHED_STATE) published += 1;
-  }
+/** Chave da submissão: sem data válida, vai para o fim da fila. */
+function submittedKey(v: VerificationLike): number {
+  return asInstant(v.submittedAt ?? null) ?? Number.MAX_SAFE_INTEGER;
+}
 
-  // Agregação 18 — mesmo critério de `attentionLists().withdrawalsToApprove`.
-  let pendingWithdrawals = 0;
-  for (const withdrawal of scope.withdrawals) {
-    if (asStatus(withdrawal.status) === "requested") pendingWithdrawals += 1;
-  }
+/** Chave da decisão: a revisão, ou a submissão; sem nenhuma, vai para o fim. */
+function decisionKey(v: VerificationLike): number {
+  return asInstant(v.reviewedAt ?? null) ?? asInstant(v.submittedAt ?? null) ?? -Number.MAX_SAFE_INTEGER;
+}
 
-  return {
-    accounts: scope.accounts.length,
-    stores: scope.stores.length,
-    published,
-    salesTotal,
-    pendingWithdrawals,
-  };
+/** O pedido mais antigo primeiro; desempate pela loja, para a ordem ser total. */
+function byOldestSubmission(a: VerificationLike, b: VerificationLike): number {
+  return submittedKey(a) - submittedKey(b) || compareText(a.storeId, b.storeId);
+}
+
+/** A decisão mais recente primeiro; desempate pela loja. */
+function byLatestDecision(a: VerificationLike, b: VerificationLike): number {
+  return decisionKey(b) - decisionKey(a) || compareText(a.storeId, b.storeId);
 }
 
 // ---------------------------------------------------------------------------
-// Secção 1 — saúde do negócio (R7.2)
+// Saúde do negócio e Visão geral
 // ---------------------------------------------------------------------------
 
-/**
- * As seis métricas de saúde do negócio (R7.2), todas sobre os conjuntos
- * elegíveis (R7.8):
- *
- *  1. **receita do mês corrente** — transações de serviço `paid` com `paidAt` no
- *     mês do momento de referência. É a receita da **Plataforma** (planos, SMS,
- *     logótipos), não o volume de vendas das Lojas de `adminOverview().salesTotal`;
- *  2. **assinaturas ativas** — contas com plano pago em vigor (`resolveBilling`);
- *  3. **contas em teste a expirar** — teste a terminar nos próximos
- *     {@link ATTENTION_WINDOW_DAYS} dias;
- *  4. **conversão de teste para pago** — contas com pelo menos uma transação de
- *     plano paga, sobre o total de contas. Numerador contado por interseção com o
- *     conjunto de contas elegíveis, pelo que fica sempre em `[0, 1]`;
- *  5. **Lojas publicadas** — `state === "Publicada"`;
- *  6. **Lojas suspensas** — `resolveBilling(conta dona).suspended`.
- *
- * Nenhuma métrica é negativa: as contagens são cardinais e a receita soma
- * montantes já limitados a zero por baixo.
- *
- * @param input Dados já lidos da Plataforma.
- * @param now Momento de referência; tem precedência sobre `input.now`.
- */
-export function businessHealth(input: AdminMetricsInput, now?: Instant): BusinessHealth {
-  const scope = buildScope(input, now);
+/** As métricas de saúde sobre um âmbito já construído. */
+function healthOf(scope: Scope): BusinessHealth {
   const currentMonth = monthKeyOf(scope.nowMs);
 
-  // Agregação 1 — receita do mês corrente.
   let monthRevenue = 0;
-  // Agregação 4a — numerador da conversão: contas elegíveis com plano pago.
-  const converted = new Set<string>();
   for (const tx of scope.transactions) {
     const paidAt = paidAtOf(tx);
-    if (paidAt === null) continue;
-    if (monthKeyOf(paidAt) === currentMonth) monthRevenue += asAmount(tx.amount);
-    const ownerId = tx.ownerId;
-    // Interseção com as contas elegíveis: é o que mantém o numerador ⊆ denominador
-    // e, com isso, a conversão dentro de `[0, 1]`.
-    if (asText(tx.service) === "plan" && typeof ownerId === "string" && scope.billing.has(ownerId)) {
-      converted.add(ownerId);
-    }
+    if (paidAt !== null && monthKeyOf(paidAt) === currentMonth) monthRevenue += asAmount(tx.amount);
   }
 
-  // Agregações 2, 3 e 4b — assinaturas ativas, testes a expirar, denominador.
   let activeSubscriptions = 0;
   let subscriptionsExpiring = 0;
   for (const account of scope.accounts) {
@@ -591,33 +633,65 @@ export function businessHealth(input: AdminMetricsInput, now?: Instant): Busines
     if (state.accessActive) activeSubscriptions += 1;
     if (subscriptionExpiringSoon(state)) subscriptionsExpiring += 1;
   }
-  const payingRate = scope.accounts.length === 0 ? 0 : converted.size / scope.accounts.length;
 
-  // Agregações 5 e 6 — Lojas publicadas e Lojas suspensas.
   let publishedStores = 0;
   let suspendedStores = 0;
   for (const store of scope.stores) {
-    if (asText(store.state) === PUBLISHED_STATE) publishedStores += 1;
+    if (asText(store.state) !== PUBLISHED_STATE) continue;
+    publishedStores += 1;
+    // Só uma loja publicada pode estar fora do ar: um rascunho nunca esteve no ar.
     if (billingOf(scope, store.ownerId)?.suspended === true) suspendedStores += 1;
   }
 
-  return { monthRevenue, activeSubscriptions, subscriptionsExpiring, payingRate, publishedStores, suspendedStores };
+  return { monthRevenue, activeSubscriptions, subscriptionsExpiring, publishedStores, suspendedStores };
 }
 
-// ---------------------------------------------------------------------------
-// Secção 1b — evolução mensal (R7.3)
-// ---------------------------------------------------------------------------
+/**
+ * Saúde do negócio, sobre os conjuntos elegíveis:
+ *
+ *  1. **receita do mês corrente** — subscrições `paid` com `paidAt` no mês do
+ *     momento de referência;
+ *  2. **subscrições ativas** — contas de cliente com subscrição em vigor;
+ *  3. **subscrições a terminar** — nos próximos {@link ATTENTION_WINDOW_DAYS} dias;
+ *  4. **lojas publicadas** — `state === "Publicada"`;
+ *  5. **lojas suspensas** — publicadas, de uma conta sem subscrição ativa.
+ *
+ * @param input Dados já lidos da Plataforma.
+ * @param now Momento de referência; tem precedência sobre `input.now`.
+ */
+export function businessHealth(input: AdminMetricsInput, now?: Instant): BusinessHealth {
+  return healthOf(buildScope(input, now));
+}
 
 /**
- * Evolução mensal de receita e de número de contas, nos meses mais recentes
- * **do mais antigo para o mais recente** (R7.3).
+ * Os números da Visão geral. Saem do mesmo âmbito e dos mesmos critérios de
+ * {@link businessHealth} e de {@link attentionLists}, por isso o número do cartão
+ * e o comprimento da lista correspondente nunca divergem.
+ *
+ * @param input Dados já lidos da Plataforma, incluindo `verifications`.
+ * @param now Momento de referência; tem precedência sobre `input.now`.
+ */
+export function overviewKpis(input: AdminMetricsInput, now?: Instant): OverviewKpis {
+  const scope = buildScope(input, now);
+  const health = healthOf(scope);
+  return {
+    accounts: scope.accounts.length,
+    publishedStores: health.publishedStores,
+    suspendedStores: health.suspendedStores,
+    activeSubscriptions: health.activeSubscriptions,
+    monthRevenue: health.monthRevenue,
+    pendingVerifications: pendingVerificationsOf(scope).length,
+    pendingWithdrawals: requestedWithdrawalsOf(scope).length,
+  };
+}
+
+/**
+ * Evolução mensal da receita de subscrições e do número de contas novas, nos
+ * meses mais recentes **do mais antigo para o mais recente**.
  *
  * Os meses são gerados a partir do momento de referência, em UTC, pelo que um
  * mês sem receita e sem contas novas aparece com zeros em vez de ser saltado —
  * uma série com buracos desenharia um gráfico enganador.
- *
- * Agregação 7 (receita por mês de `paidAt`, só transações pagas) e agregação 8
- * (contas por mês de `createdAt`), ambas sobre os conjuntos elegíveis (R7.8).
  *
  * @param input Dados já lidos da Plataforma.
  * @param months Nº de meses. Omitido ⇒ {@link MONTHS_IN_EVOLUTION}; limitado a
@@ -644,7 +718,6 @@ export function monthlyEvolution(input: AdminMetricsInput, months?: number, now?
     accounts.set(key, 0);
   }
 
-  // Agregação 7 — receita por mês.
   for (const tx of scope.transactions) {
     const paidAt = paidAtOf(tx);
     if (paidAt === null) continue;
@@ -653,7 +726,6 @@ export function monthlyEvolution(input: AdminMetricsInput, months?: number, now?
     if (current !== undefined) revenue.set(key, current + asAmount(tx.amount));
   }
 
-  // Agregação 8 — contas por mês.
   for (const account of scope.accounts) {
     const created = asInstant(account.createdAt ?? null);
     if (created === null) continue;
@@ -669,34 +741,17 @@ export function monthlyEvolution(input: AdminMetricsInput, months?: number, now?
   }));
 }
 
-// ---------------------------------------------------------------------------
-// Secção 2 — «A precisar de atenção» (R7.4, R7.5)
-// ---------------------------------------------------------------------------
-
-/** Rótulo em pt-PT do estado de uma transação de serviço por resolver. */
-function stuckLabel(status: string): string {
-  if (status === "failed") return "Falhado";
-  if (status === "expired") return "Expirado";
-  return "Pendente";
-}
-
 /**
- * As cinco listas de «A precisar de atenção» (R7.4), cada item com `href` para o
- * separador do Painel_Admin que resolve a ação (R7.5), e todas sobre os
- * conjuntos elegíveis (R7.8):
+ * «A precisar de atenção»: o que está à espera de uma decisão do Administrador,
+ * o mais antigo primeiro (é o que espera há mais tempo).
  *
- *  - agregação 9 — **levantamentos por aprovar** (`status === "requested"`),
- *    mais antigos primeiro, porque é o mais antigo que está à espera há mais tempo;
- *  - agregação 10 — **pagamentos por resolver** (`open`, `failed`, `expired`);
- *  - agregação 11 — **contas a expirar** nos próximos
- *    {@link ATTENTION_WINDOW_DAYS} dias, as mais urgentes primeiro. A lista e a
- *    métrica `subscriptionsExpiring` partilham o mesmo critério, por isso o número da
- *    secção de saúde e o comprimento desta lista nunca divergem;
- *  - agregação 12 — **Lojas sem Produtos** (contagem ausente conta como zero);
- *  - agregação 13 — **Lojas não publicadas** (`state !== "Publicada"`).
+ *  - **verificações por aprovar** — pedidos `pending`, ligação para «Aprovações»;
+ *  - **levantamentos pedidos** — `requested`, ligação para «Pagamentos ›
+ *    Levantamentos».
  *
- * A ordenação é total e determinística (critério principal, desempate por `id`),
- * para que a mesma entrada produza sempre a mesma lista.
+ * Os comprimentos coincidem sempre com `pendingVerifications` e
+ * `pendingWithdrawals` de {@link overviewKpis}. A ordenação é total
+ * (desempate por identificador): a mesma entrada dá sempre a mesma lista.
  *
  * @param input Dados já lidos da Plataforma.
  * @param now Momento de referência; tem precedência sobre `input.now`.
@@ -704,87 +759,313 @@ function stuckLabel(status: string): string {
 export function attentionLists(input: AdminMetricsInput, now?: Instant): AttentionLists {
   const scope = buildScope(input, now);
 
-  // Agregação 9 — levantamentos por aprovar.
-  const withdrawalsToApprove = scope.withdrawals
-    .filter((w) => asStatus(w.status) === "requested")
+  const verificationsToReview: AttentionItem[] = pendingVerificationsOf(scope)
+    .slice()
+    .sort(byOldestSubmission)
+    .map((v) => {
+      const company = asText(v.companyName);
+      const owner = textOr(v.ownerEmail, "dono desconhecido");
+      return {
+        id: v.storeId,
+        title: textOr(v.storeName, "Loja sem nome"),
+        detail: company ? `${company} · ${owner}` : owner,
+        at: isoOrUndefined(v.submittedAt),
+        href: ADMIN_HREFS.aprovacoes,
+      };
+    });
+
+  const withdrawalsToApprove: AttentionItem[] = requestedWithdrawalsOf(scope)
     .map((w) => ({
-      id: w.id,
-      title: textOr(w.storeName, "Loja sem nome"),
-      detail: textOr(w.ownerEmail, "dono desconhecido"),
-      amount: asAmount(w.amount),
-      href: ADMIN_HREFS.levantamentos,
+      item: {
+        id: w.id,
+        title: textOr(w.storeName, "Loja sem nome"),
+        detail: textOr(w.ownerEmail, "dono desconhecido"),
+        amount: asAmount(w.amount),
+        at: isoOrUndefined(w.createdAt),
+        href: ADMIN_HREFS.levantamentos,
+      },
       sortAt: asInstant(w.createdAt ?? null) ?? Number.MAX_SAFE_INTEGER,
     }))
-    .sort((a, b) => a.sortAt - b.sortAt || compareText(a.id, b.id))
-    .map(stripSort);
+    .sort((a, b) => a.sortAt - b.sortAt || compareText(a.item.id, b.item.id))
+    .map((row) => row.item);
 
-  // Agregação 10 — pagamentos por resolver.
-  const paymentsStuck = scope.transactions
-    .filter((t) => STUCK_STATUSES.includes(asStatus(t.status)))
-    .map((t) => ({
-      id: t.id,
-      title: textOr(t.description, "Transação de serviço"),
-      detail: `${stuckLabel(asStatus(t.status))} · ${textOr(t.ownerEmail, "dono desconhecido")}`,
-      amount: asAmount(t.amount),
-      href: ADMIN_HREFS.transacoes,
-      sortAt: asInstant(t.createdAt ?? null) ?? Number.MAX_SAFE_INTEGER,
-    }))
-    .sort((a, b) => a.sortAt - b.sortAt || compareText(a.id, b.id))
-    .map(stripSort);
+  return { verificationsToReview, withdrawalsToApprove };
+}
 
-  // Agregação 11 — contas a expirar nos próximos 7 dias.
-  const accountsExpiring7d = scope.accounts
-    .map((account) => ({ account, state: scope.billing.get(account.id) }))
-    .filter((row) => !!row.state && subscriptionExpiringSoon(row.state))
-    .map(({ account, state }) => {
-      const days = state?.daysRemaining ?? 0;
-      return {
-        id: account.id,
-        title: textOr(account.email, textOr(account.name, "Conta sem email")),
-        detail: days <= 0 ? "Subscrição termina hoje" : days === 1 ? "Subscrição termina amanhã" : `Subscrição termina em ${days} dias`,
-        href: ADMIN_HREFS.contas,
-        sortAt: days,
-      };
-    })
-    .sort((a, b) => a.sortAt - b.sortAt || compareText(a.id, b.id))
-    .map(stripSort);
+// ---------------------------------------------------------------------------
+// Estado de uma conta e de uma loja
+// ---------------------------------------------------------------------------
 
-  // Agregações 12 e 13 — Lojas sem Produtos e Lojas não publicadas.
-  const withoutProducts: (AttentionItem & { sortAt: number })[] = [];
-  const unpublished: (AttentionItem & { sortAt: number })[] = [];
-  for (const store of scope.stores) {
-    const title = textOr(store.name, "Loja sem nome");
-    const owner = textOr(store.ownerEmail, "dono desconhecido");
-    // Mais recentes primeiro: uma Loja criada agora ainda pode não ter Produtos.
-    const sortAt = -(asInstant(store.createdAt ?? null) ?? 0);
-    if (scope.productsOf(store.id) === 0) {
-      withoutProducts.push({ id: store.id, title, detail: `Sem Produtos · ${owner}`, href: ADMIN_HREFS.lojas, sortAt });
-    }
-    const state = asText(store.state);
-    if (state !== PUBLISHED_STATE) {
-      unpublished.push({
-        id: store.id,
-        title,
-        detail: `${state ?? "Rascunho"} · ${owner}`,
-        href: ADMIN_HREFS.lojas,
-        sortAt,
-      });
-    }
+/**
+ * Estado da subscrição de uma conta, com os critérios das métricas:
+ *
+ *  - `admin` — conta de Administrador (acesso sempre ativo, sem pagar);
+ *  - `active` — subscrição em vigor, com mais de {@link ATTENTION_WINDOW_DAYS} dias;
+ *  - `expiring` — em vigor, a terminar dentro da janela de aviso;
+ *  - `expired` — houve subscrição e já terminou;
+ *  - `none` — nunca teve subscrição (ou a data gravada é ilegível).
+ */
+export function accountStatus(
+  account: Pick<AccountLike, "isAdmin" | "planExpiresAt"> | null | undefined,
+  now?: Instant,
+): AccountStatus {
+  if (account?.isAdmin === true) return { kind: "admin", expiresAt: null, daysRemaining: null, expiredAt: null };
+  const raw = typeof account?.planExpiresAt === "string" ? account.planExpiresAt : null;
+  const state = resolveBilling({ planExpiresAt: raw, isAdmin: false }, nowOf(now));
+  if (state.accessActive) {
+    return {
+      kind: subscriptionExpiringSoon(state) ? "expiring" : "active",
+      expiresAt: state.expiresAt,
+      daysRemaining: state.daysRemaining,
+      expiredAt: null,
+    };
   }
-  const byRecency = (a: { sortAt: number; id: string }, b: { sortAt: number; id: string }): number =>
-    a.sortAt - b.sortAt || compareText(a.id, b.id);
+  const endedAt = state.expired ? isoOrUndefined(raw) : undefined;
+  if (endedAt) return { kind: "expired", expiresAt: null, daysRemaining: null, expiredAt: endedAt };
+  return { kind: "none", expiresAt: null, daysRemaining: null, expiredAt: null };
+}
 
+/**
+ * Estado público de uma loja:
+ *
+ *  - `online` — publicada, e o dono tem subscrição ativa;
+ *  - `offline` — publicada, mas fora do ar: o dono está sem subscrição;
+ *  - `draft` — rascunho (nunca publicada, ou despublicada).
+ */
+export function storeStatus(state: unknown, ownerActive: unknown): StoreStatusKind {
+  if (asText(state) !== PUBLISHED_STATE) return "draft";
+  return ownerActive === true ? "online" : "offline";
+}
+
+// ---------------------------------------------------------------------------
+// Ativação manual da subscrição
+// ---------------------------------------------------------------------------
+
+/** A duração é uma das de {@link ACTIVATION_MONTHS}? */
+export function isActivationMonths(value: unknown): value is ActivationMonths {
+  return typeof value === "number" && (ACTIVATION_MONTHS as readonly number[]).includes(value);
+}
+
+/** «1, 3, 6 ou 12», a partir de {@link ACTIVATION_MONTHS}. */
+function activationMonthsText(): string {
+  const all = ACTIVATION_MONTHS.map(String);
+  return `${all.slice(0, -1).join(", ")} ou ${all[all.length - 1]}`;
+}
+
+/**
+ * Dias e preço de uma ativação manual, a partir do plano único: cada mês é um
+ * período de `PLAN_PERIOD_DAYS` dias a `PLAN_PRICE_KZ`. É o valor que o Dono
+ * deve ter pago por fora para o Administrador ativar.
+ */
+export function activationQuote(months: ActivationMonths): ActivationQuote {
+  return { months, days: months * PLAN_PERIOD_DAYS, amountKz: months * PLAN_PRICE_KZ };
+}
+
+/**
+ * O que gravar em `profiles` para ativar `months` meses à mão.
+ *
+ * É `planActivationPatch` (`src/services/billing.ts`), a mesma regra de um
+ * pagamento confirmado: com subscrição em vigor, os dias somam-se ao fim do
+ * período atual (quem renova adiantado não perde dias); sem ela, contam a partir
+ * de agora. Antes, a ativação manual gravava uma data a cem anos — uma
+ * subscrição vitalícia que ninguém pagou.
+ *
+ * @param current Estado gravado da conta (`plan_expires_at`).
+ * @param months Uma das durações de {@link ACTIVATION_MONTHS}.
+ * @param now Momento de referência.
+ */
+export function activationPatch(
+  current: { readonly planExpiresAt?: string | null | undefined } | null | undefined,
+  months: unknown,
+  now?: Instant,
+): AdminPatch<PlanPatch> {
+  if (!isActivationMonths(months)) {
+    return { ok: false, message: `Escolha uma duração de ${activationMonthsText()} meses.` };
+  }
+  const raw = typeof current?.planExpiresAt === "string" ? current.planExpiresAt : null;
+  try {
+    return { ok: true, patch: planActivationPatch({ planExpiresAt: raw }, nowOf(now), months) };
+  } catch {
+    // Só com uma data gravada no limite do calendário do `Date`.
+    return { ok: false, message: "A data de fim da subscrição gravada não é válida." };
+  }
+}
+
+/**
+ * O que gravar em `profiles` para desativar a subscrição: o fim do período
+ * passa a ser agora. As lojas publicadas da conta saem do ar; nada é apagado.
+ */
+export function deactivationPatch(now?: Instant): PlanPatch {
+  return { plan_expires_at: isoOf(nowOf(now)) };
+}
+
+// ---------------------------------------------------------------------------
+// Aprovação da verificação de empresa
+// ---------------------------------------------------------------------------
+
+/** Mensagem quando não há Administrador identificado para assinar a decisão. */
+const NO_REVIEWER = "Sessão de administrador inválida. Volte a entrar e tente de novo.";
+
+/** Identificador do Administrador que decide, ou `null` se não for utilizável. */
+function reviewerOf(adminId: unknown): string | null {
+  return typeof adminId === "string" && adminId.trim() !== "" ? adminId.trim() : null;
+}
+
+/**
+ * Motivo da rejeição tal como fica gravado: sem espaços nas pontas, espaços
+ * repetidos colapsados, no máximo uma linha em branco seguida. As mudanças de
+ * linha ficam — o Dono lê o motivo no painel dele.
+ */
+export function normalizeRejectionReason(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t\f\v\u00a0]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Nº de caracteres, contando cada emoji e letra acentuada como um. */
+function charCount(text: string): number {
+  return Array.from(text).length;
+}
+
+/**
+ * Valida o motivo de uma rejeição: entre {@link REJECTION_REASON_MIN} e
+ * {@link REJECTION_REASON_MAX} caracteres, depois de normalizado. Um motivo
+ * curto («não») não diz ao Dono o que corrigir, e ele fica sem forma de voltar a
+ * pedir.
+ */
+export function validateRejectionReason(
+  raw: unknown,
+): { readonly ok: true; readonly value: string } | { readonly ok: false; readonly message: string } {
+  const value = normalizeRejectionReason(raw);
+  const length = charCount(value);
+  if (length === 0) {
+    return { ok: false, message: "Escreva o motivo da rejeição: o Dono vai lê-lo no painel dele." };
+  }
+  if (length < REJECTION_REASON_MIN) {
+    return { ok: false, message: `O motivo tem de ter pelo menos ${REJECTION_REASON_MIN} caracteres (tem ${length}).` };
+  }
+  if (length > REJECTION_REASON_MAX) {
+    return { ok: false, message: `O motivo pode ter no máximo ${REJECTION_REASON_MAX} caracteres (tem ${length}).` };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * O que gravar em `store_payments` para **aprovar** um pedido. O gatilho
+ * `store_payments_sync_store` (migração 0023) liga então
+ * `stores.digital_payments` sozinho.
+ *
+ * Limpa o motivo de uma rejeição anterior: um pedido aprovado com um motivo de
+ * rejeição gravado mostraria ao Dono uma frase que já não é verdade.
+ */
+export function approvalPatch(adminId: unknown, now?: Instant): AdminPatch<ApprovalPatch> {
+  const reviewer = reviewerOf(adminId);
+  if (!reviewer) return { ok: false, message: NO_REVIEWER };
   return {
-    withdrawalsToApprove,
-    paymentsStuck,
-    accountsExpiring7d,
-    storesWithoutProducts: withoutProducts.sort(byRecency).map(stripSort),
-    storesUnpublished: unpublished.sort(byRecency).map(stripSort),
+    ok: true,
+    patch: {
+      verification_status: "approved",
+      reviewed_at: isoOf(nowOf(now)),
+      reviewed_by: reviewer,
+      rejection_reason: null,
+    },
   };
 }
 
-/** Retira a chave de ordenação, deixando o {@link AttentionItem} público. */
-function stripSort(row: AttentionItem & { sortAt: number }): AttentionItem {
-  const { sortAt: _sortAt, ...item } = row;
-  return item;
+/**
+ * O que gravar em `store_payments` para **rejeitar** um pedido (ou revogar uma
+ * aprovação). Exige um motivo válido ({@link validateRejectionReason}). O
+ * gatilho desliga `stores.digital_payments`.
+ */
+export function rejectionPatch(adminId: unknown, reason: unknown, now?: Instant): AdminPatch<RejectionPatch> {
+  const reviewer = reviewerOf(adminId);
+  if (!reviewer) return { ok: false, message: NO_REVIEWER };
+  const checked = validateRejectionReason(reason);
+  if (!checked.ok) return { ok: false, message: checked.message };
+  return {
+    ok: true,
+    patch: {
+      verification_status: "rejected",
+      reviewed_at: isoOf(nowOf(now)),
+      reviewed_by: reviewer,
+      rejection_reason: checked.value,
+    },
+  };
+}
+
+/**
+ * O que falta a um pedido para poder ser aprovado — vazio quando está completo.
+ *
+ * Espelha a restrição `store_payments_submission_complete` da base de dados
+ * (migração 0023), que recusa uma aprovação sem estes dados: a interface
+ * desliga «Aprovar» e diz o que falta, em vez de deixar o Postgres responder
+ * com um erro.
+ */
+export function missingForApproval(v: VerificationDataLike | null | undefined): string[] {
+  const fields: readonly [unknown, string][] = [
+    [v?.companyName, "Nome da empresa"],
+    [v?.companyNif, "NIF"],
+    [v?.bankName, "Banco"],
+    [v?.beneficiaryName, "Titular da conta"],
+    [v?.iban, "IBAN"],
+  ];
+  const missing = fields.filter(([value]) => asText(value) === undefined).map(([, label]) => label);
+  const docs = asRecord(v?.documents);
+  for (const doc of COMPANY_DOCUMENTS) {
+    if (asText(docs?.[doc.id]) === undefined) missing.push(doc.label);
+  }
+  return missing;
+}
+
+/**
+ * Que decisões fazem sentido para um pedido neste estado:
+ *
+ *  - em análise — aprovar ou rejeitar;
+ *  - aprovado — rejeitar (revoga os pagamentos digitais);
+ *  - rejeitado — aprovar (corrige uma rejeição feita por engano);
+ *  - por enviar — nenhuma: não há nada para decidir.
+ */
+export function verificationActions(status: unknown): { readonly approve: boolean; readonly reject: boolean } {
+  const s: VerificationStatus = asVerificationStatus(asStatus(status));
+  return { approve: s === "pending" || s === "rejected", reject: s === "pending" || s === "approved" };
+}
+
+/**
+ * Parte os pedidos na fila de aprovações: **em análise** primeiro, o mais antigo
+ * à frente; depois o **histórico** (aprovados e rejeitados), a decisão mais
+ * recente à frente. Os pedidos «por enviar» não entram em nenhum dos dois.
+ */
+export function splitVerificationQueue<T extends VerificationLike>(
+  rows: readonly T[] | null | undefined,
+): VerificationQueue<T> {
+  const pending: T[] = [];
+  const history: T[] = [];
+  for (const row of asList(rows)) {
+    if (!row || typeof row.storeId !== "string") continue;
+    const s = asVerificationStatus(asStatus(row.status));
+    if (s === "pending") pending.push(row);
+    else if (s === "approved" || s === "rejected") history.push(row);
+  }
+  return { pending: pending.sort(byOldestSubmission), history: history.sort(byLatestDecision) };
+}
+
+/** A fila inteira numa só lista: os em análise primeiro, depois o histórico. */
+export function sortVerificationQueue<T extends VerificationLike>(rows: readonly T[] | null | undefined): T[] {
+  const { pending, history } = splitVerificationQueue(rows);
+  return [...pending, ...history];
+}
+
+/** Filtra o histórico pelo estado da decisão, mantendo a ordem. */
+export function filterVerificationHistory<T extends VerificationLike>(
+  history: readonly T[] | null | undefined,
+  filter: HistoryFilter,
+): T[] {
+  const list = asList(history).filter((row) => !!row);
+  if (filter === "all") return [...list];
+  return list.filter((row) => asVerificationStatus(asStatus(row.status)) === filter);
 }

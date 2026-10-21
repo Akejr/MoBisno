@@ -1,92 +1,113 @@
 /**
- * Subscrição: um plano, dois ciclos (`src/services/plans.ts`).
+ * Subscrição: um plano, um preço (`src/services/plans.ts`).
  *
  * ## O que estes exemplos guardam
  *
- * A versão anterior tinha três escalões com uma matriz de limites e
- * funcionalidades. Caiu porque produzia complexidade a mais para o que
- * entregava — e porque o escalão Básico desligava o Multicaixa Express, ou
- * seja, cobrava-se a alguém para essa pessoa **não** poder receber pagamentos
- * online, que é a principal razão para usar a plataforma.
+ * O módulo já teve três escalões, depois dois ciclos (mensal e anual), depois
+ * preço por loja publicada. Cada versão deixou uma divergência entre o que o
+ * ecrã dizia e o que o servidor cobrava, e a última deixava o Dono sem forma de
+ * pagar uma segunda loja. Ficou uma frase: «10.000 Kz por mês, tudo incluído».
  *
- * O que fica fixado aqui é o pouco que sobrou e que não pode derivar: os dois
- * preços, as duas durações, e a aritmética do desconto anual — a única conta do
- * módulo, e a que aparece na página de preços.
+ * O que se fixa aqui é essa frase — o preço, o período, o identificador que a
+ * base de dados valida — e o que a página de preços promete: só o que existe.
+ * Uma funcionalidade «Em breve» anunciada como incluída é uma promessa que o
+ * Dono não consegue ligar.
  *
  * ## Porque são exemplos e não uma propriedade
  *
- * O módulo é um catálogo: dois ciclos, dois preços, duas durações. Não há
- * espaço de entrada a explorar; há valores a fixar para que ninguém os mude sem
- * reparar que a página de preços passa a mentir.
+ * O módulo é um catálogo de constantes. Não há espaço de entrada a explorar; há
+ * valores a fixar para que ninguém os mude sem reparar que a página de preços,
+ * os Termos e o servidor passam a dizer coisas diferentes.
  */
 import { describe, it, expect } from "vitest";
+import * as plans from "../src/services/plans.js";
+import { PLAN_ID, PLAN_NAME, PLAN_PRICE_KZ, PLAN_PERIOD_DAYS, PLAN_HIGHLIGHTS } from "../src/services/plans.js";
 import {
-  PLAN_ID, BILLING_PERIODS, PRICE_KZ, PERIOD_DAYS,
-  isBillingPeriod, asBillingPeriod, priceOf, daysOf,
-  yearlySavingKz, yearlyFreeMonths,
-} from "../src/services/plans.js";
+  COMING_SOON, COMING_SOON_LABELS, comingSoonList, isComingSoon, type ComingSoonFeature,
+} from "../src/services/comingSoon.js";
+import { STORE_APEX } from "../src/services/domains.js";
 
-describe("Catálogo — um plano, dois ciclos", () => {
-  it("há um só plano", () => {
+describe("Plano único", () => {
+  it("há um só plano, com o identificador que a coluna `profiles.plan` aceita", () => {
     expect(PLAN_ID).toBe("pro");
+    expect(PLAN_NAME).toBe("MôBisno");
   });
 
-  it("os ciclos são mensal e anual, por esta ordem", () => {
-    expect([...BILLING_PERIODS]).toEqual(["mensal", "anual"]);
+  it("custa 10.000 Kz por cada período de 30 dias", () => {
+    expect(PLAN_PRICE_KZ).toBe(10_000);
+    expect(PLAN_PERIOD_DAYS).toBe(30);
+    expect(Number.isInteger(PLAN_PRICE_KZ)).toBe(true);
   });
 
-  it("os preços são os anunciados", () => {
-    expect(PRICE_KZ.mensal).toBe(11_000);
-    expect(PRICE_KZ.anual).toBe(120_000);
-    expect(priceOf("mensal")).toBe(11_000);
-    expect(priceOf("anual")).toBe(120_000);
-  });
-
-  it("as durações são 30 e 365 dias", () => {
-    expect(PERIOD_DAYS.mensal).toBe(30);
-    expect(PERIOD_DAYS.anual).toBe(365);
-    expect(daysOf("anual")).toBe(365);
-  });
-});
-
-describe("Desconto anual — a conta que aparece na página de preços", () => {
-  it("o anual poupa face a doze meses avulsos", () => {
-    expect(yearlySavingKz()).toBe(PRICE_KZ.mensal * 12 - PRICE_KZ.anual);
-    expect(yearlySavingKz()).toBe(12_000);
-  });
-
-  it("a poupança equivale a um mês grátis, não a dois", () => {
-    // 120.000 são 10,9 meses de preço mensal. Anunciar «dois meses grátis»
-    // seria falso — e chegou a ser escrito assim.
-    expect(yearlyFreeMonths()).toBe(1);
-  });
-
-  it("nunca anuncia poupança negativa se os preços mudarem", () => {
-    // Se um dia o anual deixar de compensar, a página mostra zero em vez de um
-    // número negativo.
-    expect(yearlySavingKz()).toBeGreaterThanOrEqual(0);
-    expect(yearlyFreeMonths()).toBeGreaterThanOrEqual(0);
+  it("não sobra nenhuma peça dos escalões, dos ciclos nem do preço por loja", () => {
+    // Cada uma destas exportações já foi a fonte de uma divergência. Voltarem a
+    // existir era voltar a ter duas maneiras de calcular o preço.
+    const antigas = [
+      "PRICE_KZ", "PERIOD_DAYS", "BILLING_PERIODS", "isBillingPeriod", "asBillingPeriod",
+      "priceOf", "daysOf", "yearlySavingKz", "yearlyFreeMonths",
+      "STORES_INCLUDED", "billableStores", "priceFor", "proratedStorePrice",
+      "PLANS", "TRIAL_DAYS",
+    ];
+    for (const nome of antigas) expect(plans, nome).not.toHaveProperty(nome);
   });
 });
 
-describe("Leitura de um ciclo vindo de fora", () => {
-  it("reconhece os dois ciclos válidos", () => {
-    expect(isBillingPeriod("mensal")).toBe(true);
-    expect(isBillingPeriod("anual")).toBe(true);
+describe("O que o plano inclui — PLAN_HIGHLIGHTS", () => {
+  it("diz que lojas e produtos são ilimitados", () => {
+    expect(PLAN_HIGHLIGHTS.some((h) => /ilimitad/i.test(h) && /lojas/i.test(h) && /produtos/i.test(h))).toBe(true);
   });
 
-  it("recusa tudo o resto", () => {
-    for (const lixo of ["basico", "profissional", "", null, undefined, 7, {}, "ANUAL"]) {
-      expect(isBillingPeriod(lixo), String(lixo)).toBe(false);
+  it("toda a loja vende por WhatsApp", () => {
+    expect(PLAN_HIGHLIGHTS.some((h) => /whatsapp/i.test(h) && /todas as lojas/i.test(h))).toBe(true);
+  });
+
+  it("os pagamentos digitais aparecem como exclusivos de empresas verificadas", () => {
+    const digitais = PLAN_HIGHLIGHTS.filter((h) => /multicaixa|refer[eê]ncia banc/i.test(h));
+    expect(digitais.length).toBeGreaterThan(0);
+    for (const h of digitais) expect(h, h).toMatch(/empresas verificadas/i);
+  });
+
+  it("o endereço das lojas vem do domínio, não escrito à mão", () => {
+    expect(PLAN_HIGHLIGHTS.some((h) => h.includes(`.${STORE_APEX}`))).toBe(true);
+  });
+
+  it("não fala de escalões, de ciclo anual nem de teste grátis", () => {
+    for (const h of PLAN_HIGHLIGHTS) {
+      expect(h, h).not.toMatch(/b[áa]sico|profissional|empresarial|anual|teste gr[áa]tis|per[íi]odo de teste/i);
     }
   });
 
-  it("perante um valor que não percebe, escolhe o ciclo mais barato", () => {
-    // O valor chega do corpo de um pedido HTTP e de uma coluna de texto.
-    // Recorrer ao anual cobraria 120.000 Kz a quem pediu outra coisa.
-    for (const lixo of ["profissional", "", null, undefined, 7, {}]) {
-      expect(asBillingPeriod(lixo)).toBe("mensal");
+  /**
+   * Palavras que denunciam cada funcionalidade «Em breve», além do rótulo.
+   *
+   * `Record` sobre a união das funcionalidades: acrescentar uma bandeira a
+   * `COMING_SOON` sem dizer aqui como ela se reconhece não compila.
+   */
+  const SINAIS: Readonly<Record<ComingSoonFeature, RegExp>> = {
+    sms: /\bsms\b/i,
+    customDomain: /dom[íi]nio pr[óo]prio|dom[íi]nio personalizado/i,
+    marketing: /pixel|analytics|marketing/i,
+  };
+
+  it("não promete nenhuma funcionalidade «Em breve» — nem pelo rótulo, nem por palavras", () => {
+    const emBreve = (Object.keys(COMING_SOON) as ComingSoonFeature[]).filter(isComingSoon);
+    // Sem nada «Em breve» este teste não provava nada.
+    expect(emBreve.length).toBeGreaterThan(0);
+    expect(comingSoonList()).toEqual(emBreve.map((f) => COMING_SOON_LABELS[f]));
+
+    for (const h of PLAN_HIGHLIGHTS) {
+      for (const rotulo of comingSoonList()) {
+        expect(h.toLowerCase(), `«${h}» promete «${rotulo}»`).not.toContain(rotulo.toLowerCase());
+      }
+      for (const f of emBreve) {
+        expect(h, `«${h}» promete ${f}, que está «Em breve»`).not.toMatch(SINAIS[f]);
+      }
     }
-    expect(asBillingPeriod("anual")).toBe("anual");
+  });
+
+  it("não tem números de preço escritos à mão", () => {
+    // O preço vive em PLAN_PRICE_KZ. Um destaque com «10.000 Kz» ficava errado
+    // no dia em que o preço mudasse.
+    for (const h of PLAN_HIGHLIGHTS) expect(h, h).not.toMatch(/\d[\d.\s]*\s*kz/i);
   });
 });

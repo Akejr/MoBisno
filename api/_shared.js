@@ -1,26 +1,28 @@
 /**
- * Utilitários partilhados pelas funções serverless de pagamentos (MoMenu).
+ * Utilitários partilhados pelas funções serverless.
  *
  * Ficheiro com prefixo `_` → o Vercel NÃO o trata como endpoint.
  *
  * Segredos (apenas no servidor, via variáveis de ambiente):
  *  - SUPABASE_URL                 (ou VITE_SUPABASE_URL)
- *  - SUPABASE_SERVICE_ROLE_KEY    (service role; ignora o RLS para ler chaves e
- *                                  gravar encomendas)
- *  - MOMENU_PLATFORM_API_KEY      (chave MoMenu da plataforma, para os planos)
- *  - MOMENU_BASE_URL              (opcional; por omissão https://api.momenu.online)
+ *  - SUPABASE_SERVICE_ROLE_KEY    (service role; ignora o RLS para gravar
+ *                                  encomendas e ativar subscrições)
+ *
+ * A integração com a MoMenu saiu. O fornecedor de pagamentos novo liga-se num só
+ * sítio, `api/_provider.js`; o resto da cadeia (preço calculado no servidor,
+ * stock, descontos, ativação idempotente) vive em `api/_payments.js` e aqui.
+ *
+ * `api/` é JavaScript sem passo de compilação e **não pode importar de `src/`**.
+ * As regras de domínio que o servidor precisa estão espelhadas à mão, e cada
+ * espelho tem um teste de paridade (`SEO.md` §5.2): preço do plano e conta ativa
+ * (`tests/planParity.test.ts`), stock e preço por Combinação
+ * (`tests/serverStock.test.ts`), entregas e descontos (`tests/serverOrder.test.ts`).
  */
 
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
-export const MOMENU_BASE = process.env.MOMENU_BASE_URL || "https://api.momenu.online";
-export const PLATFORM_API_KEY = process.env.MOMENU_PLATFORM_API_KEY || "";
-
-export const FEE_RATE = 0.02;
-export const MIN_PAYMENT_KZ = 100;
-const VALID_IVA = [0, 2, 5, 7, 14];
 
 /** Cliente Supabase com service role (ou null se não configurado). */
 export function admin() {
@@ -33,7 +35,6 @@ export function configStatus() {
   return {
     supabaseUrl: !!SUPABASE_URL,
     serviceRole: !!SERVICE_ROLE,
-    platformApiKey: !!PLATFORM_API_KEY,
   };
 }
 
@@ -42,7 +43,7 @@ export function missingEnvMessage() {
   const missing = [];
   if (!SUPABASE_URL) missing.push("SUPABASE_URL");
   if (!SERVICE_ROLE) missing.push("SUPABASE_SERVICE_ROLE_KEY");
-  return `Pagamentos não configurados no servidor. Defina ${missing.join(", ")} no Vercel (Settings → Environment Variables) e faça redeploy.`;
+  return `Servidor por configurar. Defina ${missing.join(", ")} no Vercel (Settings → Environment Variables) e faça redeploy.`;
 }
 
 export function round2(v) {
@@ -51,14 +52,6 @@ export function round2(v) {
 
 export function productsTotal(products) {
   return round2((products || []).reduce((s, p) => s + Number(p.productPrice) * Number(p.productQuantity), 0));
-}
-
-export function computeFee(amount) {
-  return round2(amount * FEE_RATE);
-}
-
-export function computeNet(amount) {
-  return round2(amount - computeFee(amount));
 }
 
 /**
@@ -76,7 +69,6 @@ export function isValidProduct(p) {
   if (!p || typeof p.productName !== "string" || p.productName.trim() === "") return false;
   if (!Number.isFinite(Number(p.productPrice)) || Number(p.productPrice) <= 0) return false;
   if (!Number.isInteger(Number(p.productQuantity)) || Number(p.productQuantity) <= 0) return false;
-  if (p.iva !== undefined && p.iva !== null && !VALID_IVA.includes(Number(p.iva))) return false;
   return true;
 }
 
@@ -98,7 +90,6 @@ export function cleanProducts(products) {
       productQuantity: Number(p.productQuantity),
     };
     if (p.id != null) item.id = String(p.id);
-    if (p.iva !== undefined && p.iva !== null) item.iva = Number(p.iva);
     const variantKey = asVariantKey(p.variantKey);
     if (variantKey !== undefined) item.variantKey = variantKey;
     return item;
@@ -106,31 +97,23 @@ export function cleanProducts(products) {
 }
 
 /**
- * Copia as linhas **sem** `variantKey`, para o corpo enviado à API MoMenu.
+ * Copia as linhas **sem** `variantKey`, para o corpo enviado ao fornecedor de
+ * pagamentos.
  *
  * A chave da Combinação é interna à Plataforma: identifica o que foi vendido
- * para efeitos de stock, não entra na fatura e não pertence ao contrato da
- * MoMenu. Fica gravada em `orders.products`, que é de onde o webhook a lê para
- * abater o stock quando uma Referência Bancária é confirmada mais tarde.
+ * para efeitos de stock e não pertence ao contrato de nenhum fornecedor. Fica
+ * gravada em `orders.products`, que é de onde a confirmação a lê para abater o
+ * stock quando uma Referência Bancária é paga mais tarde.
  */
-export function momenuProducts(products) {
+export function providerProducts(products) {
   return (products || []).map((p) => {
     const { variantKey: _ignorada, ...rest } = p;
     return rest;
   });
 }
 
-export function mapMomenuStatus(operationStatus) {
-  switch (String(operationStatus)) {
-    case "1": return "paid";
-    case "3": return "cancelled";
-    case "4": return "failed";
-    case "5": return "failed";
-    default: return "open";
-  }
-}
-
-export function mapStatusString(status) {
+/** Estado interno a partir de um estado de origem desconhecida. */
+export function asOrderStatus(status) {
   switch (String(status || "").toLowerCase()) {
     case "paid": return "paid";
     case "cancelled":
@@ -159,162 +142,42 @@ export function send(res, code, obj) {
   res.status(code).json(obj);
 }
 
-/** Duração de cada ciclo de pagamento, em ms. Espelha `PERIOD_DAYS` de `src/services/plans.ts`. */
-const PERIOD_MS = { mensal: 30 * 24 * 3600 * 1000, anual: 365 * 24 * 3600 * 1000 };
+/** Duração de um período pago, em ms. Espelha `PLAN_PERIOD_DAYS` de `src/services/plans.ts`. */
+export const PLAN_PERIOD_MS = 30 * 24 * 3600 * 1000;
 
 /**
- * Preço de **uma** Loja por ciclo, em Kwanzas. Espelho manual de `PRICE_KZ` de
- * `src/services/plans.ts` — `api/` é JavaScript sem passo de compilação e não pode
- * importar de `src/` (`SEO.md` §5.2).
+ * Preço da subscrição, em Kwanzas, por período. Espelho manual de
+ * `PLAN_PRICE_KZ` de `src/services/plans.ts` — `api/` é JavaScript sem passo de
+ * compilação e não pode importar de `src/` (`SEO.md` §5.2).
  *
- * Está aqui, e não no cliente, porque é o servidor que calcula o montante de um
- * pagamento de plano: com o preço por Loja, deixar o navegador dizer o valor era
- * deixá-lo escolher quanto paga e por quantas Lojas.
- *
- * `tests/planParity.test.ts` compara este objeto com o do domínio: mudar o preço
- * num sítio e esquecer o outro falha o portão.
+ * Está aqui porque é o servidor que calcula o montante de um pagamento de
+ * plano: aceitar o valor que o navegador enviasse era deixar qualquer pessoa
+ * subscrever por 1 Kz. `tests/planParity.test.ts` compara este valor com o do
+ * domínio.
  */
-export const PLAN_PRICE_KZ = { mensal: 11000, anual: 120000 };
-
-/** Ciclo a partir de um valor de origem desconhecida. Recorre ao mais barato. */
-function asPeriod(value) {
-  return value === "anual" ? "anual" : "mensal";
-}
+export const PLAN_PRICE_KZ = 10000;
 
 /**
- * Ativa/renova a subscrição após pagamento confirmado. Espelha
- * `src/services/billing.ts:planActivationPatch`: renovar acrescenta o ciclo AO
- * FIM do período atual, para quem paga adiantado não perder os dias que tinha;
- * sem período em curso, conta a partir de agora.
+ * Ativa/renova a subscrição após um pagamento confirmado. Espelha
+ * `planActivationPatch` de `src/services/billing.ts`: renovar acrescenta o
+ * período AO FIM do atual, para quem paga adiantado não perder os dias que
+ * tinha; sem período em curso, conta a partir de agora.
  *
- * Deixou de haver escalões, logo não há plano a trocar nem `next_plan` a
- * agendar — só uma data a empurrar para a frente.
+ * **Não é idempotente sozinha** — cada chamada soma um período. Quem a chama
+ * (`confirmPlanPayment` em `api/_payments.js`) só o faz depois de marcar o
+ * pagamento como ativado numa escrita condicional; foi a falta dessa guarda que
+ * deixava um único pagamento estender a subscrição sem limite.
  */
-export async function activatePlan(db, ownerId, period, stores) {
-  if (!ownerId) return;
+export async function activatePlan(db, ownerId) {
+  if (!ownerId) return false;
   const now = Date.now();
-  /*
-   * `plan_stores` pode ainda não existir (migração 0020 não corrida), e um
-   * `select` com coluna inexistente **falha o pedido inteiro**. Aqui isso custava
-   * um pagamento: sem `plan_expires_at` a subscrição era activada a partir de
-   * agora em vez do fim do período atual, e o `update` com a coluna nova falhava
-   * em silêncio — dinheiro cobrado, plano não activado.
-   */
-  let prof = null;
-  let temColunaLojas = true;
-  {
-    const comLojas = await db.from("profiles").select("plan_expires_at, plan_stores").eq("id", ownerId).maybeSingle();
-    if (comLojas.error) {
-      temColunaLojas = false;
-      const semLojas = await db.from("profiles").select("plan_expires_at").eq("id", ownerId).maybeSingle();
-      prof = semLojas.data;
-    } else {
-      prof = comLojas.data;
-    }
-  }
+  const { data: prof } = await db.from("profiles").select("plan_expires_at").eq("id", ownerId).maybeSingle();
   const expMs = prof?.plan_expires_at ? Date.parse(prof.plan_expires_at) : NaN;
   const base = Number.isFinite(expMs) && expMs > now ? expMs : now;
-  const fim = new Date(base + PERIOD_MS[asPeriod(period)]).toISOString();
-  /*
-   * Lojas pagas neste ciclo. Espelha `billableStores` de
-   * `src/services/plans.ts`: nunca menos de uma, sempre inteiro.
-   *
-   * Quando o pagamento não diz quantas (uma referência antiga, gravada antes desta
-   * mudança), fica o que a conta já tinha — e ausência vale uma, que é o que todas
-   * as contas anteriores pagaram.
-   */
-  const pedidas = Number(stores);
-  const lojas = Number.isFinite(pedidas) && pedidas >= 1
-    ? Math.floor(pedidas)
-    : Math.max(1, Math.floor(Number(prof?.plan_stores ?? 1)) || 1);
-  // Sem a coluna, activa-se o essencial: a data. O número de lojas fica para
-  // quando a migração correr — nunca ao contrário, que seria deixar a subscrição
-  // sem activar por causa de uma coluna que ainda não existe.
-  const patch = temColunaLojas
-    ? { plan: "pro", plan_expires_at: fim, plan_stores: lojas }
-    : { plan: "pro", plan_expires_at: fim };
-  const escrita = await db.from("profiles").update(patch).eq("id", ownerId);
-  if (escrita.error && temColunaLojas) {
-    await db.from("profiles").update({ plan: "pro", plan_expires_at: fim }).eq("id", ownerId);
-  }
+  const fim = new Date(base + PLAN_PERIOD_MS).toISOString();
+  const { error } = await db.from("profiles").update({ plan: "pro", plan_expires_at: fim }).eq("id", ownerId);
+  return !error;
 }
-
-/**
- * Lojas que um pagamento de plano cobre, ou `undefined`.
- *
- * Lido **à parte** da transação de propósito: `plan_payments.stores` nasceu na
- * migração 0020 e um `select` com coluna inexistente falha o pedido inteiro. Se
- * fosse pedido junto com `owner_id` e `period`, uma referência paga antes de a
- * migração correr não activava subscrição nenhuma — o pior resultado possível,
- * porque o dinheiro já entrou.
- *
- * `undefined` faz `activatePlan` cair no que a conta já tinha.
- *
- * @param ref Identificador da transação (`merchant_transaction_id` ou `operation_id`).
- */
-export async function planPaymentStores(db, ref) {
-  if (!ref) return undefined;
-  const { data, error } = await db
-    .from("plan_payments")
-    .select("stores")
-    .or(`merchant_transaction_id.eq.${ref},operation_id.eq.${ref}`)
-    .maybeSingle();
-  if (error) return undefined;
-  const n = Number(data?.stores);
-  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : undefined;
-}
-
-/**
- * Lojas publicadas de um Dono, para o preço do plano.
- *
- * Exclui as **lojas-modelo** (identificador que começa por `modelo-`), pela mesma
- * razão que o painel pessoal as esconde: são demonstrações da Plataforma, criadas
- * pelo Administrador, e nenhum Dono as paga.
- *
- * Devolve `0` quando a consulta falha, e quem chama trata `0` como «uma» ao
- * cobrar — uma falha de leitura não pode inflacionar a fatura de ninguém.
- */
-export async function countPublishedStores(db, ownerId) {
-  if (!ownerId) return 0;
-  const { data, error } = await db
-    .from("stores")
-    .select("identifier, state")
-    .eq("owner_id", ownerId)
-    .eq("state", "Publicada");
-  if (error || !Array.isArray(data)) return 0;
-  return data.filter((s) => !String(s?.identifier ?? "").startsWith("modelo-")).length;
-}
-
-/** Credita mensagens SMS no saldo de uma loja (idempotência gerida por quem chama). */
-export async function creditSms(db, storeId, quantity) {
-  const qty = Number(quantity);
-  if (!storeId || !Number.isFinite(qty) || qty <= 0) return;
-  const { data } = await db.from("stores").select("sms_credits").eq("id", storeId).maybeSingle();
-  const cur = Number(data?.sms_credits ?? 0);
-  await db.from("stores").update({ sms_credits: cur + qty }).eq("id", storeId);
-}
-
-/**
- * Cumpre uma compra de logótipo: acrescenta o `logo_url` a
- * `stores.customization.logos` e marca a compra como cumprida (idempotente).
- */
-export async function fulfillLogo(db, purchaseId) {
-  if (!purchaseId) return;
-  const { data: lp } = await db
-    .from("logo_purchases")
-    .select("id, store_id, logo_url, fulfilled")
-    .eq("id", purchaseId)
-    .maybeSingle();
-  if (!lp || lp.fulfilled || !lp.store_id || !lp.logo_url) return;
-  const { data: st } = await db.from("stores").select("customization").eq("id", lp.store_id).maybeSingle();
-  const custom = (st && st.customization && typeof st.customization === "object") ? st.customization : {};
-  const logos = Array.isArray(custom.logos) ? custom.logos.slice() : [];
-  if (!logos.includes(lp.logo_url)) logos.push(lp.logo_url);
-  custom.logos = logos;
-  await db.from("stores").update({ customization: custom }).eq("id", lp.store_id);
-  await db.from("logo_purchases").update({ fulfilled: true }).eq("id", lp.id);
-}
-
 /** Incrementa os usos de um código de desconto. */
 export async function bumpDiscountUse(db, discountCodeId) {
   if (!discountCodeId) return;
@@ -336,13 +199,14 @@ export async function bumpDiscountUse(db, discountCodeId) {
  * `src/`** (mundos de módulos distintos; `api/_seo.js` é o precedente), por isso
  * a lógica é duplicada.
  *
- * **Só é espelhado o mínimo que o stock precisa:** a normalização dos eixos, a
- * validação posicional das Combinação, a chave da Combinação e a leitura do
- * `stock`. O preço efetivo, o modo de preço, o produto cartesiano e as etiquetas
- * legíveis não entram em nenhuma decisão de stock e por isso não aparecem aqui.
- * Ao alterar qualquer uma destas regras, **alterar nos dois sítios**;
- * `tests/serverStock.test.ts` compara os dois módulos e falha se divergirem
- * (`SEO.md` §5.2).
+ * **Só é espelhado o que o servidor decide:** a normalização dos eixos, a
+ * validação posicional das Combinação, a chave da Combinação, a leitura do
+ * `stock`, e — desde que o preço das encomendas passou a ser calculado no
+ * servidor — o preço efetivo, o modo de preço e a etiqueta legível. O produto
+ * cartesiano não entra em nenhuma decisão do servidor e por isso não aparece
+ * aqui. Ao alterar qualquer uma destas regras, **alterar nos dois sítios**;
+ * `tests/serverStock.test.ts` e `tests/serverOrder.test.ts` comparam os dois
+ * módulos e falham se divergirem (`SEO.md` §5.2).
  *
  * As três leituras de `stock` que têm de coincidir com o domínio (R4.11, R4.12):
  * **ausente** = não controlado, passa sempre; **`0`** = esgotado, recusa;
@@ -448,7 +312,11 @@ function variationEntryOf(custom, productId) {
   if (!Array.isArray(entry.axes)) return null;
   const axes = normalizeVariationAxes(entry.axes);
   if (axes.length === 0) return null;
-  return { axes, combinations: Array.isArray(entry.combinations) ? entry.combinations : [] };
+  return {
+    axes,
+    priceMode: asPriceMode(entry.priceMode),
+    combinations: Array.isArray(entry.combinations) ? entry.combinations : [],
+  };
 }
 
 /**
@@ -659,16 +527,154 @@ export function accountActive(profile, now = Date.now()) {
   return Number.isFinite(expMs) && expMs > now;
 }
 
-/** Chamada à API MoMenu. `body` ausente → GET. */
-export async function momenu(path, apiKey, body, qa) {
-  const headers = { "Content-Type": "application/json", "x-api-key": apiKey };
-  if (qa) headers["x-env-qa"] = "true";
-  const r = await fetch(`${MOMENU_BASE}${path}`, {
-    method: body ? "POST" : "GET",
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
+/* --------------------- Preço calculado no servidor ------------------------- */
+
+/**
+ * Modo de preço das Combinação. Espelha `asPriceMode` de
+ * `src/services/variations.ts`: só `"acresce"` é `"acresce"`.
+ */
+function asPriceMode(value) {
+  return value === "acresce" ? "acresce" : "substitui";
+}
+
+/**
+ * Preço efetivo de uma Combinação. Espelha `effectivePrice` de
+ * `src/services/variations.ts`: sem preço → preço base; `"substitui"` → o da
+ * Combinação; `"acresce"` → base + Combinação; sempre finito e ≥ 0.
+ */
+export function effectivePriceOf(basePrice, combination, mode) {
+  const base = typeof basePrice === "number" && Number.isFinite(basePrice) ? basePrice : 0;
+  const raw = asVariationRecord(combination)?.price;
+  const price = typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
+  let value;
+  if (price === undefined) value = base;
+  else if (asPriceMode(mode) === "acresce") value = base + price;
+  else value = price;
+  if (Number.isNaN(value)) return 0;
+  if (value === Number.POSITIVE_INFINITY) return Number.MAX_VALUE;
+  return value < 0 ? 0 : value;
+}
+
+/** Etiqueta legível de uma Combinação («Cor: Azul · Tamanho: M»). Espelha `variantLabelOf`. */
+export function variantLabelOfValues(axes, values) {
+  const list = Array.isArray(values) ? values : [];
+  const parts = [];
+  (Array.isArray(axes) ? axes : []).forEach((axis, i) => {
+    const name = asVariationLabel(asVariationRecord(axis)?.name);
+    const value = asVariationLabel(list[i]);
+    if (name === undefined || value === undefined) return;
+    parts.push(`${name}: ${value}`);
   });
-  let data = {};
-  try { data = await r.json(); } catch { data = {}; }
-  return { ok: r.ok, status: r.status, data };
+  return parts.join(" · ");
+}
+
+/**
+ * Preço e etiqueta de UMA linha da encomenda, a partir da base de dados e da
+ * Personalização da Loja — nunca do que o navegador disse.
+ *
+ * - Produto **sem** Variação ativas: preço do Produto. Uma `variantKey` que
+ *   venha na linha é ignorada (carrinho guardado antes de o Dono desligar as
+ *   Variação).
+ * - Produto **com** Variação: a `variantKey` é obrigatória e tem de ter um valor
+ *   válido por eixo; o preço é o efetivo da Combinação (uma Combinação válida
+ *   mas não gravada vale o preço base, como no domínio).
+ *
+ * @returns `{ ok: true, price, label, variantKey }` ou `{ ok: false }`.
+ */
+export function linePriceOf(custom, productId, variantKey, basePrice) {
+  const entry = variationEntryOf(custom, productId);
+  if (!entry) return { ok: true, price: effectivePriceOf(basePrice, null, "substitui"), label: "", variantKey: undefined };
+  const key = asVariantKey(variantKey);
+  if (key === undefined) return { ok: false };
+  const values = key.split(VARIANT_VALUE_SEPARATOR);
+  if (values.length !== entry.axes.length) return { ok: false };
+  for (let i = 0; i < values.length; i += 1) {
+    if (!entry.axes[i].values.includes(values[i])) return { ok: false };
+  }
+  const found = findStoredCombination(custom, productId, key);
+  return {
+    ok: true,
+    price: effectivePriceOf(basePrice, found ? found.record : null, entry.priceMode),
+    label: variantLabelOfValues(entry.axes, values),
+    variantKey: key,
+  };
+}
+
+/* ------------------------------- Entregas ---------------------------------- */
+
+/**
+ * Áreas de entrega de Luanda. Espelho de `LUANDA_AREAS` de `web/lib/areas.ts`
+ * (a mesma lista, pela mesma ordem). `tests/serverOrder.test.ts` compara as duas.
+ */
+export const LUANDA_AREAS = [
+  "Benfica", "Cacuaco", "Calemba 2", "Camama", "Cassequel", "Cidade", "Escongolenses",
+  "Golf 2", "Kilamba", "Morro Bento", "Nova Vida", "Palanca", "Prenda", "Rocha Pinto",
+  "Samba", "Sequel", "Talatona", "Viana", "Zango",
+];
+
+/** Áreas servidas e respetiva taxa. Espelha `deliveredAreas` de `web/lib/areas.ts`. */
+export function deliveredAreasOf(delivery) {
+  const d = asVariationRecord(delivery);
+  if (!d) return [];
+  const mode = d.mode ?? (d.flatFee != null ? "single" : "perArea");
+  if (mode === "single") {
+    const fee = Math.max(0, Number(d.flatFee) || 0);
+    return LUANDA_AREAS.map((a) => ({ name: a, fee }));
+  }
+  const fees = asVariationRecord(d.fees) ?? {};
+  return LUANDA_AREAS.filter((a) => typeof fees[a] === "number").map((a) => ({ name: a, fee: Number(fees[a]) }));
+}
+
+/**
+ * Taxa de entrega de uma encomenda com produtos físicos. Mesma regra do
+ * checkout (`web/views/checkout.ts`): a área tem de ser uma das servidas pela
+ * Loja (quando ela serve alguma), e a entrega é grátis a partir de `freeAbove`.
+ *
+ * @returns `{ ok: true, fee }` ou `{ ok: false }` quando a área falta ou não é servida.
+ */
+export function deliveryFeeOf(delivery, area, subtotal) {
+  const areas = deliveredAreasOf(delivery);
+  if (!areas.length) return { ok: true, fee: 0 };
+  const found = areas.find((a) => a.name === area);
+  if (!found) return { ok: false };
+  const freeAbove = Math.max(0, Number(asVariationRecord(delivery)?.freeAbove) || 0);
+  return { ok: true, fee: freeAbove > 0 && subtotal >= freeAbove ? 0 : found.fee };
+}
+
+/* ------------------------------- Descontos --------------------------------- */
+
+/**
+ * Valor do desconto, nunca superior ao total. Espelha `discountAmount` de
+ * `web/supabase/discounts.ts`.
+ */
+export function discountAmountOf(code, total) {
+  const value = Number(asVariationRecord(code)?.value) || 0;
+  const raw = code?.type === "percent" ? (total * value) / 100 : value;
+  return Math.max(0, Math.min(total, Math.round(raw)));
+}
+
+/* ----------------------- Comissão da Plataforma (5%) ----------------------- */
+
+/**
+ * Espelho de `PLATFORM_FEE_RATE` em `src/services/fees.ts`.
+ *
+ * `api/` é JavaScript sem passo de compilação e não pode importar de `src/`
+ * (`SEO.md` §5.2). Alterar aqui **e** lá; `tests/fees.test.ts` compara os dois e
+ * falha se divergirem.
+ */
+export const PLATFORM_FEE_RATE = 0.05;
+
+/** Comissão da Plataforma sobre o total de uma venda digital, em Kz. */
+export function platformFeeOf(total) {
+  const n = Number(total);
+  const t = Number.isFinite(n) && n > 0 ? n : 0;
+  return Math.min(t, round2(t * PLATFORM_FEE_RATE));
+}
+
+/**
+ * Comissão conforme o meio: o WhatsApp não passa pela Plataforma e por isso não
+ * tem comissão. Espelha `feeForMethod` em `src/services/fees.ts`.
+ */
+export function feeForMethodOf(method, total) {
+  return method === "whatsapp" ? 0 : platformFeeOf(total);
 }

@@ -1202,10 +1202,14 @@ Aplicar **por ordem** no SQL Editor do Supabase. Nunca pular uma migração.
 | 0018 | `0018_trial.sql` | Coluna `trial_ends_at`; função `account_active`. **Superada pela 0019** |
 | 0018 | `0018_logo_purchases.sql` | Tabela `logo_purchases` (criação de logótipo por IA, compra avulsa). Partilha o número `0018` com `0018_trial.sql`; são independentes e a ordem entre as duas não importa |
 | 0019 | `0019_single_plan.sql` | Plano único `pro`; larga `trial_ends_at` e `next_plan`; `account_active` sem teste; coluna `period` em `plan_payments`; gatilho que exige subscrição para publicar |
+| 0020 | `0020_stores_per_plan.sql` | Preço por loja publicada (`profiles.plan_stores`, `plan_payments.stores`). **Superada pela 0023** |
+| 0021 | `0021_orders_owner_delete.sql` | Política de `delete` em `orders`: o Dono apaga só as referências expiradas |
+| 0022 | `0022_security.sql` | Gatilhos `profiles_guard` e `stores_guard` (o navegador não escreve `is_admin`, `plan_expires_at`, `__template` nem `sms_credits`, não liga `digital_payments` e não usa o prefixo `modelo-`); Storage por loja; avaliações por aprovar; `validate_discount`; levantamentos limitados ao saldo; eventos do funil |
+| 0023 | `0023_single_plan_and_company_verification.sql` | Plano único (publicar exige só conta ativa; larga `plan_stores` e `plan_payments.stores`); verificação de empresa em `store_payments`; bucket privado `company-documents`; `provider_ref` e `activated_at`; larga `momenu_api_key` e `online_enabled` |
 
 ### Scripts Utilitários
 
-- `supabase/scripts/create_admin.sql`: cria a conta admin `dotangola@gmail.com` / `aeiou123`.
+- `supabase/scripts/create_admin.sql`: marca uma conta como administradora (e, se ainda não existir, pode criá-la). O ficheiro **não tem credenciais**: o email e a palavra-passe são escolhidos no momento da criação — de preferência em Supabase → Authentication → Users → «Add user», ficando o script só com o email — e escritos nos marcadores do início do script. As instruções estão no cabeçalho do próprio ficheiro.
 - `supabase/scripts/reset_test_data.sql`: limpa dados de teste.
 
 ---
