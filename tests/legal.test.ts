@@ -57,7 +57,10 @@ describe("Termos — um só plano, com o preço do domínio", () => {
 
   it("não há escalões nem período de teste a cobrar", () => {
     expect(TUDO).not.toMatch(/b[áa]sico|profissional|empresarial|plano anual|teste gr[áa]tis|per[íi]odo de teste|planos s[ãa]o cobrados/i);
-    expect(TERMOS).toMatch(/lojas e produtos ilimitados/);
+    expect(TERMOS).toMatch(/produtos ilimitados/);
+    // A subscrição é de cada loja (migração 0025).
+    expect(TERMOS).toMatch(/por loja/);
+    expect(TERMOS).toMatch(/Cada Loja tem a sua subscrição/);
   });
 
   it("criar e pré-visualizar é grátis; a subscrição é para publicar", () => {

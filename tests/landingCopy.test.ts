@@ -170,8 +170,6 @@ describe("Página inicial — nenhum número escrito à mão", () => {
 
   it("as zonas de entrega são contadas a partir da lista canónica", () => {
     expect(html).toContain(`${LUANDA_AREAS.length} zonas`);
-    // A zona do exemplo é uma da lista, não um nome inventado.
-    expect(html).toContain(`Entrega: ${LUANDA_AREAS[0]}`);
   });
 
   it("não há promessas de quantidades de lojas, clientes ou vendas", () => {
@@ -307,14 +305,18 @@ describe("Página inicial — as secções do cromo existem", () => {
     }
   });
 
-  it("o topo fala a quem já vende no WhatsApp e mostra a encomenda a chegar", () => {
-    // A prova do produto está no primeiro ecrã: antes de «Como funciona».
+  it("o topo tem o acordeão de imagens, já aberto num cartão, e nada a flutuar", async () => {
+    // Pedido explícito: a arte ao lado do texto volta a ser o acordeão, e o selo
+    // «Já vende por WhatsApp?» saiu.
     const topo = html.slice(html.indexOf("<main"), html.indexOf('id="como-funciona"'));
-    expect(topo).toContain("Já vende por WhatsApp?");
-    // A mensagem é composta pela função verdadeira (`buildCartWhatsAppMessage`):
-    // a saudação e o total são dela, não de um texto a imitá-la.
-    expect(topo).toContain("Olá! Gostaria de encomendar:");
-    expect(topo).toMatch(/Total: [\d.]+,\d\d Kz/);
+    const mod = (await import(ESP_LANDING)) as { ACCORDION_ITEMS: readonly { title: string }[]; ACC_OPEN_WIDTH: string };
+    expect(topo).toContain('id="accordion"');
+    expect(topo.match(/data-acc /g) ?? []).toHaveLength(mod.ACCORDION_ITEMS.length);
+    for (const item of mod.ACCORDION_ITEMS) expect(topo).toContain(item.title);
+    // O HTML já sai com um cartão aberto: abri-lo só quando a vista arranca era um salto.
+    expect(topo.split(`width:${mod.ACC_OPEN_WIDTH}`).length - 1).toBe(1);
+    expect(topo).not.toContain("Já vende por WhatsApp?");
+    expect(FONTE_VISTA).toContain("mountAccordion(");
   });
 
   it("a prova aponta para o que existe: o diretório e os modelos", () => {
@@ -427,10 +429,10 @@ describe("Página inicial — o movimento nunca esconde nada sem JavaScript", ()
     expect(regrasQueEscondem, "nenhuma regra prepara a entrada: a guarda deixou de guardar algo").toBeGreaterThan(0);
   });
 
-  it("só os três pontos de «a escrever» e o marcador da FAQ começam escondidos", () => {
+  it("só o marcador da FAQ começa escondido", () => {
     const css = folhaDaPagina();
     const escondidos = [...css.matchAll(/([^{}]+)\{[^{}]*display:none[^{}]*\}/g)].map((m) => (m[1] ?? "").trim());
-    expect(escondidos.sort()).toEqual([".mb-typing", "summary::-webkit-details-marker"].sort());
+    expect(escondidos).toEqual(["summary::-webkit-details-marker"]);
   });
 
   it("o módulo do movimento usa as classes do CSS, salta o que está à vista e respeita quem pediu menos", () => {

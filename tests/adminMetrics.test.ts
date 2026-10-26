@@ -408,8 +408,8 @@ describe("web/supabase/admin.ts — sem os defeitos que tinha", () => {
     // uma subscrição vitalícia que ninguém pagou.
     expect(FONTE).not.toMatch(/100\s*\*\s*365/);
     expect(FONTE).not.toContain("adminSetSubscription");
-    expect(corpo("adminActivatePlan")).toContain("activationPatch(current, months)");
-    expect(corpo("adminDeactivatePlan")).toContain("deactivationPatch()");
+    expect(corpo("adminActivateStorePlan")).toContain("activationPatch(current, months)");
+    expect(corpo("adminDeactivateStorePlan")).toContain("deactivationPatch()");
   });
 
   it("as decisões de verificação saem de `approvalPatch` e `rejectionPatch`", () => {

@@ -25,7 +25,7 @@
  * É defensiva: perante qualquer erro devolve o shell inalterado (nunca 500).
  */
 
-import { admin, accountActive } from "./_shared.js";
+import { admin, storeActive } from "./_shared.js";
 import {
   STORE_APEX, PLATFORM_APEX, LANGUAGE, PLATFORM_NAME,
   PLATFORM_SHARE_IMAGE, PLATFORM_SHARE_IMAGE_WIDTH, PLATFORM_SHARE_IMAGE_HEIGHT, PLATFORM_SHARE_IMAGE_TYPE,
@@ -248,12 +248,14 @@ export default async function handler(req, res) {
     // Loja inexistente ou não publicada → 404 real, nunca o shell da plataforma.
     if (!store) return send(notFoundHtml(shell, "Loja não encontrada", canonicalBase), 404, false);
 
-    // Conta sem acesso (teste terminou e sem plano) → a loja sai da web.
+    // Loja sem subscrição em vigor → sai da web. A subscrição é de cada loja
+    // (migração 0025). A data lê-se à parte para não ir nos dados embutidos.
     if (store.owner_id) {
-      const { data: prof } = await db
-        .from("profiles").select("is_admin, plan_expires_at")
-        .eq("id", store.owner_id).maybeSingle();
-      if (!accountActive(prof)) return send(notFoundHtml(shell, "Loja indisponível", canonicalBase), 410, false);
+      const [{ data: prof }, { data: plano }] = await Promise.all([
+        db.from("profiles").select("is_admin").eq("id", store.owner_id).maybeSingle(),
+        db.from("stores").select("plan_expires_at").eq("id", store.id).maybeSingle(),
+      ]);
+      if (!storeActive(plano, prof)) return send(notFoundHtml(shell, "Loja indisponível", canonicalBase), 410, false);
     }
 
     const storeName = store.name;
@@ -463,7 +465,7 @@ function platformPages() {
   return {
     "/": {
       title: "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais",
-      description: `Crie a sua loja online em Angola em minutos com a MôBisno. Editor visual ao vivo, encomendas por WhatsApp, endereço próprio e SEO otimizado. ${preco}, com lojas e produtos ilimitados.`,
+      description: `Crie a sua loja online em Angola em minutos com a MôBisno. Editor visual ao vivo, encomendas por WhatsApp, endereço próprio e SEO otimizado. ${preco} por loja, com produtos ilimitados.`,
       heading: "Crie a sua loja online em minutos",
       intro: "A MôBisno é a plataforma angolana que permite a qualquer empreendedor abrir uma loja online, sem conhecimentos técnicos. Escolha um modelo pronto, personalize os textos, as fotografias e as cores, adicione os seus produtos e comece a vender em Kwanzas, com entrega em Luanda e em todo o país.",
       sections: [
@@ -475,8 +477,9 @@ function platformPages() {
           "SEO otimizado, códigos de desconto, gestão de stock, variações e avaliações",
         ] },
         { title: "Preço", items: [
-          `${preco}, com tudo incluído`,
-          "Um só plano, sem escalões: lojas e produtos ilimitados",
+          `${preco} por loja, com tudo incluído`,
+          "Cada loja tem a sua subscrição: quem tem duas lojas online paga duas",
+          "Produtos ilimitados e sem escalões",
           "Criar a loja, personalizá-la e vê-la é grátis; a subscrição serve para a publicar",
           ...(breve.length ? [`Em breve, ainda não incluído: ${breve.join(", ")}`] : []),
         ] },

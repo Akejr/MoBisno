@@ -25,7 +25,7 @@
  * Espelhado em `api/_seo.js` (as funções serverless não importam de `src/`);
  * `tests/seoInfra.test.ts` compara os dois.
  */
-import { PLAN_PRICE_KZ, PLAN_PERIOD_DAYS } from "./plans.js";
+import { PLAN_PRICE_KZ, PLAN_PERIOD_DAYS, PLAN_UNIT_LABEL } from "./plans.js";
 import { comingSoonList, isComingSoon } from "./comingSoon.js";
 import { PLATFORM_FEE_LABEL } from "./fees.js";
 import { STORE_APEX, PLATFORM_APEX, isModelIdentifier } from "./domains.js";
@@ -279,7 +279,7 @@ export function platformTitle(): string {
  */
 export function platformDescription(): string {
   return truncate(
-    `Crie a sua loja online em Angola: modelos prontos, editor visual e encomendas por WhatsApp. Lojas e produtos ilimitados por ${platformPriceLabel()}, tudo incluído.`,
+    `Crie a sua loja online em Angola: modelos prontos, editor visual e encomendas por WhatsApp. ${platformPriceLabel()} ${PLAN_UNIT_LABEL}, tudo incluído.`,
     160,
   );
 }
@@ -390,7 +390,7 @@ export function platformFaq(providerReady: boolean = PAYMENTS_PROVIDER_READY): {
     },
     {
       question: "Quanto custa?",
-      answer: `${platformPriceLabel()}, com tudo incluído. Há um só plano, sem escalões: lojas e produtos ilimitados. Criar a loja e vê-la é grátis; a subscrição serve para a publicar.`,
+      answer: `${platformPriceLabel()} ${PLAN_UNIT_LABEL}, com tudo incluído. Cada loja tem a sua subscrição: quem tem duas lojas online paga duas. Produtos ilimitados e sem escalões. Criar a loja e vê-la é grátis; a subscrição serve para a publicar.`,
     },
     {
       question: "A MôBisno fica com uma parte das minhas vendas?",

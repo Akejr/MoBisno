@@ -148,6 +148,7 @@ describe("a percentagem não está escrita à mão em sítio nenhum", () => {
   const FICHEIROS = [
     "web/views/dashboard/markup.ts",
     "web/views/dashboard/pagamentos.ts",
+    "web/views/dashboard/vendas.ts",
     "web/views/landingHtml.ts",
     "web/lib/assistantContext.ts",
     "src/services/seo.ts",

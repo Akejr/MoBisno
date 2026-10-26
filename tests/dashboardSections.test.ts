@@ -25,7 +25,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { PLAN_HIGHLIGHTS, PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "../src/services/plans.js";
+import { PLAN_HIGHLIGHTS, PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ, PLAN_UNIT_LABEL } from "../src/services/plans.js";
 import { COMING_SOON, COMING_SOON_LABELS, type ComingSoonFeature } from "../src/services/comingSoon.js";
 import { resolveBilling, type BillingState } from "../src/services/billing.js";
 import { formatKz } from "../src/services/format.js";
@@ -343,7 +343,7 @@ describe("Pagamentos digitais — verificação da empresa", () => {
   });
 
   it("os levantamentos usam a conta aprovada, e só ela", () => {
-    const src = mod("pagamentos.ts");
+    const src = mod("vendas.ts");
     expect(src).toContain('const conta: WithdrawalAccount | null = verificacao.status === "approved"');
     expect(src).toContain("requestWithdrawal(store.id, ownerId, available, conta)");
     const W = ler("web/supabase/withdrawals.ts");
@@ -352,8 +352,8 @@ describe("Pagamentos digitais — verificação da empresa", () => {
   });
 
   it("vendas e levantamentos só aparecem com pagamentos digitais ou com histórico", () => {
-    expect(mod("pagamentos.ts")).toContain("const mostrarVendas = digitalVisible || orders.length > 0 || withdrawals.length > 0;");
-    expect(mod("pagamentos.ts")).toContain("const digitalVisible = digitalPaymentsVisible(store);");
+    expect(mod("vendas.ts")).toContain("const mostrarVendas = digitalVisible || orders.length > 0 || withdrawals.length > 0;");
+    expect(mod("vendas.ts")).toContain("const digitalVisible = digitalPaymentsVisible(store);");
   });
 
   it("saíram a MoMenu, o interruptor «Pagamentos online» e o espelho custom.payments", () => {
@@ -404,11 +404,15 @@ describe("Plano — um só plano, preço do domínio", () => {
     for (const h of PLAN_HIGHLIGHTS) expect(html, `destaque ausente: ${h}`).toContain(h);
   });
 
-  it("sem escalões, sem ciclo anual, sem preço por loja", () => {
+  it("sem escalões nem ciclo anual, e o preço é por loja", () => {
     const html = M.planHtml({ billing: ativa, providerReady: true, storeName: "Kitanda", identifier: "kitanda" });
-    for (const proibido of ["anual", "Anual", "por loja", "Básico", "Profissional", "Empresarial", "POUPA", "Poupa"]) {
+    for (const proibido of ["anual", "Anual", "Básico", "Profissional", "Empresarial", "POUPA", "Poupa"]) {
       expect(html, `o Plano não pode falar de ${proibido}`).not.toContain(proibido);
     }
+    // Cada loja tem a sua subscrição (migração 0025).
+    expect(html).toContain(PLAN_UNIT_LABEL);
+    expect(html).toContain("Cada loja tem a sua subscrição");
+    expect(html).toContain("A subscrição desta loja");
   });
 
   it("os quatro estados: ativa até, inativa, caducada e conta de administração", () => {
@@ -437,7 +441,7 @@ describe("Plano — um só plano, preço do domínio", () => {
     const html = M.planHtml({ billing: inativa, providerReady: true, storeName: "Kitanda", identifier: "kitanda" });
     expect(html).toContain('id="plan-pay"');
     expect(html).not.toContain('id="plan-mailto"');
-    expect(mod("plano.ts")).toContain("openPlanCheckout({ onPaid: () => { void ctx.reload(); } });");
+    expect(mod("plano.ts")).toContain("openPlanCheckout({ storeId: store.id, storeName: store.name, onPaid: () => { void ctx.reload(); } });");
     expect(mod("plano.ts")).toContain("if (!PAYMENTS_PROVIDER_READY) return;");
   });
 });
@@ -605,9 +609,13 @@ describe("Nada do que saiu do domínio continua a ser importado", () => {
     for (const args of chamadas) expect(args, `canPublishStore(${args})`).not.toContain(",");
   });
 
-  it("openPlanCheckout recebe só { onPaid }", () => {
+  it("openPlanCheckout recebe só a loja e o { onPaid }: nem lojas a contar nem ciclos", () => {
+    // Cada loja tem a sua subscrição (migração 0025): o pagamento é da loja
+    // escolhida, e o servidor confirma que ela é de quem paga.
     const chamadas = [...CODIGO.matchAll(/openPlanCheckout\(\{([^}]*)\}/g)].map((m) => m[1]!.trim());
     expect(chamadas.length).toBeGreaterThan(0);
-    for (const c of chamadas) expect(c.startsWith("onPaid:")).toBe(true);
+    for (const c of chamadas) {
+      expect(c.startsWith("storeId: store.id, storeName: store.name, onPaid:"), c).toBe(true);
+    }
   });
 });

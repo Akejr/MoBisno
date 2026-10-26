@@ -56,8 +56,12 @@ export interface AdminStore {
   templateId: string;
   /** Loja-modelo (demonstração da galeria): `customization.__template` ou prefixo `modelo-`. */
   isModel: boolean;
-  /** O dono tem subscrição ativa (ou é Administrador). Sem ela, uma loja publicada está fora do ar. */
-  ownerActive: boolean;
+  /** O dono é Administrador: publica sem subscrição. */
+  ownerIsAdmin: boolean;
+  /** Fim da subscrição DESTA loja (ISO) ou `null`. Cada loja tem a sua (migração 0025). */
+  planExpiresAt: string | null;
+  /** A loja tem subscrição em vigor (ou o dono é Administrador). Sem ela, publicada está fora do ar. */
+  planActive: boolean;
   /** `stores.digital_payments`: Multicaixa Express e Referência Bancária ligados (só a aprovação os liga). */
   digitalPayments: boolean;
   createdAt: string;
@@ -228,8 +232,8 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
 interface ProfileInfo {
   email: string;
   name: string;
-  /** Subscrição ativa, pela regra de `resolveBilling` (administrador, ou data futura). */
-  active: boolean;
+  /** A conta é de Administrador: as lojas dela publicam sem subscrição. */
+  isAdmin: boolean;
 }
 
 /** Quanto tempo uma leitura de `profiles` serve as leituras que chegam juntas. */
@@ -247,15 +251,14 @@ let profilesCache: { at: number; promise: Promise<Map<string, ProfileInfo>> } | 
 function profilesMap(): Promise<Map<string, ProfileInfo>> {
   if (profilesCache && Date.now() - profilesCache.at < PROFILES_TTL_MS) return profilesCache.promise;
   const promise = (async () => {
-    const { data, error } = await supabase.from("profiles").select("id, email, name, is_admin, plan_expires_at");
+    const { data, error } = await supabase.from("profiles").select("id, email, name, is_admin");
     readOrThrow("as contas", error);
-    const now = Date.now();
     const m = new Map<string, ProfileInfo>();
     for (const p of data ?? []) {
       m.set(String(p.id), {
         email: p.email ?? "",
         name: p.name ?? "",
-        active: resolveBilling({ planExpiresAt: p.plan_expires_at ?? null, isAdmin: p.is_admin === true }, now).accessActive,
+        isAdmin: p.is_admin === true,
       });
     }
     return m;
@@ -304,62 +307,62 @@ export async function listAccounts(): Promise<AdminAccount[]> {
   }));
 }
 
-/** Lê o fim da subscrição gravado e se a conta é de administrador. */
-async function readPlan(ownerId: string): Promise<{ planExpiresAt: string | null; isAdmin: boolean } | null> {
-  const { data, error } = await supabase.from("profiles").select("plan_expires_at, is_admin").eq("id", ownerId).maybeSingle();
-  if (error) console.error("readPlan", error);
+/** Lê o fim da subscrição de uma loja e se o dono dela é administrador. */
+async function readStorePlan(storeId: string): Promise<{ planExpiresAt: string | null; isAdmin: boolean } | null> {
+  const { data, error } = await supabase.from("stores").select("plan_expires_at, owner_id").eq("id", storeId).maybeSingle();
+  if (error) console.error("readStorePlan", error);
   if (!data) return null;
-  return { planExpiresAt: data.plan_expires_at ?? null, isAdmin: data.is_admin === true };
+  const owner = (await profilesMap()).get(String(data.owner_id ?? ""));
+  return { planExpiresAt: data.plan_expires_at ?? null, isAdmin: owner?.isAdmin === true };
 }
 
-/** Grava `plan_expires_at` e confirma que ficou gravado o valor pedido. */
-async function writePlan(ownerId: string, planExpiresAt: string): Promise<{ ok: true; planExpiresAt: string } | { ok: false; message: string }> {
+/** Grava `stores.plan_expires_at` e confirma que ficou gravado o valor pedido. */
+async function writeStorePlan(storeId: string, planExpiresAt: string): Promise<{ ok: true; planExpiresAt: string } | { ok: false; message: string }> {
   const { data, error } = await supabase
-    .from("profiles")
+    .from("stores")
     .update({ plan_expires_at: planExpiresAt })
-    .eq("id", ownerId)
+    .eq("id", storeId)
     .select("plan_expires_at");
-  forgetProfiles();
   if (error) {
-    console.error("writePlan", error);
+    console.error("writeStorePlan", error);
     return { ok: false, message: WRITE_FAILED };
   }
   const saved = (data ?? [])[0]?.plan_expires_at as string | null | undefined;
-  // O guarda `profiles_guard` repõe o valor antigo, em silêncio, a quem não é
-  // administrador: a linha volta, mas com a data de antes.
+  // O guarda `stores_plan_guard` repõe o valor antigo, em silêncio, a quem não
+  // é administrador: a linha volta, mas com a data de antes.
   if (!saved || Date.parse(saved) !== Date.parse(planExpiresAt)) return { ok: false, message: WRITE_REFUSED };
   return { ok: true, planExpiresAt: saved };
 }
 
 /**
- * Ativa (ou prolonga) a subscrição de uma conta por `months` meses, à mão — é
- * assim que se ativa enquanto não há pagamentos online.
+ * Ativa (ou prolonga) a subscrição de UMA loja por `months` meses, à mão. Cada
+ * loja tem a sua (migração 0025).
  *
  * Lê o fim da subscrição **no momento da ação** e aplica `activationPatch`
  * (a regra de `planActivationPatch`): os meses somam-se ao fim do período em
  * curso, ou contam a partir de agora se já não houver. Substituiu a concessão de
  * cem anos, que dava subscrições vitalícias.
  */
-export async function adminActivatePlan(
-  ownerId: string,
+export async function adminActivateStorePlan(
+  storeId: string,
   months: number,
 ): Promise<{ ok: true; planExpiresAt: string } | { ok: false; message: string }> {
-  const current = await readPlan(ownerId);
-  if (!current) return { ok: false, message: "Conta não encontrada." };
-  if (current.isAdmin) return { ok: false, message: "As contas de administrador não precisam de subscrição." };
+  const current = await readStorePlan(storeId);
+  if (!current) return { ok: false, message: "Loja não encontrada." };
+  if (current.isAdmin) return { ok: false, message: "As lojas de uma conta de administrador não precisam de subscrição." };
   const built = activationPatch(current, months);
   if (!built.ok) return built;
-  return writePlan(ownerId, built.patch.plan_expires_at);
+  return writeStorePlan(storeId, built.patch.plan_expires_at);
 }
 
 /**
- * Desativa a subscrição de uma conta: o período termina agora. As lojas
- * publicadas da conta saem do ar até nova ativação; nada é apagado.
+ * Desativa a subscrição de uma loja: o período termina agora. Se estiver
+ * publicada, sai do ar até nova ativação; nada é apagado.
  */
-export async function adminDeactivatePlan(
-  ownerId: string,
+export async function adminDeactivateStorePlan(
+  storeId: string,
 ): Promise<{ ok: true; planExpiresAt: string } | { ok: false; message: string }> {
-  return writePlan(ownerId, deactivationPatch().plan_expires_at);
+  return writeStorePlan(storeId, deactivationPatch().plan_expires_at);
 }
 
 /** Cancela a conta: remove as lojas (em cascata: produtos, encomendas, pedidos) e o perfil. */
@@ -388,15 +391,18 @@ export async function listStores(): Promise<AdminStore[]> {
   const [{ data, error }, pm] = await Promise.all([
     supabase
       .from("stores")
-      .select("id, name, owner_id, state, subdomain, identifier, template_id, customization, digital_payments, created_at")
+      .select("id, name, owner_id, state, subdomain, identifier, template_id, customization, digital_payments, plan_expires_at, created_at")
       .order("created_at", { ascending: false }),
     profilesMap(),
   ]);
   readOrThrow("as lojas", error);
+  const now = Date.now();
   return (data ?? []).map((s) => {
     const ownerId = String(s.owner_id ?? "");
     const owner = pm.get(ownerId);
     const id = String(s.id);
+    const ownerIsAdmin = owner?.isAdmin === true;
+    const planExpiresAt = typeof s.plan_expires_at === "string" ? s.plan_expires_at : null;
     return {
       id,
       name: s.name ?? "",
@@ -408,7 +414,9 @@ export async function listStores(): Promise<AdminStore[]> {
       identifier: s.identifier ?? "",
       templateId: s.template_id ?? "",
       isModel: isLojaModelo({ id, identifier: s.identifier, customization: s.customization }),
-      ownerActive: owner?.active === true,
+      ownerIsAdmin,
+      planExpiresAt,
+      planActive: ownerIsAdmin || resolveBilling({ planExpiresAt }, now).accessActive,
       digitalPayments: s.digital_payments === true,
       createdAt: s.created_at ?? "",
     };

@@ -146,6 +146,11 @@ export interface StoreLike {
   readonly ownerEmail?: string | null | undefined;
   readonly ownerName?: string | null | undefined;
   readonly state?: string | null | undefined;
+  /**
+   * Fim da subscrição DESTA loja (ISO) ou `null` (migração 0025). Ausente =
+   * loja de antes da migração: conta a data da conta do dono.
+   */
+  readonly planExpiresAt?: string | null | undefined;
   /** Identificador público. O prefixo `modelo-` marca uma loja-modelo. */
   readonly identifier?: string | null | undefined;
   readonly createdAt?: string | null | undefined;
@@ -480,8 +485,16 @@ interface Scope {
   readonly nowMs: number;
   /** Contas elegíveis: sem `isAdmin`. */
   readonly accounts: readonly AccountLike[];
-  /** Faturação resolvida por conta elegível (`resolveBilling`). */
+  /**
+   * Faturação resolvida por conta elegível (`resolveBilling`). Uma conta tem
+   * subscrição em vigor se ela ou alguma das suas lojas a tiver.
+   */
   readonly billing: ReadonlyMap<string, BillingState>;
+  /**
+   * Faturação de cada loja elegível: a subscrição é da loja (migração 0025).
+   * Uma loja sem data própria e sem dono conhecido não tem entrada.
+   */
+  readonly storeBilling: ReadonlyMap<string, BillingState>;
   /** Lojas elegíveis: sem lojas-modelo e sem lojas de conta de Administrador. */
   readonly stores: readonly StoreLike[];
   /** Levantamentos de lojas elegíveis. */
@@ -529,12 +542,6 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     accounts.push(account);
   }
 
-  const billing = new Map<string, BillingState>();
-  for (const account of accounts) {
-    const raw = typeof account.planExpiresAt === "string" ? account.planExpiresAt : null;
-    billing.set(account.id, resolveBilling({ planExpiresAt: raw, isAdmin: false }, nowMs));
-  }
-
   // Exclusão 2 — lojas-modelo e lojas de conta de Administrador.
   const stores: StoreLike[] = [];
   const storeIds = new Set<string>();
@@ -544,6 +551,30 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     if (typeof store.ownerId === "string" && adminIds.has(store.ownerId)) continue;
     stores.push(store);
     storeIds.add(store.id);
+  }
+
+  // A subscrição é de cada loja (migração 0025). A data da conta fica como
+  // recurso para lojas sem data própria (dados de antes da migração).
+  const accountDate = new Map<string, string | null>();
+  for (const account of accounts) {
+    accountDate.set(account.id, typeof account.planExpiresAt === "string" ? account.planExpiresAt : null);
+  }
+  const storeBilling = new Map<string, BillingState>();
+  const latestByOwner = new Map<string, string | null>();
+  for (const store of stores) {
+    const owner = typeof store.ownerId === "string" ? store.ownerId : "";
+    let raw: string | null;
+    if (store.planExpiresAt !== undefined) raw = typeof store.planExpiresAt === "string" ? store.planExpiresAt : null;
+    else if (accountDate.has(owner)) raw = accountDate.get(owner) ?? null;
+    else continue; // sem data própria e sem dono conhecido: faturação por resolver
+    storeBilling.set(store.id, resolveBilling({ planExpiresAt: raw, isAdmin: false }, nowMs));
+    if (owner) latestByOwner.set(owner, latestExpiry([latestByOwner.get(owner), raw]));
+  }
+
+  const billing = new Map<string, BillingState>();
+  for (const account of accounts) {
+    const raw = latestExpiry([accountDate.get(account.id), latestByOwner.get(account.id)]);
+    billing.set(account.id, resolveBilling({ planExpiresAt: raw, isAdmin: false }, nowMs));
   }
 
   // Exclusão 3 — levantamentos e pedidos que não pertencem a uma loja elegível.
@@ -556,13 +587,26 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
     (t) => !!t && asText(t.service) === PLAN_SERVICE && !(typeof t.ownerId === "string" && adminIds.has(t.ownerId)),
   );
 
-  return { nowMs, accounts, billing, stores, withdrawals, transactions, verifications };
+  return { nowMs, accounts, billing, storeBilling, stores, withdrawals, transactions, verifications };
 }
 
-/** Faturação da conta elegível, ou `null` quando a conta não é elegível/conhecida. */
-function billingOf(scope: Scope, accountId: unknown): BillingState | null {
-  if (typeof accountId !== "string") return null;
-  return scope.billing.get(accountId) ?? null;
+/**
+ * A data mais tardia de uma lista (ISO), ignorando as ausentes e as ilegíveis;
+ * `null` sem nenhuma. É o fim da subscrição de uma conta com várias lojas: a
+ * conta está «com subscrição» enquanto alguma loja dela estiver.
+ */
+export function latestExpiry(dates: readonly (string | null | undefined)[]): string | null {
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const d of dates) {
+    if (typeof d !== "string") continue;
+    const ms = Date.parse(d);
+    if (Number.isFinite(ms) && ms > bestMs) {
+      best = d;
+      bestMs = ms;
+    }
+  }
+  return best;
 }
 
 /** A subscrição está em vigor e termina dentro da janela de aviso. */
@@ -640,7 +684,8 @@ function healthOf(scope: Scope): BusinessHealth {
     if (asText(store.state) !== PUBLISHED_STATE) continue;
     publishedStores += 1;
     // Só uma loja publicada pode estar fora do ar: um rascunho nunca esteve no ar.
-    if (billingOf(scope, store.ownerId)?.suspended === true) suspendedStores += 1;
+    // A subscrição é da loja: outra loja paga do mesmo dono não a põe no ar.
+    if (scope.storeBilling.get(store.id)?.suspended === true) suspendedStores += 1;
   }
 
   return { monthRevenue, activeSubscriptions, subscriptionsExpiring, publishedStores, suspendedStores };

@@ -22,6 +22,7 @@ export function toStore(r: any): Store {
     templateId: r.template_id, identifier: r.identifier, subdomain: r.subdomain,
     state: r.state as StoreState, createdAt: r.created_at,
     digitalPayments: r.digital_payments === true,
+    planExpiresAt: typeof r.plan_expires_at === "string" ? r.plan_expires_at : null,
   };
 }
 

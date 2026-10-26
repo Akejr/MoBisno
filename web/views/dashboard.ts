@@ -8,10 +8,11 @@
  * `web/views/dashboard/markup.ts`. Identidade visual MôBisno (branco + #F95901).
  */
 import { render, go, esc, setDocTitle } from "../lib/dom.js";
-import { appState, currentOwnerId, logout, storeRepository, getOwnerBilling, publicStoreUrl } from "../composition.js";
+import { appState, currentOwnerId, logout, storeRepository, publicStoreUrl } from "../composition.js";
 import { isCurrentUserAdmin } from "../supabase/admin.js";
 import { isModelIdentifier } from "../../src/services/domains.js";
-import type { BillingState } from "../../src/services/billing.js";
+import { resolveBilling, type BillingState } from "../../src/services/billing.js";
+import { PLAN_UNIT_LABEL } from "../../src/services/plans.js";
 import type { Store } from "../../src/models/index.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import type { AssistantScreen } from "../lib/assistantContext.js";
@@ -26,6 +27,7 @@ import { renderAnalises } from "./dashboard/analises.js";
 import { renderPagamentos } from "./dashboard/pagamentos.js";
 import { renderPlano } from "./dashboard/plano.js";
 import { renderConfig } from "./dashboard/config.js";
+import { PLAN_PRICE_TEXT } from "./dashboard/markup.js";
 
 /**
  * As secções do painel, por ordem, numa lista só.
@@ -146,6 +148,7 @@ function injectDashStyle(): void {
   st.textContent = `
     [data-panel-shell] a:focus-visible,[data-panel-shell] button:focus-visible,[data-panel-shell] select:focus-visible,[data-panel-shell] summary:focus-visible,[data-panel-shell] input[type=file]:focus-visible,[data-panel-shell] input[type=checkbox]:focus-visible{outline:2px solid ${ACCENT};outline-offset:2px}
     [data-panel-shell] input.peer:focus-visible + span{box-shadow:0 0 0 2px #fff,0 0 0 4px ${ACCENT}}
+    [data-store-menu] > summary::-webkit-details-marker{display:none}
     #dash-main:focus{outline:none}`;
   document.head.appendChild(st);
 }
@@ -161,20 +164,59 @@ interface ShellInput {
   previewUrl: string;
 }
 
+/** Estado público de uma loja, para o ponto de cor do seletor. A subscrição é de cada loja. */
+function storeDot(s: Store, isAdmin: boolean): { label: string; color: string } {
+  if (s.state !== "Publicada") return { label: "Rascunho", color: "#9ca3af" };
+  const ativa = resolveBilling({ planExpiresAt: s.planExpiresAt ?? null, isAdmin }).accessActive;
+  return ativa ? { label: "No ar", color: "#10b981" } : { label: "Fora do ar", color: "#f59e0b" };
+}
+
 /**
- * A moldura do painel, com o conteúdo do separador dentro de `#dash-content`.
+ * Seletor de loja: um menu com a loja em edição, o estado de cada uma e
+ * «Nova loja», que diz o que custa antes de o Dono a criar.
  *
- * O seletor de loja aparece em dois sítios (o `aside` e a barra de telemóvel)
- * mas os `id` são diferentes de propósito: dois elementos com o mesmo
- * identificador fariam uma busca por `id` apanhar só o primeiro, e o segundo
- * ficava morto. Por isso a ligação é feita pelo atributo `data-store-switch`.
+ * O mesmo HTML vai para o `aside` e para a barra de telemóvel, por isso não tem
+ * `id` nenhum: dois elementos com o mesmo identificador deixariam o segundo sem
+ * ligação. A ligação é pelo atributo `data-store-switch-to`.
  */
+function storeMenuHtml(o: ShellInput): string {
+  const { stores, store, isAdmin } = o;
+  const quadrado = (s: Store, tamanho: string): string =>
+    `<span aria-hidden="true" class="${tamanho} rounded-lg flex items-center justify-center shrink-0 text-sm font-black" style="background:${ACCENT_TINT};color:${ACCENT_INK}">${esc((s.name.trim().charAt(0) || "?").toUpperCase())}</span>`;
+  const estado = (s: Store): string => {
+    const d = storeDot(s, isAdmin);
+    return `<span class="flex items-center gap-1.5 text-xs text-gray-500"><span aria-hidden="true" class="w-1.5 h-1.5 rounded-full" style="background:${d.color}"></span>${esc(d.label)}</span>`;
+  };
+  const linhas = stores.map((s) => {
+    const escolhida = s.id === store.id;
+    return `<li><button type="button" data-store-switch-to="${esc(s.id)}" ${escolhida ? 'aria-current="true"' : ""} class="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-gray-50 transition-colors">
+        ${quadrado(s, "w-8 h-8")}
+        <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-gray-900 truncate">${esc(s.name)}</span>${estado(s)}</span>
+        ${escolhida ? `<span class="shrink-0" style="color:${ACCENT}">${icon("check", "text-[18px]")}</span>` : ""}
+      </button></li>`;
+  }).join("");
+  return `<details data-store-menu class="relative group">
+    <summary class="list-none flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors">
+      ${quadrado(store, "w-9 h-9")}
+      <span class="min-w-0 flex-1"><span class="sr-only">Loja em edição: </span><span class="block text-sm font-bold text-gray-900 truncate">${esc(store.name)}</span>${estado(store)}</span>
+      <span class="text-gray-400 shrink-0 transition-transform group-open:rotate-180">${icon("expand_more", "text-[20px]")}</span>
+    </summary>
+    <div class="absolute left-0 right-0 z-50 mt-2 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+      <p class="px-2.5 pt-1.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">As suas lojas</p>
+      <ul>${linhas}</ul>
+      <div class="mt-1.5 border-t border-gray-100 pt-1.5">
+        <a href="#/criar" class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-bold hover:bg-gray-50 transition-colors" style="color:${ACCENT_INK}">${icon("add_business", "text-[20px]")} Nova loja</a>
+        <p class="px-2.5 pb-1.5 text-xs text-gray-500">Grátis até publicar. Depois, ${esc(PLAN_PRICE_TEXT)} ${esc(PLAN_UNIT_LABEL)}.</p>
+      </div>
+    </div>
+  </details>`;
+}
+
+/** A moldura do painel, com o conteúdo do separador dentro de `#dash-content`. */
 function shellHtml(o: ShellInput, content: string): string {
-  const { tab, stores, store, isAdmin } = o;
+  const { tab, store, isAdmin } = o;
   const titulo = DASH_SECTIONS.find((s) => s.tab === tab)?.label ?? "Início";
-  const storeOptions = stores
-    .map((s) => `<option value="${esc(s.id)}" ${s.id === store.id ? "selected" : ""}>${esc(s.name)}</option>`)
-    .join("");
+  const menu = storeMenuHtml(o);
   const noAr = store.state === "Publicada" && o.billing.accessActive;
   return `
   <div data-panel-shell data-tab="${esc(tab)}" data-store="${esc(store.id)}" class="flex min-h-screen w-full overflow-x-hidden bg-gray-50 font-sans text-gray-900">
@@ -183,21 +225,7 @@ function shellHtml(o: ShellInput, content: string): string {
       <div class="px-6 mb-6">
         <img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:26px" />
       </div>
-      <div class="px-4 mb-5 space-y-2">
-        ${stores.length > 1
-          ? `<div class="relative">
-               <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">${icon("storefront")}</span>
-               <select id="store-switch" data-store-switch aria-label="Loja em edição" class="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-9 py-2.5 text-sm font-semibold text-gray-900 outline-none focus:border-[#F95901] cursor-pointer hover:bg-gray-100 transition-colors">
-                 ${storeOptions}
-               </select>
-               <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">${icon("expand_more")}</span>
-             </div>`
-          : `<div class="flex items-center gap-2.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
-               <span class="text-gray-400 shrink-0">${icon("storefront")}</span>
-               <span class="text-sm font-semibold text-gray-900 truncate">${esc(store.name)}</span>
-             </div>`}
-        <a href="#/criar" class="w-full inline-flex items-center justify-center gap-1.5 text-sm font-semibold border border-dashed border-gray-300 text-gray-600 hover:text-[#C2410C] hover:border-[#F95901] rounded-xl py-2 transition-colors">${icon("add_business", "text-[18px]")} Nova loja</a>
-      </div>
+      <div class="px-4 mb-5">${menu}</div>
       <nav aria-label="Secções do painel" class="flex-1 overflow-y-auto flex flex-col gap-0.5 px-2">
         ${DASH_SECTIONS.map((s) => navItem(s.href, s.icon, s.label, tab === s.tab)).join("")}
       </nav>
@@ -229,19 +257,7 @@ function shellHtml(o: ShellInput, content: string): string {
            aside não existe, e sem esta barra o Dono com várias lojas não
            conseguia trocar de loja nem sair da conta. -->
       <div class="md:hidden flex items-center gap-2 px-4 py-2.5 bg-white border-b border-gray-200">
-        ${stores.length > 1
-          ? `<div class="relative flex-1 min-w-0">
-               <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">${icon("storefront", "text-[18px]")}</span>
-               <select id="store-switch-mobile" data-store-switch aria-label="Loja em edição" class="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-sm font-semibold text-gray-900 outline-none focus:border-[#F95901]">
-                 ${storeOptions}
-               </select>
-               <span class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">${icon("expand_more", "text-[18px]")}</span>
-             </div>`
-          : `<div class="flex-1 min-w-0 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2">
-               <span class="text-gray-400 shrink-0">${icon("storefront", "text-[18px]")}</span>
-               <span class="text-sm font-semibold text-gray-900 truncate">${esc(store.name)}</span>
-             </div>`}
-        <a href="#/criar" title="Nova loja" aria-label="Nova loja" class="${MOBILE_ICON_BTN}">${icon("add_business")}</a>
+        <div class="flex-1 min-w-0">${menu}</div>
         ${isAdmin ? `<a href="#/adminPainel" title="Dashboard de Administração" aria-label="Dashboard de Administração" class="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center" style="background:${ACCENT_TINT};color:${ACCENT_INK}">${icon("shield_person")}</a>` : ""}
         <button data-logout type="button" title="Terminar sessão" aria-label="Terminar sessão" class="${MOBILE_ICON_BTN}">${icon("logout")}</button>
       </div>
@@ -252,6 +268,9 @@ function shellHtml(o: ShellInput, content: string): string {
   </div>`;
 }
 
+/** O menu de loja fecha ao tocar fora dele e com Escape. Liga-se uma vez só. */
+let storeMenuCloseBound = false;
+
 /** Liga os comandos da moldura: terminar sessão, trocar de loja, saltar para o conteúdo. */
 function bindShell(): void {
   // Por atributo e não por `id`: o mesmo comando existe no `aside` (ecrã
@@ -259,11 +278,28 @@ function bindShell(): void {
   // deixariam o segundo sem ligação nenhuma.
   document.querySelectorAll<HTMLElement>("[data-logout]").forEach((b) =>
     b.addEventListener("click", async () => { await logout(); go("#/"); }));
-  document.querySelectorAll<HTMLSelectElement>("[data-store-switch]").forEach((sw) =>
-    sw.addEventListener("change", () => {
-      appState.storeId = sw.value;
+  document.querySelectorAll<HTMLButtonElement>("[data-store-switch-to]").forEach((b) =>
+    b.addEventListener("click", () => {
+      b.closest("details")?.removeAttribute("open");
+      const id = b.dataset.storeSwitchTo;
+      if (!id || id === appState.storeId) return;
+      appState.storeId = id;
       void renderDashboard();
     }));
+  if (!storeMenuCloseBound) {
+    storeMenuCloseBound = true;
+    const abertos = (): HTMLDetailsElement[] => [...document.querySelectorAll<HTMLDetailsElement>("details[data-store-menu][open]")];
+    document.addEventListener("click", (e) => {
+      for (const d of abertos()) if (!d.contains(e.target as Node)) d.removeAttribute("open");
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      for (const d of abertos()) {
+        d.removeAttribute("open");
+        d.querySelector("summary")?.focus();
+      }
+    });
+  }
   document.querySelector<HTMLElement>("[data-skip]")?.addEventListener("click", () =>
     document.getElementById("dash-main")?.focus());
   // Nove atalhos não cabem num telemóvel: a faixa abre já com o separador
@@ -298,17 +334,19 @@ export async function renderDashboard(): Promise<void> {
     }));
     return;
   }
-  // As três só dependem do `ownerId` e não umas das outras: juntas custam o
-  // tempo da mais lenta. É o caminho que corre outra vez a cada troca de separador.
-  const [allStores, billing, isAdmin] = await Promise.all([
+  // As duas só dependem do `ownerId` e não uma da outra: juntas custam o tempo
+  // da mais lenta. É o caminho que corre outra vez a cada troca de separador.
+  const [allStores, isAdmin] = await Promise.all([
     storeRepository.listByOwner(ownerId),
-    getOwnerBilling(ownerId),
     isCurrentUserAdmin(),
   ]);
   if (seq !== renderSeq) return;
   // Esconde as lojas-modelo (secção Modelos do admin) do painel pessoal.
   const stores = allStores.filter((s) => !isModelIdentifier(s.identifier));
-  const escolhida = appState.storeId ? stores.find((s) => s.id === appState.storeId) ?? null : null;
+  // No regresso da página de pagamento a página recarrega e perde a loja que
+  // estava escolhida: o endereço diz de que loja era a subscrição (`?loja=`).
+  const pedida = appState.storeId ?? new URLSearchParams(location.search).get("loja");
+  const escolhida = pedida ? stores.find((s) => s.id === pedida) ?? null : null;
   const store = escolhida ?? stores[0] ?? null;
   if (!store) {
     render(standalonePage({
@@ -320,6 +358,8 @@ export async function renderDashboard(): Promise<void> {
   }
   appState.ownerId = ownerId;
   appState.storeId = store.id;
+  // A subscrição é de cada loja (migração 0025): o estado é o da loja escolhida.
+  const billing = resolveBilling({ planExpiresAt: store.planExpiresAt ?? null, isAdmin });
 
   const { tab, known } = tabFromPath(location.pathname);
   // Um separador que já não existe mostra o «Início», e o endereço passa a

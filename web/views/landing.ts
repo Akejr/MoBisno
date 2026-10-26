@@ -1,9 +1,9 @@
 /**
- * Página inicial: desenha `landingHtml()`, liga o movimento e troca os botões
- * de quem tem sessão.
+ * Página inicial: desenha `landingHtml()`, liga o acordeão do topo e o
+ * movimento, e troca os botões de quem tem sessão.
  *
- * O topo entra só com CSS (`LANDING_CSS`); as secções de baixo entram ao rolar,
- * por `mountLandingMotion` (`web/lib/landingMotion.ts`).
+ * As secções de baixo entram ao rolar, por `mountLandingMotion`
+ * (`web/lib/landingMotion.ts`).
  */
 import { mountSectionNav, consumePendingSection, scrollToSection } from "../templates/platformChrome.js";
 import { render, renderedFromSsr, $ } from "../lib/dom.js";
@@ -11,7 +11,10 @@ import { currentOwnerId } from "../composition.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { applyPlatformSeo } from "../lib/seo.js";
 import { mountLandingMotion } from "../lib/landingMotion.js";
-import { landingHtml, landingNavActions, landingHeroActions } from "./landingHtml.js";
+import {
+  landingHtml, landingNavActions, landingHeroActions,
+  CAP_ACTIVE, CAP_IDLE, ACC_OPEN_WIDTH, ACC_IDLE_WIDTH, ACC_INITIAL,
+} from "./landingHtml.js";
 
 /**
  * Desenha a página inicial.
@@ -25,6 +28,7 @@ export async function renderLanding(): Promise<void> {
   render(landingHtml());
   const adotada = renderedFromSsr();
 
+  mountAccordion();
   mountTypewriter(adotada);
   // Antes do salto para uma secção pedida noutra página: a secção de destino
   // fica preparada e entra com movimento quando lá se chega.
@@ -49,6 +53,30 @@ export async function renderLanding(): Promise<void> {
   const navBox = navCta.parentElement;
   if (navBox) navBox.innerHTML = landingNavActions(true);
   heroActions.innerHTML = landingHeroActions(true);
+}
+
+/**
+ * Acordeão de imagens do topo: abre o cartão por baixo do rato (ou o que se
+ * tocou). O estado inicial já vem no HTML (`ACC_INITIAL`): `setActive` só corre
+ * à primeira interação, por isso o primeiro ecrã não muda.
+ */
+function mountAccordion(): void {
+  const items = Array.from(document.querySelectorAll<HTMLElement>("[data-acc]"));
+  function setActive(active: number): void {
+    items.forEach((el, idx) => {
+      const on = idx === active;
+      el.style.width = on ? ACC_OPEN_WIDTH : ACC_IDLE_WIDTH;
+      const cap = el.querySelector<HTMLElement>("[data-cap]");
+      if (cap) cap.className = on ? CAP_ACTIVE : CAP_IDLE;
+    });
+  }
+  items.forEach((el, idx) => {
+    el.addEventListener("mouseenter", () => setActive(idx));
+    el.addEventListener("click", () => setActive(idx));
+  });
+  // Salvaguarda: se o HTML não trouxer o cartão inicial (lista mais curta), abre
+  // o último, o mesmo critério de sempre.
+  if (items.length && !items[ACC_INITIAL]) setActive(items.length - 1);
 }
 
 /**

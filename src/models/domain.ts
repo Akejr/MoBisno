@@ -66,6 +66,11 @@ export interface Store {
    * aprovação da verificação de empresa (migração 0023). Ausente = não.
    */
   digitalPayments?: boolean;
+  /**
+   * Fim da subscrição DESTA loja (ISO), ou `null`. Cada loja tem a sua
+   * (`stores.plan_expires_at`, migração 0025), e só a plataforma a escreve.
+   */
+  planExpiresAt?: string | null;
 }
 
 /**

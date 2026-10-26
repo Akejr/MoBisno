@@ -158,24 +158,25 @@ export const PLAN_PERIOD_MS = 30 * 24 * 3600 * 1000;
 export const PLAN_PRICE_KZ = 10000;
 
 /**
- * Ativa/renova a subscrição após um pagamento confirmado. Espelha
- * `planActivationPatch` de `src/services/billing.ts`: renovar acrescenta o
- * período AO FIM do atual, para quem paga adiantado não perder os dias que
- * tinha; sem período em curso, conta a partir de agora.
+ * Ativa/renova a subscrição de UMA loja após um pagamento confirmado. Cada loja
+ * tem a sua (`stores.plan_expires_at`, migração 0025): pagar uma não mexe nas
+ * outras. Espelha `planActivationPatch` de `src/services/billing.ts`: renovar
+ * acrescenta o período AO FIM do atual, para quem paga adiantado não perder os
+ * dias que tinha; sem período em curso, conta a partir de agora.
  *
  * **Não é idempotente sozinha** — cada chamada soma um período. Quem a chama
  * (`confirmPlanPayment` em `api/_payments.js`) só o faz depois de marcar o
  * pagamento como ativado numa escrita condicional; foi a falta dessa guarda que
  * deixava um único pagamento estender a subscrição sem limite.
  */
-export async function activatePlan(db, ownerId) {
-  if (!ownerId) return false;
+export async function activateStorePlan(db, storeId) {
+  if (!storeId) return false;
   const now = Date.now();
-  const { data: prof } = await db.from("profiles").select("plan_expires_at").eq("id", ownerId).maybeSingle();
-  const expMs = prof?.plan_expires_at ? Date.parse(prof.plan_expires_at) : NaN;
+  const { data: loja } = await db.from("stores").select("plan_expires_at").eq("id", storeId).maybeSingle();
+  const expMs = loja?.plan_expires_at ? Date.parse(loja.plan_expires_at) : NaN;
   const base = Number.isFinite(expMs) && expMs > now ? expMs : now;
   const fim = new Date(base + PLAN_PERIOD_MS).toISOString();
-  const { error } = await db.from("profiles").update({ plan: "pro", plan_expires_at: fim }).eq("id", ownerId);
+  const { error } = await db.from("stores").update({ plan_expires_at: fim }).eq("id", storeId);
   return !error;
 }
 /** Incrementa os usos de um código de desconto. */
@@ -525,6 +526,19 @@ export function accountActive(profile, now = Date.now()) {
   if (profile.is_admin === true) return true;
   const expMs = profile.plan_expires_at ? Date.parse(profile.plan_expires_at) : NaN;
   return Number.isFinite(expMs) && expMs > now;
+}
+
+/**
+ * A loja está online? Dono administrador, ou a subscrição DA LOJA em vigor
+ * (migração 0025). É a regra da política `stores_public_read`, e o que
+ * `resolveBilling({ planExpiresAt: store.planExpiresAt, isAdmin })` diz no
+ * painel.
+ *
+ * `store` tem de trazer `plan_expires_at`; `owner`, o `is_admin` do dono.
+ */
+export function storeActive(store, owner, now = Date.now()) {
+  if (!store) return false;
+  return accountActive({ is_admin: owner?.is_admin === true, plan_expires_at: store.plan_expires_at ?? null }, now);
 }
 
 /* --------------------- Preço calculado no servidor ------------------------- */

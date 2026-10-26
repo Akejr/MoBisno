@@ -1,20 +1,38 @@
 /**
- * «Lojas»: todas as lojas da plataforma, com o estado que o público vê.
+ * «Lojas»: todas as lojas da plataforma, com o estado que o público vê e a
+ * subscrição de cada uma.
  *
  * Três estados, por extenso e com cor: **Publicada** (no ar), **Publicada · fora
- * do ar** (o dono está sem subscrição — `storeStatus` de
+ * do ar** (a loja está sem subscrição — `storeStatus` de
  * `src/services/adminMetrics.ts`) e **Rascunho**. O selo «Pagamentos digitais»
  * mostra as lojas com Multicaixa Express e Referência Bancária ligados, e as
  * lojas-modelo (demonstrações da galeria) levam o selo «Loja-modelo» — a
  * eliminação delas faz-se em «Modelos», que verifica primeiro quem as usa.
+ *
+ * A subscrição é de cada loja (migração 0025), e ativa-se aqui, loja a loja:
+ *
+ *  - **Ativar** (ou **Prolongar**, com a subscrição em vigor) 1, 3, 6 ou 12
+ *    meses. A data sai de `activationPatch`, a regra de `planActivationPatch`:
+ *    os meses somam-se ao fim do período em curso, ou contam a partir de hoje. O
+ *    diálogo mostra o preço de cada duração e a data em que a subscrição fica a
+ *    terminar, antes de confirmar;
+ *  - **Desativar**, que termina o período agora, com confirmação, porque tira a
+ *    loja do ar. As outras lojas do mesmo dono não mudam.
  */
-import { esc, toast, withBusy } from "../../lib/dom.js";
-import { adminDeleteStore, adminSetStoreState, listStores, type AdminStore } from "../../supabase/admin.js";
-import { ADMIN_HREFS, storeStatus, type StoreStatusKind } from "../../../src/services/adminMetrics.js";
+import { esc, formatKz, toast, withBusy } from "../../lib/dom.js";
+import {
+  adminActivateStorePlan, adminDeactivateStorePlan, adminDeleteStore, adminSetStoreState, listStores,
+  type AdminStore,
+} from "../../supabase/admin.js";
+import {
+  ACTIVATION_MONTHS, ADMIN_HREFS, accountStatus, activationPatch, activationQuote, storeStatus,
+  type AccountStatus, type StoreStatusKind,
+} from "../../../src/services/adminMetrics.js";
+import { resolveBilling } from "../../../src/services/billing.js";
 import { openDialog } from "./dialog.js";
 import {
-  announce, bindChips, btnClass, emptyState, filterChips, fold, icon, liveRegion, pill, plural, searchField,
-  storeLink, updateChipCounts, type AdminView,
+  announce, bindChips, btnClass, emptyState, filterChips, fmtDate, fold, icon, liveRegion, monthsLabel, pill,
+  planPill, plural, searchField, storeLink, updateChipCounts, type AdminView,
 } from "./ui.js";
 
 type StoreFilter = "todas" | "publicadas" | "fora" | "rascunho" | "digitais" | "modelos";
@@ -31,7 +49,16 @@ const FILTER_FROM_SUB: Readonly<Record<string, StoreFilter>> = {
 const LIVE = "store-live";
 
 function statusOf(s: AdminStore): StoreStatusKind {
-  return storeStatus(s.state, s.ownerActive);
+  return storeStatus(s.state, s.planActive);
+}
+
+/** Estado da subscrição da loja, com os critérios das métricas. */
+function planOf(s: AdminStore): AccountStatus {
+  return accountStatus({ isAdmin: s.ownerIsAdmin, planExpiresAt: s.planExpiresAt });
+}
+
+function isActive(st: AccountStatus): boolean {
+  return st.kind === "active" || st.kind === "expiring";
 }
 
 /**
@@ -60,9 +87,13 @@ function storeRow(s: AdminStore): string {
   const st = statusOf(s);
   const name = s.name || "Loja sem nome";
   const published = s.state === "Publicada";
-  const owner = s.isModel
-    ? "Demonstração da galeria de modelos"
-    : `Dono: ${s.ownerEmail || s.ownerName || "desconhecido"}${st === "offline" ? " · sem subscrição ativa" : ""}`;
+  const owner = s.isModel ? "Demonstração da galeria de modelos" : `Dono: ${s.ownerEmail || s.ownerName || "desconhecido"}`;
+  const plano = planOf(s);
+  const ativa = isActive(plano);
+  // As lojas de um administrador publicam sem subscrição: não há nada para ativar.
+  const subscricao = s.isModel || s.ownerIsAdmin ? "" : `
+        <button type="button" data-act="activate" data-id="${esc(s.id)}" aria-label="${ativa ? "Prolongar" : "Ativar"} a subscrição da loja ${esc(name)}" class="${btnClass(ativa ? "secondary" : "primary", "sm")}">${icon(ativa ? "more_time" : "check_circle")} ${ativa ? "Prolongar" : "Ativar"}</button>
+        ${ativa ? `<button type="button" data-act="deactivate" data-id="${esc(s.id)}" aria-label="Desativar a subscrição da loja ${esc(name)}" class="${btnClass("dangerOutline", "sm")}">Desativar</button>` : ""}`;
   return `<li class="px-4 py-3">
     <div class="flex flex-col gap-3 md:flex-row md:items-center">
       <div class="min-w-0 flex-1">
@@ -75,9 +106,10 @@ function storeRow(s: AdminStore): string {
       </div>
       <div class="flex flex-wrap items-center gap-1.5">
         ${statePill(st)}
+        ${s.isModel ? "" : planPill(plano)}
         ${s.digitalPayments ? pill("Pagamentos digitais", "blue", "bolt") : ""}
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">${subscricao}
         <button type="button" data-act="edit" data-id="${esc(s.id)}" aria-label="Editar a loja ${esc(name)}" class="${btnClass("secondary", "sm")}">${icon("palette")} Editar</button>
         <button type="button" data-act="state" data-id="${esc(s.id)}" aria-label="${published ? "Despublicar" : "Publicar"} a loja ${esc(name)}" class="${btnClass("secondary", "sm")}">${icon(published ? "visibility_off" : "public")} ${published ? "Despublicar" : "Publicar"}</button>
         ${s.isModel
@@ -135,6 +167,76 @@ export async function renderStores(view: AdminView): Promise<void> {
         : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("storefront", inFilter.length ? "Nenhuma loja corresponde à pesquisa." : stores.length ? "Nenhuma loja neste filtro." : "Ainda não há lojas.")}</div>`;
     }
     updateChipCounts("store-filter", counts());
+  }
+
+  /** Atualiza a subscrição de uma loja depois de gravar, e redesenha. */
+  function setPlan(s: AdminStore, planExpiresAt: string): void {
+    s.planExpiresAt = planExpiresAt;
+    s.planActive = s.ownerIsAdmin || resolveBilling({ planExpiresAt }).accessActive;
+    draw();
+  }
+
+  async function activate(s: AdminStore): Promise<void> {
+    const plano = planOf(s);
+    const extending = isActive(plano);
+    const name = s.name || "Loja sem nome";
+    const options = ACTIVATION_MONTHS.map((m) => {
+      const q = activationQuote(m);
+      return { value: String(m), label: monthsLabel(m), detail: `${q.days} dias · ${formatKz(q.amountKz)}` };
+    });
+    const answer = await openDialog({
+      title: extending ? "Prolongar a subscrição" : "Ativar a subscrição",
+      body: `<p class="font-semibold text-gray-900 break-words">${esc(name)}</p>
+        <p class="text-sm text-gray-600 break-all">Dono: ${esc(s.ownerEmail || s.ownerName || "desconhecido")}</p>
+        <p>${extending
+          ? `Ativa até ${esc(fmtDate(plano.expiresAt))}. Os meses somam-se ao fim do período atual.`
+          : "Os meses contam a partir de hoje."} A subscrição é só desta loja. Ative depois de confirmar o pagamento do Dono.</p>`,
+      confirmLabel: extending ? "Prolongar" : "Ativar",
+      tone: "primary",
+      choice: {
+        legend: "Duração",
+        options,
+        value: String(ACTIVATION_MONTHS[0]),
+        describe: (value) => {
+          const p = activationPatch(s, Number(value));
+          return p.ok ? `Fica ativa até <strong>${esc(fmtDate(p.patch.plan_expires_at))}</strong>.` : esc(p.message);
+        },
+      },
+    });
+    if (!answer?.choice) return;
+    const months = Number(answer.choice);
+    const result = await withBusy(() => adminActivateStorePlan(s.id, months), "A ativar a subscrição…");
+    if (!result.ok) {
+      toast(result.message, "error");
+      announce(LIVE, result.message);
+      return;
+    }
+    setPlan(s, result.planExpiresAt);
+    const msg = `Subscrição da loja «${name}» ativa até ${fmtDate(result.planExpiresAt)}.`;
+    toast(msg);
+    announce(LIVE, msg);
+  }
+
+  async function deactivate(s: AdminStore): Promise<void> {
+    const name = s.name || "Loja sem nome";
+    const confirmed = await openDialog({
+      title: "Desativar a subscrição?",
+      body: `<p>A loja <strong>${esc(name)}</strong> fica sem subscrição a partir de agora.</p>
+        <p>${s.state === "Publicada" ? "Sai do ar até a subscrição voltar a ser ativada." : "Não pode ser publicada até a subscrição voltar a ser ativada."} As outras lojas do mesmo dono não mudam. Nada é apagado.</p>`,
+      confirmLabel: "Desativar",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    const result = await withBusy(() => adminDeactivateStorePlan(s.id), "A desativar a subscrição…");
+    if (!result.ok) {
+      toast(result.message, "error");
+      announce(LIVE, result.message);
+      return;
+    }
+    setPlan(s, result.planExpiresAt);
+    const msg = `Subscrição da loja «${name}» desativada.`;
+    toast(msg);
+    announce(LIVE, msg);
   }
 
   async function toggleState(s: AdminStore): Promise<void> {
@@ -203,6 +305,8 @@ export async function renderStores(view: AdminView): Promise<void> {
     const act = btn.dataset.act;
     if (act === "edit") view.openStoreEditor(s.id, s.ownerId);
     else if (act === "state") void toggleState(s);
+    else if (act === "activate") void activate(s);
+    else if (act === "deactivate") void deactivate(s);
     else if (act === "delete") void remove(s);
   });
 

@@ -125,7 +125,7 @@ export async function renderOverview(view: AdminView): Promise<void> {
       hint: kpis.publishedStores === 0
         ? "Ainda nenhuma no ar"
         : kpis.suspendedStores > 0
-          ? `${kpis.suspendedStores} fora do ar (dono sem subscrição)`
+          ? `${kpis.suspendedStores} fora do ar (sem subscrição)`
           : "Todas no ar",
     },
     {

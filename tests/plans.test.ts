@@ -53,12 +53,16 @@ describe("Plano único", () => {
 });
 
 describe("O que o plano inclui — PLAN_HIGHLIGHTS", () => {
-  it("diz que lojas e produtos são ilimitados", () => {
-    expect(PLAN_HIGHLIGHTS.some((h) => /ilimitad/i.test(h) && /lojas/i.test(h) && /produtos/i.test(h))).toBe(true);
+  it("diz que os produtos são ilimitados, e não promete lojas ilimitadas", () => {
+    // Cada loja tem a sua subscrição (migração 0025): «lojas ilimitadas» pelo
+    // mesmo preço deixou de ser verdade.
+    expect(PLAN_HIGHLIGHTS.some((h) => /ilimitad/i.test(h) && /produtos/i.test(h))).toBe(true);
+    expect(PLAN_HIGHLIGHTS.some((h) => /lojas/i.test(h) && /ilimitad/i.test(h))).toBe(false);
   });
 
-  it("toda a loja vende por WhatsApp", () => {
-    expect(PLAN_HIGHLIGHTS.some((h) => /whatsapp/i.test(h) && /todas as lojas/i.test(h))).toBe(true);
+  it("toda a loja vende por WhatsApp: vem incluído, sem condições", () => {
+    // A condição («empresas verificadas») é só dos pagamentos digitais.
+    expect(PLAN_HIGHLIGHTS.some((h) => /whatsapp/i.test(h) && !/empresas/i.test(h))).toBe(true);
   });
 
   it("os pagamentos digitais aparecem como exclusivos de empresas verificadas", () => {

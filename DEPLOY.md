@@ -71,7 +71,7 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 > (Settings → Domains → Redirect) para ser instantâneo, sem carregar a app.
 
 ## 4. Supabase
-1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0024`.
+1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0025`.
    Nenhuma é opcional, e a ordem conta.
 
    | Migração | O que faz |
@@ -90,13 +90,15 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
    | **`0022_security.sql`** | **Correções de segurança.** O utilizador deixa de poder tornar-se administrador ou dar-se subscrição; o Storage passa a ter isolamento por loja; o prefixo `modelo-` fica reservado; as avaliações entram por aprovar; os códigos de desconto deixam de ser listáveis e ganham validade e limite de usos; um levantamento não pode exceder o saldo |
    | **`0023_single_plan_and_company_verification.sql`** | **Plano único de 10.000 Kz/30 dias** (saem as colunas de lugares pagos) e **verificação de empresa** para os pagamentos digitais: dados e documentos em `store_payments`, bucket privado `company-documents`, e o gatilho que liga `stores.digital_payments` quando o Administrador aprova |
    | **`0024_wizapay_vero_and_whatsapp_orders.sql`** | **Pagamentos a sério.** O serviço e o código de estado que a Wiza devolveu (`orders`, `plan_payments`); a factura da empresa do Dono (`orders.invoice_*`, `store_payments.vero_org_id`/`vero_api_key` e as colunas derivadas `vero_key_set`/`vero_key_test`, que são as únicas que o navegador lê); `orders.notified_at`, que impede o mesmo aviso de venda duas vezes; a restrição `orders_net_within_amount` (o líquido nunca excede o montante nem é negativo); e a tabela **`whatsapp_orders`**, com inserção pública, onde cai quem toca em «Finalizar via WhatsApp» |
+   | **`0025_plan_per_store.sql`** | **A subscrição passa a ser de cada loja** (10.000 Kz por 30 dias, por loja): `stores.plan_expires_at`, preenchida na transição com o período em curso da conta; o gatilho `stores_plan_guard` (só a plataforma mexe na data); publicar e a leitura pública passam a olhar para a subscrição da loja; e `plan_payments.store_id` |
 
-   > Numa instalação feita antes desta versão faltam a 0022, a 0023 e a 0024.
+   > Numa instalação feita antes desta versão faltam a 0022, a 0023, a 0024 e a 0025.
    > Sem a 0022, qualquer utilizador autenticado se promove a administrador
    > (`update profiles set is_admin = true`). Sem a 0023, o painel de
    > «Pagamentos» falha ao gravar a verificação de empresa. Sem a 0024, uma
-   > venda digital não grava a factura e o separador «Pagamentos» falha a ler
-   > as encomendas por WhatsApp.
+   > venda digital não grava a factura e o «Início» falha a ler as encomendas
+   > por WhatsApp. Sem a 0025, todas as lojas aparecem sem subscrição e o
+   > pagamento do plano é recusado.
 
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
    no SQL Editor, correr
@@ -269,15 +271,16 @@ e o NIF da empresa, o banco, o titular e o IBAN, e dois documentos (Matrícula e
 Certidão) para o bucket **privado** `company-documents`. O Administrador abre-os
 por URL assinado (5 minutos) e aprova ou rejeita com motivo.
 
-Uma loja **sem** pagamentos digitais não vê saldo nem levantamentos: vê as
-**«Encomendas por WhatsApp»** — quem tocou em «Finalizar via WhatsApp» e o que
-tinha no carrinho (tabela `whatsapp_orders`, migração 0024).
+Uma loja **sem** pagamentos digitais não vê saldo nem levantamentos: vê, no
+«Início», as **«Encomendas por WhatsApp»** — quem tocou em «Finalizar via
+WhatsApp» e o que tinha no carrinho (tabela `whatsapp_orders`, migração 0024).
 
 ### Subscrição do plano
 
-Paga-se pelo mesmo caminho (`api/payment.js` com `kind: "plan"`), e o Dono
-volta ao separador «Plano», que confirma o pagamento. A equipa MôBisno também
-pode ativar à mão em `/adminPainel/contas` → «Ativar», escolhendo 1, 3, 6 ou 12
+Cada loja tem a sua subscrição (migração 0025). Paga-se pelo mesmo caminho
+(`api/payment.js` com `kind: "plan"` e o `storeId` da loja), e o Dono volta ao
+separador «Plano», que confirma o pagamento. A equipa MôBisno também pode ativar
+à mão, loja a loja, em `/adminPainel/lojas` → «Ativar», escolhendo 1, 3, 6 ou 12
 meses (cada mês são 30 dias, somados ao fim do período em curso). A confirmação
 é idempotente: um pagamento de plano soma 30 dias uma vez só, graças a
 `plan_payments.activated_at`.
@@ -314,9 +317,10 @@ não da Plataforma, e o Dono escreve-as no painel dele. Ficam em
 derivadas `vero_key_set`/`vero_key_test`, nunca a chave.
 
 ## Checklist de lançamento
-- [ ] Migrações `0001` … `0024` (as duas `0018` incluídas). **A 0022, a 0023 e
-      a 0024 são obrigatórias**: sem a 0022, qualquer utilizador se promove a
-      administrador; sem a 0024, uma venda digital não grava a factura.
+- [ ] Migrações `0001` … `0025` (as duas `0018` incluídas). **A 0022, a 0023, a
+      0024 e a 0025 são obrigatórias**: sem a 0022, qualquer utilizador se
+      promove a administrador; sem a 0024, uma venda digital não grava a
+      factura; sem a 0025, nenhuma loja tem subscrição.
 - [ ] Bucket `store-assets` público (criado pela `0001`) e `company-documents`
       **privado** (criado pela `0023`).
 - [ ] Variáveis de ambiente da tabela acima, incluindo as `WIPAY_*` e as

@@ -1,31 +1,22 @@
 /**
- * «Contas»: os Donos de loja e as suas subscrições.
+ * «Contas»: os Donos de loja e as suas lojas.
  *
- * Uma linha por conta — nome, email, nº de lojas e o estado da subscrição — e as
- * duas ações que importam enquanto não há pagamentos online:
+ * Uma linha por conta: nome, email, nº de lojas e o estado da subscrição. A
+ * subscrição é de cada loja (migração 0025), por isso a conta está «com
+ * subscrição» enquanto alguma loja dela estiver (`latestExpiry`, a mesma regra
+ * da Visão geral). Ativar, prolongar e desativar fazem-se loja a loja, em
+ * «Lojas».
  *
- *  - **Ativar** (ou **Prolongar**, com a subscrição em vigor) 1, 3, 6 ou 12
- *    meses. A data sai de `activationPatch` (`src/services/adminMetrics.ts`), a
- *    regra de `planActivationPatch`: os meses somam-se ao fim do período em
- *    curso, ou contam a partir de hoje. O diálogo mostra o preço de cada duração
- *    e a data em que a subscrição fica a terminar, antes de confirmar;
- *  - **Desativar**, que termina o período agora — com confirmação, porque tira
- *    as lojas publicadas da conta do ar.
- *
- * As lojas da conta e a eliminação da conta ficam atrás de «Detalhes».
+ * As lojas da conta, com o estado de cada uma, e a eliminação da conta ficam
+ * atrás de «Detalhes».
  */
-import { esc, formatKz, toast, withBusy } from "../../lib/dom.js";
-import {
-  adminActivatePlan, adminDeactivatePlan, adminDeleteAccount, listAccounts, listStores,
-  type AdminAccount, type AdminStore,
-} from "../../supabase/admin.js";
-import {
-  ACTIVATION_MONTHS, accountStatus, activationPatch, activationQuote, storeStatus, type AccountStatus,
-} from "../../../src/services/adminMetrics.js";
+import { esc, toast, withBusy } from "../../lib/dom.js";
+import { adminDeleteAccount, listAccounts, listStores, type AdminAccount, type AdminStore } from "../../supabase/admin.js";
+import { ADMIN_HREFS, accountStatus, latestExpiry, storeStatus, type AccountStatus } from "../../../src/services/adminMetrics.js";
 import { openDialog } from "./dialog.js";
 import {
-  announce, bindChips, btnClass, emptyState, endsIn, filterChips, fmtDate, fold, icon, initials, liveRegion,
-  monthsLabel, pill, plural, searchField, storeLink, updateChipCounts, type AdminView,
+  announce, bindChips, btnClass, emptyState, filterChips, fmtDate, fold, icon, initials, liveRegion,
+  pill, planPill, plural, searchField, storeLink, updateChipCounts, type AdminView,
 } from "./ui.js";
 
 /**
@@ -50,20 +41,6 @@ interface AccountRow {
   stores: AdminStore[];
 }
 
-function statusPill(st: AccountStatus): string {
-  switch (st.kind) {
-    case "admin": return pill("Administrador", "blue", "shield_person");
-    case "active": return pill(`Ativa até ${fmtDate(st.expiresAt)}`, "green");
-    case "expiring": return pill(endsIn(st.expiresAt), "amber", "schedule");
-    case "expired": return pill(`Expirou a ${fmtDate(st.expiredAt)}`, "gray");
-    default: return pill("Sem subscrição", "gray");
-  }
-}
-
-function isActive(st: AccountStatus): boolean {
-  return st.kind === "active" || st.kind === "expiring";
-}
-
 function matches(row: AccountRow, filter: AccountFilter): boolean {
   const k = row.status.kind;
   if (filter === "ativas") return k === "active" || k === "expiring";
@@ -73,13 +50,25 @@ function matches(row: AccountRow, filter: AccountFilter): boolean {
   return k !== "admin";
 }
 
+/**
+ * Estado da subscrição de uma conta: o fim mais tardio entre o da conta (de
+ * antes da migração 0025) e os das lojas dela.
+ */
+function statusOf(account: AdminAccount, stores: readonly AdminStore[]): AccountStatus {
+  return accountStatus({
+    isAdmin: account.isAdmin,
+    planExpiresAt: latestExpiry([account.planExpiresAt, ...stores.map((s) => s.planExpiresAt)]),
+  });
+}
+
 function storeLine(s: AdminStore): string {
-  const st = storeStatus(s.state, s.ownerActive);
+  const st = storeStatus(s.state, s.planActive);
   const state = st === "online" ? pill("Publicada", "green") : st === "offline" ? pill("Publicada · fora do ar", "amber") : pill("Rascunho", "gray");
   return `<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
     <span class="min-w-0 font-semibold text-gray-900 break-words">${esc(s.name || "Loja sem nome")}</span>
     ${s.isModel ? pill("Loja-modelo", "orange") : ""}
     ${state}
+    ${s.isModel || s.ownerIsAdmin ? "" : planPill(accountStatus({ isAdmin: false, planExpiresAt: s.planExpiresAt }))}
     ${storeLink(s.identifier)}
     <button type="button" data-act="edit-store" data-store="${esc(s.id)}" data-owner="${esc(s.ownerId)}" aria-label="Editar a loja ${esc(s.name)}" class="${btnClass("ghost", "sm")} ml-auto">${icon("palette")} Editar</button>
   </li>`;
@@ -87,16 +76,11 @@ function storeLine(s: AdminStore): string {
 
 function accountRow(row: AccountRow, open: boolean): string {
   const a = row.account;
-  const active = isActive(row.status);
   const clientStores = row.stores.filter((s) => !s.isModel).length;
   const models = row.stores.length - clientStores;
   const storesText = `${plural(clientStores, "loja", "lojas")}${models ? ` · ${plural(models, "loja-modelo", "lojas-modelo")}` : ""}`;
   const panelId = `acc-${a.id}-details`;
   const who = a.name || a.email || "Conta sem nome";
-
-  const actions = a.isAdmin ? "" : `
-    <button type="button" data-act="activate" data-id="${esc(a.id)}" aria-label="${active ? "Prolongar" : "Ativar"} a subscrição de ${esc(who)}" class="${btnClass(active ? "secondary" : "primary", "sm")}">${icon(active ? "more_time" : "check_circle")} ${active ? "Prolongar" : "Ativar"}</button>
-    ${active ? `<button type="button" data-act="deactivate" data-id="${esc(a.id)}" aria-label="Desativar a subscrição de ${esc(who)}" class="${btnClass("dangerOutline", "sm")}">Desativar</button>` : ""}`;
 
   return `<li class="px-4 py-3">
     <div class="flex flex-wrap items-center gap-3">
@@ -105,9 +89,8 @@ function accountRow(row: AccountRow, open: boolean): string {
         <p class="font-semibold text-gray-900 break-words">${esc(who)}</p>
         <p class="text-sm text-gray-600 break-all">${a.name ? `${esc(a.email)} · ` : ""}${esc(storesText)}</p>
       </div>
-      <div class="shrink-0">${statusPill(row.status)}</div>
+      <div class="shrink-0">${planPill(row.status)}</div>
       <div class="flex flex-wrap items-center gap-2">
-        ${actions}
         <button type="button" data-act="toggle" data-id="${esc(a.id)}" aria-expanded="${open}" aria-controls="${esc(panelId)}" aria-label="Detalhes de ${esc(who)}" class="${btnClass("ghost", "sm")}">${icon(open ? "expand_less" : "expand_more")}<span>Detalhes</span></button>
       </div>
     </div>
@@ -116,7 +99,8 @@ function accountRow(row: AccountRow, open: boolean): string {
       ${row.stores.length
         ? `<ul role="list" class="mt-1 divide-y divide-gray-200">${row.stores.map(storeLine).join("")}</ul>`
         : `<p class="mt-2 text-sm text-gray-600">Esta conta ainda não tem lojas.</p>`}
-      ${a.isAdmin ? "" : `<div class="mt-3 border-t border-gray-200 pt-3">
+      ${a.isAdmin ? "" : `<p class="mt-2 text-xs text-gray-600">Cada loja tem a sua subscrição: ativa-se, prolonga-se e desativa-se em <a href="${esc(ADMIN_HREFS.lojas)}" class="font-semibold text-orange-700 hover:underline">Lojas</a>.</p>
+      <div class="mt-3 border-t border-gray-200 pt-3">
         <button type="button" data-act="delete" data-id="${esc(a.id)}" class="${btnClass("dangerOutline", "sm")}">${icon("person_remove")} Eliminar conta</button>
       </div>`}
     </div>
@@ -135,11 +119,10 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     list.push(s);
     byOwner.set(s.ownerId, list);
   }
-  const rows: AccountRow[] = accounts.map((account) => ({
-    account,
-    status: accountStatus(account),
-    stores: byOwner.get(account.id) ?? [],
-  }));
+  const rows: AccountRow[] = accounts.map((account) => {
+    const own = byOwner.get(account.id) ?? [];
+    return { account, status: statusOf(account, own), stores: own };
+  });
 
   let filter: AccountFilter = FILTER_FROM_SUB[view.sub] ?? "donos";
   let query = "";
@@ -184,76 +167,6 @@ export async function renderAccounts(view: AdminView): Promise<void> {
   }
 
   const rowOf = (id: string): AccountRow | undefined => rows.find((r) => r.account.id === id);
-
-  /** Atualiza o estado de uma conta depois de gravar e redesenha. */
-  function setPlan(row: AccountRow, planExpiresAt: string): void {
-    row.account.planExpiresAt = planExpiresAt;
-    row.status = accountStatus(row.account);
-    const active = isActive(row.status);
-    for (const s of row.stores) s.ownerActive = active;
-    draw();
-  }
-
-  async function activate(row: AccountRow): Promise<void> {
-    const a = row.account;
-    const extending = isActive(row.status);
-    const options = ACTIVATION_MONTHS.map((m) => {
-      const q = activationQuote(m);
-      return { value: String(m), label: monthsLabel(m), detail: `${q.days} dias · ${formatKz(q.amountKz)}` };
-    });
-    const answer = await openDialog({
-      title: extending ? "Prolongar a subscrição" : "Ativar a subscrição",
-      body: `<p class="font-semibold text-gray-900 break-all">${esc(a.email || a.name)}</p>
-        <p>${extending
-          ? `Ativa até ${esc(fmtDate(row.status.expiresAt))}. Os meses somam-se ao fim do período atual.`
-          : "Os meses contam a partir de hoje."} Ative depois de confirmar o pagamento do Dono.</p>`,
-      confirmLabel: extending ? "Prolongar" : "Ativar",
-      tone: "primary",
-      choice: {
-        legend: "Duração",
-        options,
-        value: String(ACTIVATION_MONTHS[0]),
-        describe: (value) => {
-          const p = activationPatch(a, Number(value));
-          return p.ok ? `Fica ativa até <strong>${esc(fmtDate(p.patch.plan_expires_at))}</strong>.` : esc(p.message);
-        },
-      },
-    });
-    if (!answer?.choice) return;
-    const months = Number(answer.choice);
-    const result = await withBusy(() => adminActivatePlan(a.id, months), "A ativar a subscrição…");
-    if (!result.ok) {
-      toast(result.message, "error");
-      announce(LIVE, result.message);
-      return;
-    }
-    setPlan(row, result.planExpiresAt);
-    const msg = `Subscrição de ${a.email || a.name} ativa até ${fmtDate(result.planExpiresAt)}.`;
-    toast(msg);
-    announce(LIVE, msg);
-  }
-
-  async function deactivate(row: AccountRow): Promise<void> {
-    const a = row.account;
-    const confirmed = await openDialog({
-      title: "Desativar a subscrição?",
-      body: `<p>A conta <strong class="break-all">${esc(a.email || a.name)}</strong> fica sem subscrição a partir de agora.</p>
-        <p>As lojas publicadas desta conta saem do ar até a subscrição voltar a ser ativada. Nada é apagado.</p>`,
-      confirmLabel: "Desativar",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-    const result = await withBusy(() => adminDeactivatePlan(a.id), "A desativar a subscrição…");
-    if (!result.ok) {
-      toast(result.message, "error");
-      announce(LIVE, result.message);
-      return;
-    }
-    setPlan(row, result.planExpiresAt);
-    const msg = `Subscrição de ${a.email || a.name} desativada.`;
-    toast(msg);
-    announce(LIVE, msg);
-  }
 
   async function remove(row: AccountRow): Promise<void> {
     const a = row.account;
@@ -302,9 +215,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     }
     const row = rowOf(btn.dataset.id ?? "");
     if (!row) return;
-    if (act === "activate") void activate(row);
-    else if (act === "deactivate") void deactivate(row);
-    else if (act === "delete") void remove(row);
+    if (act === "delete") void remove(row);
     else if (act === "toggle") {
       if (open.has(row.account.id)) open.delete(row.account.id);
       else open.add(row.account.id);

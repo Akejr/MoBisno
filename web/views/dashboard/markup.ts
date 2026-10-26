@@ -18,7 +18,7 @@ import {
   card, cardHead, comingSoonBadge, emptyState, field, fmtDate, fmtDateTime, fmtShortDate, icon, kzRound, notice,
   pill, plural, segmented,
 } from "./ui.js";
-import { PLAN_HIGHLIGHTS, PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "../../../src/services/plans.js";
+import { PLAN_HIGHLIGHTS, PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ, PLAN_UNIT_LABEL } from "../../../src/services/plans.js";
 import type { BillingState } from "../../../src/services/billing.js";
 import { COMING_SOON_LABELS, isComingSoon, type ComingSoonFeature } from "../../../src/services/comingSoon.js";
 import {
@@ -205,50 +205,50 @@ export function nextSteps(i: StepsInput): NextStep[] {
   ];
 }
 
-/** Lista dos «Próximos passos», com a barra de progresso dos obrigatórios. */
+/**
+ * «Próximos passos», compactos: a contagem, uma barra fina e só o que falta,
+ * uma linha por passo. Cada linha é a própria ação (leva ao sítio onde se faz) e
+ * a frase de apoio fica no `title`. Os feitos contam na barra e saem da lista:
+ * era a lista inteira, com um parágrafo por passo, que ocupava o ecrã.
+ */
 export function nextStepsHtml(steps: readonly NextStep[]): string {
   const obrigatorios = steps.filter((s) => !s.optional);
   const feitos = obrigatorios.filter((s) => s.done).length;
   const pct = Math.round((feitos / Math.max(1, obrigatorios.length)) * 100);
   const pronto = feitos === obrigatorios.length;
-  let n = 0;
-  const itens = steps.map((s) => {
-    n += 1;
-    const marca = s.done
-      ? `<span class="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style="background:#ecfdf5;color:#047857">${icon("check", "text-[18px]")}<span class="sr-only">Feito:</span></span>`
-      : `<span class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2 border-gray-200 text-xs font-black text-gray-600">${n}<span class="sr-only">. Por fazer:</span></span>`;
-    const acao = s.done || s.status === VERIFICATION_STATUS_LABEL.pending
-      ? ""
+  const linha = "group w-full flex items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-gray-50 transition-colors";
+  const itens = steps.map((s, i) => {
+    if (s.done) return "";
+    const marca = `<span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 border-gray-200 text-[11px] font-black text-gray-500">${i + 1}<span class="sr-only">. Por fazer:</span></span>`;
+    const etiquetas = `${s.optional ? `<span class="text-xs text-gray-400 shrink-0">Opcional</span>` : ""}${s.status ? pill(s.status, s.status === VERIFICATION_STATUS_LABEL.rejected ? "danger" : "info") : ""}`;
+    const corpo = `${marca}<span class="flex-1 min-w-0 text-sm font-semibold text-gray-800 truncate">${esc(s.title)}</span>${etiquetas}`;
+    const seta = `<span class="text-gray-300 group-hover:text-gray-500 shrink-0">${icon("chevron_right", "text-[18px]")}</span>`;
+    // Em análise não há nada a fazer: o pedido está nas mãos da MôBisno.
+    const acao = s.status === VERIFICATION_STATUS_LABEL.pending
+      ? `<div class="flex items-center gap-3 px-2 py-2" title="${esc(s.text)}">${corpo}</div>`
       : s.href
-        ? `<a href="${esc(s.href)}" class="${BTN_LINK}">${esc(s.cta)} ${icon("arrow_forward", "text-[16px]")}</a>`
-        : `<button type="button" data-step-publish class="${BTN_LINK}">${esc(s.cta)} ${icon("arrow_forward", "text-[16px]")}</button>`;
-    return `<li class="py-3.5 flex items-start gap-3" data-step="${esc(s.id)}" data-done="${s.done ? "true" : "false"}">
-      ${marca}
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-bold ${s.done ? "text-gray-500" : "text-gray-900"} flex items-center gap-2 flex-wrap">${esc(s.title)}${s.optional ? ` ${pill("Opcional", "neutral")}` : ""}${s.status ? ` ${pill(s.status, s.status === VERIFICATION_STATUS_LABEL.rejected ? "danger" : "info")}` : ""}</p>
-        <p class="text-sm text-gray-500 mt-0.5">${esc(s.text)}</p>
-        ${acao ? `<div class="mt-1.5">${acao}</div>` : ""}
-      </div>
-    </li>`;
+        ? `<a href="${esc(s.href)}" title="${esc(s.text)}" class="${linha}">${corpo}${seta}</a>`
+        : `<button type="button" data-step-publish title="${esc(s.text)}" class="${linha}">${corpo}${seta}</button>`;
+    return `<li data-step="${esc(s.id)}" data-done="false">${acao}</li>`;
   }).join("");
-  return `<div class="mt-4 flex items-center justify-between gap-3 flex-wrap">
-      <p class="text-sm font-semibold text-gray-700">${feitos} de ${obrigatorios.length} passos feitos</p>
+  return `<div class="mt-3 flex items-center justify-between gap-3 flex-wrap">
+      <p class="text-xs font-semibold text-gray-600">${feitos} de ${obrigatorios.length} passos feitos</p>
       ${pronto ? pill("A loja está pronta a vender", "success", "check_circle") : ""}
     </div>
-    <div class="mt-2 h-2 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-label="Passos feitos" aria-valuemin="0" aria-valuemax="${obrigatorios.length}" aria-valuenow="${feitos}">
+    <div class="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-label="Passos feitos" aria-valuemin="0" aria-valuemax="${obrigatorios.length}" aria-valuenow="${feitos}">
       <div class="h-full rounded-full" style="width:${pct}%;background:${ACCENT}"></div>
     </div>
-    <ul class="mt-2 divide-y divide-gray-100">${itens}</ul>`;
+    ${itens ? `<ul class="mt-2 -mx-2">${itens}</ul>` : ""}`;
 }
 
-/** Linha da subscrição, para o cartão do estado da loja. */
+/** Estado da subscrição desta loja, numa frase. A ligação para o «Plano» fica com quem a mostra. */
 export function subscriptionLine(b: BillingState): string {
-  if (b.byAdmin) return `${icon("shield_person", "text-[18px]")} Conta de administração: publica sem subscrição.`;
+  if (b.byAdmin) return "Conta de administração: publica sem subscrição.";
   if (b.accessActive) {
     const data = fmtDate(b.expiresAt);
-    return `${icon("event_available", "text-[18px]")} Subscrição ativa${data ? ` até ${esc(data)}` : ""}.`;
+    return data ? `Subscrição desta loja ativa até ${esc(data)}.` : "Subscrição desta loja ativa.";
   }
-  return `${icon("event_busy", "text-[18px]")} ${b.expired ? "A subscrição caducou." : "Sem subscrição ativa."} <a href="#/painel/plano" class="${BTN_LINK}">Ver o plano</a>`;
+  return b.expired ? "A subscrição desta loja caducou." : "Esta loja não tem subscrição ativa.";
 }
 
 /** O que o cartão do estado da loja precisa. */
@@ -262,42 +262,52 @@ export interface StoreStatusInput {
 }
 
 /**
- * Estado da loja (Publicada / Rascunho), o endereço e a ação de publicar.
+ * Estado da loja numa faixa só: Publicada ou Rascunho, o endereço, a
+ * subscrição desta loja e a ação de publicar.
  *
- * Publicar está sujeito a `canPublishStore`: sem subscrição, o botão aparece
- * desligado e a frase ao lado diz porquê e onde se resolve. Esconder o botão
- * deixava o Dono à procura dele.
+ * Era um cartão alto, com um parágrafo por estado, que empurrava as encomendas
+ * para baixo do ecrã. Publicar está sujeito a `canPublishStore`: sem
+ * subscrição, o botão aparece desligado e a linha do endereço diz porquê e onde
+ * se resolve. Esconder o botão deixava o Dono à procura dele.
  */
 export function storeStatusHtml(o: StoreStatusInput): string {
   const publicada = o.state === "Publicada";
   const noAr = publicada && o.billing.accessActive;
   const estado = publicada ? pill("Publicada", "success", "public") : pill("Rascunho", "neutral", "edit_note");
   const frase = noAr
-    ? "A loja está no ar: qualquer pessoa com o endereço a pode ver e encomendar."
+    ? "A loja está no ar."
     : publicada
-      ? "A loja está publicada, mas a subscrição não está ativa, por isso está fora do ar. Os dados ficam guardados."
-      : "Ainda só você a vê, na pré-visualização. Publique-a para a pôr no ar.";
+      ? "Publicada, mas fora do ar: a subscrição desta loja não está ativa."
+      : "Ainda só você a vê.";
   const destino = noAr ? o.storeUrl : o.previewUrl;
   const endereco = o.storeUrl.replace(/^https?:\/\//, "");
+  const semPlano = !o.billing.accessActive && !o.billing.byAdmin;
+  const subscricao = !publicada && !o.canPublish
+    ? `<span id="publish-why">Ative a subscrição para publicar. <a href="#/painel/plano" class="${BTN_LINK}">Ver o plano</a></span>`
+    : `<span>${subscriptionLine(o.billing)}${semPlano ? ` <a href="#/painel/plano" class="${BTN_LINK}">${o.billing.expired ? "Renovar" : "Ver o plano"}</a>` : ""}</span>`;
   const acao = publicada
     ? `<button type="button" id="toggle-state" data-next="Rascunho" class="${BTN_SECONDARY}">${icon("visibility_off", "text-[18px]")} Despublicar</button>`
     : o.canPublish
       ? `<button type="button" id="toggle-state" data-next="Publicada" class="${BTN_PRIMARY}">${icon("rocket_launch", "text-[18px]")} Publicar a loja</button>`
-      : `<button type="button" disabled aria-describedby="publish-why" class="${BTN_PRIMARY}">${icon("lock", "text-[18px]")} Publicar a loja</button>
-         <p id="publish-why" class="text-sm text-gray-700">Ative a subscrição para publicar. <a href="#/painel/plano" class="${BTN_LINK}">Ver o plano</a></p>`;
-  return card(`
-    ${cardHead({ icon: "storefront", title: "Estado da loja", aside: estado })}
-    <p class="mt-4 text-sm text-gray-700">${esc(frase)}</p>
-    <div class="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 border border-gray-200 px-3 py-2.5 min-w-0">
-      <span class="text-gray-500">${icon("link", "text-[18px]")}</span>
-      <a href="${esc(destino)}" target="_blank" rel="noopener" class="text-sm font-bold break-all hover:underline" style="color:${ACCENT_INK}">${esc(endereco)}<span class="sr-only"> (abre noutro separador)</span></a>
-      <div class="ml-auto flex items-center gap-1">
-        <button type="button" id="copy-url" class="${BTN_GHOST}">${icon("content_copy", "text-[18px]")} Copiar</button>
-        <a href="${esc(destino)}" target="_blank" rel="noopener" class="${BTN_GHOST}">${icon(noAr ? "open_in_new" : "visibility", "text-[18px]")} ${noAr ? "Abrir" : "Pré-visualizar"}<span class="sr-only"> (abre noutro separador)</span></a>
+      : `<button type="button" disabled aria-describedby="publish-why" class="${BTN_PRIMARY}">${icon("lock", "text-[18px]")} Publicar a loja</button>`;
+  return `<section aria-label="Estado da loja" class="rounded-2xl border border-gray-200 bg-white px-4 py-3.5 md:px-5 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
+    <div class="flex items-center gap-3 min-w-0 flex-1">
+      <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}">${icon("storefront")}</span>
+      <div class="min-w-0">
+        <p class="flex items-center gap-2 flex-wrap">${estado}<span class="text-sm text-gray-700">${esc(frase)}</span></p>
+        <p class="mt-1 flex items-center gap-x-2 gap-y-0.5 flex-wrap text-xs text-gray-500 min-w-0">
+          <a href="${esc(destino)}" target="_blank" rel="noopener" class="text-sm font-bold break-all hover:underline" style="color:${ACCENT_INK}">${esc(endereco)}<span class="sr-only"> (abre noutro separador)</span></a>
+          <span aria-hidden="true" class="text-gray-300">·</span>
+          ${subscricao}
+        </p>
       </div>
     </div>
-    <div class="mt-5 flex flex-wrap items-center gap-3">${acao}</div>
-    <p class="mt-5 pt-4 border-t border-gray-100 text-sm text-gray-600 flex flex-wrap items-center gap-1.5">${subscriptionLine(o.billing)}</p>`);
+    <div class="flex flex-wrap items-center gap-2 shrink-0">
+      <button type="button" id="copy-url" class="${BTN_GHOST}">${icon("content_copy", "text-[18px]")} Copiar</button>
+      <a href="${esc(destino)}" target="_blank" rel="noopener" class="${BTN_GHOST}">${icon(noAr ? "open_in_new" : "visibility", "text-[18px]")} ${noAr ? "Abrir" : "Pré-visualizar"}<span class="sr-only"> (abre noutro separador)</span></a>
+      ${acao}
+    </div>
+  </section>`;
 }
 
 /* ============================ Taxa de entrega ============================ */
@@ -952,13 +962,13 @@ function planState(b: BillingState): { pill: string; title: string; text: string
     return {
       pill: pill("Caducada", "danger", "event_busy"),
       title: "A subscrição caducou",
-      text: "As lojas publicadas saíram do ar, mas os dados ficam guardados. Renove a subscrição para as voltar a pôr online.",
+      text: "Esta loja saiu do ar, mas os dados ficam guardados. Renove a subscrição para a voltar a pôr online.",
     };
   }
   return {
     pill: pill("Inativa", "neutral", "pause_circle"),
     title: "Sem subscrição ativa",
-    text: "Pode criar e personalizar a loja à vontade. Para a publicar, ative a subscrição.",
+    text: "Pode criar e personalizar a loja à vontade. Para a publicar, ative a subscrição desta loja.",
   };
 }
 
@@ -989,7 +999,7 @@ export function planHtml(o: { billing: BillingState; providerReady: boolean; sto
          <a href="${esc(mailto)}" id="plan-mailto" class="${BTN_PRIMARY} mt-4">${icon("mail", "text-[18px]")} Pedir a ativação por email</a>`;
   return `<div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
     ${card(`
-      ${cardHead({ icon: "workspace_premium", title: "A sua subscrição", aside: st.pill })}
+      ${cardHead({ icon: "workspace_premium", title: "A subscrição desta loja", aside: st.pill })}
       <p class="mt-5 text-lg font-black text-gray-900">${esc(st.title)}</p>
       <p class="mt-1 text-sm text-gray-600">${esc(st.text)}</p>
       ${barra}
@@ -998,9 +1008,9 @@ export function planHtml(o: { billing: BillingState; providerReady: boolean; sto
       <p class="text-xs font-bold uppercase tracking-wider" style="color:${ACCENT_INK}">Plano ${esc(PLAN_NAME)}</p>
       <p class="mt-2 flex items-baseline gap-1 flex-wrap">
         <span class="text-3xl font-black tracking-tight text-gray-900">${esc(kzRound(PLAN_PRICE_KZ))}</span>
-        <span class="text-sm font-semibold text-gray-500">/${esc(PERIODO)}</span>
+        <span class="text-sm font-semibold text-gray-500">/${esc(PERIODO)} ${esc(PLAN_UNIT_LABEL)}</span>
       </p>
-      <p class="mt-1 text-sm text-gray-600">Um só plano, com tudo incluído. Cada pagamento cobre ${PLAN_PERIOD_DAYS} dias.</p>
+      <p class="mt-1 text-sm text-gray-600">Cada loja tem a sua subscrição, com tudo incluído. Cada pagamento cobre ${PLAN_PERIOD_DAYS} dias.</p>
       <ul class="mt-5 space-y-2.5">${PLAN_HIGHLIGHTS.map((h) =>
         `<li class="flex items-start gap-2 text-sm text-gray-700"><span class="text-emerald-600 shrink-0">${icon("check_circle", "text-[18px]")}</span><span>${esc(h)}</span></li>`).join("")}</ul>`, "lg:col-span-2")}
   </div>`;

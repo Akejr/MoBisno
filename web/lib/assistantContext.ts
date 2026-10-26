@@ -87,7 +87,7 @@ const ESTADO_DIGITAIS = PAYMENTS_PROVIDER_READY
 
 /** Como se paga a subscrição hoje. */
 const ESTADO_SUBSCRICAO = PAYMENTS_PROVIDER_READY
-  ? "A subscrição paga-se dentro da plataforma, no Dashboard → «Plano», por Multicaixa Express ou Referência Bancária."
+  ? "A subscrição paga-se dentro da plataforma, loja a loja: no Dashboard, com a loja escolhida no seletor de loja, separador «Plano», por Multicaixa Express ou Referência Bancária."
   : `O pagamento online da subscrição ainda não está disponível: até lá é a equipa MôBisno que ativa a subscrição. O separador «Plano» tem o botão «Pedir a ativação por email», que escreve para ${PLATFORM_CONTACT_EMAIL} já com o identificador da loja no assunto.`;
 
 /**
@@ -96,15 +96,15 @@ const ESTADO_SUBSCRICAO = PAYMENTS_PROVIDER_READY
  */
 export function platformFacts(): string {
   return `FACTOS DA PLATAFORMA (verdade actual — usa estes números, não outros):
-- Subscrição: há **um só plano**, chamado ${PLAN_NAME}, com tudo incluído. Não há escalões. Não existe Básico, Profissional nem Empresarial — foram removidos. Não há ciclo anual nem preço por loja.
-- Preço: ${PRECO}. É o preço da conta, não de cada loja.
-- LOJAS E PRODUTOS SÃO ILIMITADOS. «Quantas lojas posso criar?» → quantas quiseres, e podes publicá-las todas pelo mesmo preço. Não há limite de produtos em nenhuma loja.
+- Subscrição: há **um só plano**, chamado ${PLAN_NAME}, com tudo incluído. Não há escalões. Não existe Básico, Profissional nem Empresarial — foram removidos. Não há ciclo anual.
+- Preço: ${PRECO}, **POR LOJA**. Cada loja tem a sua subscrição e o seu período: quem tem duas lojas online paga duas subscrições. Pagar uma loja não põe as outras online.
+- LOJAS: criar lojas é livre. «Quantas lojas posso criar?» → quantas quiseres; criar, personalizar e pré-visualizar é grátis, e cada loja que quiseres pôr online tem a sua subscrição (${PRECO}). PRODUTOS ILIMITADOS em todas as lojas.
 - O que a subscrição inclui: ${PLAN_HIGHLIGHTS.join("; ")}.
-- Criar a loja, personalizá-la e pré-visualizá-la é grátis e sem prazo. A subscrição serve para **publicar** a loja e a manter online.
+- Criar a loja, personalizá-la e pré-visualizá-la é grátis e sem prazo. A subscrição de cada loja serve para **publicar** essa loja e a manter online.
 - Renovar antes do fim não perde dias: o período novo acrescenta-se ao que ainda falta.
 - ${ESTADO_SUBSCRICAO}
 - NÃO existe teste grátis. Foi removido. Para publicar uma loja é preciso subscrição ativa.
-- Sem subscrição ativa as lojas publicadas saem da web e voltam quando o pagamento for feito. Nada é apagado.
+- Uma loja sem subscrição ativa sai da web e volta quando o pagamento dela for feito. Nada é apagado.
 - Contas de ADMINISTRADOR da MôBisno não pagam e publicam sem subscrição. Isto não se aplica a Donos de loja.
 - VENDAS: **todas as lojas vendem por WhatsApp** desde o primeiro dia, sem pedir nada a ninguém. É o que está sempre ativo, e **não tem comissão nenhuma**: esse dinheiro nunca passa pela MôBisno.
 - Multicaixa Express e Referência Bancária são só para **empresas registadas**: o Dono envia no Dashboard → «Pagamentos» o nome e o NIF da empresa, o banco, o titular e o IBAN da conta onde recebe, e os documentos ${DOCUMENTOS}. O pedido vai para a administração da MôBisno, e só depois de **aprovado** é que esses métodos aparecem no checkout da loja. Alterar dados já aprovados volta a pôr o pedido «${VERIFICATION_STATUS_LABEL.pending}».
@@ -130,10 +130,10 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Criar uma loja é **escolher um modelo pronto** — uma loja completa, já montada, com cabeçalho, secções, página de produto, checkout e rodapé — e depois personalizar textos, fotografias e cores. Não se monta peça por peça.
 - Percurso: 1) criar conta; 2) escolher o modelo na galeria, com pré-visualização real em computador e telemóvel; 3) personalizar no editor visual ao vivo; 4) publicar com «Guardar».
 - O cabeçalho rola até às secções da página, e tem o botão «Criar minha loja».
-- A página fala a quem **já vende** por WhatsApp e por Instagram. No topo, ao lado de «Crie a sua loja online em minutos», há um telemóvel com uma loja de exemplo e, por cima dele, **a encomenda a chegar ao WhatsApp já escrita**: os produtos, a entrega, o desconto e o total. A loja não substitui o WhatsApp: alimenta-o.
-- Por baixo, uma faixa com os meios com que a loja trabalha (WhatsApp, Multicaixa Express e Referência Bancária) e secções curtas, uma ideia cada: «Três passos. Nenhum código.» (escolher um modelo, pôr os produtos, publicar e partilhar o link), «Tudo o que o WhatsApp não faz sozinho.» (editor ao vivo, stock e variações, entregas por zona, códigos de desconto, Google, visitas), «Comece pelo WhatsApp. Cresça com o Multicaixa.» (a comissão de cada caminho, com um exemplo de quanto fica para levantar numa venda), «Um só plano. Tudo incluído.», as «Perguntas frequentes» e «Ponha o seu catálogo num link.», que fecha a página com as ligações para o diretório de lojas e para os modelos.
+- A página fala a quem **já vende** por WhatsApp e por Instagram. No topo está «Crie a sua loja online em minutos», com uma frase: os clientes veem os produtos, escolhem e encomendam sozinhos, a qualquer hora, e cada pedido chega ao WhatsApp do Dono com o total já calculado. Ao lado, um acordeão de imagens («Sem código», «Editor visual ao vivo», «Endereço .${STORE_APEX}», «Pagamentos e entregas» e «Encomendas por WhatsApp») que abre ao passar o rato ou ao tocar. A loja não substitui o WhatsApp: alimenta-o.
+- Por baixo, uma faixa com os meios com que a loja trabalha (WhatsApp, Multicaixa Express e Referência Bancária) e secções curtas, uma ideia cada: «Três passos. Nenhum código.» (escolher um modelo, pôr os produtos, publicar e partilhar o link), «Tudo o que o WhatsApp não faz sozinho.» (editor ao vivo, stock e variações, entregas por zona, códigos de desconto, Google, visitas), «Receba como os seus clientes já pagam.» (o WhatsApp sem comissão em todas as lojas, o Multicaixa Express e a Referência Bancária para empresas aprovadas, e um exemplo de quanto fica para levantar numa venda), «Um só plano. Tudo incluído.» e, a fechar, as «Perguntas frequentes».
 - As «Perguntas frequentes» são um acordeão: cada pergunta abre a resposta ao ser clicada, e a primeira já está aberta. Ao lado está o email da MôBisno, para o que não estiver lá.
-- A secção de preços tem **um só cartão**: o plano único, o preço, o que inclui e, numa linha, o que está «Em breve». Responde com o preço que está nos FACTOS; nunca mandes o visitante «ver a secção de preços».
+- A secção de preços tem **um só cartão**: o plano único, o preço **por loja** (cada loja tem a sua subscrição), o que inclui e, numa linha, o que está «Em breve». Responde com o preço que está nos FACTOS; nunca mandes o visitante «ver a secção de preços».
 - «Lojas criadas na MôBisno», no rodapé, abre o diretório público com pré-visualização real de cada loja.
 - O contacto da MôBisno é ${PLATFORM_CONTACT_EMAIL}. Não há número de telefone nem redes sociais publicadas.`,
 
@@ -159,15 +159,19 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 
   painel: `ECRÃ: Dashboard do Dono, separador «Início».
 - Começa com a saudação ao Dono e o resumo da loja escolhida.
-- CARTÃO «Estado da loja»: a loja está «Publicada» ou em «Rascunho», com uma frase a dizer o que isso significa («A loja está no ar…», «A loja está publicada, mas a subscrição não está ativa, por isso está fora do ar…», «Ainda só você a vê, na pré-visualização…»).
-- O endereço da loja está ali, com «Copiar» e «Abrir» (loja no ar) ou «Pré-visualizar» (rascunho ou fora do ar).
-- O botão é «Publicar a loja» ou «Despublicar». Sem subscrição ativa, o botão aparece desligado e ao lado está «Ative a subscrição para publicar.» com a ligação «Ver o plano». Por baixo, a linha da subscrição: «Subscrição ativa até <data>», «Sem subscrição ativa», «A subscrição caducou» ou «Conta de administração: publica sem subscrição.»
+- FAIXA «Estado da loja», no topo, numa linha: a loja está «Publicada» ou em «Rascunho», com uma frase curta («A loja está no ar.», «Publicada, mas fora do ar: a subscrição desta loja não está ativa.» ou «Ainda só você a vê.»), o endereço da loja e a subscrição desta loja («Subscrição desta loja ativa até <data>.», «Esta loja não tem subscrição ativa.», «A subscrição desta loja caducou.» ou «Conta de administração: publica sem subscrição.»).
+- Na mesma faixa: «Copiar», «Abrir» (loja no ar) ou «Pré-visualizar» (rascunho ou fora do ar), e o botão «Publicar a loja» ou «Despublicar». Sem subscrição ativa, «Publicar a loja» aparece desligado e, junto ao endereço, está «Ative a subscrição para publicar.» com a ligação «Ver o plano».
+- Por baixo, à esquerda, o que a loja recebeu. CARTÃO «Encomendas por WhatsApp»: a lista de quem tocou em «Finalizar via WhatsApp» e do que tinha no carrinho — os artigos, o total, a entrega, o desconto e o contacto —, mesmo que a mensagem nunca tenha sido enviada. Cada linha abre com o detalhe e tem «Falar no WhatsApp», «Marcar como tratada» e «Apagar». As que estão «Por tratar» aparecem contadas no topo do cartão. **É aqui que uma loja sem pagamentos digitais vê as suas vendas.**
+- CARTÕES «Vendas» e «Levantamentos» (Multicaixa Express e Referência Bancária): só aparecem quando a loja já tem pagamentos digitais a funcionar, ou quando já há vendas ou levantamentos para mostrar. Trazem «Recebido (líquido)» — já sem a comissão da MôBisno —, «Disponível para levantar» com «Solicitar levantamento», «Vendas pagas» e «Referências pendentes». O levantamento vai para a conta bancária **aprovada**, e mais nenhuma.
+- O «Disponível para levantar» é o que a loja recebeu menos a comissão: ${platformFeeNote()}
+- Na lista de vendas, as linhas com estado «Expirada» — referência bancária cuja data-limite passou — abrem com o botão «Apagar registo». **Só as expiradas se apagam**: pagas, pendentes dentro do prazo, falhadas e canceladas ficam, e é a base de dados que o impede, não só o ecrã.
+- À direita, CARTÃO «Próximos passos», compacto: quantos passos estão feitos, uma barra, e só os que faltam, cada um numa linha que leva ao sítio onde se faz: «Adicionar produtos», «Personalizar a loja», «Número de WhatsApp», «Taxa de entrega», «Ativar a subscrição e publicar» e, marcado «Opcional», «Verificar a empresa para pagamentos digitais». Os feitos saem da lista; com todos feitos aparece «A loja está pronta a vender».
 - CARTÃO «Funil de compra», dos últimos 30 dias, com quatro passos pela ordem do cliente: «Visitas» → «Produtos vistos» → «Adições ao carrinho» → «Encomendas por WhatsApp». Debaixo, a percentagem de visitas que terminaram em encomenda. Sem movimento, diz «Ainda sem movimento nos últimos 30 dias».
-- CARTÃO «Próximos passos», calculado do estado real da loja: «Adicionar produtos», «Personalizar a loja», «Número de WhatsApp», «Taxa de entrega», «Ativar a subscrição e publicar» e, marcado «Opcional», «Verificar a empresa para pagamentos digitais». Cada passo tem o botão que leva ao sítio onde se faz.
 - NAVEGAÇÃO, as mesmas nove secções nos dois tamanhos de ecrã: Início, Produtos, Taxa de entrega, Código de desconto, Avaliações, Análises, Pagamentos, Plano, Configurações. Em ecrã grande estão na barra lateral; em telemóvel estão numa faixa de atalhos deslizante logo abaixo do cabeçalho (a barra lateral não existe no telemóvel).
-- Na barra lateral e, em telemóvel, na barra de topo: o seletor de loja (só para quem tem mais de uma), «Nova loja», o atalho «Dashboard de Administração» (só em contas de administrador) e «Terminar sessão».
+- SELETOR DE LOJA, no topo da barra lateral (em telemóvel, na barra de topo): mostra a loja em edição, com a inicial e o estado («No ar», «Fora do ar» ou «Rascunho»). Ao tocar, abre «As suas lojas», com o estado de cada uma, e «Nova loja», com a nota de que é grátis até publicar e que depois cada loja paga a sua subscrição (o preço está nos FACTOS). Trocar de loja muda também o «Plano» que se vê: é o da loja escolhida.
+- Ainda na barra lateral (em telemóvel, na barra de topo): o atalho «Dashboard de Administração» (só em contas de administrador) e «Terminar sessão».
 - No cabeçalho: «Personalizar loja», que abre o editor visual, e «Ver loja» (ou «Pré-visualizar», sem publicação).
-- As vendas, o saldo e os levantamentos não estão aqui: estão no separador «Pagamentos». O gerador de logótipos foi removido e já não há secção para ele.`,
+- O separador «Pagamentos» é só configuração: o número de WhatsApp, a verificação da empresa para os pagamentos digitais e a fatura automática. As encomendas, as vendas e o saldo estão aqui, no Início. O gerador de logótipos foi removido e já não há secção para ele.`,
 
   produtos: `ECRÃ: Dashboard → «Produtos».
 - «Adicionar produto» abre o formulário: foto principal, nome, preço, categoria, descrição, fotos extra, «Disponível na loja», destacar na loja, produto físico, controlar stock e variações.
@@ -212,27 +216,25 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Não há filtro de datas, escolha de período nem exportação: os períodos são fixos (7, 14 e 30 dias).
 - Os dados vêm dos eventos da própria loja; não é o Google Analytics. Uma visita conta uma vez por sessão do navegador.`,
 
-  pagamentos: `ECRÃ: Dashboard → «Pagamentos».
+  pagamentos: `ECRÃ: Dashboard → «Pagamentos». É **só configuração**: como os clientes pagam e para onde vai o dinheiro.
+- As encomendas por WhatsApp, as vendas, o saldo e os levantamentos não estão aqui: estão no «Início». O ecrã di-lo logo no topo, com a ligação para o «Início».
 - CARTÃO «WhatsApp», marcado «Sempre ativo»: é o que toda a loja tem desde o primeiro dia, sem pedir nada. Só se configura o «Número de WhatsApp», no formato internacional (+244 e o número), que é para onde chegam as encomendas.
-- CARTÃO «Encomendas por WhatsApp»: a lista de quem tocou em «Finalizar via WhatsApp» e do que tinha no carrinho — os artigos, o total, a entrega, o desconto e o contacto —, mesmo que a mensagem nunca tenha sido enviada. Cada linha abre com o detalhe e tem «Falar no WhatsApp», «Marcar como tratada» e «Apagar». As que estão «Por tratar» aparecem contadas no topo do cartão. **É aqui que uma loja sem pagamentos digitais vê as suas vendas**; os cartões de saldo e de levantamentos só aparecem quando há pagamentos digitais ou já houve vendas.
-- CARTÃO «Fatura automática (Vero)», só depois de a empresa estar aprovada: o Dono indica a «Organização (Org ID)» e a «Chave secreta (API key)» do Vero **dele**, e cada venda digital passa a gerar uma Fatura-Recibo emitida pela empresa dele e enviada ao cliente. A chave fica guardada e nunca é mostrada outra vez — um campo vazio quer dizer «não mexer». Há «Desligar a faturação». Sem credenciais, a loja vende e recebe como sempre, só não emite fatura.
 - CARTÃO «Pagamentos digitais» («Multicaixa Express e Referência Bancária»): são para **empresas registadas** e precisam da aprovação da MôBisno. O estado aparece no cartão: «${VERIFICATION_STATUS_LABEL.none}», «${VERIFICATION_STATUS_LABEL.pending}», «${VERIFICATION_STATUS_LABEL.approved}» ou «${VERIFICATION_STATUS_LABEL.rejected}».
 - O formulário tem três grupos. «Empresa»: «Nome da empresa» e «NIF da empresa». «Conta bancária onde recebe»: «Banco», «Titular da conta» e «IBAN». «Documentos da empresa»: ${DOCUMENTOS}, em PDF, JPG ou PNG até 10 MB.
 - O botão é «Enviar para aprovação». Se faltar ou estiver errado algum campo, aparecem **todos os erros de uma vez**, cada um junto ao seu campo.
 - Enviado, o pedido fica «${VERIFICATION_STATUS_LABEL.pending}» e é só de leitura: está nas mãos da administração da MôBisno. Rejeitado, o Dono vê o motivo escrito por quem rejeitou, corrige e envia de novo.
 - Aprovado, há o botão «Alterar dados» — mas alterar dados aprovados volta a pôr o pedido «${VERIFICATION_STATUS_LABEL.pending}» até nova aprovação, e o ecrã avisa antes. É o que protege o dinheiro de quem vende: um IBAN novo tem de ser verificado.
-- «Vendas» e «Levantamentos» só aparecem quando a loja já tem pagamentos digitais a funcionar, ou quando já há vendas ou levantamentos para mostrar. Trazem «Recebido (líquido)» — já sem a comissão da MôBisno —, «Disponível para levantar» com «Solicitar levantamento», «Vendas pagas» e «Referências pendentes». O levantamento vai para a conta bancária **aprovada**, e mais nenhuma.
-- O «Disponível para levantar» é o que a loja recebeu menos a comissão: ${platformFeeNote()}
-- Na lista de vendas, as linhas com estado «Expirada» — referência bancária cuja data-limite passou — abrem com o botão «Apagar registo». **Só as expiradas se apagam**: pagas, pendentes dentro do prazo, falhadas e canceladas ficam, e é a base de dados que o impede, não só o ecrã.
+- CARTÃO «Fatura automática (Vero)», só depois de a empresa estar aprovada: o Dono indica a «Organização (Org ID)» e a «Chave secreta (API key)» do Vero **dele**, e cada venda digital passa a gerar uma Fatura-Recibo emitida pela empresa dele e enviada ao cliente. A chave fica guardada e nunca é mostrada outra vez — um campo vazio quer dizer «não mexer». Há «Desligar a faturação». Sem credenciais, a loja vende e recebe como sempre, só não emite fatura.
 - Não há interruptor para ligar os pagamentos digitais à mão: quem os liga é a aprovação. A única chave que se escreve neste ecrã é a do Vero, e serve só para a fatura — não liga nem desliga pagamento nenhum.`,
 
   plano: `ECRÃ: Dashboard → «Plano».
-- Mostra o estado da subscrição da conta: «Ativa até <data>» com os dias que faltam, «Inativa», «Caducada» ou «Conta de administração».
-- Há um cartão de preço só: o plano «${PLAN_NAME}», ${PRECO}, com a lista do que inclui. Não há escalões, ciclo anual nem preço por loja — o preço é da conta, e as lojas são ilimitadas.
+- É o plano da loja escolhida no seletor de loja: cada loja tem a sua subscrição, e o ecrã diz o nome da loja.
+- O cartão «A subscrição desta loja» mostra o estado: «Ativa até <data>» com os dias que faltam, «Inativa», «Caducada» ou «Conta de administração».
+- Há um cartão de preço só: o plano «${PLAN_NAME}», ${PRECO}, por loja, com a lista do que inclui. Cada loja tem a sua subscrição, com tudo incluído. Não há escalões nem ciclo anual.
 - ${ESTADO_SUBSCRICAO}
-- A subscrição paga-se numa página do fornecedor de pagamentos, onde se escolhe entre Multicaixa Express e Referência Bancária; depois o Dono volta ao painel e a subscrição é confirmada. Pagar por referência só ativa quando o banco processar.
+- A subscrição paga-se numa página do fornecedor de pagamentos, onde se escolhe entre Multicaixa Express e Referência Bancária; depois o Dono volta ao painel e a subscrição da loja é confirmada. Pagar por referência só ativa quando o banco processar.
 - A comissão de vendas não tem nada a ver com a subscrição: ${platformFeeNote()}
-- Sem subscrição ativa não se publica, e as lojas publicadas saem da web até o pagamento ser feito. Os dados ficam.
+- Sem subscrição ativa a loja não se publica e, se estava publicada, sai da web até o pagamento ser feito. Os dados ficam, e as outras lojas da conta não mudam.
 - Uma conta de administrador não vê preços nem botão de pagamento aqui: não paga.`,
 
   config: `ECRÃ: Dashboard → «Configurações».
@@ -272,7 +274,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 
   legal: `ECRÃ: páginas legais (Termos de Serviço, Política de Privacidade, Política Geral).
 - A MôBisno é a plataforma tecnológica; cada Dono é o vendedor responsável pelos produtos, preços, entregas, devoluções e obrigações fiscais da loja dele.
-- Os Termos descrevem o plano único (o preço está nos FACTOS), e dizem que criar e pré-visualizar é grátis e que a subscrição serve para publicar.
+- Os Termos descrevem o plano único, pago por loja (o preço está nos FACTOS): cada Loja tem a sua subscrição. Dizem também que criar e pré-visualizar é grátis e que a subscrição serve para publicar.
 - Dizem também que todas as lojas vendem por WhatsApp e que Multicaixa Express e Referência Bancária são para empresas registadas, depois de a MôBisno aprovar os documentos.
 - A Política de Privacidade descreve os dados da empresa recolhidos para essa verificação (nome, NIF, IBAN, ${DOCUMENTOS}): ficam num armazenamento privado, são vistos apenas pelo Dono e pela administração da MôBisno, e servem só para verificar a empresa e pagar as vendas.
 - As funcionalidades «Em breve» são nomeadas como não incluídas enquanto não existirem.
@@ -286,8 +288,8 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Se o Administrador tiver criado lojas com a **própria conta**, elas não entram nos números da Visão geral (são de teste, e contá-las dava uma leitura falsa do negócio). A Visão geral diz-lho numa nota, com ligação para «Lojas», que é onde elas aparecem. Em «Contas», a conta de administração está no filtro «Administradores», não no de entrada.
 - Quando uma secção não consegue ler os dados, aparece «Não foi possível carregar esta secção» **com a causa** e um botão «Tentar de novo». Se a causa disser que falta uma coluna ou uma tabela, falta aplicar uma migração de supabase/migrations: é a diferença entre a plataforma estar vazia e a leitura ter falhado.
 - APROVAÇÕES: os pedidos das empresas para receber por Multicaixa Express e Referência Bancária. Os que estão «${VERIFICATION_STATUS_LABEL.pending}» vêm primeiro, o mais antigo à frente, com o dono, a empresa, o NIF, o banco, o titular, o IBAN e a data de envio. «Ver matrícula» e «Ver certidão» abrem os documentos num separador novo, com uma ligação temporária. «Aprovar» pede confirmação e liga sozinho os pagamentos digitais da loja; «Rejeitar» exige um motivo com pelo menos ${REJECTION_REASON_MIN} caracteres, que o Dono lê no painel dele, e desliga-os. Há «Histórico», com filtros «Aprovados» e «Rejeitados».
-- CONTAS: os Donos, com email, número de lojas e estado da subscrição; filtros «Com subscrição», «A terminar», «Sem subscrição» e «Administradores». A subscrição ativa-se à mão: «Ativar» (ou «Prolongar», se ainda estiver ativa) com ${ACTIVATION_MONTHS.slice(0, -1).join(", ")} ou ${ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]} meses, somados ao fim do período em curso. «Desativar» termina já e tira do ar as lojas publicadas da conta, sem apagar nada.
-- LOJAS: pesquisa e filtros «Publicadas», «Fora do ar», «Rascunho», «Pagamentos digitais» e «Lojas-modelo». «Publicada · fora do ar» quer dizer dono sem subscrição. Dá para editar, publicar, despublicar e eliminar.
+- CONTAS: os Donos, com email, número de lojas e estado da subscrição (a conta está «com subscrição» enquanto alguma loja dela estiver); filtros «Com subscrição», «A terminar», «Sem subscrição» e «Administradores». Em «Detalhes» estão as lojas da conta, com o estado e a subscrição de cada uma, e «Eliminar conta».
+- LOJAS: pesquisa e filtros «Publicadas», «Fora do ar», «Rascunho», «Pagamentos digitais» e «Lojas-modelo». A subscrição é de cada loja, e cada linha mostra a dela; «Publicada · fora do ar» quer dizer loja sem subscrição. A subscrição ativa-se aqui, à mão e loja a loja: «Ativar» (ou «Prolongar», se ainda estiver ativa) com ${ACTIVATION_MONTHS.slice(0, -1).join(", ")} ou ${ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]} meses, somados ao fim do período em curso. «Desativar» termina já e tira essa loja do ar, sem apagar nada e sem mexer nas outras lojas do dono. Dá também para editar, publicar, despublicar e eliminar.
 - MODELOS: importar os predefinidos, criar, editar no editor e apagar as lojas-modelo. Apagar verifica primeiro se alguma loja de cliente usa o modelo.
 - PAGAMENTOS: «Subscrições» (pagamentos do plano), «Encomendas das lojas» (só leitura) e «Levantamentos», com «Aprovar», «Marcar como pago» e «Rejeitar».
 - Não há exportação de dados nem envio de mensagens aos Donos a partir deste painel.`,

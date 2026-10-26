@@ -18,6 +18,7 @@
  */
 import { esc } from "../../lib/dom.js";
 import { publicStoreUrl, STORE_APEX } from "../../composition.js";
+import type { AccountStatus } from "../../../src/services/adminMetrics.js";
 
 /* ------------------------------ Contrato das secções ------------------------------ */
 
@@ -291,4 +292,19 @@ export function announce(id: string, text: string): void {
   // Esvaziar primeiro: a mesma frase duas vezes seguidas também é anunciada.
   el.textContent = "";
   window.setTimeout(() => { el.textContent = text; }, 50);
+}
+
+/**
+ * Selo do estado de uma subscrição: «Ativa até…», «Termina em…», «Expirou a…»,
+ * «Sem subscrição» ou «Administrador». Serve a conta («Contas») e cada loja
+ * («Lojas»); o estado sai sempre de `accountStatus`.
+ */
+export function planPill(st: AccountStatus): string {
+  switch (st.kind) {
+    case "admin": return pill("Administrador", "blue", "shield_person");
+    case "active": return pill(`Ativa até ${fmtDate(st.expiresAt)}`, "green");
+    case "expiring": return pill(endsIn(st.expiresAt), "amber", "schedule");
+    case "expired": return pill(`Expirou a ${fmtDate(st.expiredAt)}`, "gray");
+    default: return pill("Sem subscrição", "gray");
+  }
 }

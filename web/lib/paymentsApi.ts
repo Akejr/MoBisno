@@ -35,6 +35,8 @@ export type InitPaymentInput =
     }
   | {
       kind: "plan";
+      /** A loja cuja subscrição se paga: cada loja tem a sua (migração 0025). */
+      storeId: string;
       method: DigitalPaymentMethod;
       phone?: string;
     };

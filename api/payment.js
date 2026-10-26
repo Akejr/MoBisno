@@ -42,11 +42,15 @@ function aoPhone(raw) {
  * (`api/_provider.js`), e viaja de servidor para servidor — nunca passa pelo
  * navegador de ninguém. Os de retorno levam o id do pagamento, para a página
  * saber o que verificar; **não é por aí que a venda é dada por paga**.
+ *
+ * O da subscrição leva também a loja (`&loja=`): o regresso recarrega a página,
+ * e sem ela o painel abria na primeira loja do Dono, não na que ele pagou.
  */
-function callbackUrls({ host, kind, id, returnBase }) {
+function callbackUrls({ host, kind, id, returnBase, storeId }) {
   const plataforma = platformOrigin(host);
   const segredo = encodeURIComponent(process.env.WIPAY_WEBHOOK_SECRET || "");
-  const retorno = `${returnBase}?pagamento=${encodeURIComponent(id)}&tipo=${kind}`;
+  const daLoja = storeId ? `&loja=${encodeURIComponent(storeId)}` : "";
+  const retorno = `${returnBase}?pagamento=${encodeURIComponent(id)}&tipo=${kind}${daLoja}`;
   return {
     callbackUrl: `${plataforma}/api/payment-webhook?k=${segredo}`,
     successUrl: retorno,
@@ -80,16 +84,24 @@ export default async function handler(req, res) {
     if (kind === "plan") {
       const ownerId = await ownerFromRequest(db, req);
       if (!ownerId) return send(res, 401, { success: false, error: "Inicie sessão para pagar a subscrição.", code: "UNAUTHENTICATED" });
-      const payment = await createPlanPayment(db, ownerId, method);
+      // A subscrição é de uma loja (migração 0025), e só o dono dela a paga.
+      const storeId = String(body.storeId || "");
+      if (!storeId) return send(res, 400, { success: false, error: "Escolha a loja a subscrever.", code: "MISSING_STORE" });
+      const { data: loja } = await db.from("stores").select("id, name, owner_id").eq("id", storeId).maybeSingle();
+      if (!loja || loja.owner_id !== ownerId) {
+        return send(res, 404, { success: false, error: "Loja não encontrada.", code: "STORE_NOT_FOUND" });
+      }
+      const payment = await createPlanPayment(db, ownerId, method, loja.id);
       if (!payment) return send(res, 500, { success: false, error: "Não foi possível registar o pagamento.", code: "PERSIST_FAILED" });
 
       const urls = callbackUrls({
-        host, kind, id: payment.id, returnBase: `${platformOrigin(host)}/painel/plano`,
+        host, kind, id: payment.id, returnBase: `${platformOrigin(host)}/painel/plano`, storeId: loja.id,
       });
+      const descricao = `Subscrição da loja ${loja.name || "MôBisno"} (30 dias)`;
       const r = await provider.createPayment({
         method, amount: payment.amount, reference: payment.id,
-        description: "Subscrição MôBisno (30 dias)", phone,
-        items: [{ productName: "Subscrição MôBisno (30 dias)", productPrice: payment.amount, productQuantity: 1 }],
+        description: descricao, phone,
+        items: [{ productName: descricao, productPrice: payment.amount, productQuantity: 1 }],
         payee: null, ...urls,
       });
       if (!r.ok) {

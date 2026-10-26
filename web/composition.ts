@@ -13,7 +13,7 @@ import { createFileService } from "../src/services/fileService.js";
 import { createWizardFlow } from "../src/app/wizardFlow.js";
 import { createAdminPanel, type AdminPanel } from "../src/app/adminPanel.js";
 import type { Session } from "../src/services/authService.js";
-import { resolveBilling, type BillingState } from "../src/services/billing.js";
+
 import { templateOptions } from "./templates/registry.js";
 
 import { supabase } from "./supabase/client.js";
@@ -122,30 +122,6 @@ export async function getOwnerName(ownerId: string): Promise<string> {
   return (data?.name as string | undefined)?.trim() ?? "";
 }
 
-/* ---------------------------- Subscrição ------------------------------- */
-
-/**
- * Estado da subscrição da conta: «administrador, ou `plan_expires_at` no
- * futuro». Um só plano, lojas ilimitadas — ver `src/services/plans.ts`.
- */
-export async function getOwnerBilling(ownerId?: string | null): Promise<BillingState> {
-  const id = ownerId ?? (await currentOwnerId());
-  if (!id) return resolveBilling({ planExpiresAt: null });
-  const { data } = await supabase
-    .from("profiles")
-    .select("plan_expires_at, is_admin")
-    .eq("id", id)
-    .maybeSingle();
-  return resolveBilling({
-    planExpiresAt: (data?.plan_expires_at as string | null | undefined) ?? null,
-    isAdmin: data?.is_admin === true,
-  });
-}
-
-/** A conta pode publicar e manter lojas online? */
-export async function ownerCanPublish(ownerId?: string | null): Promise<boolean> {
-  return (await getOwnerBilling(ownerId)).accessActive;
-}
 
 
 /**

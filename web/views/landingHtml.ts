@@ -14,22 +14,17 @@
  *
  * ## O desenho
  *
- * Pouca informação, muito espaço, e uma ideia por secção. A prova do produto
- * está no topo e não num texto: um telemóvel com uma loja e, por cima dele, a
- * encomenda a chegar ao WhatsApp, composta pela função que a loja usa de
- * verdade (`buildCartWhatsAppMessage`). Depois, só o que decide a compra: como
- * se faz, o que vem incluído, como entra o dinheiro, quanto custa.
- *
- * O cabeçalho (`platformNavHtml`) e o rodapé são os partilhados por todas as
- * páginas da plataforma e não mudam aqui.
+ * Pouca informação, muito espaço, e uma ideia por secção: o topo com o
+ * acordeão de imagens, como funciona, o que vem incluído, como entra o dinheiro,
+ * quanto custa, e as perguntas. O cabeçalho (`platformNavHtml`) e o rodapé são
+ * os partilhados por todas as páginas da plataforma e não mudam aqui.
  *
  * ## O movimento nunca esconde nada sem JavaScript
  *
- * O servidor envia tudo no estado final, visível. O topo entra ao carregar, só
- * com CSS; as secções de baixo entram ao rolar, e quem as prepara é
- * `web/lib/landingMotion.ts`: esconde **só o que ainda está fora do ecrã** e
- * mostra-o quando lá chega. Todas as regras que escondem exigem a classe
- * `mb-armed`, que só esse módulo põe, e vivem dentro de
+ * O servidor envia tudo no estado final, visível. As secções entram ao rolar, e
+ * quem as prepara é `web/lib/landingMotion.ts`: esconde **só o que ainda está
+ * fora do ecrã** e mostra-o quando lá chega. Todas as regras que escondem exigem
+ * a classe `mb-armed`, que só esse módulo põe, e vivem dentro de
  * `prefers-reduced-motion: no-preference`. `tests/landingCopy.test.ts` guarda as
  * duas coisas.
  *
@@ -49,13 +44,10 @@
 import { platformNavHtml, platformFooterHtml, PLATFORM_ACCENT } from "../templates/platformChrome.js";
 import { glowCardStyleTag } from "../lib/glowCards.js";
 import { esc } from "../lib/dom.js";
-import { PLAN_NAME, PLAN_PRICE_KZ, PLAN_PERIOD_DAYS, PLAN_HIGHLIGHTS } from "../../src/services/plans.js";
+import { PLAN_NAME, PLAN_PRICE_KZ, PLAN_PERIOD_DAYS, PLAN_HIGHLIGHTS, PLAN_UNIT_LABEL } from "../../src/services/plans.js";
 import { comingSoonList } from "../../src/services/comingSoon.js";
 import { STORE_APEX, PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
 import { DELIVERY_PROVINCE, LUANDA_AREAS } from "../../src/services/delivery.js";
-import { buildCartWhatsAppMessage, type OrderLine } from "../../src/services/cartMessage.js";
-import { discountAmount } from "../../src/services/discount.js";
-import { formatKz } from "../../src/services/format.js";
 import {
   PLATFORM_FEE_RATE, PLATFORM_FEE_LABEL, platformFee, netForOwner, feeForMethod,
 } from "../../src/services/fees.js";
@@ -71,10 +63,6 @@ const ACCENT = PLATFORM_ACCENT;
  * `web/views/dashboard/ui.ts`.
  */
 const ACCENT_INK = "#C2410C";
-/** Laranja para texto pequeno sobre o fundo escuro. */
-const ACCENT_ON_DARK = "#fb923c";
-/** Fundo da secção escura e moldura do telemóvel. */
-const INK = "#0b0b0f";
 /** Fundo dos ícones. */
 const SOFT = "#fff4ed";
 
@@ -89,6 +77,32 @@ const LEAD = "mt-5 text-lg md:text-xl leading-relaxed text-gray-600";
 const BTN_MAIN = "mb-go inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 font-semibold text-white shadow-[0_14px_30px_-12px_rgba(249,89,1,.75)] transition-transform active:scale-[.98]";
 /** Botão secundário. */
 const BTN_ALT = "inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-7 py-3.5 font-semibold text-gray-800 transition-colors hover:bg-gray-50";
+
+/* --------------------------------- O topo --------------------------------- */
+
+/** Cartões do acordeão de imagens do topo. */
+export const ACCORDION_ITEMS: readonly { title: string; imageUrl: string }[] = [
+  { title: "Sem código", imageUrl: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Editor visual ao vivo", imageUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?q=80&w=1200&auto=format&fit=crop" },
+  { title: `Endereço .${STORE_APEX}`, imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Pagamentos e entregas", imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Encomendas por WhatsApp", imageUrl: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?q=80&w=1200&auto=format&fit=crop" },
+];
+
+/** Classes da legenda de um cartão do acordeão. */
+const CAP_BASE = "absolute text-white text-base font-semibold whitespace-nowrap transition-all duration-500 ease-in-out drop-shadow";
+/** Legenda do cartão aberto (horizontal, em baixo). */
+export const CAP_ACTIVE = `${CAP_BASE} bottom-5 left-1/2 -translate-x-1/2 rotate-0`;
+/** Legenda de um cartão fechado (na vertical). */
+export const CAP_IDLE = `${CAP_BASE} bottom-24 left-1/2 -translate-x-1/2 rotate-90`;
+/** Largura do cartão aberto e de um fechado. */
+export const ACC_OPEN_WIDTH = "20rem";
+export const ACC_IDLE_WIDTH = "3.5rem";
+/**
+ * Cartão aberto à entrada: o último. O HTML já sai assim: antes saíam todos
+ * fechados e o último abria quando a vista arrancava, um salto no primeiro ecrã.
+ */
+export const ACC_INITIAL = ACCORDION_ITEMS.length - 1;
 
 /**
  * Ações do cabeçalho. São ligações reais (`/criar`, `/login`, `/painel`): sem
@@ -131,8 +145,8 @@ function icon(name: string, cls = "text-[22px]"): string {
 }
 
 /** Etiqueta pequena por cima do título de uma secção. */
-function eyebrow(text: string, onDark = false): string {
-  return `<p class="text-xs font-bold uppercase tracking-[0.18em]" style="color:${onDark ? ACCENT_ON_DARK : ACCENT_INK}">${esc(text)}</p>`;
+function eyebrow(text: string): string {
+  return `<p class="text-xs font-bold uppercase tracking-[0.18em]" style="color:${ACCENT_INK}">${esc(text)}</p>`;
 }
 
 /* --------------------------------- Movimento -------------------------------- */
@@ -154,13 +168,8 @@ const EASE_OUT = "cubic-bezier(.16,1,.3,1)";
  *    escondem, estão dentro de `prefers-reduced-motion: no-preference`.
  *  - **Só `opacity` e `transform`.** Nada mexe na disposição da página, por isso
  *    nada salta (e o CLS fica a zero).
- *
- * O topo entra ao carregar com CSS puro, sem esperar pelo JavaScript: o título,
- * o texto e os botões ficam fixos (é o que o Google mede como primeiro ecrã) e
- * só o telemóvel e os cartões à volta dele entram.
  */
 export const LANDING_CSS = [
-  ".mb-typing{display:none}",
   "summary::-webkit-details-marker{display:none}",
   ".mb-go .mb-ico{transition:transform .3s ease}",
   ".mb-go:hover .mb-ico{transform:translateX(3px)}",
@@ -168,23 +177,8 @@ export const LANDING_CSS = [
   "@keyframes mb-fade{from{opacity:0}to{opacity:1}}",
   "@keyframes mb-pop{0%{opacity:0;transform:scale(.6)}70%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:none}}",
   "@keyframes mb-draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}",
-  "@keyframes mb-float{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-12px,0)}}",
-  "@keyframes mb-dot{0%,80%,100%{opacity:.35;transform:none}40%{opacity:1;transform:translateY(-3px)}}",
-  "@keyframes mb-typing{0%{opacity:0}12%{opacity:1}88%{opacity:1}100%{opacity:0}}",
-  "@keyframes mb-drift{0%,100%{transform:translate3d(-6%,0,0) scale(1)}50%{transform:translate3d(6%,-4%,0) scale(1.12)}}",
-  "@keyframes mb-pan{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}",
   "@media (prefers-reduced-motion:no-preference){",
-  ".mb-float{animation:mb-float 7s ease-in-out infinite}",
-  ".mb-drift{animation:mb-drift 18s ease-in-out infinite}",
-  ".mb-pan{background-size:200% 200%;animation:mb-pan 16s ease-in-out infinite}",
-  ".mb-dot{animation:mb-dot 1.2s ease-in-out infinite}",
-  ".mb-dot:nth-child(2){animation-delay:.15s}",
-  ".mb-dot:nth-child(3){animation-delay:.3s}",
   "details[open] .mb-answer{animation:mb-fade .35s ease both}",
-  // O topo: entra ao carregar.
-  `.mb-hero [data-enter]{animation:mb-up 1s ${EASE_OUT} both;animation-delay:var(--d,0ms)}`,
-  ".mb-hero .mb-typing{display:flex;animation:mb-typing 1.5s ease both;animation-delay:var(--d,0ms)}",
-  ".mb-hero [data-after]{animation:mb-fade .5s ease both;animation-delay:var(--d,0ms)}",
   // As secções: entram ao rolar (web/lib/landingMotion.ts).
   ".mb-armed[data-reveal],.mb-armed [data-reveal]{opacity:0;transform:translate3d(0,28px,0)}",
   `.mb-in[data-reveal],.mb-in [data-reveal]{animation:mb-up .9s ${EASE_OUT} both;animation-delay:var(--d,0ms)}`,
@@ -198,180 +192,40 @@ export const LANDING_CSS = [
 /** Quadrícula fina do fundo do topo, a desvanecer para os lados. */
 const GRID_BG = "background-image:linear-gradient(to right,rgba(17,24,39,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(17,24,39,.05) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(ellipse 70% 60% at 70% 20%,#000 20%,transparent 70%);mask-image:radial-gradient(ellipse 70% 60% at 70% 20%,#000 20%,transparent 70%)";
 
-/* ------------------------------ A loja de exemplo ------------------------------ */
-
-interface DemoProduct { readonly name: string; readonly price: number; readonly photo: string }
-
-/** Os produtos da loja do telemóvel. Fotografias do Unsplash, no tamanho do cartão. */
-const DEMO_PRODUCTS: readonly DemoProduct[] = [
-  { name: "Auscultadores", price: 24_900, photo: "photo-1505740420928-5e560c06d30e" },
-  { name: "Relógio clássico", price: 32_000, photo: "photo-1523275335684-37898b6baf30" },
-  { name: "Ténis de corrida", price: 18_500, photo: "photo-1542291026-7eec264c27ff" },
-  { name: "Óculos de sol", price: 12_000, photo: "photo-1572635196237-14b3f281503f" },
-];
-
-function photoUrl(id: string): string {
-  return `https://images.unsplash.com/${id}?w=240&h=240&fit=crop&auto=format&q=70`;
-}
-
-/** O que o cliente do exemplo pôs no carrinho: dois dos produtos da loja. */
-const DEMO_LINES: readonly OrderLine[] = [DEMO_PRODUCTS[1], DEMO_PRODUCTS[2]]
-  .filter((p): p is DemoProduct => !!p)
-  .map((p) => ({ name: p.name, quantity: 1, price: p.price }));
-
-/**
- * Zona de entrega do exemplo: a **primeira da lista canónica de Luanda**
- * (`src/services/delivery.ts`), não um nome escrito à mão.
- */
-const DEMO_AREA = LUANDA_AREAS[0] ?? DELIVERY_PROVINCE;
-const DEMO_FEE = 2_500;
-const DEMO_CODE = "PRIMEIRA10";
-const DEMO_DISCOUNT_PCT = 10;
-
-/**
- * A encomenda de exemplo, composta pela **função verdadeira**
- * (`buildCartWhatsAppMessage`, a mesma que o checkout, o carrinho e a gaveta
- * usam) e com o desconto calculado como o checkout o calcula: sobre os
- * produtos mais a entrega (`web/views/checkout.ts`). Não é um texto a imitar o
- * produto. Se o formato da mensagem mudar, o exemplo muda com ele.
- *
- * Sem Combinação nas linhas de propósito: a mensagem escreve-a depois de um
- * travessão, e a página não tem nenhum.
- */
-const DEMO_ORDER_MESSAGE = buildCartWhatsAppMessage(DEMO_LINES, formatKz, {
-  delivery: { area: DEMO_AREA, fee: DEMO_FEE },
-  discount: {
-    code: DEMO_CODE,
-    amount: discountAmount(
-      { type: "percent", value: DEMO_DISCOUNT_PCT },
-      DEMO_LINES.reduce((sum, l) => sum + l.price * l.quantity, 0) + DEMO_FEE,
-    ),
-  },
-});
-
-/**
- * Venda do exemplo da comissão. Exportada para o teste confirmar que o que fica
- * para levantar é calculado por `netForOwner`, e não escrito.
- */
-export const DEMO_SALE_KZ = 20_000;
-
-/** Comissão de uma venda por WhatsApp, em percentagem. Sobre 100 Kz, os Kz são a percentagem. */
-const WHATSAPP_FEE_PCT = feeForMethod("whatsapp", 100);
-/** Comissão de uma venda digital, em percentagem, para a contagem. */
-const DIGITAL_FEE_PCT = Number((PLATFORM_FEE_RATE * 100).toFixed(2));
-
-/* ----------------------------------- Topo ----------------------------------- */
-
-/** Cartão do código de desconto, ao lado do telemóvel. */
-function discountChip(): string {
-  return `
-              <div data-enter style="--d:900ms" class="absolute -top-5 hidden sm:block sm:-left-16 lg:-left-20 xl:-left-28">
-                <div class="flex items-center gap-2.5 rounded-2xl bg-white py-2.5 pl-2.5 pr-4 shadow-[0_20px_45px_-20px_rgba(17,24,39,.45)] ring-1 ring-black/5">
-                  <span class="flex h-8 w-8 items-center justify-center rounded-xl" style="background:${SOFT};color:${ACCENT_INK}">${icon("sell", "text-[18px]")}</span>
-                  <span class="leading-tight">
-                    <span class="block font-mono text-[12px] font-bold text-gray-900">${esc(DEMO_CODE)}</span>
-                    <span class="block text-[11px] font-semibold text-emerald-700">-${DEMO_DISCOUNT_PCT}% aplicado</span>
-                  </span>
-                </div>
-              </div>`;
-}
-
-/**
- * A encomenda a chegar ao WhatsApp: três pontos a escrever e depois a mensagem.
- * A caixa da mensagem ocupa sempre o seu lugar (só a opacidade muda), por isso o
- * cartão não cresce quando ela aparece.
- */
-function whatsappCard(): string {
-  const dot = `<span class="mb-dot h-1.5 w-1.5 rounded-full bg-gray-400"></span>`;
-  return `
-              <div data-enter style="--d:1150ms" class="absolute -bottom-10 -right-4 w-[18rem] sm:-right-16 sm:w-[18.5rem] lg:-right-20">
-                <div class="overflow-hidden rounded-2xl bg-white shadow-[0_30px_70px_-25px_rgba(17,24,39,.5)] ring-1 ring-black/5">
-                  <div class="flex items-center gap-2.5 px-4 py-3">
-                    <img src="/integrations/Whatsapp.png" alt="" class="h-8 w-8 object-contain" />
-                    <span class="min-w-0 flex-1 leading-tight">
-                      <span class="block text-[13px] font-bold text-gray-900">Nova encomenda</span>
-                      <span class="block text-[11px] text-gray-500">WhatsApp · agora</span>
-                    </span>
-                  </div>
-                  <div class="px-3 pb-3" style="background:#efeae2">
-                    <div class="relative pt-3">
-                      <span class="mb-typing absolute left-0 top-3 items-center gap-1 rounded-2xl rounded-tl-md bg-white px-3 py-2.5 shadow-sm" style="--d:1550ms">${dot}${dot}${dot}</span>
-                      <p data-after style="--d:2950ms" class="whitespace-pre-line rounded-2xl rounded-tl-md bg-white px-3.5 py-3 text-[11px] leading-[1.55] text-gray-800 shadow-sm sm:text-[11.5px]">${esc(DEMO_ORDER_MESSAGE)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>`;
-}
-
-/**
- * O telemóvel com a loja, e os dois cartões que entram à volta dele. No
- * telemóvel verdadeiro só fica o da encomenda: o do código de desconto taparia
- * metade da loja num ecrã estreito.
- */
-function heroVisual(): string {
-  const produtos = DEMO_PRODUCTS.map((p, i) => `
-                      <li data-enter style="--d:${380 + i * 110}ms" class="rounded-2xl border border-gray-100 bg-white p-1.5">
-                        <div class="aspect-square overflow-hidden rounded-xl bg-gray-100"><img src="${esc(photoUrl(p.photo))}" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" /></div>
-                        <p class="mt-1.5 truncate px-0.5 text-[11px] font-semibold text-gray-900">${esc(p.name)}</p>
-                        <div class="flex items-center justify-between px-0.5 pb-0.5">
-                          <span class="text-[11px] font-black" style="color:${ACCENT_INK}">${esc(kzWhole(p.price))}</span>
-                          <span class="flex h-5 w-5 items-center justify-center rounded-full text-white" style="background:${ACCENT}">${icon("add", "text-[14px]")}</span>
-                        </div>
-                      </li>`).join("");
-  return `
-          <figure class="relative mx-auto w-[17rem] sm:w-[18.5rem]">
-            <figcaption class="sr-only">Exemplo de uma loja aberta no telemóvel e da encomenda que chega ao WhatsApp, já escrita.</figcaption>
-            <div aria-hidden="true">
-              <div class="absolute -inset-16 rounded-full blur-3xl" style="background:radial-gradient(closest-side,rgba(249,89,1,.30),rgba(249,89,1,0))"></div>
-              <div data-enter style="--d:120ms" class="relative">
-                <div class="mb-float">
-                  <div class="rounded-[2.75rem] p-2.5 ring-1 ring-black/10 shadow-[0_50px_100px_-40px_rgba(17,24,39,.65)]" style="background:${INK}">
-                    <div class="relative overflow-hidden rounded-[2.2rem] bg-white">
-                      <div class="absolute left-1/2 top-2.5 z-10 h-6 w-24 -translate-x-1/2 rounded-full" style="background:${INK}"></div>
-                      <div class="px-4 pb-4 pt-11 text-white" style="background:${ACCENT}">
-                        <div class="flex items-center justify-between">
-                          <span class="text-[15px] font-black tracking-tight">A sua loja</span>
-                          <span class="relative inline-flex">${icon("shopping_bag", "text-[22px]")}<span class="absolute -right-1.5 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-black" style="color:${ACCENT_INK}">${DEMO_LINES.length}</span></span>
-                        </div>
-                        <div class="mt-3 flex items-center gap-2 rounded-full bg-white/20 px-3 py-2 text-[11px] text-white">${icon("search", "text-[15px]")}Pesquisar produtos</div>
-                      </div>
-                      <p class="px-4 pt-4 text-[12px] font-bold text-gray-900">Mais vendidos</p>
-                      <ul class="grid grid-cols-2 gap-2.5 px-4 pb-5 pt-2.5">${produtos}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>${discountChip()}${whatsappCard()}
-            </div>
-          </figure>`;
-}
-
 /**
  * O topo. O título é o que o Dono escreveu, com o «em minutos» escrito à
  * máquina por `landing.ts`: o elemento `data-typed` tem de ser o **último** do
- * título, para crescer sem reposicionar nada.
- *
- * O texto fica fixo ao carregar; só o telemóvel entra. É o título que o Google
- * mede como primeiro ecrã, e um título a aparecer com atraso piorava essa
- * medida.
+ * título, para crescer sem reposicionar nada. Ao lado, o acordeão de imagens,
+ * que a vista abre ao passar o rato ou ao tocar.
  */
 function heroSection(): string {
+  const accordion = ACCORDION_ITEMS.map((it, idx) => {
+    const open = idx === ACC_INITIAL;
+    return `
+              <div data-acc data-index="${idx}" class="relative h-[360px] sm:h-[440px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-700 ease-in-out shrink-0" style="width:${open ? ACC_OPEN_WIDTH : ACC_IDLE_WIDTH}">
+                <img src="${esc(it.imageUrl)}" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x450/1a1a1a/ffffff?text=MôBisno'" />
+                <div class="absolute inset-0 bg-black/40"></div>
+                <span data-cap class="${open ? CAP_ACTIVE : CAP_IDLE}">${esc(it.title)}</span>
+              </div>`;
+  }).join("");
   return `
-      <section class="mb-hero relative w-full overflow-hidden">
+      <section class="relative w-full overflow-hidden">
         <div aria-hidden="true" class="pointer-events-none absolute inset-0">
           <div class="absolute -right-40 -top-48 h-[40rem] w-[40rem] rounded-full blur-3xl" style="background:radial-gradient(closest-side,rgba(249,89,1,.22),rgba(249,89,1,0))"></div>
           <div class="absolute inset-0" style="${GRID_BG}"></div>
         </div>
-        <div class="relative max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop pb-24 pt-12 md:pb-32 md:pt-20">
-          <div class="grid grid-cols-1 items-center gap-16 lg:grid-cols-2 lg:gap-10">
-            <div class="text-center lg:text-left">
-              <p class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold uppercase tracking-wider shadow-sm" style="color:${ACCENT_INK}">${icon("chat", "text-[16px]")}Já vende por WhatsApp?</p>
-              <h1 class="mt-5 text-[2.125rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl font-black tracking-[-0.035em] text-gray-900">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
-              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Ponha o seu catálogo num link. O cliente escolhe sozinho, a qualquer hora, e a encomenda chega-lhe escrita ao WhatsApp.</p>
+        <div class="relative max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 md:py-20">
+          <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
+            <div class="w-full lg:w-1/2 text-center lg:text-left">
+              <h1 class="text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl font-black tracking-[-0.035em] text-gray-900">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
+              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Os seus clientes veem os produtos, escolhem e encomendam sozinhos, a qualquer hora. Cada pedido chega-lhe ao WhatsApp com o total já calculado.</p>
               <div id="hero-actions" class="mt-9 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">${landingHeroActions(false)}</div>
               <p class="mt-5 text-sm text-gray-500">Sem programar. Grátis até publicar.</p>
             </div>
-            <div class="relative pb-12 lg:pb-0">${heroVisual()}</div>
+            <div class="w-full lg:w-1/2">
+              <div id="accordion" class="flex flex-row items-center justify-center lg:justify-end gap-3 overflow-x-auto p-2">${accordion}
+              </div>
+            </div>
           </div>
         </div>
       </section>`;
@@ -433,9 +287,8 @@ function stepsSection(): string {
               </li>`).join("")}
             </ol>
           </div>
-          <div data-motion data-reveal class="mt-14 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+          <div data-motion data-reveal class="mt-14">
             <a href="/criar" class="${BTN_MAIN}" style="background:${ACCENT}">Criar minha loja ${icon("arrow_forward", "text-[20px]")}</a>
-            <p class="text-sm text-gray-500">Grátis até publicar.</p>
           </div>
         </div>
       </section>`;
@@ -477,70 +330,86 @@ function featuresSection(): string {
 
 /* --------------------------------- Pagamentos --------------------------------- */
 
-/** Logótipo de um meio de pagamento (já é um círculo). O título do cartão diz qual é. */
-function payTile(src: string): string {
-  return `<img src="${src}" alt="" loading="lazy" decoding="async" class="h-12 w-12 rounded-full ring-2 ring-white/10" />`;
+/**
+ * Venda do exemplo da comissão. Exportada para o teste confirmar que o que fica
+ * para levantar é calculado por `netForOwner`, e não escrito.
+ */
+export const DEMO_SALE_KZ = 20_000;
+
+/** Comissão de uma venda por WhatsApp, em percentagem. Sobre 100 Kz, os Kz são a percentagem. */
+const WHATSAPP_FEE_PCT = feeForMethod("whatsapp", 100);
+/** Comissão de uma venda digital, em percentagem, para a contagem. */
+const DIGITAL_FEE_PCT = Number((PLATFORM_FEE_RATE * 100).toFixed(2));
+
+/** Logótipo de um meio de pagamento (já é um círculo). O título ao lado diz qual é. */
+function payLogo(src: string): string {
+  return `<img src="${src}" alt="" loading="lazy" decoding="async" class="h-11 w-11 rounded-full ring-4 ring-white" />`;
 }
 
-/**
- * A mesma venda nos dois caminhos: o que se vende, a comissão e o que fica.
- * Lado a lado, a diferença entre os dois cartões lê-se sem texto nenhum.
- */
-function saleExample(o: { fee: number; keep: number; keepLabel: string; countKeep: boolean }): string {
-  const fica = o.countKeep
-    ? `<span data-count="${o.keep}" data-count-format="kz">${esc(kzWhole(o.keep))}</span>`
-    : esc(kzWhole(o.keep));
+/** Uma linha da tabela dos dois caminhos: quem, em que condições, e a comissão. */
+function payRow(o: { logos: string; title: string; body: string; value: string; unit: string }): string {
   return `
-                <div class="mt-auto pt-8">
-                  <dl class="space-y-2.5 rounded-2xl bg-black/30 p-5 text-sm ring-1 ring-white/10">
-                    <div class="flex items-center justify-between gap-4"><dt class="text-white/60">Exemplo de venda</dt><dd class="font-semibold tabular-nums">${esc(kzWhole(DEMO_SALE_KZ))}</dd></div>
-                    <div class="flex items-center justify-between gap-4"><dt class="text-white/60">Comissão</dt><dd class="font-semibold tabular-nums">${o.fee > 0 ? "-" : ""}${esc(kzWhole(o.fee))}</dd></div>
-                    <div class="flex items-center justify-between gap-4 border-t border-white/10 pt-2.5"><dt class="font-semibold">${esc(o.keepLabel)}</dt><dd class="text-base font-black tabular-nums" style="color:${ACCENT_ON_DARK}">${fica}</dd></div>
-                  </dl>
+                <div class="flex items-center gap-4 p-6 md:gap-6 md:p-8">
+                  <span class="flex shrink-0 -space-x-3">${o.logos}</span>
+                  <div class="min-w-0 flex-1">
+                    <h3 class="text-base font-bold text-gray-900 md:text-lg">${esc(o.title)}</h3>
+                    <p class="mt-1 text-sm text-gray-600">${esc(o.body)}</p>
+                  </div>
+                  <p class="shrink-0 text-right">${o.value}<span class="block text-xs font-semibold text-gray-500">${esc(o.unit)}</span></p>
                 </div>`;
 }
 
 /**
- * Como entra o dinheiro, no fundo escuro: os dois caminhos lado a lado, e a
- * conta de uma venda digital feita pelas funções da comissão.
- *
- * A condição dos pagamentos digitais (empresa registada e aprovação) vem sempre
- * junto deles, e vira «Em breve» se o fornecedor não estiver ligado.
+ * Como entra o dinheiro: os dois caminhos numa tabela só, e a conta de uma
+ * venda pelo Multicaixa feita pelas funções da comissão, com a barra do que fica
+ * para o Dono. A condição dos pagamentos digitais (empresa registada e
+ * aprovação) vem sempre junto deles, e vira «Em breve» se o fornecedor não
+ * estiver ligado.
  */
 function paymentsSection(): string {
+  const venda = DEMO_SALE_KZ;
+  const fee = platformFee(venda);
+  const net = netForOwner(venda);
+  const parteDoDono = ((net / venda) * 100).toFixed(1);
   const condicao = `${PAYMENTS_PROVIDER_READY ? "" : "Em breve. "}Para empresas registadas, depois de aprovarmos a Matrícula e a Certidão.`;
-  const card = "flex h-full flex-col rounded-3xl bg-white/[0.04] p-8 ring-1 ring-white/10 md:p-10";
-  const feeWhatsapp = feeForMethod("whatsapp", DEMO_SALE_KZ);
-  const whatsapp = `
-              <article class="${card}">
-                <div class="flex gap-2">${payTile("/integrations/Whatsapp.png")}</div>
-                <p class="mt-10 flex items-baseline gap-3"><span class="text-6xl font-black tracking-tight tabular-nums">${WHATSAPP_FEE_PCT}%</span><span class="text-white/60">de comissão</span></p>
-                <h3 class="mt-6 text-xl font-bold">WhatsApp</h3>
-                <p class="mt-2 text-white/70">Desde o primeiro dia, em todas as lojas. O cliente paga-lhe diretamente.</p>${saleExample({ fee: feeWhatsapp, keep: DEMO_SALE_KZ - feeWhatsapp, keepLabel: "Fica consigo", countKeep: false })}
-              </article>`;
-  const digital = `
-              <article class="${card}">
-                <div class="flex gap-2">${payTile("/integrations/Express.png")}${payTile("/integrations/ATM.png")}</div>
-                <p class="mt-10 flex items-baseline gap-3"><span data-count="${DIGITAL_FEE_PCT}" data-count-format="pct" class="text-6xl font-black tracking-tight tabular-nums">${esc(PLATFORM_FEE_LABEL)}</span><span class="text-white/60">por venda</span></p>
-                <h3 class="mt-6 text-xl font-bold">${esc(DIGITAL_PAYMENTS_LABEL)}</h3>
-                <p class="mt-2 text-white/70">${esc(condicao)}</p>${saleExample({ fee: platformFee(DEMO_SALE_KZ), keep: netForOwner(DEMO_SALE_KZ), keepLabel: "Fica para levantar", countKeep: true })}
-              </article>`;
+  const numero = "block text-3xl font-black tracking-tight tabular-nums text-gray-900 md:text-4xl";
   return `
-      <section id="pagamentos" class="scroll-mt-20 relative w-full overflow-hidden py-24 text-white md:py-32" style="background:${INK}">
-        <div aria-hidden="true" class="mb-drift pointer-events-none absolute inset-x-0 -top-56 mx-auto h-[36rem] w-[56rem] max-w-none rounded-full blur-3xl" style="background:radial-gradient(closest-side,rgba(249,89,1,.45),rgba(249,89,1,0))"></div>
-        <div class="relative ${WRAP}">
-          <div data-motion data-reveal class="mx-auto max-w-3xl text-center">
-            ${eyebrow("Pagamentos", true)}
-            <h2 class="mt-4 text-[2.25rem] leading-[1.08] md:text-5xl font-black tracking-[-0.03em] text-white">Comece pelo WhatsApp. Cresça com o Multicaixa.</h2>
-            <p class="mt-5 text-lg md:text-xl leading-relaxed text-white/70">Só há comissão quando o pagamento passa pela MôBisno.</p>
+      <section id="pagamentos" class="scroll-mt-20 w-full bg-gray-50 py-24 md:py-32">
+        <div class="${WRAP} grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-16">
+          <div data-motion data-reveal class="lg:col-span-5">
+            ${eyebrow("Pagamentos")}
+            <h2 class="${H2}">Receba como os seus clientes já pagam.</h2>
+            <p class="${LEAD}">Comece pelo WhatsApp, sem comissão. Com a empresa aprovada, junte o Multicaixa Express e a Referência Bancária.</p>
+            <p class="mt-6 flex items-center gap-2 text-sm text-gray-500">${icon("receipt_long", "text-[18px]")}A fatura de cada venda sai em nome da sua empresa.</p>
           </div>
-          <div data-motion class="mt-16 grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div data-reveal>${whatsapp}
-            </div>
-            <div data-reveal style="--d:150ms">${digital}
+          <div data-motion class="lg:col-span-7">
+            <div data-reveal class="overflow-hidden rounded-[1.75rem] bg-white ring-1 ring-gray-200 shadow-[0_40px_90px_-50px_rgba(17,24,39,.45)]">${payRow({
+              logos: payLogo("/integrations/Whatsapp.png"),
+              title: "WhatsApp",
+              body: "Em todas as lojas, desde o primeiro dia. O cliente paga-lhe diretamente.",
+              value: `<span class="${numero}">${WHATSAPP_FEE_PCT}%</span>`,
+              unit: "de comissão",
+            })}
+              <div class="border-t border-gray-100"></div>${payRow({
+              logos: `${payLogo("/integrations/Express.png")}${payLogo("/integrations/ATM.png")}`,
+              title: DIGITAL_PAYMENTS_LABEL,
+              body: condicao,
+              value: `<span data-count="${DIGITAL_FEE_PCT}" data-count-format="pct" class="${numero}">${esc(PLATFORM_FEE_LABEL)}</span>`,
+              unit: "por venda",
+            })}
+              <div class="border-t border-gray-100 p-6 md:p-8" style="background:#fffaf6">
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">Exemplo: uma venda pelo Multicaixa</p>
+                <div aria-hidden="true" class="mt-4 flex h-2.5 overflow-hidden rounded-full bg-gray-200">
+                  <div data-draw style="--d:450ms;width:${parteDoDono}%;background:linear-gradient(90deg,${ACCENT},#ff8a4c)" class="h-full origin-left rounded-full"></div>
+                </div>
+                <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+                  <div><dt class="text-gray-500">Venda</dt><dd class="mt-0.5 font-bold tabular-nums text-gray-900">${esc(kzWhole(venda))}</dd></div>
+                  <div><dt class="text-gray-500">Comissão</dt><dd class="mt-0.5 font-bold tabular-nums text-gray-900">-${esc(kzWhole(fee))}</dd></div>
+                  <div class="text-right"><dt class="text-gray-500">Para levantar</dt><dd class="mt-0.5 font-black tabular-nums" style="color:${ACCENT_INK}"><span data-count="${net}" data-count-format="kz">${esc(kzWhole(net))}</span></dd></div>
+                </dl>
+              </div>
             </div>
           </div>
-          <p data-motion data-reveal class="mt-10 flex items-center justify-center gap-2 text-center text-sm text-white/60">${icon("receipt_long", "text-[18px]")}A fatura de cada venda sai em nome da sua empresa.</p>
         </div>
       </section>`;
 }
@@ -548,9 +417,9 @@ function paymentsSection(): string {
 /* ----------------------------------- Preço ----------------------------------- */
 
 /**
- * O único cartão de preço: um plano, um preço, tudo incluído. O que está «Em
- * breve» cabe numa linha: uma lista do que **não** existe não merece o mesmo
- * peso do que existe.
+ * O único cartão de preço: um plano, um preço por loja, tudo incluído. O que
+ * está «Em breve» cabe numa linha: uma lista do que **não** existe não merece o
+ * mesmo peso do que existe.
  */
 function pricingSection(): string {
   const incluido = PLAN_HIGHLIGHTS.map((f) => `
@@ -571,8 +440,8 @@ function pricingSection(): string {
             <div class="grid overflow-hidden rounded-[2rem] bg-white ring-1 ring-gray-200 shadow-[0_40px_90px_-50px_rgba(17,24,39,.45)] md:grid-cols-5">
               <div class="flex flex-col bg-gray-50 p-8 md:col-span-2 md:p-10">
                 <h3 class="text-lg font-bold text-gray-900">${esc(PLAN_NAME)}</h3>
-                <p class="mt-6 flex flex-wrap items-baseline gap-x-2"><span data-price class="text-5xl font-black tracking-tight text-gray-900">${esc(kzWhole(PLAN_PRICE_KZ))}</span><span data-period class="text-gray-500">${esc(planPeriodLabel())}</span></p>
-                <p class="mt-3 text-sm text-gray-500">Cada pagamento cobre ${esc(PLAN_PERIOD_DAYS)} dias.</p>
+                <p class="mt-6 flex flex-wrap items-baseline gap-x-2"><span data-price class="text-5xl font-black tracking-tight text-gray-900">${esc(kzWhole(PLAN_PRICE_KZ))}</span><span data-period class="text-gray-500">${esc(planPeriodLabel())} ${esc(PLAN_UNIT_LABEL)}</span></p>
+                <p class="mt-3 text-sm text-gray-500">Cada loja tem a sua subscrição. Cada pagamento cobre ${esc(PLAN_PERIOD_DAYS)} dias.</p>
                 <a href="/criar" class="${BTN_MAIN} mt-8 w-full md:mt-auto" style="background:${ACCENT}">Criar minha loja ${icon("arrow_forward", "text-[20px]")}</a>
               </div>
               <div class="p-8 md:col-span-3 md:p-10">
@@ -617,42 +486,6 @@ function faqSection(): string {
       </section>`;
 }
 
-/* --------------------------------- Apelo final --------------------------------- */
-
-/**
- * O último apelo, num painel cor de laranja queimado. Todos os tons do degradê
- * dão pelo menos 4,5:1 ao texto branco (o mais claro, `#cf440e`, dá 4,7), por
- * isso o contraste aguenta com o degradê a deslizar. A mancha desfocada é preta
- * de propósito: uma branca clareava o fundo por trás do texto no telemóvel.
- *
- * As ligações para o diretório e para os modelos são a prova verdadeira: lojas
- * publicadas e modelos que se abrem sem conta e sem pagar. Nenhuma contagem
- * inventada, nenhum testemunho, nenhum logótipo de quem nunca cá esteve.
- */
-function finalCtaSection(): string {
-  return `
-      <section id="comecar" class="w-full bg-white py-24 md:py-32">
-        <div class="${WRAP}">
-          <div data-motion data-reveal>
-            <div class="mb-pan relative overflow-hidden rounded-[2.5rem] px-6 py-20 text-center text-white md:px-16 md:py-24" style="background-image:linear-gradient(120deg,#cf440e 0%,#a8380a 30%,#c8420d 60%,#b23a0a 100%)">
-              <div aria-hidden="true" class="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full ring-1 ring-white/20"></div>
-              <div aria-hidden="true" class="pointer-events-none absolute -right-10 -top-10 h-52 w-52 rounded-full ring-1 ring-white/20"></div>
-              <div aria-hidden="true" class="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-black/10 blur-3xl"></div>
-              <div class="relative">
-                <h2 class="mx-auto max-w-3xl text-4xl font-black tracking-[-0.03em] md:text-6xl">Ponha o seu catálogo num link.</h2>
-                <p class="mx-auto mt-6 max-w-xl text-lg text-white md:text-xl">Crie a loja hoje. Só paga quando a quiser online.</p>
-                <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                  <a href="/criar" class="mb-go inline-flex items-center justify-center gap-2 rounded-xl bg-white px-7 py-3.5 font-bold shadow-lg transition-transform active:scale-[.98]" style="color:${ACCENT_INK}">Criar minha loja ${icon("arrow_forward", "text-[20px]")}</a>
-                  <a href="/lojas" class="inline-flex items-center justify-center rounded-xl px-7 py-3.5 font-semibold text-white ring-1 ring-inset ring-white/60 transition-colors hover:bg-white/10">Ver lojas criadas</a>
-                </div>
-                <p class="mt-6 text-sm text-white">Ou abra um dos <a href="/modelos" class="font-semibold text-white underline underline-offset-4">modelos prontos</a> antes de decidir.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>`;
-}
-
 /** HTML completo da página inicial, para quem ainda não tem sessão. */
 export function landingHtml(): string {
   return `
@@ -666,7 +499,7 @@ export function landingHtml(): string {
       actionsHtml: landingNavActions(false),
     })}
 
-    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${paymentsSection()}${pricingSection()}${faqSection()}${finalCtaSection()}
+    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${paymentsSection()}${pricingSection()}${faqSection()}
     </main>
 
     ${platformFooterHtml()}

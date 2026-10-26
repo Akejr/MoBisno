@@ -24,7 +24,7 @@
  */
 import {
   asVariantKey, linePriceOf, deliveryFeeOf, discountAmountOf, productsTotal, round2,
-  checkStock, decrementStock, accountActive, activatePlan, bumpDiscountUse, PLAN_PRICE_KZ,
+  checkStock, decrementStock, storeActive, activateStorePlan, bumpDiscountUse, PLAN_PRICE_KZ,
   feeForMethodOf,
 } from "./_shared.js";
 import { fulfilPaidOrder } from "./_fulfil.js";
@@ -112,15 +112,16 @@ export async function priceStoreOrder(db, { storeId, lines, area, discountCode }
 
   const { data: store } = await db
     .from("stores")
-    .select("id, name, identifier, owner_id, state, digital_payments, customization")
+    .select("id, name, identifier, owner_id, state, digital_payments, customization, plan_expires_at")
     .eq("id", storeId)
     .maybeSingle();
   if (!store || store.state !== "Publicada") return fail("STORE_NOT_FOUND", "Loja não encontrada.", 404);
   if (store.digital_payments !== true) {
     return fail("PAYMENTS_NOT_ENABLED", "Esta loja ainda não recebe pagamentos digitais. Pode encomendar por WhatsApp.");
   }
-  const { data: prof } = await db.from("profiles").select("is_admin, plan_expires_at").eq("id", store.owner_id).maybeSingle();
-  if (!accountActive(prof)) return fail("PLAN_NOT_COVERED", "Esta loja não está a aceitar pagamentos de momento.");
+  // A subscrição é da loja (migração 0025): sem ela, a loja não está online.
+  const { data: prof } = await db.from("profiles").select("is_admin").eq("id", store.owner_id).maybeSingle();
+  if (!storeActive(store, prof)) return fail("PLAN_NOT_COVERED", "Esta loja não está a aceitar pagamentos de momento.");
 
   const { data: payee } = await db
     .from("store_payments")
@@ -296,10 +297,14 @@ export async function ownerFromRequest(db, req) {
   }
 }
 
-/** Grava um pagamento de subscrição (preço do servidor). Devolve `{ id, amount }`. */
-export async function createPlanPayment(db, ownerId, method) {
+/**
+ * Grava o pagamento da subscrição de uma loja (preço do servidor). Devolve
+ * `{ id, amount }`. Cada loja tem a sua subscrição (migração 0025).
+ */
+export async function createPlanPayment(db, ownerId, method, storeId) {
   const { data, error } = await db.from("plan_payments").insert({
     owner_id: ownerId,
+    store_id: storeId,
     plan: "pro",
     period: "mensal",
     amount: PLAN_PRICE_KZ,
@@ -323,10 +328,18 @@ export async function confirmPlanPayment(db, paymentId, { invoiceUrl } = {}) {
     .update(patch)
     .eq("id", paymentId)
     .is("activated_at", null)
-    .select("owner_id")
+    .select("owner_id, store_id")
     .maybeSingle();
   if (!data?.owner_id) return false;
-  return activatePlan(db, data.owner_id);
+  // Um pagamento criado antes da migração 0025 não tem loja: fica para a loja
+  // mais antiga do dono, que era a primeira que a subscrição da conta cobria.
+  let storeId = data.store_id;
+  if (!storeId) {
+    const { data: loja } = await db.from("stores").select("id").eq("owner_id", data.owner_id)
+      .order("created_at", { ascending: true }).limit(1).maybeSingle();
+    storeId = loja?.id ?? null;
+  }
+  return activateStorePlan(db, storeId);
 }
 
 /** Encomenda ou pagamento de plano com esta referência do fornecedor. */

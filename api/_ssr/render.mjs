@@ -92,7 +92,8 @@ function toStore(r) {
     subdomain: r.subdomain,
     state: r.state,
     createdAt: r.created_at,
-    digitalPayments: r.digital_payments === true
+    digitalPayments: r.digital_payments === true,
+    planExpiresAt: typeof r.plan_expires_at === "string" ? r.plan_expires_at : null
   };
 }
 function toProduct(r) {
@@ -3952,9 +3953,10 @@ function readableInk(hex) {
 var PLAN_NAME = "M\xF4Bisno";
 var PLAN_PRICE_KZ = 1e4;
 var PLAN_PERIOD_DAYS = 30;
+var PLAN_UNIT_LABEL = "por loja";
 var PLAN_HIGHLIGHTS = [
-  "Lojas e produtos ilimitados",
-  "Checkout por WhatsApp em todas as lojas",
+  "Produtos ilimitados",
+  "Checkout por WhatsApp",
   "Multicaixa Express e Refer\xEAncia Banc\xE1ria para empresas verificadas",
   `Endere\xE7o pr\xF3prio nomedaloja.${STORE_APEX}`,
   "Editor visual e modelos prontos",
@@ -4049,7 +4051,7 @@ function platformFaq(providerReady = PAYMENTS_PROVIDER_READY) {
     },
     {
       question: "Quanto custa?",
-      answer: `${platformPriceLabel()}, com tudo inclu\xEDdo. H\xE1 um s\xF3 plano, sem escal\xF5es: lojas e produtos ilimitados. Criar a loja e v\xEA-la \xE9 gr\xE1tis; a subscri\xE7\xE3o serve para a publicar.`
+      answer: `${platformPriceLabel()} ${PLAN_UNIT_LABEL}, com tudo inclu\xEDdo. Cada loja tem a sua subscri\xE7\xE3o: quem tem duas lojas online paga duas. Produtos ilimitados e sem escal\xF5es. Criar a loja e v\xEA-la \xE9 gr\xE1tis; a subscri\xE7\xE3o serve para a publicar.`
     },
     {
       question: "A M\xF4Bisno fica com uma parte das minhas vendas?",
@@ -4578,74 +4580,28 @@ var LUANDA_AREAS = [
   "Zango"
 ];
 
-// src/services/cartMessage.ts
-var GREETING = "Ol\xE1! Gostaria de encomendar:";
-var CUSTOMER_TITLE = "Os meus dados:";
-var CUSTOMER_LABELS = [
-  ["name", "Nome"],
-  ["phone", "Telem\xF3vel"],
-  ["address", "Morada"],
-  ["email", "Email"],
-  ["nif", "NIF"]
-];
-function oneLine(value) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
-}
-function customerLines(customer) {
-  if (!customer) return [];
-  const out = [];
-  for (const [key, label] of CUSTOMER_LABELS) {
-    const value = oneLine(customer[key]);
-    if (value) out.push(`${label}: ${value}`);
-  }
-  return out;
-}
-function buildCartWhatsAppMessage(lines, formatMoney, extras) {
-  const itemLines = lines.map((l) => {
-    const label = l.variantLabel && l.variantLabel.trim() ? ` \u2014 ${l.variantLabel.trim()}` : "";
-    return `\u2022 ${l.quantity}x ${l.name}${label} (${formatMoney(l.price * l.quantity)})`;
-  });
-  const subtotal = lines.reduce((sum, l) => sum + l.price * l.quantity, 0);
-  const delivery = extras?.delivery;
-  const deliveryLine = delivery ? `Entrega: ${delivery.area}${delivery.fee > 0 ? ` (${formatMoney(delivery.fee)})` : " (gr\xE1tis)"}` : null;
-  const discount = extras?.discount;
-  const discountLine = discount ? `Desconto (${discount.code}): -${formatMoney(discount.amount)}` : null;
-  const total = Math.max(0, subtotal + (delivery?.fee ?? 0) - (discount?.amount ?? 0));
-  const head = [GREETING, ...itemLines, deliveryLine, discountLine].filter(
-    (l) => l !== null
-  );
-  const message = `${head.join("\n")}
-
-Total: ${formatMoney(total)}`;
-  const about = customerLines(extras?.customer);
-  return about.length ? `${message}
-
-${CUSTOMER_TITLE}
-${about.join("\n")}` : message;
-}
-
-// src/services/discount.ts
-function asRecord4(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  return value;
-}
-function discountAmount(code, total) {
-  const value = Number(asRecord4(code)?.["value"]) || 0;
-  const raw = code?.type === "percent" ? total * value / 100 : value;
-  return Math.max(0, Math.min(total, Math.round(raw)));
-}
-
 // web/views/landingHtml.ts
 var ACCENT = PLATFORM_ACCENT;
 var ACCENT_INK = "#C2410C";
-var ACCENT_ON_DARK = "#fb923c";
-var INK2 = "#0b0b0f";
 var SOFT = "#fff4ed";
 var WRAP = "max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop";
 var H2 = "mt-4 text-[2.25rem] leading-[1.08] md:text-5xl font-black tracking-[-0.03em] text-gray-900";
 var LEAD = "mt-5 text-lg md:text-xl leading-relaxed text-gray-600";
 var BTN_MAIN = "mb-go inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 font-semibold text-white shadow-[0_14px_30px_-12px_rgba(249,89,1,.75)] transition-transform active:scale-[.98]";
 var BTN_ALT = "inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-7 py-3.5 font-semibold text-gray-800 transition-colors hover:bg-gray-50";
+var ACCORDION_ITEMS = [
+  { title: "Sem c\xF3digo", imageUrl: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Editor visual ao vivo", imageUrl: "https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?q=80&w=1200&auto=format&fit=crop" },
+  { title: `Endere\xE7o .${STORE_APEX}`, imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Pagamentos e entregas", imageUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=1200&auto=format&fit=crop" },
+  { title: "Encomendas por WhatsApp", imageUrl: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?q=80&w=1200&auto=format&fit=crop" }
+];
+var CAP_BASE = "absolute text-white text-base font-semibold whitespace-nowrap transition-all duration-500 ease-in-out drop-shadow";
+var CAP_ACTIVE = `${CAP_BASE} bottom-5 left-1/2 -translate-x-1/2 rotate-0`;
+var CAP_IDLE = `${CAP_BASE} bottom-24 left-1/2 -translate-x-1/2 rotate-90`;
+var ACC_OPEN_WIDTH = "20rem";
+var ACC_IDLE_WIDTH = "3.5rem";
+var ACC_INITIAL = ACCORDION_ITEMS.length - 1;
 function landingNavActions(loggedIn) {
   return loggedIn ? `<a href="/painel" id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">dashboard</span><span class="hidden sm:inline">Abrir</span>Dashboard</a>` : `<a href="/login" id="cta-login" class="hidden sm:inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg text-sm transition-colors">Login</a>
        <a href="/criar" id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
@@ -4657,13 +4613,12 @@ function landingHeroActions(loggedIn) {
 function icon(name, cls = "text-[22px]") {
   return `<span class="material-symbols-outlined mb-ico ${cls}" aria-hidden="true">${esc(name)}</span>`;
 }
-function eyebrow(text, onDark = false) {
-  return `<p class="text-xs font-bold uppercase tracking-[0.18em]" style="color:${onDark ? ACCENT_ON_DARK : ACCENT_INK}">${esc(text)}</p>`;
+function eyebrow(text) {
+  return `<p class="text-xs font-bold uppercase tracking-[0.18em]" style="color:${ACCENT_INK}">${esc(text)}</p>`;
 }
 var LANDING_STYLE_ID = "mb-landing-style";
 var EASE_OUT = "cubic-bezier(.16,1,.3,1)";
 var LANDING_CSS = [
-  ".mb-typing{display:none}",
   "summary::-webkit-details-marker{display:none}",
   ".mb-go .mb-ico{transition:transform .3s ease}",
   ".mb-go:hover .mb-ico{transform:translateX(3px)}",
@@ -4671,23 +4626,8 @@ var LANDING_CSS = [
   "@keyframes mb-fade{from{opacity:0}to{opacity:1}}",
   "@keyframes mb-pop{0%{opacity:0;transform:scale(.6)}70%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:none}}",
   "@keyframes mb-draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}",
-  "@keyframes mb-float{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-12px,0)}}",
-  "@keyframes mb-dot{0%,80%,100%{opacity:.35;transform:none}40%{opacity:1;transform:translateY(-3px)}}",
-  "@keyframes mb-typing{0%{opacity:0}12%{opacity:1}88%{opacity:1}100%{opacity:0}}",
-  "@keyframes mb-drift{0%,100%{transform:translate3d(-6%,0,0) scale(1)}50%{transform:translate3d(6%,-4%,0) scale(1.12)}}",
-  "@keyframes mb-pan{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}",
   "@media (prefers-reduced-motion:no-preference){",
-  ".mb-float{animation:mb-float 7s ease-in-out infinite}",
-  ".mb-drift{animation:mb-drift 18s ease-in-out infinite}",
-  ".mb-pan{background-size:200% 200%;animation:mb-pan 16s ease-in-out infinite}",
-  ".mb-dot{animation:mb-dot 1.2s ease-in-out infinite}",
-  ".mb-dot:nth-child(2){animation-delay:.15s}",
-  ".mb-dot:nth-child(3){animation-delay:.3s}",
   "details[open] .mb-answer{animation:mb-fade .35s ease both}",
-  // O topo: entra ao carregar.
-  `.mb-hero [data-enter]{animation:mb-up 1s ${EASE_OUT} both;animation-delay:var(--d,0ms)}`,
-  ".mb-hero .mb-typing{display:flex;animation:mb-typing 1.5s ease both;animation-delay:var(--d,0ms)}",
-  ".mb-hero [data-after]{animation:mb-fade .5s ease both;animation-delay:var(--d,0ms)}",
   // As secções: entram ao rolar (web/lib/landingMotion.ts).
   ".mb-armed[data-reveal],.mb-armed [data-reveal]{opacity:0;transform:translate3d(0,28px,0)}",
   `.mb-in[data-reveal],.mb-in [data-reveal]{animation:mb-up .9s ${EASE_OUT} both;animation-delay:var(--d,0ms)}`,
@@ -4698,120 +4638,34 @@ var LANDING_CSS = [
   "}"
 ].join("");
 var GRID_BG = "background-image:linear-gradient(to right,rgba(17,24,39,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(17,24,39,.05) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(ellipse 70% 60% at 70% 20%,#000 20%,transparent 70%);mask-image:radial-gradient(ellipse 70% 60% at 70% 20%,#000 20%,transparent 70%)";
-var DEMO_PRODUCTS = [
-  { name: "Auscultadores", price: 24900, photo: "photo-1505740420928-5e560c06d30e" },
-  { name: "Rel\xF3gio cl\xE1ssico", price: 32e3, photo: "photo-1523275335684-37898b6baf30" },
-  { name: "T\xE9nis de corrida", price: 18500, photo: "photo-1542291026-7eec264c27ff" },
-  { name: "\xD3culos de sol", price: 12e3, photo: "photo-1572635196237-14b3f281503f" }
-];
-function photoUrl(id) {
-  return `https://images.unsplash.com/${id}?w=240&h=240&fit=crop&auto=format&q=70`;
-}
-var DEMO_LINES = [DEMO_PRODUCTS[1], DEMO_PRODUCTS[2]].filter((p) => !!p).map((p) => ({ name: p.name, quantity: 1, price: p.price }));
-var DEMO_AREA = LUANDA_AREAS[0] ?? DELIVERY_PROVINCE;
-var DEMO_FEE = 2500;
-var DEMO_CODE = "PRIMEIRA10";
-var DEMO_DISCOUNT_PCT = 10;
-var DEMO_ORDER_MESSAGE = buildCartWhatsAppMessage(DEMO_LINES, formatKz, {
-  delivery: { area: DEMO_AREA, fee: DEMO_FEE },
-  discount: {
-    code: DEMO_CODE,
-    amount: discountAmount(
-      { type: "percent", value: DEMO_DISCOUNT_PCT },
-      DEMO_LINES.reduce((sum, l) => sum + l.price * l.quantity, 0) + DEMO_FEE
-    )
-  }
-});
-var DEMO_SALE_KZ = 2e4;
-var WHATSAPP_FEE_PCT = feeForMethod("whatsapp", 100);
-var DIGITAL_FEE_PCT = Number((PLATFORM_FEE_RATE * 100).toFixed(2));
-function discountChip() {
-  return `
-              <div data-enter style="--d:900ms" class="absolute -top-5 hidden sm:block sm:-left-16 lg:-left-20 xl:-left-28">
-                <div class="flex items-center gap-2.5 rounded-2xl bg-white py-2.5 pl-2.5 pr-4 shadow-[0_20px_45px_-20px_rgba(17,24,39,.45)] ring-1 ring-black/5">
-                  <span class="flex h-8 w-8 items-center justify-center rounded-xl" style="background:${SOFT};color:${ACCENT_INK}">${icon("sell", "text-[18px]")}</span>
-                  <span class="leading-tight">
-                    <span class="block font-mono text-[12px] font-bold text-gray-900">${esc(DEMO_CODE)}</span>
-                    <span class="block text-[11px] font-semibold text-emerald-700">-${DEMO_DISCOUNT_PCT}% aplicado</span>
-                  </span>
-                </div>
-              </div>`;
-}
-function whatsappCard() {
-  const dot = `<span class="mb-dot h-1.5 w-1.5 rounded-full bg-gray-400"></span>`;
-  return `
-              <div data-enter style="--d:1150ms" class="absolute -bottom-10 -right-4 w-[18rem] sm:-right-16 sm:w-[18.5rem] lg:-right-20">
-                <div class="overflow-hidden rounded-2xl bg-white shadow-[0_30px_70px_-25px_rgba(17,24,39,.5)] ring-1 ring-black/5">
-                  <div class="flex items-center gap-2.5 px-4 py-3">
-                    <img src="/integrations/Whatsapp.png" alt="" class="h-8 w-8 object-contain" />
-                    <span class="min-w-0 flex-1 leading-tight">
-                      <span class="block text-[13px] font-bold text-gray-900">Nova encomenda</span>
-                      <span class="block text-[11px] text-gray-500">WhatsApp \xB7 agora</span>
-                    </span>
-                  </div>
-                  <div class="px-3 pb-3" style="background:#efeae2">
-                    <div class="relative pt-3">
-                      <span class="mb-typing absolute left-0 top-3 items-center gap-1 rounded-2xl rounded-tl-md bg-white px-3 py-2.5 shadow-sm" style="--d:1550ms">${dot}${dot}${dot}</span>
-                      <p data-after style="--d:2950ms" class="whitespace-pre-line rounded-2xl rounded-tl-md bg-white px-3.5 py-3 text-[11px] leading-[1.55] text-gray-800 shadow-sm sm:text-[11.5px]">${esc(DEMO_ORDER_MESSAGE)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>`;
-}
-function heroVisual() {
-  const produtos = DEMO_PRODUCTS.map((p, i) => `
-                      <li data-enter style="--d:${380 + i * 110}ms" class="rounded-2xl border border-gray-100 bg-white p-1.5">
-                        <div class="aspect-square overflow-hidden rounded-xl bg-gray-100"><img src="${esc(photoUrl(p.photo))}" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" /></div>
-                        <p class="mt-1.5 truncate px-0.5 text-[11px] font-semibold text-gray-900">${esc(p.name)}</p>
-                        <div class="flex items-center justify-between px-0.5 pb-0.5">
-                          <span class="text-[11px] font-black" style="color:${ACCENT_INK}">${esc(kzWhole(p.price))}</span>
-                          <span class="flex h-5 w-5 items-center justify-center rounded-full text-white" style="background:${ACCENT}">${icon("add", "text-[14px]")}</span>
-                        </div>
-                      </li>`).join("");
-  return `
-          <figure class="relative mx-auto w-[17rem] sm:w-[18.5rem]">
-            <figcaption class="sr-only">Exemplo de uma loja aberta no telem\xF3vel e da encomenda que chega ao WhatsApp, j\xE1 escrita.</figcaption>
-            <div aria-hidden="true">
-              <div class="absolute -inset-16 rounded-full blur-3xl" style="background:radial-gradient(closest-side,rgba(249,89,1,.30),rgba(249,89,1,0))"></div>
-              <div data-enter style="--d:120ms" class="relative">
-                <div class="mb-float">
-                  <div class="rounded-[2.75rem] p-2.5 ring-1 ring-black/10 shadow-[0_50px_100px_-40px_rgba(17,24,39,.65)]" style="background:${INK2}">
-                    <div class="relative overflow-hidden rounded-[2.2rem] bg-white">
-                      <div class="absolute left-1/2 top-2.5 z-10 h-6 w-24 -translate-x-1/2 rounded-full" style="background:${INK2}"></div>
-                      <div class="px-4 pb-4 pt-11 text-white" style="background:${ACCENT}">
-                        <div class="flex items-center justify-between">
-                          <span class="text-[15px] font-black tracking-tight">A sua loja</span>
-                          <span class="relative inline-flex">${icon("shopping_bag", "text-[22px]")}<span class="absolute -right-1.5 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-black" style="color:${ACCENT_INK}">${DEMO_LINES.length}</span></span>
-                        </div>
-                        <div class="mt-3 flex items-center gap-2 rounded-full bg-white/20 px-3 py-2 text-[11px] text-white">${icon("search", "text-[15px]")}Pesquisar produtos</div>
-                      </div>
-                      <p class="px-4 pt-4 text-[12px] font-bold text-gray-900">Mais vendidos</p>
-                      <ul class="grid grid-cols-2 gap-2.5 px-4 pb-5 pt-2.5">${produtos}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>${discountChip()}${whatsappCard()}
-            </div>
-          </figure>`;
-}
 function heroSection() {
+  const accordion = ACCORDION_ITEMS.map((it, idx) => {
+    const open = idx === ACC_INITIAL;
+    return `
+              <div data-acc data-index="${idx}" class="relative h-[360px] sm:h-[440px] rounded-2xl overflow-hidden cursor-pointer transition-all duration-700 ease-in-out shrink-0" style="width:${open ? ACC_OPEN_WIDTH : ACC_IDLE_WIDTH}">
+                <img src="${esc(it.imageUrl)}" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x450/1a1a1a/ffffff?text=M\xF4Bisno'" />
+                <div class="absolute inset-0 bg-black/40"></div>
+                <span data-cap class="${open ? CAP_ACTIVE : CAP_IDLE}">${esc(it.title)}</span>
+              </div>`;
+  }).join("");
   return `
-      <section class="mb-hero relative w-full overflow-hidden">
+      <section class="relative w-full overflow-hidden">
         <div aria-hidden="true" class="pointer-events-none absolute inset-0">
           <div class="absolute -right-40 -top-48 h-[40rem] w-[40rem] rounded-full blur-3xl" style="background:radial-gradient(closest-side,rgba(249,89,1,.22),rgba(249,89,1,0))"></div>
           <div class="absolute inset-0" style="${GRID_BG}"></div>
         </div>
-        <div class="relative max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop pb-24 pt-12 md:pb-32 md:pt-20">
-          <div class="grid grid-cols-1 items-center gap-16 lg:grid-cols-2 lg:gap-10">
-            <div class="text-center lg:text-left">
-              <p class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold uppercase tracking-wider shadow-sm" style="color:${ACCENT_INK}">${icon("chat", "text-[16px]")}J\xE1 vende por WhatsApp?</p>
-              <h1 class="mt-5 text-[2.125rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl font-black tracking-[-0.035em] text-gray-900">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
-              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Ponha o seu cat\xE1logo num link. O cliente escolhe sozinho, a qualquer hora, e a encomenda chega-lhe escrita ao WhatsApp.</p>
+        <div class="relative max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12 md:py-20">
+          <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
+            <div class="w-full lg:w-1/2 text-center lg:text-left">
+              <h1 class="text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl font-black tracking-[-0.035em] text-gray-900">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
+              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Os seus clientes veem os produtos, escolhem e encomendam sozinhos, a qualquer hora. Cada pedido chega-lhe ao WhatsApp com o total j\xE1 calculado.</p>
               <div id="hero-actions" class="mt-9 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">${landingHeroActions(false)}</div>
               <p class="mt-5 text-sm text-gray-500">Sem programar. Gr\xE1tis at\xE9 publicar.</p>
             </div>
-            <div class="relative pb-12 lg:pb-0">${heroVisual()}</div>
+            <div class="w-full lg:w-1/2">
+              <div id="accordion" class="flex flex-row items-center justify-center lg:justify-end gap-3 overflow-x-auto p-2">${accordion}
+              </div>
+            </div>
           </div>
         </div>
       </section>`;
@@ -4858,9 +4712,8 @@ function stepsSection() {
               </li>`).join("")}
             </ol>
           </div>
-          <div data-motion data-reveal class="mt-14 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+          <div data-motion data-reveal class="mt-14">
             <a href="/criar" class="${BTN_MAIN}" style="background:${ACCENT}">Criar minha loja ${icon("arrow_forward", "text-[20px]")}</a>
-            <p class="text-sm text-gray-500">Gr\xE1tis at\xE9 publicar.</p>
           </div>
         </div>
       </section>`;
@@ -4894,54 +4747,67 @@ function featuresSection() {
         </div>
       </section>`;
 }
-function payTile(src) {
-  return `<img src="${src}" alt="" loading="lazy" decoding="async" class="h-12 w-12 rounded-full ring-2 ring-white/10" />`;
+var DEMO_SALE_KZ = 2e4;
+var WHATSAPP_FEE_PCT = feeForMethod("whatsapp", 100);
+var DIGITAL_FEE_PCT = Number((PLATFORM_FEE_RATE * 100).toFixed(2));
+function payLogo(src) {
+  return `<img src="${src}" alt="" loading="lazy" decoding="async" class="h-11 w-11 rounded-full ring-4 ring-white" />`;
 }
-function saleExample(o) {
-  const fica = o.countKeep ? `<span data-count="${o.keep}" data-count-format="kz">${esc(kzWhole(o.keep))}</span>` : esc(kzWhole(o.keep));
+function payRow(o) {
   return `
-                <div class="mt-auto pt-8">
-                  <dl class="space-y-2.5 rounded-2xl bg-black/30 p-5 text-sm ring-1 ring-white/10">
-                    <div class="flex items-center justify-between gap-4"><dt class="text-white/60">Exemplo de venda</dt><dd class="font-semibold tabular-nums">${esc(kzWhole(DEMO_SALE_KZ))}</dd></div>
-                    <div class="flex items-center justify-between gap-4"><dt class="text-white/60">Comiss\xE3o</dt><dd class="font-semibold tabular-nums">${o.fee > 0 ? "-" : ""}${esc(kzWhole(o.fee))}</dd></div>
-                    <div class="flex items-center justify-between gap-4 border-t border-white/10 pt-2.5"><dt class="font-semibold">${esc(o.keepLabel)}</dt><dd class="text-base font-black tabular-nums" style="color:${ACCENT_ON_DARK}">${fica}</dd></div>
-                  </dl>
+                <div class="flex items-center gap-4 p-6 md:gap-6 md:p-8">
+                  <span class="flex shrink-0 -space-x-3">${o.logos}</span>
+                  <div class="min-w-0 flex-1">
+                    <h3 class="text-base font-bold text-gray-900 md:text-lg">${esc(o.title)}</h3>
+                    <p class="mt-1 text-sm text-gray-600">${esc(o.body)}</p>
+                  </div>
+                  <p class="shrink-0 text-right">${o.value}<span class="block text-xs font-semibold text-gray-500">${esc(o.unit)}</span></p>
                 </div>`;
 }
 function paymentsSection() {
+  const venda = DEMO_SALE_KZ;
+  const fee = platformFee(venda);
+  const net = netForOwner(venda);
+  const parteDoDono = (net / venda * 100).toFixed(1);
   const condicao = `${PAYMENTS_PROVIDER_READY ? "" : "Em breve. "}Para empresas registadas, depois de aprovarmos a Matr\xEDcula e a Certid\xE3o.`;
-  const card = "flex h-full flex-col rounded-3xl bg-white/[0.04] p-8 ring-1 ring-white/10 md:p-10";
-  const feeWhatsapp = feeForMethod("whatsapp", DEMO_SALE_KZ);
-  const whatsapp = `
-              <article class="${card}">
-                <div class="flex gap-2">${payTile("/integrations/Whatsapp.png")}</div>
-                <p class="mt-10 flex items-baseline gap-3"><span class="text-6xl font-black tracking-tight tabular-nums">${WHATSAPP_FEE_PCT}%</span><span class="text-white/60">de comiss\xE3o</span></p>
-                <h3 class="mt-6 text-xl font-bold">WhatsApp</h3>
-                <p class="mt-2 text-white/70">Desde o primeiro dia, em todas as lojas. O cliente paga-lhe diretamente.</p>${saleExample({ fee: feeWhatsapp, keep: DEMO_SALE_KZ - feeWhatsapp, keepLabel: "Fica consigo", countKeep: false })}
-              </article>`;
-  const digital = `
-              <article class="${card}">
-                <div class="flex gap-2">${payTile("/integrations/Express.png")}${payTile("/integrations/ATM.png")}</div>
-                <p class="mt-10 flex items-baseline gap-3"><span data-count="${DIGITAL_FEE_PCT}" data-count-format="pct" class="text-6xl font-black tracking-tight tabular-nums">${esc(PLATFORM_FEE_LABEL)}</span><span class="text-white/60">por venda</span></p>
-                <h3 class="mt-6 text-xl font-bold">${esc(DIGITAL_PAYMENTS_LABEL)}</h3>
-                <p class="mt-2 text-white/70">${esc(condicao)}</p>${saleExample({ fee: platformFee(DEMO_SALE_KZ), keep: netForOwner(DEMO_SALE_KZ), keepLabel: "Fica para levantar", countKeep: true })}
-              </article>`;
+  const numero = "block text-3xl font-black tracking-tight tabular-nums text-gray-900 md:text-4xl";
   return `
-      <section id="pagamentos" class="scroll-mt-20 relative w-full overflow-hidden py-24 text-white md:py-32" style="background:${INK2}">
-        <div aria-hidden="true" class="mb-drift pointer-events-none absolute inset-x-0 -top-56 mx-auto h-[36rem] w-[56rem] max-w-none rounded-full blur-3xl" style="background:radial-gradient(closest-side,rgba(249,89,1,.45),rgba(249,89,1,0))"></div>
-        <div class="relative ${WRAP}">
-          <div data-motion data-reveal class="mx-auto max-w-3xl text-center">
-            ${eyebrow("Pagamentos", true)}
-            <h2 class="mt-4 text-[2.25rem] leading-[1.08] md:text-5xl font-black tracking-[-0.03em] text-white">Comece pelo WhatsApp. Cres\xE7a com o Multicaixa.</h2>
-            <p class="mt-5 text-lg md:text-xl leading-relaxed text-white/70">S\xF3 h\xE1 comiss\xE3o quando o pagamento passa pela M\xF4Bisno.</p>
+      <section id="pagamentos" class="scroll-mt-20 w-full bg-gray-50 py-24 md:py-32">
+        <div class="${WRAP} grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-16">
+          <div data-motion data-reveal class="lg:col-span-5">
+            ${eyebrow("Pagamentos")}
+            <h2 class="${H2}">Receba como os seus clientes j\xE1 pagam.</h2>
+            <p class="${LEAD}">Comece pelo WhatsApp, sem comiss\xE3o. Com a empresa aprovada, junte o Multicaixa Express e a Refer\xEAncia Banc\xE1ria.</p>
+            <p class="mt-6 flex items-center gap-2 text-sm text-gray-500">${icon("receipt_long", "text-[18px]")}A fatura de cada venda sai em nome da sua empresa.</p>
           </div>
-          <div data-motion class="mt-16 grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div data-reveal>${whatsapp}
-            </div>
-            <div data-reveal style="--d:150ms">${digital}
+          <div data-motion class="lg:col-span-7">
+            <div data-reveal class="overflow-hidden rounded-[1.75rem] bg-white ring-1 ring-gray-200 shadow-[0_40px_90px_-50px_rgba(17,24,39,.45)]">${payRow({
+    logos: payLogo("/integrations/Whatsapp.png"),
+    title: "WhatsApp",
+    body: "Em todas as lojas, desde o primeiro dia. O cliente paga-lhe diretamente.",
+    value: `<span class="${numero}">${WHATSAPP_FEE_PCT}%</span>`,
+    unit: "de comiss\xE3o"
+  })}
+              <div class="border-t border-gray-100"></div>${payRow({
+    logos: `${payLogo("/integrations/Express.png")}${payLogo("/integrations/ATM.png")}`,
+    title: DIGITAL_PAYMENTS_LABEL,
+    body: condicao,
+    value: `<span data-count="${DIGITAL_FEE_PCT}" data-count-format="pct" class="${numero}">${esc(PLATFORM_FEE_LABEL)}</span>`,
+    unit: "por venda"
+  })}
+              <div class="border-t border-gray-100 p-6 md:p-8" style="background:#fffaf6">
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">Exemplo: uma venda pelo Multicaixa</p>
+                <div aria-hidden="true" class="mt-4 flex h-2.5 overflow-hidden rounded-full bg-gray-200">
+                  <div data-draw style="--d:450ms;width:${parteDoDono}%;background:linear-gradient(90deg,${ACCENT},#ff8a4c)" class="h-full origin-left rounded-full"></div>
+                </div>
+                <dl class="mt-4 grid grid-cols-3 gap-3 text-sm">
+                  <div><dt class="text-gray-500">Venda</dt><dd class="mt-0.5 font-bold tabular-nums text-gray-900">${esc(kzWhole(venda))}</dd></div>
+                  <div><dt class="text-gray-500">Comiss\xE3o</dt><dd class="mt-0.5 font-bold tabular-nums text-gray-900">-${esc(kzWhole(fee))}</dd></div>
+                  <div class="text-right"><dt class="text-gray-500">Para levantar</dt><dd class="mt-0.5 font-black tabular-nums" style="color:${ACCENT_INK}"><span data-count="${net}" data-count-format="kz">${esc(kzWhole(net))}</span></dd></div>
+                </dl>
+              </div>
             </div>
           </div>
-          <p data-motion data-reveal class="mt-10 flex items-center justify-center gap-2 text-center text-sm text-white/60">${icon("receipt_long", "text-[18px]")}A fatura de cada venda sai em nome da sua empresa.</p>
         </div>
       </section>`;
 }
@@ -4962,8 +4828,8 @@ function pricingSection() {
             <div class="grid overflow-hidden rounded-[2rem] bg-white ring-1 ring-gray-200 shadow-[0_40px_90px_-50px_rgba(17,24,39,.45)] md:grid-cols-5">
               <div class="flex flex-col bg-gray-50 p-8 md:col-span-2 md:p-10">
                 <h3 class="text-lg font-bold text-gray-900">${esc(PLAN_NAME)}</h3>
-                <p class="mt-6 flex flex-wrap items-baseline gap-x-2"><span data-price class="text-5xl font-black tracking-tight text-gray-900">${esc(kzWhole(PLAN_PRICE_KZ))}</span><span data-period class="text-gray-500">${esc(planPeriodLabel())}</span></p>
-                <p class="mt-3 text-sm text-gray-500">Cada pagamento cobre ${esc(PLAN_PERIOD_DAYS)} dias.</p>
+                <p class="mt-6 flex flex-wrap items-baseline gap-x-2"><span data-price class="text-5xl font-black tracking-tight text-gray-900">${esc(kzWhole(PLAN_PRICE_KZ))}</span><span data-period class="text-gray-500">${esc(planPeriodLabel())} ${esc(PLAN_UNIT_LABEL)}</span></p>
+                <p class="mt-3 text-sm text-gray-500">Cada loja tem a sua subscri\xE7\xE3o. Cada pagamento cobre ${esc(PLAN_PERIOD_DAYS)} dias.</p>
                 <a href="/criar" class="${BTN_MAIN} mt-8 w-full md:mt-auto" style="background:${ACCENT}">Criar minha loja ${icon("arrow_forward", "text-[20px]")}</a>
               </div>
               <div class="p-8 md:col-span-3 md:p-10">
@@ -4999,29 +4865,6 @@ function faqSection() {
         </div>
       </section>`;
 }
-function finalCtaSection() {
-  return `
-      <section id="comecar" class="w-full bg-white py-24 md:py-32">
-        <div class="${WRAP}">
-          <div data-motion data-reveal>
-            <div class="mb-pan relative overflow-hidden rounded-[2.5rem] px-6 py-20 text-center text-white md:px-16 md:py-24" style="background-image:linear-gradient(120deg,#cf440e 0%,#a8380a 30%,#c8420d 60%,#b23a0a 100%)">
-              <div aria-hidden="true" class="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full ring-1 ring-white/20"></div>
-              <div aria-hidden="true" class="pointer-events-none absolute -right-10 -top-10 h-52 w-52 rounded-full ring-1 ring-white/20"></div>
-              <div aria-hidden="true" class="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-black/10 blur-3xl"></div>
-              <div class="relative">
-                <h2 class="mx-auto max-w-3xl text-4xl font-black tracking-[-0.03em] md:text-6xl">Ponha o seu cat\xE1logo num link.</h2>
-                <p class="mx-auto mt-6 max-w-xl text-lg text-white md:text-xl">Crie a loja hoje. S\xF3 paga quando a quiser online.</p>
-                <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                  <a href="/criar" class="mb-go inline-flex items-center justify-center gap-2 rounded-xl bg-white px-7 py-3.5 font-bold shadow-lg transition-transform active:scale-[.98]" style="color:${ACCENT_INK}">Criar minha loja ${icon("arrow_forward", "text-[20px]")}</a>
-                  <a href="/lojas" class="inline-flex items-center justify-center rounded-xl px-7 py-3.5 font-semibold text-white ring-1 ring-inset ring-white/60 transition-colors hover:bg-white/10">Ver lojas criadas</a>
-                </div>
-                <p class="mt-6 text-sm text-white">Ou abra um dos <a href="/modelos" class="font-semibold text-white underline underline-offset-4">modelos prontos</a> antes de decidir.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>`;
-}
 function landingHtml() {
   return `
   ${glowCardStyleTag()}
@@ -5034,7 +4877,7 @@ function landingHtml() {
     actionsHtml: landingNavActions(false)
   })}
 
-    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${paymentsSection()}${pricingSection()}${faqSection()}${finalCtaSection()}
+    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${paymentsSection()}${pricingSection()}${faqSection()}
     </main>
 
     ${platformFooterHtml()}

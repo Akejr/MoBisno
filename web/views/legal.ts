@@ -57,9 +57,9 @@ const TERMOS: LegalSection[] = [
     "A MôBisno não inspeciona nem garante os produtos vendidos pelas Lojas e não é parte na relação de compra e venda entre a Loja e os seus clientes.",
   ] },
   { h: "4. Subscrição", p: [
-    `Há um só plano, o ${PLAN_NAME}, com tudo incluído: ${PRECO}, com lojas e produtos ilimitados. Não há escalões, preços por loja nem período experimental.`,
+    `Há um só plano, o ${PLAN_NAME}, com tudo incluído e produtos ilimitados: ${PRECO}, por loja. Cada Loja tem a sua subscrição: duas Lojas online são duas subscrições. Pode criar as Lojas que quiser. Não há escalões nem período experimental.`,
     "Criar, personalizar e pré-visualizar uma Loja é gratuito e sem prazo. A subscrição é necessária para publicar a Loja e a manter online, e é paga à MôBisno pelos meios indicados no Dashboard.",
-    "Cada período começa no dia em que o pagamento é confirmado. Numa renovação feita antes do fim, o novo período acrescenta-se ao que ainda falta, sem perder dias. Quando a subscrição termina, as Lojas publicadas deixam de estar online até nova renovação; nada é apagado.",
+    "Cada período começa no dia em que o pagamento é confirmado. Numa renovação feita antes do fim, o novo período acrescenta-se ao que ainda falta, sem perder dias. Quando a subscrição de uma Loja termina, essa Loja deixa de estar online até nova renovação; nada é apagado.",
   ] },
   { h: "5. Vendas e pagamentos das Lojas", p: [
     "Todas as Lojas recebem encomendas por WhatsApp: o cliente envia o pedido e combina o pagamento e a entrega diretamente com o Dono da Loja. A MôBisno não intervém nessa transação nem recebe esse dinheiro.",

@@ -1,11 +1,13 @@
 /**
- * Checkout da SUBSCRIÇÃO (a receita é da plataforma). Abre um modal para o Dono
- * pagar 30 dias por Multicaixa Express ou Referência Bancária.
+ * Checkout da SUBSCRIÇÃO de uma loja (a receita é da plataforma). Abre um modal
+ * para o Dono pagar 30 dias por Multicaixa Express ou Referência Bancária.
  *
- * O preço mostrado é só para o Dono ler: o servidor cobra `PLAN_PRICE_KZ` do seu
- * espelho (`api/_shared.js`) e lê o Dono do token da sessão. Em MCX a
- * subscrição fica ativa assim que o pagamento é confirmado; na referência,
- * quando for paga (webhook ou «Já paguei — verificar»).
+ * Cada loja tem a sua subscrição (migração 0025): o pagamento leva o `storeId`,
+ * e o servidor confirma que a loja é de quem paga. O preço mostrado é só para o
+ * Dono ler: o servidor cobra `PLAN_PRICE_KZ` do seu espelho (`api/_shared.js`) e
+ * lê o Dono do token da sessão. Em MCX a subscrição fica ativa assim que o
+ * pagamento é confirmado; na referência, quando for paga (webhook ou «Já paguei
+ * — verificar»).
  *
  * Só é aberto quando `PAYMENTS_PROVIDER_READY` está ligado; antes disso o
  * separador «Plano» explica que a ativação é feita pela equipa MôBisno.
@@ -17,8 +19,8 @@ import { isValidAoPhone } from "../../src/services/payments.js";
 
 const ACCENT = "#F95901";
 
-export function openPlanCheckout(opts: { onPaid: () => void }): void {
-  const { onPaid } = opts;
+export function openPlanCheckout(opts: { storeId: string; storeName: string; onPaid: () => void }): void {
+  const { storeId, storeName, onPaid } = opts;
   let method: "mcx" | "reference" = "mcx";
 
   document.getElementById("mb-plan-checkout")?.remove();
@@ -27,7 +29,7 @@ export function openPlanCheckout(opts: { onPaid: () => void }): void {
   host.className = "fixed inset-0 z-[200] flex items-center justify-center p-4";
   host.setAttribute("role", "dialog");
   host.setAttribute("aria-modal", "true");
-  host.setAttribute("aria-label", "Pagar subscrição");
+  host.setAttribute("aria-label", "Pagar a subscrição da loja");
   host.innerHTML = `
     <div data-overlay class="absolute inset-0 bg-black/50 opacity-0 transition-opacity duration-200"></div>
     <div data-card class="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 translate-y-3 opacity-0 transition-all duration-200"></div>`;
@@ -61,10 +63,10 @@ export function openPlanCheckout(opts: { onPaid: () => void }): void {
   function drawForm(): void {
     card.innerHTML = `
       <div class="flex items-center justify-between mb-1">
-        <h3 class="text-lg font-black text-gray-900">Subscrição MôBisno</h3>
+        <h3 class="text-lg font-black text-gray-900">Subscrição da loja</h3>
         <button data-close type="button" aria-label="Fechar" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button>
       </div>
-      <p class="text-gray-500 text-sm mb-4"><b style="color:${ACCENT}">${esc(formatKz(PLAN_PRICE_KZ))}</b> por ${PLAN_PERIOD_DAYS} dias, com tudo incluído.</p>
+      <p class="text-gray-500 text-sm mb-4"><b class="text-gray-900">${esc(storeName)}</b>: <b style="color:${ACCENT}">${esc(formatKz(PLAN_PRICE_KZ))}</b> por ${PLAN_PERIOD_DAYS} dias, com tudo incluído.</p>
       <div class="space-y-2 mb-4">
         ${methodCard("mcx", "smartphone", "Multicaixa Express", "Ativação imediata.")}
         ${methodCard("reference", "receipt_long", "Referência Bancária", "Pague no ATM ou no Internet Banking.")}
@@ -96,7 +98,7 @@ export function openPlanCheckout(opts: { onPaid: () => void }): void {
     const btn = card.querySelector("#plan-pay") as HTMLButtonElement | null;
     if (btn) { btn.disabled = true; btn.style.opacity = "0.7"; btn.textContent = "A processar…"; }
 
-    const res = await initPayment({ kind: "plan", method, phone });
+    const res = await initPayment({ kind: "plan", method, phone, storeId });
 
     if (!res.success || !res.id) {
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = `<span class="material-symbols-outlined text-[20px]" aria-hidden="true">bolt</span> Pagar e ativar`; }
@@ -118,7 +120,7 @@ export function openPlanCheckout(opts: { onPaid: () => void }): void {
     card.innerHTML = `<div class="text-center py-6">
       <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center" style="background:rgba(16,185,129,.12);color:#059669"><span class="material-symbols-outlined" style="font-size:32px" aria-hidden="true">check_circle</span></div>
       <h3 class="text-xl font-black mt-3">Subscrição ativada</h3>
-      <p class="text-gray-500 text-sm mt-1">Obrigado. Já pode publicar as suas lojas.</p>
+      <p class="text-gray-500 text-sm mt-1">Obrigado. Já pode publicar a loja.</p>
       <button id="plan-finish" type="button" class="mt-5 w-full py-3 rounded-xl text-white font-bold" style="background:${ACCENT}">Concluir</button>
     </div>`;
     card.querySelector("#plan-finish")?.addEventListener("click", () => { close(); onPaid(); });

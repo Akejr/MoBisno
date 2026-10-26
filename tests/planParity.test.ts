@@ -29,12 +29,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { assertProperty, fc } from "./helpers/property.js";
 import { instanteArb, perfilDaBaseDeDadosArb, type PerfilDaBaseDeDados } from "./geradores.js";
 import { resolveBilling, planActivationPatch } from "../src/services/billing.js";
-import { PLAN_ID, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "../src/services/plans.js";
+import { PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "../src/services/plans.js";
 
 // @ts-expect-error módulo JavaScript sem declarações de tipos
 import * as sharedModule from "../api/_shared.js";
 
-/** Cliente mínimo que `activatePlan` usa: uma leitura e uma escrita em `profiles`. */
+/** Cliente mínimo que `activateStorePlan` usa: uma leitura e uma escrita em `stores`. */
 interface FakeDb {
   from(table: string): {
     select(cols: string): { eq(col: string, value: unknown): { maybeSingle(): Promise<{ data: unknown }> } };
@@ -46,7 +46,8 @@ const shared = sharedModule as unknown as {
   PLAN_PRICE_KZ: unknown;
   PLAN_PERIOD_MS: unknown;
   accountActive(profile: unknown, now?: number): boolean;
-  activatePlan(db: FakeDb, ownerId: unknown): Promise<boolean>;
+  storeActive(store: unknown, owner: unknown, now?: number): boolean;
+  activateStorePlan(db: FakeDb, storeId: unknown): Promise<boolean>;
 };
 
 const AGORA = Date.parse("2026-08-04T12:00:00.000Z");
@@ -115,7 +116,26 @@ describe("Conta ativa — accountActive concorda com resolveBilling().accessActi
   });
 });
 
-describe("Ativação — activatePlan grava o que planActivationPatch calcula", () => {
+describe("Loja ativa — storeActive é accountActive com a data da loja e o dono", () => {
+  // A subscrição é de cada loja (migração 0025): a data vem da loja, a isenção
+  // vem de o dono ser administrador.
+  it("a data que conta é a da loja", () => {
+    expect(shared.storeActive({ plan_expires_at: iso(AGORA + DIA) }, { is_admin: false }, AGORA)).toBe(true);
+    expect(shared.storeActive({ plan_expires_at: iso(AGORA - DIA) }, { is_admin: false }, AGORA)).toBe(false);
+    expect(shared.storeActive({ plan_expires_at: null }, null, AGORA)).toBe(false);
+  });
+
+  it("o dono administrador publica sem subscrição, e só o booleano conta", () => {
+    expect(shared.storeActive({ plan_expires_at: null }, { is_admin: true }, AGORA)).toBe(true);
+    expect(shared.storeActive({ plan_expires_at: null }, { is_admin: "true" }, AGORA)).toBe(false);
+  });
+
+  it("sem loja, nada está online", () => {
+    expect(shared.storeActive(null, { is_admin: true }, AGORA)).toBe(false);
+  });
+});
+
+describe("Ativação — activateStorePlan grava o que planActivationPatch calcula", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -153,24 +173,24 @@ describe("Ativação — activatePlan grava o que planActivationPatch calcula", 
       vi.setSystemTime(AGORA);
       const { db, escritas, tabelas } = baseFalsa({ plan_expires_at: atual.plan_expires_at });
 
-      expect(await shared.activatePlan(db, "dono-1")).toBe(true);
+      expect(await shared.activateStorePlan(db, "loja-1")).toBe(true);
 
       const esperado = planActivationPatch({ planExpiresAt: atual.plan_expires_at }, AGORA, 1);
-      expect(escritas).toEqual([{ plan: PLAN_ID, plan_expires_at: esperado.plan_expires_at }]);
-      expect(tabelas.every((t) => t === "profiles")).toBe(true);
+      expect(escritas).toEqual([{ plan_expires_at: esperado.plan_expires_at }]);
+      expect(tabelas.every((t) => t === "stores")).toBe(true);
     });
   }
 
-  it("sem dono não toca na base de dados", async () => {
+  it("sem loja não toca na base de dados", async () => {
     const { db, escritas, tabelas } = baseFalsa(null);
-    expect(await shared.activatePlan(db, "")).toBe(false);
-    expect(await shared.activatePlan(db, null)).toBe(false);
+    expect(await shared.activateStorePlan(db, "")).toBe(false);
+    expect(await shared.activateStorePlan(db, null)).toBe(false);
     expect(escritas).toEqual([]);
     expect(tabelas).toEqual([]);
   });
 
   it("uma escrita recusada devolve false, para quem chama não dar a subscrição por ativada", async () => {
     const { db } = baseFalsa({ plan_expires_at: null }, { message: "recusado" });
-    expect(await shared.activatePlan(db, "dono-1")).toBe(false);
+    expect(await shared.activateStorePlan(db, "loja-1")).toBe(false);
   });
 });

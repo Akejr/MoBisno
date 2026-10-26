@@ -339,24 +339,29 @@ describe("Factos da plataforma — derivados do domínio, nunca escritos à mão
     expect(CONTEXT_SRC).toContain("comingSoonList()");
   });
 
-  it("responde ao caso concreto: um plano, lojas e produtos ilimitados", () => {
+  it("responde ao caso concreto: um plano, pago por loja, e produtos ilimitados", () => {
     const facts = factsLiteral();
     expect(facts).toContain("um só plano");
-    expect(facts).toContain("LOJAS E PRODUTOS SÃO ILIMITADOS");
+    expect(facts).toContain("**POR LOJA**");
     expect(facts).toMatch(/Quantas lojas posso criar\?/);
+    expect(facts).toContain("PRODUTOS ILIMITADOS");
     expect(facts).toContain("NÃO existe teste grátis");
     // Os escalões removidos são nomeados de propósito: é a pergunta que os
     // utilizadores fazem, e sem isto o modelo inventa-os de volta.
     expect(facts).toContain("Não existe Básico, Profissional nem Empresarial");
-    expect(facts).toMatch(/Não há ciclo anual nem preço por loja/);
+    expect(facts).toMatch(/Não há ciclo anual/);
     // A excepção dos administradores é dita, para não ser aplicada a um Dono.
     expect(facts).toContain("Contas de ADMINISTRADOR da MôBisno não pagam");
   });
 
-  it("o preço por loja publicada saiu dos factos: criar e publicar não se pagam à parte", () => {
+  it("cada loja paga a sua subscrição, sem lugares nem contas de dias à parte", () => {
+    // O preço é por loja (migração 0025): duas lojas online são duas
+    // subscrições, cada uma com o seu período. O que não pode voltar é o preço
+    // «da conta», nem os «lugares» pagos com a proporção dos dias que faltam.
     const facts = factsLiteral();
-    expect(facts).not.toContain("O PREÇO É POR LOJA PUBLICADA");
-    expect(facts).not.toMatch(/por cada loja publicada/);
+    expect(facts).toMatch(/Cada loja tem a sua subscrição/);
+    expect(facts).toMatch(/duas lojas online paga duas subscrições/);
+    expect(facts).not.toContain("É o preço da conta");
     expect(facts).not.toMatch(/lugar pago/);
     expect(facts).not.toMatch(/dias que faltam/);
   });
@@ -570,12 +575,25 @@ describe("Orientação do ecrã «Início» — as nove secções, o funil e os 
     expect(DASH_ALL).toContain("Ative a subscrição para publicar.");
   });
 
-  it("os cartões de dinheiro saíram do Início: estão em «Pagamentos»", () => {
-    // Enquanto estiveram aqui, a orientação descrevia-os neste ecrã. Mandar o
-    // Dono procurar o saldo no Início é uma não-resposta.
-    expect(guia).not.toContain("Valor total vendido");
-    expect(guia).not.toContain("Disponível para levantar");
-    expect(guia).toMatch(/separador «Pagamentos»/);
+  it("as encomendas e as vendas estão no Início, com os rótulos do ecrã", () => {
+    // Vieram de «Pagamentos», que passou a ser só configuração. Mandar o Dono
+    // procurar o saldo em «Pagamentos» seria uma não-resposta.
+    const MARKUP = readFileSync(join(ROOT, "web/views/dashboard/markup.ts"), "utf8");
+    for (const rotulo of ["Recebido (líquido)", "Disponível para levantar", "Solicitar levantamento",
+      "Vendas pagas", "Referências pendentes", "Expirada", "Apagar registo"]) {
+      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(MARKUP, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(guia).toContain("Encomendas por WhatsApp");
+    expect(guia).toMatch(/[Ss]ó as expiradas se apagam/);
+    for (const estado of ["pagas", "falhadas", "canceladas"]) {
+      expect(guia, `estado não protegido na orientação: ${estado}`).toContain(estado);
+    }
+    // A guarda de verdade é a política de `delete`; dizer que é o ecrã dava ao
+    // Dono a ideia de que basta insistir.
+    expect(guia).toMatch(/é a base de dados que o impede/);
+    expect(MARKUP).toContain("A referência passou a data-limite e já não pode ser paga.");
+    expect(guia).toMatch(/separador «Pagamentos» é só configuração/);
   });
 
   it("a barra de telemóvel traz o que o `aside` tinha, com os mesmos rótulos", () => {
@@ -709,20 +727,13 @@ describe("Orientação do ecrã «Pagamentos» — WhatsApp sempre, digitais por
     }
   });
 
-  it("as vendas, o saldo e as expiradas são descritos onde estão", () => {
-    for (const rotulo of ["Recebido (líquido)", "Disponível para levantar", "Solicitar levantamento",
-      "Vendas pagas", "Referências pendentes", "Expirada", "Apagar registo"]) {
-      expect(guia, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
-      expect(MARKUP, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+  it("é só configuração, e manda as vendas para o «Início», onde elas estão", () => {
+    expect(guia).toMatch(/só configuração/);
+    expect(guia).toMatch(/estão no «Início»/);
+    expect(PAG).toContain("As encomendas e as vendas estão no");
+    for (const rotulo of ["Recebido (líquido)", "Disponível para levantar", "Solicitar levantamento", "Apagar registo"]) {
+      expect(guia, `${rotulo} já não é de «Pagamentos»`).not.toContain(rotulo);
     }
-    expect(guia).toMatch(/[Ss]ó as expiradas se apagam/);
-    for (const estado of ["pagas", "falhadas", "canceladas"]) {
-      expect(guia, `estado não protegido na orientação: ${estado}`).toContain(estado);
-    }
-    // A guarda de verdade é a política de `delete`; dizer que é o ecrã dava ao
-    // Dono a ideia de que basta insistir.
-    expect(guia).toMatch(/é a base de dados que o impede/);
-    expect(MARKUP).toContain("A referência passou a data-limite e já não pode ser paga.");
   });
 });
 
@@ -731,7 +742,10 @@ describe("Orientação dos ecrãs «Plano» e «Configurações»", () => {
     const guia = guiaDe("plano");
     expect(guia).toContain("${PRECO}");
     expect(guia).toMatch(/um cartão de preço só/);
-    expect(guia).toMatch(/Não há escalões, ciclo anual nem preço por loja/);
+    expect(guia).toMatch(/Cada loja tem a sua subscrição/);
+    expect(guia).toMatch(/Não há escalões nem ciclo anual/);
+    expect(guia).toContain("A subscrição desta loja");
+    expect(readFileSync(join(ROOT, "web/views/dashboard/markup.ts"), "utf8")).toContain("A subscrição desta loja");
     for (const estado of ["Ativa até", "Inativa", "Caducada", "Conta de administração"]) {
       expect(guia, `estado ausente: ${estado}`).toContain(estado);
     }
@@ -796,6 +810,14 @@ describe("Orientação do ecrã «Administração» — as seis secções e as a
     expect(guia).toContain("Desativar");
     for (const m of ACTIVATION_MONTHS) expect(guia).toMatch(new RegExp(`\\b${m}\\b`));
     expect(guiaDe("admin"), "as durações estão escritas à mão").toContain("ACTIVATION_MONTHS");
+    // A subscrição é de cada loja: ativa-se em «Lojas», e «Contas» já não tem o botão.
+    expect(guia).toMatch(/- LOJAS:[^\n]*«Ativar»/);
+    expect(guia).not.toMatch(/- CONTAS:[^\n]*«Ativar»/);
+    const LOJAS = readFileSync(join(ROOT, "web/views/admin/stores.ts"), "utf8");
+    const CONTAS = readFileSync(join(ROOT, "web/views/admin/accounts.ts"), "utf8");
+    expect(LOJAS).toContain('data-act="activate"');
+    expect(LOJAS).toContain("adminActivateStorePlan(s.id, months)");
+    expect(CONTAS).not.toContain('data-act="activate"');
   });
 
   it("distingue a receita da plataforma do dinheiro dos Donos, e não fala do que saiu", () => {

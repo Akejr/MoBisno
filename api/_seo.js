@@ -331,7 +331,7 @@ export function platformTitle() {
  */
 export function platformDescription() {
   return truncate(
-    `Crie a sua loja online em Angola: modelos prontos, editor visual e encomendas por WhatsApp. Lojas e produtos ilimitados por ${platformPriceLabel()}, tudo incluído.`,
+    `Crie a sua loja online em Angola: modelos prontos, editor visual e encomendas por WhatsApp. ${platformPriceLabel()} por loja, tudo incluído.`,
     160,
   );
 }
@@ -414,7 +414,7 @@ export function platformFaq(paymentsReady) {
     },
     {
       question: "Quanto custa?",
-      answer: `${platformPriceLabel()}, com tudo incluído. Há um só plano, sem escalões: lojas e produtos ilimitados. Criar a loja e vê-la é grátis; a subscrição serve para a publicar.`,
+      answer: `${platformPriceLabel()} por loja, com tudo incluído. Cada loja tem a sua subscrição: quem tem duas lojas online paga duas. Produtos ilimitados e sem escalões. Criar a loja e vê-la é grátis; a subscrição serve para a publicar.`,
     },
     {
       question: "A MôBisno fica com uma parte das minhas vendas?",

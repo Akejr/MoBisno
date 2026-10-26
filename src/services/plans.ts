@@ -1,19 +1,18 @@
 /**
  * Subscrição da MôBisno (módulo de domínio puro e testável).
  *
- * **Um só plano, um só preço: 10.000 Kz por mês, com tudo incluído.** Lojas e
- * produtos ilimitados, todas as funcionalidades, nenhum escalão, nenhum ciclo
- * anual, nenhum preço por loja.
+ * **Cada loja tem a sua subscrição: 10.000 Kz por mês, com tudo incluído.**
+ * Quem tem duas lojas online paga duas. Produtos ilimitados, todas as
+ * funcionalidades, nenhum escalão, nenhum ciclo anual.
  *
- * ## Porque é tão pouco
+ * ## Porque é assim
  *
  * Este módulo já teve três escalões, depois dois ciclos (mensal e anual), depois
- * preço por loja publicada com proporcionalidade. Cada versão trouxe uma regra
- * que atravessava o painel, o checkout, as funções serverless, a base de dados e
- * o assistente — e cada uma deixou pelo caminho uma divergência entre o que o
- * ecrã dizia e o que o servidor cobrava. A última deixava o Dono sem forma de
- * pagar uma segunda loja. Um preço é uma frase: «10.000 Kz por mês, tudo
- * incluído».
+ * preço por loja publicada com proporcionalidade, depois um só preço por conta.
+ * A proporcionalidade é que deixava o Dono sem forma de pagar uma segunda loja.
+ * A regra agora não tem contas a fazer: cada loja paga os seus 30 dias e tem a
+ * sua data de fim (`stores.plan_expires_at`, migração 0025). Pagar a segunda
+ * loja não mexe na primeira.
  *
  * Criar a loja, personalizá-la e pré-visualizá-la é grátis e sem prazo; a
  * subscrição serve para a **publicar**.
@@ -43,6 +42,12 @@ export const PLAN_PRICE_KZ = 10_000;
 export const PLAN_PERIOD_DAYS = 30;
 
 /**
+ * A unidade do preço, como se escreve a seguir a ele («10.000 Kz/mês por
+ * loja»): cada loja paga a sua subscrição.
+ */
+export const PLAN_UNIT_LABEL = "por loja";
+
+/**
  * O que a subscrição inclui, para a página de preços, o painel e o assistente.
  *
  * Diz só o que existe hoje. As funcionalidades «Em breve» (SMS, domínio próprio,
@@ -50,8 +55,8 @@ export const PLAN_PERIOD_DAYS = 30;
  * incluídas era prometer o que o Dono não consegue ligar.
  */
 export const PLAN_HIGHLIGHTS: readonly string[] = [
-  "Lojas e produtos ilimitados",
-  "Checkout por WhatsApp em todas as lojas",
+  "Produtos ilimitados",
+  "Checkout por WhatsApp",
   "Multicaixa Express e Referência Bancária para empresas verificadas",
   `Endereço próprio nomedaloja.${STORE_APEX}`,
   "Editor visual e modelos prontos",

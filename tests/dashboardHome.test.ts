@@ -1,12 +1,12 @@
 /**
  * Guardas do separador «Início» e da moldura do Dashboard do Dono.
  *
- * O «Início» respondia a perguntas que a maior parte dos Donos não tinha: quatro
- * cartões de vendas digitais a zero, para lojas que só vendem por WhatsApp. O
- * ecrã novo responde a três, por esta ordem: a loja está no ar (com o botão de
- * publicar, sujeito à subscrição)? Está a ter movimento (o funil dos últimos 30
- * dias)? O que falta fazer («Próximos passos», calculados dos dados reais)? As
- * vendas, o saldo e os levantamentos passaram para «Pagamentos».
+ * O «Início» responde ao que o Dono quer saber ao entrar, por esta ordem: a loja
+ * está no ar (uma faixa, com o botão de publicar sujeito à subscrição da loja)?
+ * Que encomendas e vendas chegaram (`vendas.ts`)? O que falta fazer («Próximos
+ * passos», compactos, calculados dos dados reais) e há movimento (o funil dos
+ * últimos 30 dias)? As encomendas e as vendas vieram de «Pagamentos», que passou
+ * a ser só configuração.
  *
  * O HTML do «Início» é desenhado a sério a partir de `web/views/dashboard/markup.ts`
  * (puro), que entra por `import()` com o especificador numa constante — como em
@@ -29,6 +29,7 @@ const DASHBOARD = ler("web/views/dashboard.ts");
 const INICIO = ler("web/views/dashboard/inicio.ts");
 const MARKUP = ler("web/views/dashboard/markup.ts");
 const PAGAMENTOS = ler("web/views/dashboard/pagamentos.ts");
+const VENDAS = ler("web/views/dashboard/vendas.ts");
 const PAYMENTS = ler("web/supabase/payments.ts");
 const WITHDRAWALS = ler("web/supabase/withdrawals.ts");
 const CONTEXT = ler("web/lib/assistantContext.ts");
@@ -84,9 +85,11 @@ const semNada = {
 
 /* ================================== Início ================================== */
 
-describe("Início — estado da loja, funil e próximos passos, e mais nada", () => {
-  it("pinta os três cartões a partir das funções do markup", () => {
+describe("Início — estado da loja, encomendas, próximos passos e funil", () => {
+  it("pinta a faixa e os cartões a partir das funções do markup e de vendas.ts", () => {
     expect(INICIO).toContain("storeStatusHtml({ state: store.state, billing, canPublish: publicar.allowed, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })");
+    expect(INICIO).toContain("vendasHtml(vendas)");
+    expect(INICIO).toContain("ligarVendas(ctx, vendas, () => renderInicio(ctx));");
     expect(INICIO).toContain("funnelHtml({ visits: analytics.visits30, views: analytics.views30, carts: analytics.carts30, whatsapp: analytics.whatsapp30 })");
     expect(INICIO).toContain("nextStepsHtml(passos)");
     expect(INICIO).toContain("Olá, ${esc(primeiroNome)}");
@@ -102,14 +105,17 @@ describe("Início — estado da loja, funil e próximos passos, e mais nada", ()
     expect(INICIO).toContain("verification: verification.status");
   });
 
-  it("as leituras correm numa onda só, e as vendas já não são lidas aqui", () => {
+  it("as leituras correm numa onda só, com as encomendas e as vendas", () => {
     expect(INICIO).toContain("await Promise.all([");
-    for (const leitura of ["productRepository.listByStore(store.id)", "getStoreAnalytics(store.id)", "getCustomization(store.id)", "assetRepository.findLogo(store.id)", "getPaymentVerification(store.id)"]) {
+    for (const leitura of ["productRepository.listByStore(store.id)", "getStoreAnalytics(store.id)", "getCustomization(store.id)", "assetRepository.findLogo(store.id)", "getPaymentVerification(store.id)", "loadVendas(store)"]) {
       expect(INICIO).toContain(leitura);
     }
-    // As vendas digitais vivem em «Pagamentos»: no Início eram quatro zeros.
-    for (const fora of ["listOrders", "getOrderStats", "listWithdrawals", "Valor total vendido", "Solicitar levantamento"]) {
-      expect(INICIO, `${fora} não pertence ao Início`).not.toContain(fora);
+    for (const leitura of ["listWhatsappOrders(store.id)", "listOrders(store.id, ORDERS_LIMIT)", "listWithdrawals(store.id)", "getOrderStats(store.id)", "committedWithdrawals(store.id)"]) {
+      expect(VENDAS, `${leitura} saiu das leituras das vendas`).toContain(leitura);
+    }
+    // «Pagamentos» é só configuração: já não lê encomendas nem vendas.
+    for (const fora of ["listOrders", "getOrderStats", "listWithdrawals", "listWhatsappOrders", "requestWithdrawal"]) {
+      expect(PAGAMENTOS, `${fora} não pertence a «Pagamentos»`).not.toContain(fora);
     }
   });
 });
@@ -278,20 +284,29 @@ describe("Menu de secções em telemóvel — o Dono tinha de poder sair da sec�
     expect(DASHBOARD).not.toMatch(/top-\[\d+px\]/);
   });
 
-  it("em telemóvel o Dono também troca de loja, sem duplicar o id do seletor", () => {
-    expect(DASHBOARD.match(/id="store-switch"/g)).toHaveLength(1);
-    expect(DASHBOARD.match(/id="store-switch-mobile"/g)).toHaveLength(1);
-    expect(DASHBOARD).toContain('document.querySelectorAll<HTMLSelectElement>("[data-store-switch]")');
-    expect(DASHBOARD.match(/\$\{storeOptions\}/g)).toHaveLength(2);
-    // Os dois seletores têm nome para o leitor de ecrã.
-    expect(DASHBOARD.match(/data-store-switch aria-label="Loja em edição"/g)).toHaveLength(2);
+  it("em telemóvel o Dono também troca de loja: o mesmo menu, sem id repetido", () => {
+    expect(DASHBOARD.match(/\$\{menu\}/g)).toHaveLength(2);
+    expect(DASHBOARD).not.toMatch(/id="store-switch/);
+    expect(DASHBOARD).toContain('document.querySelectorAll<HTMLButtonElement>("[data-store-switch-to]")');
+    // O resumo do menu tem nome para o leitor de ecrã.
+    expect(DASHBOARD).toContain('<span class="sr-only">Loja em edição: </span>');
+    // Fecha ao tocar fora e com Escape, com os ouvintes ligados uma vez só.
+    expect(DASHBOARD).toContain("if (!storeMenuCloseBound) {");
+  });
+
+  it("«Nova loja» diz o que custa antes de o Dono a criar, com o preço do domínio", () => {
+    const menu = DASHBOARD.slice(DASHBOARD.indexOf("function storeMenuHtml("), DASHBOARD.indexOf("function shellHtml("));
+    expect(menu).toContain('href="#/criar"');
+    expect(menu).toContain("Nova loja");
+    expect(menu).toContain("Grátis até publicar. Depois, ${esc(PLAN_PRICE_TEXT)} ${esc(PLAN_UNIT_LABEL)}.");
   });
 
   it("terminar sessão, «Nova loja» e a Administração também existem em telemóvel", () => {
     expect(DASHBOARD.match(/data-logout/g)!.length).toBeGreaterThanOrEqual(2);
     expect(DASHBOARD).toContain('document.querySelectorAll<HTMLElement>("[data-logout]")');
     const barra = DASHBOARD.slice(DASHBOARD.indexOf('<div class="md:hidden flex items-center gap-2'));
-    expect(barra).toContain('aria-label="Nova loja"');
+    // «Nova loja» vive dentro do menu de loja, que a barra também mostra.
+    expect(barra).toContain("${menu}");
     expect(barra).toContain('aria-label="Terminar sessão"');
     expect(barra).toContain('aria-label="Dashboard de Administração"');
   });
@@ -359,7 +374,7 @@ describe("Apagar transações expiradas — a lista deixa de crescer para sempre
   });
 
   it("a confirmação diz que é definitivo, porque é", () => {
-    const fn = PAGAMENTOS.slice(PAGAMENTOS.indexOf("const apagarVenda = async"));
+    const fn = VENDAS.slice(VENDAS.indexOf("const apagarVenda = async"));
     expect(fn).toContain("confirm(");
     expect(fn).toMatch(/para sempre/);
     expect(fn).toContain("não é possível recuperá-la");
@@ -372,16 +387,16 @@ describe("Apagar transações expiradas — a lista deixa de crescer para sempre
   });
 
   it("a lista, a contagem e a paginação ficam coerentes sem recarregar o ecrã", () => {
-    const fn = PAGAMENTOS.slice(PAGAMENTOS.indexOf("const apagarVenda = async"), PAGAMENTOS.indexOf("desenhar();\n", PAGAMENTOS.indexOf("const apagarVenda = async")) + 40);
+    const fn = VENDAS.slice(VENDAS.indexOf("const apagarVenda = async"), VENDAS.indexOf("desenhar();\n", VENDAS.indexOf("const apagarVenda = async")) + 40);
     expect(fn).toContain("orders.splice(i, 1)");
     expect(fn).toContain('document.getElementById("orders-count")');
     expect(fn).toContain("desenhar();");
-    expect(fn).not.toContain("renderPagamentos(");
+    expect(fn).not.toContain("rerender(");
   });
 
   it("o disponível para levantar é o líquido menos o que já foi pedido", () => {
     expect(WITHDRAWALS).toContain('filter((r) => r.status !== "rejected")');
-    expect(PAGAMENTOS).toContain("const available = Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100);");
+    expect(VENDAS).toContain("const available = Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100);");
   });
 
   it("a guarda de verdade é a política de `delete`, e exclui as pagas duas vezes", () => {
@@ -425,14 +440,10 @@ describe("Armadilha do template literal — acento grave em comentário HTML", (
 /* ================= Orientação do assistente (assistantContext) ================= */
 
 /*
- * Asserções sobre `web/lib/assistantContext.ts`, que é atualizado à parte
- * (`.kiro/steering/assistente.md`). As que só leem a orientação ficam como
- * estavam. As que também procuravam no ecrã os rótulos do «Início» antigo
- * («Não publicada», «Valor total vendido», «Solicitar levantamento»…) estão em
- * `it.skip`: esses rótulos saíram do «Início» (as vendas passaram para
- * «Pagamentos»), e a orientação nova tem de ser escrita com os do ecrã atual —
- * «Publicada», «Rascunho», «Publicar a loja», «Despublicar», «Copiar»,
- * «Funil de compra», «Próximos passos».
+ * Asserções sobre `web/lib/assistantContext.ts`, que muda na mesma alteração que
+ * o ecrã (`.kiro/steering/assistente.md`): a orientação do «Início» usa os
+ * rótulos que o Dono vê agora, incluindo os das encomendas e das vendas, que
+ * vieram de «Pagamentos».
  */
 describe("Orientação do assistente — acompanha o que o ecrã mostra", () => {
   const guia = (() => {
@@ -459,19 +470,18 @@ describe("Orientação do assistente — acompanha o que o ecrã mostra", () => 
     expect(guia).toContain("Ainda sem movimento nos últimos 30 dias");
   });
 
-  it("manda as vendas e o saldo para «Pagamentos», onde eles estão", () => {
-    // Enquanto os cartões de dinheiro estiveram no Início, a orientação
-    // descrevia-os aqui. Depois de mudarem de sítio, descrevê-los aqui seria o
-    // mesmo defeito dos escalões de preço: uma resposta que manda procurar no
-    // ecrã errado.
-    for (const rotulo of ["Valor total vendido", "Disponível para levantar", "Já pedido", "Vendas pagas por dia"]) {
-      expect(guia, `${rotulo} já não é do Início`).not.toContain(rotulo);
+  it("descreve as encomendas e as vendas aqui, que é onde elas estão agora", () => {
+    // Enquanto estiveram em «Pagamentos», a orientação descrevia-as lá. Depois
+    // de mudarem de sítio, descrevê-las lá seria o mesmo defeito dos escalões de
+    // preço: uma resposta que manda procurar no ecrã errado.
+    for (const rotulo of ["Encomendas por WhatsApp", "Recebido (líquido)", "Disponível para levantar", "Solicitar levantamento", "Referências pendentes"]) {
+      expect(guia, `rótulo ausente da orientação do Início: ${rotulo}`).toContain(rotulo);
     }
-    expect(guia).toMatch(/separador «Pagamentos»/);
     const inicioPag = CONTEXT.indexOf("pagamentos: `ECRÃ");
     const pagamentos = CONTEXT.slice(inicioPag, CONTEXT.indexOf("`,", inicioPag));
-    for (const rotulo of ["Disponível para levantar", "Solicitar levantamento", "Recebido (líquido)", "Referências pendentes"]) {
-      expect(pagamentos, `rótulo ausente da orientação de «Pagamentos»: ${rotulo}`).toContain(rotulo);
+    expect(pagamentos).toMatch(/só configuração/);
+    for (const rotulo of ["Recebido (líquido)", "Disponível para levantar", "Solicitar levantamento", "Referências pendentes"]) {
+      expect(pagamentos, `${rotulo} já não é de «Pagamentos»`).not.toContain(rotulo);
     }
   });
 });
