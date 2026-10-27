@@ -128,7 +128,7 @@ describe("O código nunca fica legível, e a chave nunca sai", () => {
   });
 
   it("o Dono vem do token da sessão, nunca do corpo do pedido", () => {
-    expect(ENDPOINT).toContain("ownerFromRequest(db, req)");
+    expect(ENDPOINT).toContain("userFromRequest(db, req)");
     expect(ENDPOINT).not.toMatch(/body\.ownerId/);
   });
 });
@@ -195,5 +195,40 @@ describe("Falhar sem prender ninguém", () => {
   it("a confirmação escreve as duas colunas do perfil, e nada mais", () => {
     const m = /\.update\(\{ phone: desafio\.phone, phone_verified_at: agora \}\)/.exec(ENDPOINT);
     expect(m, "a confirmação não grava o número e a data").not.toBeNull();
+  });
+
+  it("a linha de `profiles` é garantida antes de lhe escrever", () => {
+    /*
+     * O 500 que apareceu no primeiro teste a sério: a linha de `profiles` é
+     * gravada pelo navegador depois do registo, sem verificar o resultado, e o
+     * pedido do código chega logo a seguir. A chave estrangeira do desafio
+     * apontava para `profiles` e falhava; hoje aponta para `auth.users`
+     * (migração 0027) e o perfil é garantido aqui.
+     */
+    expect(ENDPOINT).toContain("async function ensureProfile(db, user)");
+    expect(ENDPOINT).toContain("ignoreDuplicates: true");
+    // A ordem conta, e mede-se dentro do `handler`: a definição de `doSend`
+    // aparece antes dele no ficheiro, e comparar posições no texto todo dava
+    // uma asserção que passava por acidente.
+    const handler = ENDPOINT.slice(ENDPOINT.indexOf("export default async function handler"));
+    const garante = handler.indexOf("await ensureProfile(db, user);");
+    const despacha = handler.indexOf('action === "send" ? await doSend(');
+    expect(garante, "o perfil não é garantido no handler").toBeGreaterThan(-1);
+    expect(despacha, "o despacho das ações não foi encontrado").toBeGreaterThan(-1);
+    expect(garante, "o perfil é garantido depois das escritas").toBeLessThan(despacha);
+  });
+
+  it("uma confirmação que não encontre linha nenhuma não diz «feito»", () => {
+    // Um `update` sem linhas não é erro para o Postgres: sem o `select`, o ecrã
+    // dizia «número confirmado» e o Dono continuava sem poder publicar.
+    expect(ENDPOINT).toContain('.select("phone_verified_at")');
+    expect(ENDPOINT).toContain("if (error || !(data ?? []).length)");
+  });
+
+  it("uma falha da base de dados diz a causa, em vez de «não foi possível»", () => {
+    expect(ENDPOINT).toContain("function causa(error)");
+    expect(ENDPOINT).toContain("error?.code");
+    const quantas = [...ENDPOINT.matchAll(/causa\(error\)/g)].length;
+    expect(quantas, "há falhas de gravação sem causa na resposta").toBeGreaterThanOrEqual(4);
   });
 });

@@ -29,7 +29,6 @@
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { admin, missingEnvMessage, readBody, send } from "./_shared.js";
-import { ownerFromRequest } from "./_payments.js";
 import { sendPhoneCode } from "./_nsangu.js";
 
 /* ----------------------- Espelho de phoneVerification.ts ----------------------- */
@@ -55,6 +54,19 @@ const SENDS_WINDOW_MS = 60 * 60 * 1000;
 const MAX_SENDS_PER_HOUR_GLOBAL = 120;
 
 /* --------------------------------- Auxiliares --------------------------------- */
+
+/**
+ * Causa de um erro da base de dados, curta e sem dados de ninguém.
+ *
+ * Vai na resposta de propósito, pelo mesmo motivo de `readOrThrow`
+ * (`src/services/dbErrors.ts`): «não foi possível» sem a causa é indistinguível
+ * de uma migração que falta, e foi exactamente isso que custou uma ronda de
+ * perguntas quando este endpoint respondeu 500 pela primeira vez.
+ */
+function causa(error) {
+  const texto = error?.message ? String(error.message) : "erro na base de dados";
+  return error?.code ? `${texto} (${error.code})` : texto;
+}
 
 /** Telemóvel angolano normalizado (`2449XXXXXXXX`), ou `""`. Espelha `normalizeAoPhone`. */
 function aoPhone(raw) {
@@ -117,6 +129,50 @@ async function sendsInWindow(db, ownerId, since) {
 async function alreadyVerified(db, ownerId) {
   const { data } = await db.from("profiles").select("phone_verified_at").eq("id", ownerId).maybeSingle();
   return !!data?.phone_verified_at;
+}
+
+/**
+ * Utilizador autenticado do pedido: id, email e nome.
+ *
+ * `ownerFromRequest` (`api/_payments.js`) devolve só o id, e aqui faz falta o
+ * email — é o que permite criar a linha de `profiles` se ela não existir.
+ */
+async function userFromRequest(db, req) {
+  const header = String(req.headers?.authorization || req.headers?.Authorization || "");
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token) return null;
+  try {
+    const { data, error } = await db.auth.getUser(token);
+    const u = data?.user;
+    if (error || !u?.id) return null;
+    const nome = typeof u.user_metadata?.name === "string" ? u.user_metadata.name : "";
+    return { id: String(u.id), email: u.email ?? "", name: nome };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Garante que a conta tem linha em `profiles` antes de lhe escrever.
+ *
+ * Quem a grava hoje é o navegador, logo depois do registo, e sem verificar o
+ * resultado (`ensureProfile`, `web/supabase/auth.ts`). Se essa escrita falhar, a
+ * confirmação do número não tinha onde ficar: o `update` não encontrava linha
+ * nenhuma, não dava erro, e o Dono ficava sem conseguir publicar sem nunca
+ * saber porquê.
+ *
+ * `ignoreDuplicates` faz disto um `on conflict do nothing`: cria o que falta e
+ * **não** toca no que já existe — nem no nome que o Dono mudou, nem nas colunas
+ * que o `profiles_guard` protege (a service role passa por cima dele).
+ */
+async function ensureProfile(db, user) {
+  const { error } = await db
+    .from("profiles")
+    .upsert(
+      { id: user.id, email: user.email, name: user.name || user.email || "Dono" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+  if (error) console.error("phone-verify: perfil", causa(error));
 }
 
 /* ---------------------------------- Enviar ---------------------------------- */
@@ -191,8 +247,8 @@ async function doSend(db, res, ownerId, body) {
       .update({ code_hash: hashCode(id, code), sends, attempts: 0, expires_at: expiresAt, last_sent_at: new Date(agora).toISOString() })
       .eq("id", id);
     if (error) {
-      console.error("phone-verify: update", error);
-      return send(res, 500, { success: false, code: "PERSIST_FAILED", error: "Não foi possível preparar o código." });
+      console.error("phone-verify: update", causa(error));
+      return send(res, 500, { success: false, code: "PERSIST_FAILED", error: `Não foi possível preparar o código: ${causa(error)}` });
     }
   } else {
     sends = 1;
@@ -205,8 +261,8 @@ async function doSend(db, res, ownerId, body) {
       .from("phone_verifications")
       .insert({ id, owner_id: ownerId, phone, code_hash: hashCode(id, code), expires_at: expiresAt });
     if (error) {
-      console.error("phone-verify: insert", error);
-      return send(res, 500, { success: false, code: "PERSIST_FAILED", error: "Não foi possível preparar o código." });
+      console.error("phone-verify: insert", causa(error));
+      return send(res, 500, { success: false, code: "PERSIST_FAILED", error: `Não foi possível preparar o código: ${causa(error)}` });
     }
   }
 
@@ -268,13 +324,21 @@ async function doCheck(db, res, ownerId, body) {
 
   const agora = new Date().toISOString();
   await db.from("phone_verifications").update({ verified_at: agora }).eq("id", desafio.id);
-  const { error } = await db
+  // `.select()` não é decoração: um `update` que não encontra linha nenhuma não
+  // é um erro para o Postgres, e sem isto a confirmação dizia «feito» sem ter
+  // gravado nada — e o Dono continuava sem poder publicar.
+  const { data, error } = await db
     .from("profiles")
     .update({ phone: desafio.phone, phone_verified_at: agora })
-    .eq("id", ownerId);
-  if (error) {
-    console.error("phone-verify: confirmar perfil", error);
-    return send(res, 500, { success: false, code: "PERSIST_FAILED", error: "O código está certo, mas não foi possível guardar a confirmação. Tente de novo." });
+    .eq("id", ownerId)
+    .select("phone_verified_at");
+  if (error || !(data ?? []).length) {
+    console.error("phone-verify: confirmar perfil", error ? causa(error) : "nenhuma linha de profiles");
+    return send(res, 500, {
+      success: false,
+      code: "PERSIST_FAILED",
+      error: `O código está certo, mas não foi possível guardar a confirmação${error ? `: ${causa(error)}` : "."}`,
+    });
   }
   return send(res, 200, { success: true, phone: desafio.phone });
 }
@@ -287,10 +351,14 @@ export default async function handler(req, res) {
   const db = admin();
   if (!db) return send(res, 500, { success: false, code: "SERVER_NOT_CONFIGURED", error: missingEnvMessage() });
 
-  const ownerId = await ownerFromRequest(db, req);
-  if (!ownerId) {
+  const user = await userFromRequest(db, req);
+  if (!user) {
     return send(res, 401, { success: false, code: "UNAUTHENTICATED", error: "Inicie sessão para confirmar o número." });
   }
+  const ownerId = user.id;
+  // Antes de qualquer escrita: a confirmação vai para `profiles`, e essa linha
+  // pode ainda não existir numa conta criada há segundos.
+  await ensureProfile(db, user);
 
   const body = await readBody(req);
   const action = body.action === "check" ? "check" : body.action === "send" ? "send" : null;

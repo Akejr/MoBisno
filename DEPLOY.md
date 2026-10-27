@@ -71,7 +71,7 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 > (Settings → Domains → Redirect) para ser instantâneo, sem carregar a app.
 
 ## 4. Supabase
-1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0026`.
+1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0027`.
    Nenhuma é opcional, e a ordem conta.
 
    | Migração | O que faz |
@@ -92,16 +92,18 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
    | **`0024_wizapay_vero_and_whatsapp_orders.sql`** | **Pagamentos a sério.** O serviço e o código de estado que a Wiza devolveu (`orders`, `plan_payments`); a factura da empresa do Dono (`orders.invoice_*`, `store_payments.vero_org_id`/`vero_api_key` e as colunas derivadas `vero_key_set`/`vero_key_test`, que são as únicas que o navegador lê); `orders.notified_at`, que impede o mesmo aviso de venda duas vezes; a restrição `orders_net_within_amount` (o líquido nunca excede o montante nem é negativo); e a tabela **`whatsapp_orders`**, com inserção pública, onde cai quem toca em «Finalizar via WhatsApp» |
    | **`0025_plan_per_store.sql`** | **A subscrição passa a ser de cada loja** (10.000 Kz por 30 dias, por loja): `stores.plan_expires_at`, preenchida na transição com o período em curso da conta; o gatilho `stores_plan_guard` (só a plataforma mexe na data); publicar e a leitura pública passam a olhar para a subscrição da loja; e `plan_payments.store_id` |
    | **`0026_phone_verification.sql`** | **Confirmação do telemóvel por SMS.** `profiles.phone` e `profiles.phone_verified_at` (as contas que já existiam ficam confirmadas, uma vez só, no momento em que a coluna nasce); `profiles_guard` passa a proteger as duas colunas (o Dono não se confirma a si próprio); a tabela `phone_verifications`, com RLS ligada e **sem políticas** (só a service role lhe toca, e guarda o SHA-256 do código, nunca o código); e publicar passa a exigir **telemóvel confirmado e** subscrição em vigor |
+   | **`0027_phone_verifications_fk.sql`** | Corrige a chave estrangeira de `phone_verifications.owner_id`: passa a referenciar `auth.users (id)`, como todas as outras tabelas da plataforma. A linha de `profiles` é gravada pelo navegador **depois** do registo, e o pedido do código chegava antes dela — o envio falhava com um 500 na primeira conta criada |
 
    > Numa instalação feita antes desta versão faltam a 0022, a 0023, a 0024, a
-   > 0025 e a 0026.
+   > 0025, a 0026 e a 0027.
    > Sem a 0022, qualquer utilizador autenticado se promove a administrador
    > (`update profiles set is_admin = true`). Sem a 0023, o painel de
    > «Pagamentos» falha ao gravar a verificação de empresa. Sem a 0024, uma
    > venda digital não grava a factura e o «Início» falha a ler as encomendas
    > por WhatsApp. Sem a 0025, todas as lojas aparecem sem subscrição e o
    > pagamento do plano é recusado. Sem a 0026, a confirmação do telemóvel falha
-   > ao gravar e ninguém consegue publicar.
+   > ao gravar e ninguém consegue publicar. Sem a 0027, o envio do código responde
+   > 500 à primeira conta criada.
 
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
    no SQL Editor, correr
@@ -345,8 +347,8 @@ não da Plataforma, e o Dono escreve-as no painel dele. Ficam em
 derivadas `vero_key_set`/`vero_key_test`, nunca a chave.
 
 ## Checklist de lançamento
-- [ ] Migrações `0001` … `0026` (as duas `0018` incluídas). **A 0022, a 0023, a
-      0024, a 0025 e a 0026 são obrigatórias**: sem a 0022, qualquer utilizador
+- [ ] Migrações `0001` … `0027` (as duas `0018` incluídas). **A 0022, a 0023, a
+      0024, a 0025, a 0026 e a 0027 são obrigatórias**: sem a 0022, qualquer utilizador
       se promove a administrador; sem a 0024, uma venda digital não grava a
       factura; sem a 0025, nenhuma loja tem subscrição; sem a 0026, ninguém
       consegue publicar.
