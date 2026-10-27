@@ -250,6 +250,11 @@ describe("GET /api/health sem fornecedor", () => {
     paymentWebhook: false,
     email: false,
     sms: false,
+    ai: false,
+    // O nome do modelo não é segredo, e é o que distingue «sem chave» de
+    // «modelo que não existe» — o erro que deixou a geração de texto a falhar
+    // em silêncio durante meses.
+    aiModel: "openai/gpt-4o-mini",
   };
 
   it("diz que não há fornecedor, nem callback, nem email, e que o Supabase está configurado", async () => {
@@ -263,18 +268,29 @@ describe("GET /api/health sem fornecedor", () => {
 
   it("cada peça é lida da sua própria variável", async () => {
     // Uma só variável a ligar tudo dava um `true` a mentir sobre as outras.
-    const antes = { k: process.env.WIPAY_WEBHOOK_SECRET, r: process.env.RESEND_API_KEY };
+    const antes = {
+      k: process.env.WIPAY_WEBHOOK_SECRET,
+      r: process.env.RESEND_API_KEY,
+      n: process.env.NSANGU_API_KEY,
+      o: process.env.OPENROUTER_API_KEY,
+    };
     process.env.WIPAY_WEBHOOK_SECRET = "segredo-de-teste";
     process.env.RESEND_API_KEY = "chave-resend-de-teste";
+    process.env.NSANGU_API_KEY = "chave-nsangu-de-teste";
+    process.env.OPENROUTER_API_KEY = "chave-openrouter-de-teste";
     try {
       const res = resposta();
       await health(pedido({ method: "GET" }).req, res);
-      expect(res.body).toEqual({ ...SEM_NADA, paymentWebhook: true, email: true });
+      expect(res.body).toEqual({ ...SEM_NADA, paymentWebhook: true, email: true, sms: true, ai: true });
     } finally {
       if (antes.k === undefined) delete process.env.WIPAY_WEBHOOK_SECRET;
       else process.env.WIPAY_WEBHOOK_SECRET = antes.k;
       if (antes.r === undefined) delete process.env.RESEND_API_KEY;
       else process.env.RESEND_API_KEY = antes.r;
+      if (antes.n === undefined) delete process.env.NSANGU_API_KEY;
+      else process.env.NSANGU_API_KEY = antes.n;
+      if (antes.o === undefined) delete process.env.OPENROUTER_API_KEY;
+      else process.env.OPENROUTER_API_KEY = antes.o;
     }
   });
 
@@ -286,6 +302,7 @@ describe("GET /api/health sem fornecedor", () => {
       const res = resposta();
       await health(pedido({ method: "GET" }).req, res);
       const texto = JSON.stringify(res.body);
+      expect(texto, "o modelo de IA tem de ser legível no diagnóstico").toContain("aiModel");
       for (const segredo of ["chave-service-role-de-teste", "projeto-de-teste", "segredo-de-teste", "chave-resend-de-teste"]) {
         expect(texto, `o segredo «${segredo}» saiu na resposta`).not.toContain(segredo);
       }

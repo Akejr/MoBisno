@@ -104,10 +104,77 @@ describe("Assistente_IA — os quatro âmbitos estão registados (R8.8)", () => 
   });
 
   it("o prompt do âmbito chega ao modelo como primeira mensagem de sistema", () => {
+    // A chamada vive em `api/_openrouter.js`: é lá que a mensagem de sistema é
+    // posta à frente da conversa, e é de lá que vem o `system` que o endpoint
+    // monta a partir de `PROMPTS[scope]`.
+    const OR = readFileSync(join(ROOT, "api/_openrouter.js"), "utf8");
+    expect(OR).toMatch(/messages: \[\s*\{ role: "system", content: system \}/);
+    expect(ASSISTANT).toContain("aiChat({");
+    expect(ASSISTANT).toContain("system,");
     // Afirma-se a propriedade e não o literal: `system` deriva de
     // `PROMPTS[scope]`, e é `system` que vai na mensagem.
     expect(ASSISTANT).toMatch(/const system = context[\s\S]{0,400}PROMPTS\[scope\]/);
-    expect(ASSISTANT).toMatch(/messages = \[\s*\{ role: "system", content: system \}/);
+    expect(ASSISTANT).toMatch(/const system = context/);
+  });
+});
+
+describe("Toda a IA passa pelo OpenRouter, num sítio só", () => {
+  /**
+   * O endereço e o nome do modelo estavam escritos no meio de
+   * `api/assistant.js`, e o modelo por omissão — `gpt-5.4-mini` — **não
+   * existia**. Cada pedido falhava, o endpoint respondia 502, e quem gerava a
+   * descrição da loja recebia em silêncio um resumo do próprio texto.
+   */
+  const OR = readFileSync(join(ROOT, "api/_openrouter.js"), "utf8");
+  const SEOGEN = readFileSync(join(ROOT, "web/lib/seoGen.ts"), "utf8");
+
+  it("há um módulo só para a chamada ao modelo, e é o que o endpoint usa", () => {
+    expect(OR).toContain("https://openrouter.ai/api/v1/chat/completions");
+    expect(ASSISTANT).toContain('from "./_openrouter.js"');
+    expect(ASSISTANT).not.toContain("api.openai.com");
+  });
+
+  it("nenhum ficheiro volta a falar com a OpenAI nem a ler OPENAI_API_KEY", () => {
+    const todos = [ASSISTANT, OR, SEOGEN, readFileSync(join(ROOT, "api/health.js"), "utf8")];
+    for (const fonte of todos) {
+      expect(fonte).not.toContain("api.openai.com");
+      expect(fonte).not.toContain("OPENAI_API_KEY");
+      expect(fonte).not.toContain("OPENAI_MODEL");
+    }
+  });
+
+  it("o modelo é configurável, e o que vem por omissão tem a forma de um slug do OpenRouter", () => {
+    // `fornecedor/modelo`. Um nome sem fornecedor é um nome da OpenAI, e no
+    // OpenRouter não existe: era meio caminho para repetir o mesmo erro.
+    expect(OR).toContain("process.env.OPENROUTER_MODEL");
+    const m = /const DEFAULT_MODEL = "([^"]+)"/.exec(OR);
+    expect(m, "DEFAULT_MODEL não encontrado").not.toBeNull();
+    expect(m?.[1]).toMatch(/^[a-z0-9-]+\/[a-zA-Z0-9.:-]+$/);
+  });
+
+  it("a chave fica no servidor: nunca entra no pacote do navegador", () => {
+    for (const f of ["web/lib/seoGen.ts", "web/lib/aiAgent.ts", "web/lib/assistantContext.ts"]) {
+      const fonte = readFileSync(join(ROOT, f), "utf8");
+      expect(fonte, `${f} lê a chave do modelo`).not.toContain("OPENROUTER_API_KEY");
+    }
+  });
+
+  it("a geração de texto diz quando NÃO foi a IA a escrever", () => {
+    /*
+     * O recurso está certo — criar a loja não pode esperar por um modelo. O que
+     * não pode é ser invisível: o assistente prometia «a melhor descrição para o
+     * Google» e entregava um resumo do texto do próprio Dono.
+     */
+    expect(SEOGEN).toContain("byAi");
+    expect(SEOGEN).toContain("byAi: false");
+    const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
+    expect(WIZARD).toContain("wiz.data.seoByAi");
+    expect(WIZARD).toMatch(/A IA não respondeu agora/);
+  });
+
+  it("uma falha da IA é registada no cliente com o código, não engolida", () => {
+    expect(SEOGEN).toContain('console.warn("[seoGen]"');
+    expect(SEOGEN).toContain("corpo?.code");
   });
 });
 
@@ -129,9 +196,25 @@ describe("Endpoint do assistente — protegido e sem fugas", () => {
   });
 
   it("o erro do fornecedor fica no registo do servidor, não na resposta", () => {
+    /*
+     * Continua a ser verdade — e ganhou uma segunda metade. O detalhe do
+     * fornecedor pode trazer identificadores da conta ou da chave e fica nos
+     * registos; o **código** vai na resposta.
+     *
+     * Sem o código, «falha a contactar o assistente» não distinguia uma chave
+     * errada de um modelo que não existe de uma falha de rede — e o modelo
+     * configurado não existia, durante meses, sem ninguém saber.
+     */
+    const OR = readFileSync(join(ROOT, "api/_openrouter.js"), "utf8");
+    expect(OR).toContain('console.error("[openrouter]"');
+    expect(ASSISTANT).toContain("res.status(502).json({ error: r.error, code: r.code });");
+    expect(ASSISTANT, "o detalhe do fornecedor não pode ir na resposta").not.toMatch(/detail/);
+    for (const codigo of ["AI_NOT_CONFIGURED", "AI_MODEL_NOT_FOUND", "AI_UNAUTHORIZED"]) {
+      expect(OR, `código em falta: ${codigo}`).toContain(codigo);
+    }
     // O detalhe pode trazer identificadores da conta ou da chave.
     expect(ASSISTANT).not.toMatch(/detail: detail\.slice/);
-    expect(ASSISTANT).toMatch(/console\.error\("\[assistant\] upstream"/);
+    expect(ASSISTANT).toMatch(/console\.error\("\[assistant\]"/);
   });
 });
 

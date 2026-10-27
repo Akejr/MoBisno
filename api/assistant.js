@@ -1,16 +1,20 @@
 /**
- * Função serverless (Vercel) — intermediária do assistente de IA do editor.
+ * Função serverless (Vercel) — intermediária de **toda** a IA da plataforma: as
+ * respostas do assistente e a geração dos textos de SEO da loja.
  *
- * A chave da OpenAI fica APENAS aqui, no servidor, via variável de ambiente
- * `OPENAI_API_KEY` (nunca no frontend). O assistente só RESPONDE a perguntas —
- * não executa ações na loja.
+ * A chamada ao modelo vive em `api/_openrouter.js`, e a chave fica apenas no
+ * servidor (`OPENROUTER_API_KEY`). O assistente só RESPONDE a perguntas — não
+ * executa ações na loja.
  *
  * Configuração:
- *  - OPENAI_API_KEY  (obrigatória)  — a chave secreta da OpenAI.
- *  - OPENAI_MODEL    (opcional)     — por omissão "gpt-5.4-mini".
+ *  - OPENROUTER_API_KEY  (obrigatória) — a chave do OpenRouter.
+ *  - OPENROUTER_MODEL    (opcional)    — identificador do modelo; ver `_openrouter.js`.
+ *
+ * O que este ficheiro guarda são os **prompts**: o papel de cada âmbito, o
+ * estilo das respostas e a recusa fora de âmbito. Os factos da plataforma
+ * chegam no corpo do pedido, em `context` (`web/lib/assistantContext.ts`).
  */
-
-const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
+import { aiChat, aiConfigured } from "./_openrouter.js";
 
 const STYLE_RULES = `ESTILO DAS RESPOSTAS:
 - Sê CURTO e direto. Perguntas simples → 1 a 2 frases, sem listas.
@@ -113,8 +117,8 @@ const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seo
 /**
  * Origens que podem usar o assistente. O endpoint não exige sessão (o visitante
  * da página inicial também pergunta), por isso é a origem que impede outro site
- * de o usar com a nossa chave da OpenAI. Não trava um `curl` — é por isso que há
- * também o limite de pedidos abaixo.
+ * de o usar com a nossa chave do OpenRouter. Não trava um `curl` — é por isso
+ * que há também o limite de pedidos abaixo.
  */
 function allowedOrigin(req) {
   const origin = String(req.headers?.origin || req.headers?.referer || "");
@@ -168,9 +172,8 @@ export default async function handler(req, res) {
     res.status(429).json({ error: "Demasiados pedidos. Tenta de novo daqui a uns minutos." });
     return;
   }
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    res.status(500).json({ error: "Assistente não configurado (falta OPENAI_API_KEY)." });
+  if (!aiConfigured()) {
+    res.status(503).json({ error: "O assistente não está configurado.", code: "AI_NOT_CONFIGURED" });
     return;
   }
 
@@ -202,33 +205,31 @@ export default async function handler(req, res) {
       ? `${PROMPTS[scope]}\n\nCONTEXTO (verdade actual da plataforma e do ecrã onde o utilizador está — responde com base nisto):\n${context}`
       : PROMPTS[scope];
 
-    const messages = [
-      { role: "system", content: system },
-      ...history
+    const r = await aiChat({
+      system,
+      history: history
         .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m) => ({ role: m.role, content: String(m.content).slice(0, 2000) })),
-      { role: "user", content: question },
-    ];
-
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: MODEL, messages, max_completion_tokens: 600 }),
+      question,
+      referer: `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL || "mobisno.store"}`,
     });
 
     if (!r.ok) {
-      // O detalhe do fornecedor fica nos registos do servidor: pode trazer
-      // identificadores da conta ou da chave, e o cliente não precisa dele.
-      const detail = await r.text().catch(() => "");
-      console.error("[assistant] upstream", r.status, detail.slice(0, 500));
-      res.status(502).json({ error: "Falha a contactar o assistente." });
+      /*
+       * O detalhe do fornecedor fica nos registos (pode trazer identificadores
+       * da conta ou da chave); o **código** vai na resposta.
+       *
+       * É a lição do modelo inexistente: durante meses a resposta foi «falha a
+       * contactar o assistente», que não distingue uma chave errada de um modelo
+       * que não existe de uma falha de rede — e ninguém soube qual era. Um código
+       * não revela nada de ninguém e diz exactamente o que corrigir.
+       */
+      res.status(502).json({ error: r.error, code: r.code });
       return;
     }
-    const data = await r.json();
-    const answer = data?.choices?.[0]?.message?.content?.trim() || "Não consegui responder agora. Tenta de novo.";
-    res.status(200).json({ answer });
+    res.status(200).json({ answer: r.answer });
   } catch (err) {
     console.error("[assistant]", err);
-    res.status(500).json({ error: "Erro interno do assistente." });
+    res.status(500).json({ error: "Erro interno do assistente.", code: "INTERNAL" });
   }
 };

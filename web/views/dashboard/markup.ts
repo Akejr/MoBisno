@@ -242,6 +242,70 @@ export function nextStepsHtml(steps: readonly NextStep[]): string {
     ${itens ? `<ul class="mt-2 -mx-2">${itens}</ul>` : ""}`;
 }
 
+/**
+ * O «Início» de uma loja que ainda não tem nada: nem produtos, nem encomendas,
+ * nem uma única visita.
+ *
+ * Substitui a grelha dos três cartões, que nesse estado eram **três caixas a
+ * dizer que não havia nada** — encomendas vazias, funil vazio — com a única
+ * coisa que importava, a lista do que falta fazer, reduzida a uma coluna fina à
+ * direita, com setas que não se leem como botões.
+ *
+ * Aqui os passos são o ecrã: cada um com o que é, porque serve, e um botão. O
+ * primeiro que falta leva o botão principal — há sempre uma próxima coisa
+ * óbvia. Os que já estão feitos ficam à vista, apagados: mostram o caminho
+ * percorrido e o que ainda vem.
+ */
+export function onboardingHtml(o: { storeName: string; steps: readonly NextStep[] }): string {
+  const obrigatorios = o.steps.filter((s) => !s.optional);
+  const feitos = obrigatorios.filter((s) => s.done).length;
+  const pct = Math.round((feitos / Math.max(1, obrigatorios.length)) * 100);
+  const primeiroPorFazer = o.steps.find((s) => !s.done && !s.optional)?.id ?? null;
+
+  const itens = o.steps.map((s, i) => {
+    const principal = s.id === primeiroPorFazer;
+    const marca = s.done
+      ? `<span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style="background:#ecfdf5;color:#047857">${icon("check", "text-[20px]")}<span class="sr-only">Feito:</span></span>`
+      : `<span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${principal ? "text-white" : "border-2 border-gray-200 text-gray-600"} text-sm font-black" ${principal ? `style="background:${ACCENT}"` : ""}>${i + 1}<span class="sr-only">. Por fazer:</span></span>`;
+    const etiquetas = `${s.optional ? ` ${pill("Opcional", "neutral")}` : ""}${s.status ? ` ${pill(s.status, s.status === VERIFICATION_STATUS_LABEL.rejected ? "danger" : "info")}` : ""}`;
+    // Em análise não há nada a fazer: o pedido está nas mãos da MôBisno.
+    const acao = s.done || s.status === VERIFICATION_STATUS_LABEL.pending
+      ? ""
+      : s.href
+        ? `<a href="${esc(s.href)}" class="${principal ? BTN_PRIMARY : BTN_SECONDARY}">${esc(s.cta)} ${icon("arrow_forward", "text-[18px]")}</a>`
+        : `<button type="button" data-step-publish class="${principal ? BTN_PRIMARY : BTN_SECONDARY}">${esc(s.cta)} ${icon("arrow_forward", "text-[18px]")}</button>`;
+    return `<li class="py-4 flex flex-col sm:flex-row sm:items-center gap-3" data-step="${esc(s.id)}" data-done="${s.done ? "true" : "false"}">
+      <div class="flex items-start gap-3 min-w-0 flex-1">
+        ${marca}
+        <div class="min-w-0">
+          <p class="text-sm font-bold ${s.done ? "text-gray-500" : "text-gray-900"} flex items-center gap-1.5 flex-wrap">${esc(s.title)}${etiquetas}</p>
+          <p class="mt-0.5 text-sm text-gray-600">${esc(s.text)}</p>
+        </div>
+      </div>
+      ${acao ? `<div class="shrink-0 sm:ml-4 pl-11 sm:pl-0">${acao}</div>` : ""}
+    </li>`;
+  }).join("");
+
+  return card(`
+    <div class="flex items-start gap-3">
+      <span class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}">${icon("rocket_launch", "text-[24px]")}</span>
+      <div class="min-w-0">
+        <h2 class="text-lg font-black tracking-tight text-gray-900 break-words">Vamos pôr a ${esc(o.storeName)} a vender</h2>
+        <p class="mt-0.5 text-sm text-gray-600">${feitos === 0
+          ? "Comece pelos produtos. Leva poucos minutos e é o que a loja precisa para abrir."
+          : `${feitos} de ${obrigatorios.length} passos feitos. Falta pouco.`}</p>
+      </div>
+    </div>
+    <div class="mt-4 h-1.5 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-label="Passos feitos" aria-valuemin="0" aria-valuemax="${obrigatorios.length}" aria-valuenow="${feitos}">
+      <div class="h-full rounded-full" style="width:${pct}%;background:${ACCENT}"></div>
+    </div>
+    <ul class="mt-2 divide-y divide-gray-100">${itens}</ul>
+    <p class="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500 flex items-start gap-2">
+      <span class="text-gray-400 shrink-0">${icon("chat", "text-[18px]")}</span>
+      <span>As encomendas e as vendas aparecem aqui, neste ecrã, assim que o primeiro cliente comprar.</span>
+    </p>`);
+}
+
 /** Estado da subscrição desta loja, numa frase. A ligação para o «Plano» fica com quem a mostra. */
 export function subscriptionLine(b: BillingState): string {
   if (b.byAdmin) return "Conta de administração: publica sem subscrição.";

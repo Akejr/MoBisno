@@ -61,6 +61,16 @@ function callbackUrls({ host, kind, id, returnBase, storeId }) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, error: "Método não permitido." });
 
+  /*
+   * O domínio deste pedido. **Nunca estava declarado**: `callbackUrls` e
+   * `platformOrigin(host)` liam uma variável livre, e o `ReferenceError` caía no
+   * `catch` do fim como um «Erro interno ao iniciar o pagamento» — ou seja,
+   * nenhum pagamento jamais funcionou, e o 500 não dizia porquê.
+   *
+   * A mesma leitura de `api/prerender.js`, `api/robots.js` e `api/sitemap.js`.
+   */
+  const host = (req.headers?.host || PLATFORM_APEX).split(":")[0];
+
   const provider = getPaymentProvider();
   if (!provider) return send(res, 503, PAYMENTS_UNAVAILABLE);
 

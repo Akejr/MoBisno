@@ -17,6 +17,7 @@ import { configStatus, send } from "./_shared.js";
 import { getPaymentProvider } from "./_provider.js";
 import { resendConfigured } from "./_resend.js";
 import { nsanguConfigured } from "./_nsangu.js";
+import { aiConfigured, aiModel } from "./_openrouter.js";
 
 export default async function handler(_req, res) {
   const s = configStatus();
@@ -39,5 +40,11 @@ export default async function handler(_req, res) {
     // público. Lê-lo aqui também punha qualquer visita a gastar um pedido à API
     // da Nsangu.
     sms: nsanguConfigured(),
+    // Toda a IA passa pelo OpenRouter: as respostas do assistente e os textos
+    // de SEO que o assistente de criação gera. O nome do modelo não é segredo —
+    // e é o que distingue «sem chave» de «modelo que não existe», o erro que
+    // deixou a geração de texto a falhar em silêncio.
+    ai: aiConfigured(),
+    aiModel: aiModel(),
   });
 }

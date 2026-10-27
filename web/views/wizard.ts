@@ -798,19 +798,28 @@ function askAbout(): void {
   })();
 }
 
-/** Gera título + descrição de SEO por IA e mostra a pré-visualização do Google. */
+/**
+ * Gera título + descrição de SEO por IA e mostra a pré-visualização do Google.
+ *
+ * `byAi` diz se foi mesmo a IA a escrever. Quando não foi — o modelo não
+ * respondeu —, o texto sai do que o Dono escreveu e o assistente **di-lo**.
+ * Prometer «a melhor descrição para o Google» e entregar em silêncio um resumo
+ * do texto dele foi o que esteve a acontecer enquanto o modelo configurado não
+ * existia.
+ */
 function askSeoPreview(): void {
   void (async () => {
     inputBusy("A criar a melhor descrição para o Google…");
     const storeName = String(wiz.data[WIZARD_FIELDS.name] ?? "A minha loja");
     const storeType = String(wiz.data[WIZARD_FIELDS.storeType] ?? "");
     const about = String(wiz.data.aboutStore ?? "");
-    const [description, title] = await Promise.all([
+    const [descricao, titulo] = await Promise.all([
       generateSeoDescription({ storeName, storeType, about }),
       generateSeoTitle({ storeName, storeType, about }),
     ]);
-    wiz.data.seoTitle = title;
-    wiz.data.seoDescription = description;
+    wiz.data.seoTitle = titulo.text;
+    wiz.data.seoDescription = descricao.text;
+    wiz.data.seoByAi = descricao.byAi && titulo.byAi;
     clearInput();
     showSeoPreview();
   })();
@@ -819,7 +828,9 @@ function askSeoPreview(): void {
 /** Mostra o cartão de pré-visualização + pergunta de confirmação. */
 function showSeoPreview(): void {
   void (async () => {
-    await botSay("Prontinho! A tua loja vai aparecer assim no Google:");
+    await botSay(wiz.data.seoByAi === false
+      ? "A IA não respondeu agora, por isso parti do teu texto. Podes editar à vontade — é assim que a loja vai aparecer no Google:"
+      : "Prontinho! A tua loja vai aparecer assim no Google:");
     botCard(googlePreviewCard(String(wiz.data.seoTitle ?? ""), String(wiz.data.seoDescription ?? "")));
     await botSay("Concordas? Podes editar o título e a descrição se quiseres.");
     inputChips(

@@ -52,6 +52,7 @@ interface Venda {
 interface Markup {
   storeStatusHtml(o: { state: "Publicada" | "Rascunho"; billing: BillingState; publish: PublishDecision; storeUrl: string; previewUrl: string }): string;
   phoneNoticeHtml(o: { phone: string | null }): string;
+  onboardingHtml(o: { storeName: string; steps: readonly Passo[] }): string;
   funnelHtml(c: Funil): string;
   funnelConversion(c: Funil): string;
   nextSteps(i: {
@@ -237,6 +238,89 @@ describe("Telemóvel por confirmar — o aviso que falta fechar", () => {
   it("uma conta de administrador publica sem confirmar nada", () => {
     expect(DASHBOARD).toContain("isAdmin ? { verified: true, phone: phoneStatus.phone } : phoneStatus");
     expect(canPublishStore(resolveBilling({ planExpiresAt: null, isAdmin: true }), false).allowed).toBe(true);
+  });
+});
+
+describe("Loja recém-criada — um cartão com os passos, não três cartões vazios", () => {
+  /**
+   * O que o Dono reportou: «a tela de painel/início quando a pessoa acaba de
+   * criar a loja continua muito confusa».
+   *
+   * E estava: uma loja criada há cinco minutos não tem produtos, nem
+   * encomendas, nem visitas. A grelha mostrava as encomendas vazias (a ocupar
+   * dois terços da largura), o funil vazio, e a única coisa útil — o que falta
+   * fazer — era a coluna mais estreita, com setas que não se leem como botões.
+   */
+  it("o Início só troca de desenho quando NADA aconteceu", () => {
+    // Não é «poucos produtos» nem «poucas visitas»: é zero em tudo o que o
+    // ecrã mostraria. Um só sinal de vida e o painel volta a ser o painel.
+    expect(INICIO).toContain("const semNada = products.length === 0");
+    for (const sinal of ["lidas.waOrders.length === 0", "lidas.orders.length === 0", "analytics.visits30 === 0"]) {
+      expect(INICIO, `sinal de vida ignorado: ${sinal}`).toContain(sinal);
+    }
+    expect(INICIO).toContain("onboardingHtml({ storeName: store.name, steps: passos })");
+  });
+
+  it("nesse estado não se desenha nenhum cartão vazio", () => {
+    const bloco = INICIO.slice(INICIO.indexOf("const pintado = ctx.paint("), INICIO.indexOf("if (!pintado) return;"));
+    const ternario = bloco.indexOf("semNada");
+    expect(ternario, "o desenho não depende de `semNada`").toBeGreaterThan(-1);
+    // As encomendas e o funil ficam no outro ramo do mesmo ternário.
+    expect(bloco.indexOf("vendasHtml(vendas)")).toBeGreaterThan(ternario);
+    expect(bloco.indexOf("funnelHtml(")).toBeGreaterThan(ternario);
+    // E sem cartões no ecrã, não se ligam eventos a eles.
+    expect(INICIO).toContain("if (!semNada) ligarVendas(ctx, vendas, () => renderInicio(ctx));");
+  });
+
+  it("o cartão diz o nome da loja, o progresso e todos os passos", () => {
+    const html = M.onboardingHtml({ storeName: "Kitanda", steps: M.nextSteps(semNada) });
+    expect(html).toContain("Vamos pôr a Kitanda a vender");
+    expect(html).toContain("Comece pelos produtos");
+    for (const passo of M.nextSteps(semNada)) expect(html, passo.title).toContain(passo.title);
+  });
+
+  it("só o primeiro passo que falta tem o botão principal: há sempre uma próxima coisa óbvia", () => {
+    const html = M.onboardingHtml({ storeName: "Kitanda", steps: M.nextSteps(semNada) });
+    // `BTN_PRIMARY` é o único com o laranja de fundo; os outros são secundários.
+    const primarios = [...html.matchAll(/bg-\[#F95901\]/g)].length;
+    expect(primarios, "mais do que uma ação principal").toBe(1);
+    // E é o do primeiro passo por fazer.
+    const antes = html.slice(0, html.indexOf("bg-[#F95901]"));
+    expect(antes).toContain("Adicionar produtos");
+    expect(antes).not.toContain("Taxa de entrega");
+  });
+
+  it("com passos feitos, o destaque passa ao seguinte e os feitos ficam ticados", () => {
+    const html = M.onboardingHtml({
+      storeName: "Kitanda",
+      steps: M.nextSteps({ ...semNada, products: 4, hasLogo: true, whatsappOk: true }),
+    });
+    expect(html).toContain("3 de 5 passos feitos");
+    const antes = html.slice(0, html.indexOf("bg-[#F95901]"));
+    expect(antes).toContain("Taxa de entrega");
+    // Um passo feito não oferece botão nenhum.
+    expect(html).toMatch(/data-step="produtos" data-done="true"/);
+  });
+
+  it("a verificação em análise não oferece botão: está nas mãos da MôBisno", () => {
+    const html = M.onboardingHtml({
+      storeName: "Kitanda",
+      steps: M.nextSteps({ ...semNada, verification: "pending" }),
+    });
+    const item = html.slice(html.indexOf('data-step="empresa"'));
+    expect(item).toContain(VERIFICATION_STATUS_LABEL.pending);
+    expect(item).not.toContain("Enviar os dados");
+  });
+
+  it("diz onde as encomendas vão aparecer, para o ecrã vazio não parecer o ecrã final", () => {
+    const html = M.onboardingHtml({ storeName: "Kitanda", steps: M.nextSteps(semNada) });
+    expect(html).toMatch(/As encomendas e as vendas aparecem aqui/);
+  });
+
+  it("nada deste desenho mostra «undefined», «NaN» ou «[object Object]»", () => {
+    for (const steps of [M.nextSteps(semNada), M.nextSteps({ ...semNada, accessActive: true, products: 2 })]) {
+      expect(M.onboardingHtml({ storeName: "Kitanda <Lda>", steps })).not.toMatch(/undefined|NaN|\[object /);
+    }
   });
 });
 

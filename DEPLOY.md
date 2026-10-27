@@ -333,8 +333,8 @@ Todas na Vercel → Settings → Environment Variables (Production + Preview). E
 | `RESEND_API_KEY` | `api/_resend.js` | para avisar por email (secreta) | — |
 | `RESEND_FROM` | `api/_resend.js` | não | `MôBisno <vendas@mobisno.store>` |
 | `VERO_BASE_URL` | `api/_vero.js` | não | a API pública do Vero |
-| `OPENAI_API_KEY` | `api/assistant.js` | para o assistente | — |
-| `OPENAI_MODEL` | `api/assistant.js` | não | `gpt-5.4-mini` |
+| `OPENROUTER_API_KEY` | `api/_openrouter.js` | para a IA (secreta) | — |
+| `OPENROUTER_MODEL` | `api/_openrouter.js` | não | `openai/gpt-4o-mini` |
 | `GOOGLE_SITE_VERIFICATION` | `api/_seo.js` (`siteVerificationTags`) | não | `""` — só se verificar o Search Console por prefixo de URL em vez de DNS |
 
 `VERCEL_URL`, `VERCEL_BRANCH_URL` e `VERCEL_PROJECT_PRODUCTION_URL` são postas
@@ -345,6 +345,24 @@ As credenciais do **Vero** não estão aqui de propósito: são de cada empresa,
 não da Plataforma, e o Dono escreve-as no painel dele. Ficam em
 `store_payments`, que não tem leitura pública — e o navegador só lê as colunas
 derivadas `vero_key_set`/`vero_key_test`, nunca a chave.
+
+## IA: um fornecedor só, o OpenRouter
+
+Tudo o que usa um modelo passa por `/api/assistant`, e a chamada vive num
+ficheiro só (`api/_openrouter.js`): as respostas do assistente nos ecrãs e os
+textos de SEO que o assistente de criação gera (o título e a descrição para o
+Google).
+
+O modelo escolhe-se com `OPENROUTER_MODEL`, no formato `fornecedor/modelo` do
+catálogo em <https://openrouter.ai/models>. Por omissão, `openai/gpt-4o-mini`.
+
+> **O erro que isto corrigiu.** O modelo por omissão era `gpt-5.4-mini`, que não
+> existe. Cada pedido falhava, o endpoint respondia 502, e quem criava a loja
+> recebia em silêncio um resumo do próprio texto, apresentado como «a melhor
+> descrição para o Google». Agora: o código do erro vai na resposta
+> (`AI_MODEL_NOT_FOUND`, `AI_UNAUTHORIZED`, `AI_NOT_CONFIGURED`), o detalhe do
+> fornecedor fica nos registos, `/api/health` diz qual é o modelo em uso, e o
+> assistente de criação **avisa** quando o texto não veio da IA.
 
 ## Checklist de lançamento
 - [ ] Migrações `0001` … `0027` (as duas `0018` incluídas). **A 0022, a 0023, a
@@ -357,6 +375,9 @@ derivadas `vero_key_set`/`vero_key_test`, nunca a chave.
       publicar. `/api/health` responde `"sms": true` quando está no lugar.
 - [ ] Bucket `store-assets` público (criado pela `0001`) e `company-documents`
       **privado** (criado pela `0023`).
+- [ ] `OPENROUTER_API_KEY` configurada. `/api/health` responde `"ai": true` e
+      diz o modelo em `"aiModel"`. Sem ela, o assistente não responde e os
+      textos de SEO saem do que o Dono escreveu.
 - [ ] Variáveis de ambiente da tabela acima, incluindo as `WIPAY_*` e as
       `RESEND_*`.
 - [ ] URL de notificação na Wiza:

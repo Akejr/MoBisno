@@ -6,6 +6,12 @@
  * loja (com o botão de publicar), as encomendas e as vendas (`vendas.ts`), e ao
  * lado os «Próximos passos» e o funil dos últimos 30 dias, os dois compactos.
  *
+ * **Enquanto não houver nada**, o ecrã é outro. Uma loja criada há cinco minutos
+ * não tem encomendas, nem vendas, nem visitas: a grelha dos três cartões ficava
+ * a dizer três vezes que não havia nada, e o que o Dono precisava de ver — o que
+ * falta fazer — era a coluna mais estreita. Nesse estado mostra-se um cartão só,
+ * com os passos (`onboardingHtml`).
+ *
  * As encomendas e as vendas vieram do separador «Pagamentos», que passou a ser
  * só configuração.
  *
@@ -23,7 +29,8 @@ import { openPhoneVerify } from "../../lib/phoneVerify.js";
 import type { DashCtx } from "./context.js";
 import { BTN_LINK, card, cardHead, icon } from "./ui.js";
 import {
-  deliveryConfigured, funnelHtml, nextSteps, nextStepsHtml, phoneNoticeHtml, storeStatusHtml, whatsappConfigured,
+  deliveryConfigured, funnelHtml, nextSteps, nextStepsHtml, onboardingHtml, phoneNoticeHtml, storeStatusHtml,
+  whatsappConfigured,
 } from "./markup.js";
 import { copyText } from "./forms.js";
 import { ligarVendas, loadVendas, modeloVendas, vendasHtml } from "./vendas.js";
@@ -54,15 +61,29 @@ export async function renderInicio(ctx: DashCtx): Promise<void> {
   });
   const vendas = modeloVendas(store, lidas, verification);
   const primeiroNome = ownerName.trim().split(/\s+/)[0] || store.name;
+  /*
+   * Nada aconteceu ainda nesta loja. Não é «poucos produtos» nem «poucas
+   * visitas»: é zero em tudo o que o ecrã mostraria. Qualquer sinal de vida —
+   * um produto, uma encomenda, uma venda, uma visita — e o painel passa a ser o
+   * painel.
+   */
+  const semNada = products.length === 0
+    && lidas.waOrders.length === 0
+    && lidas.orders.length === 0
+    && analytics.visits30 === 0;
 
   const pintado = ctx.paint(`
     <section class="mb-5">
       <h2 class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 break-words">Olá, ${esc(primeiroNome)}</h2>
-      <p class="mt-1 text-gray-600">O resumo da loja <strong class="text-gray-900">${esc(store.name)}</strong>.</p>
+      <p class="mt-1 text-gray-600">${semNada
+        ? `A sua loja <strong class="text-gray-900">${esc(store.name)}</strong> está criada. Falta prepará-la.`
+        : `O resumo da loja <strong class="text-gray-900">${esc(store.name)}</strong>.`}</p>
     </section>
     ${storeStatusHtml({ state: store.state, billing, publish: publicar, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })}
     ${ctx.phoneVerified ? "" : `<div class="mt-6">${phoneNoticeHtml({ phone: ctx.phone })}</div>`}
-    <div class="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+    ${semNada
+      ? `<div class="mt-6">${onboardingHtml({ storeName: store.name, steps: passos })}</div>`
+      : `<div class="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
       <div class="xl:col-span-2 space-y-6 min-w-0">${vendasHtml(vendas)}</div>
       <div class="space-y-6 min-w-0">
         ${card(`${cardHead({ icon: "checklist", title: "Próximos passos" })}${nextStepsHtml(passos)}`)}
@@ -73,7 +94,7 @@ export async function renderInicio(ctx: DashCtx): Promise<void> {
           })}
           <div class="mt-5">${funnelHtml({ visits: analytics.visits30, views: analytics.views30, carts: analytics.carts30, whatsapp: analytics.whatsapp30 })}</div>`)}
       </div>
-    </div>`);
+    </div>`}`);
   if (!pintado) return;
 
   document.getElementById("copy-url")?.addEventListener("click", async () => {
@@ -90,7 +111,8 @@ export async function renderInicio(ctx: DashCtx): Promise<void> {
     document.getElementById(id)?.addEventListener("click", () =>
       openPhoneVerify({ phone: ctx.phone, onVerified: () => { void ctx.reload(); } }));
   }
-  ligarVendas(ctx, vendas, () => renderInicio(ctx));
+  // Sem os cartões das vendas no ecrã não há nada para ligar.
+  if (!semNada) ligarVendas(ctx, vendas, () => renderInicio(ctx));
 }
 
 /**
