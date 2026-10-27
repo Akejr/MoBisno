@@ -1,18 +1,26 @@
 /**
  * «Contas»: os Donos de loja e as suas lojas.
  *
- * Uma linha por conta: nome, email, nº de lojas e o estado da subscrição. A
- * subscrição é de cada loja (migração 0025), por isso a conta está «com
- * subscrição» enquanto alguma loja dela estiver (`latestExpiry`, a mesma regra
- * da Visão geral). Ativar, prolongar e desativar fazem-se loja a loja, em
- * «Lojas».
+ * Uma linha por conta: nome, email, nº de lojas, o estado da subscrição e se o
+ * telemóvel está confirmado. A subscrição é de cada loja (migração 0025), por
+ * isso a conta está «com subscrição» enquanto alguma loja dela estiver
+ * (`latestExpiry`, a mesma regra da Visão geral). Ativar, prolongar e desativar
+ * fazem-se loja a loja, em «Lojas».
+ *
+ * O filtro «Telefone por confirmar» mostra quem criou conta e saltou a SMS: são
+ * contas que existem mas não conseguem pôr nenhuma loja no ar (migração 0026).
+ * «Confirmar telefone» é a saída para quando o serviço de SMS falha ou o Dono
+ * fala com a equipa — a mesma ideia da ativação manual da subscrição.
  *
  * As lojas da conta, com o estado de cada uma, e a eliminação da conta ficam
  * atrás de «Detalhes».
  */
 import { esc, toast, withBusy } from "../../lib/dom.js";
-import { adminDeleteAccount, listAccounts, listStores, type AdminAccount, type AdminStore } from "../../supabase/admin.js";
+import {
+  adminDeleteAccount, adminVerifyPhone, listAccounts, listStores, type AdminAccount, type AdminStore,
+} from "../../supabase/admin.js";
 import { ADMIN_HREFS, accountStatus, latestExpiry, storeStatus, type AccountStatus } from "../../../src/services/adminMetrics.js";
+import { formatPhoneForDisplay } from "../../../src/services/phoneVerification.js";
 import { openDialog } from "./dialog.js";
 import {
   announce, bindChips, btnClass, emptyState, filterChips, fmtDate, fold, icon, initials, liveRegion,
@@ -23,13 +31,14 @@ import {
  * Filtros da lista. «Donos de loja» é o filtro de entrada e conta o mesmo que o
  * cartão «Contas» da Visão geral: as contas de administração ficam à parte.
  */
-type AccountFilter = "donos" | "ativas" | "a-terminar" | "sem" | "admins";
+type AccountFilter = "donos" | "ativas" | "a-terminar" | "sem" | "sem-telefone" | "admins";
 
 /** Filtro inicial a partir do endereço (`#/adminPainel/contas/<filtro>`). */
 const FILTER_FROM_SUB: Readonly<Record<string, AccountFilter>> = {
   ativas: "ativas",
   "a-terminar": "a-terminar",
   "sem-subscricao": "sem",
+  "sem-telefone": "sem-telefone",
   administradores: "admins",
 };
 
@@ -46,6 +55,8 @@ function matches(row: AccountRow, filter: AccountFilter): boolean {
   if (filter === "ativas") return k === "active" || k === "expiring";
   if (filter === "a-terminar") return k === "expiring";
   if (filter === "sem") return k === "expired" || k === "none";
+  // Um administrador publica sem confirmar nada: não entra neste filtro.
+  if (filter === "sem-telefone") return k !== "admin" && !row.account.phoneVerified;
   if (filter === "admins") return k === "admin";
   return k !== "admin";
 }
@@ -89,13 +100,18 @@ function accountRow(row: AccountRow, open: boolean): string {
         <p class="font-semibold text-gray-900 break-words">${esc(who)}</p>
         <p class="text-sm text-gray-600 break-all">${a.name ? `${esc(a.email)} · ` : ""}${esc(storesText)}</p>
       </div>
-      <div class="shrink-0">${planPill(row.status)}</div>
+      <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+        ${planPill(row.status)}
+        ${a.isAdmin || a.phoneVerified ? "" : pill("Telefone por confirmar", "amber", "phone_iphone")}
+      </div>
       <div class="flex flex-wrap items-center gap-2">
         <button type="button" data-act="toggle" data-id="${esc(a.id)}" aria-expanded="${open}" aria-controls="${esc(panelId)}" aria-label="Detalhes de ${esc(who)}" class="${btnClass("ghost", "sm")}">${icon(open ? "expand_less" : "expand_more")}<span>Detalhes</span></button>
       </div>
     </div>
     <div id="${esc(panelId)}" class="mt-3 rounded-xl bg-gray-50 px-4 py-3" ${open ? "" : "hidden"}>
-      <p class="text-xs text-gray-600">Conta criada a ${esc(fmtDate(a.createdAt))}</p>
+      <p class="text-xs text-gray-600">Conta criada a ${esc(fmtDate(a.createdAt))}${a.phone ? ` · ${esc(formatPhoneForDisplay(a.phone))}${a.phoneVerified ? " (confirmado)" : " (por confirmar)"}` : " · sem telemóvel"}</p>
+      ${a.isAdmin || a.phoneVerified ? "" : `<p class="mt-2 text-sm text-gray-700">O telemóvel não está confirmado: nenhuma loja desta conta pode ser publicada.</p>
+      <button type="button" data-act="verify-phone" data-id="${esc(a.id)}" class="${btnClass("primary", "sm")} mt-2">${icon("verified")} Confirmar telefone</button>`}
       ${row.stores.length
         ? `<ul role="list" class="mt-1 divide-y divide-gray-200">${row.stores.map(storeLine).join("")}</ul>`
         : `<p class="mt-2 text-sm text-gray-600">Esta conta ainda não tem lojas.</p>`}
@@ -133,6 +149,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     ativas: rows.filter((r) => matches(r, "ativas")).length,
     "a-terminar": rows.filter((r) => matches(r, "a-terminar")).length,
     sem: rows.filter((r) => matches(r, "sem")).length,
+    "sem-telefone": rows.filter((r) => matches(r, "sem-telefone")).length,
     admins: rows.filter((r) => matches(r, "admins")).length,
   });
   const c = counts();
@@ -145,6 +162,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
       { value: "ativas", label: "Com subscrição", count: c.ativas },
       { value: "a-terminar", label: "A terminar", count: c["a-terminar"] },
       { value: "sem", label: "Sem subscrição", count: c.sem },
+      { value: "sem-telefone", label: "Telefone por confirmar", count: c["sem-telefone"] },
       { value: "admins", label: "Administradores", count: c.admins },
     ], filter)}</div>
     <p id="acc-count" class="mb-2 text-sm text-gray-600"></p>
@@ -167,6 +185,30 @@ export async function renderAccounts(view: AdminView): Promise<void> {
   }
 
   const rowOf = (id: string): AccountRow | undefined => rows.find((r) => r.account.id === id);
+
+  /** Confirma o telemóvel à mão, quando a SMS não é caminho. */
+  async function verifyPhone(row: AccountRow): Promise<void> {
+    const a = row.account;
+    const confirmed = await openDialog({
+      title: "Confirmar o telemóvel?",
+      body: `<p>Marca o telemóvel da conta <strong class="break-all">${esc(a.email || a.name)}</strong> como confirmado${a.phone ? ` (${esc(formatPhoneForDisplay(a.phone))})` : ""}.</p>
+        <p>A partir daí, as lojas desta conta podem ser publicadas, desde que tenham subscrição ativa. Faça isto só depois de falar com o Dono: é a confirmação de que o número é dele.</p>`,
+      confirmLabel: "Confirmar telefone",
+      tone: "primary",
+    });
+    if (!confirmed) return;
+    const result = await withBusy(() => adminVerifyPhone(a.id), "A confirmar…");
+    if (!result.ok) {
+      toast(result.message, "error");
+      announce(LIVE, result.message);
+      return;
+    }
+    a.phoneVerified = true;
+    draw();
+    const msg = `Telemóvel de ${a.email || a.name} confirmado.`;
+    toast(msg);
+    announce(LIVE, msg);
+  }
 
   async function remove(row: AccountRow): Promise<void> {
     const a = row.account;
@@ -216,6 +258,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     const row = rowOf(btn.dataset.id ?? "");
     if (!row) return;
     if (act === "delete") void remove(row);
+    else if (act === "verify-phone") void verifyPhone(row);
     else if (act === "toggle") {
       if (open.has(row.account.id)) open.delete(row.account.id);
       else open.add(row.account.id);

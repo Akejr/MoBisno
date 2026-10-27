@@ -37,6 +37,7 @@ import {
 import { COMING_SOON_LABELS, comingSoonList } from "../src/services/comingSoon.js";
 import { VERIFICATION_STATUS_LABEL, COMPANY_DOCUMENTS } from "../src/services/paymentVerification.js";
 import { ACTIVATION_MONTHS, REJECTION_REASON_MIN } from "../src/services/adminMetrics.js";
+import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../src/services/phoneVerification.js";
 import { PLATFORM_CONTACT_EMAIL } from "../src/services/domains.js";
 import { DELIVERY_PROVINCE } from "../src/services/delivery.js";
 import type { StoreTemplate } from "../web/templates/types.js";
@@ -314,7 +315,10 @@ function resolver(guia: string): string {
     .replace(/\$\{DOCUMENTOS\}/g, COMPANY_DOCUMENTS.map((d) => `«${d.label}»`).join(" e "))
     .replace(/\$\{emBreveLista\(\)\}/g, comingSoonList().map((x) => `«${x}»`).join(", "))
     .replace(/\$\{ACTIVATION_MONTHS\.slice\(0, -1\)\.join\(", "\)\}/g, ACTIVATION_MONTHS.slice(0, -1).join(", "))
-    .replace(/\$\{ACTIVATION_MONTHS\[ACTIVATION_MONTHS\.length - 1\]\}/g, String(ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]));
+    .replace(/\$\{ACTIVATION_MONTHS\[ACTIVATION_MONTHS\.length - 1\]\}/g, String(ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]))
+    .replace(/\$\{PHONE_CODE_LENGTH\}/g, String(PHONE_CODE_LENGTH))
+    .replace(/\$\{CODIGO_MINUTOS\}/g, String(Math.round(PHONE_CODE_TTL_MS / 60_000)))
+    .replace(/\$\{REENVIOS\}/g, PHONE_RESEND_DELAYS_MS.map((ms) => String(Math.round(ms / 1000))).join(" e "));
 }
 
 describe("Factos da plataforma — derivados do domínio, nunca escritos à mão", () => {
@@ -916,8 +920,71 @@ describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o e
 
   it("diz o que não existe aqui, e onde se resolve", () => {
     expect(resolvida).toMatch(/não se recupera a palavra-passe aqui dentro/);
-    expect(resolvida).toMatch(/nem por SMS/);
+    // O email continua a não ser confirmado. A SMS deste ecrã confirma o
+    // telemóvel, e a orientação tem de distinguir as duas coisas: foi a
+    // confusão que estava à espera de acontecer quando a SMS entrou.
+    expect(resolvida).toMatch(/o email não é confirmado/);
+    expect(resolvida).toMatch(/confirma o \*\*telemóvel\*\*, não o email/);
     expect(resolvida).toContain("Esqueci-me da palavra-passe");
+  });
+});
+
+describe("Orientação do ecrã «Assistente_de_Criação» — o código por SMS", () => {
+  /**
+   * O passo novo é o que mais perguntas vai gerar («não me chegou a SMS»), e é
+   * aquele em que uma orientação errada custa dinheiro: se o assistente disser
+   * que se pode reenviar à vontade, o Dono tenta, e cada tentativa é uma SMS
+   * paga.
+   */
+  const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
+  const guia = guiaDe("criar");
+  const resolvida = resolver(guia);
+
+  it("os números do código vêm das constantes, não escritos à mão", () => {
+    for (const nome of ["${PHONE_CODE_LENGTH}", "${CODIGO_MINUTOS}", "${REENVIOS}"]) {
+      expect(guia, `${nome} está escrito à mão na orientação`).toContain(nome);
+    }
+    // A regra de sempre neste ecrã: nenhum algarismo no texto-fonte.
+    expect(guia.replace(/\$\{[^}]*\}/g, "")).not.toMatch(/\d/);
+  });
+
+  it("o telemóvel é pedido depois de a conta existir, e a orientação diz porquê", () => {
+    const conta = resolvida.indexOf("conta ser criada");
+    expect(conta).toBeGreaterThan(-1);
+    expect(resolvida).toMatch(/com a sessão já iniciada/);
+    // E é o que o ecrã faz: o passo do telemóvel segue a criação da conta.
+    expect(WIZARD).toMatch(/botSay\("Boa, conta criada! 🎉"\);\s*askPhone\(\);/);
+  });
+
+  it("os rótulos do ecrã do código são os que o Dono vê", () => {
+    for (const rotulo of ["Reenviar código", "Trocar o número", "Não recebi o código"]) {
+      expect(resolvida, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(WIZARD, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(resolvida).toContain(`${PHONE_RESEND_DELAYS_MS.map((ms) => String(ms / 1000)).join(" e ")} segundos`);
+  });
+
+  it("diz que «Não recebi o código» não cancela nada, e o que fica por fazer", () => {
+    // É a pergunta a seguir: «se eu não confirmar, perco a loja?». Não.
+    expect(resolvida).toMatch(/não cancela nada/);
+    expect(resolvida).toMatch(/confirma-se mais tarde no Dashboard/);
+    expect(resolvida).toMatch(/fica por fazer é \*\*publicar\*\*/);
+  });
+
+  it("diz o que acontece quando a SMS não pode ser enviada", () => {
+    for (const rotulo of ["Tentar de novo", "Continuar sem confirmar"]) {
+      expect(resolvida, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(WIZARD, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(resolvida).toMatch(/Nunca fica ninguém preso/);
+  });
+
+  it("os factos dizem que publicar exige as duas condições", () => {
+    const facts = resolver(factsLiteral());
+    expect(facts).toMatch(/PUBLICAR exige \*\*duas\*\* coisas/);
+    expect(facts).toMatch(/telemóvel da conta confirmado por SMS/);
+    // E dizem o que NÃO é confirmado, que é metade das perguntas.
+    expect(facts).toMatch(/O EMAIL não é confirmado/);
   });
 });
 
@@ -952,10 +1019,14 @@ describe("Orientação do ecrã «registo» — a redefinição da palavra-passe
     expect(guiaDe("registo").replace(/\$\{[^}]*\}/g, "")).not.toMatch(/\d/);
   });
 
-  it("não volta a negar a redefinição, nem promete confirmação por código ou SMS", () => {
+  it("não volta a negar a redefinição, e distingue o email do telemóvel", () => {
     expect(guia).not.toMatch(/NÃO há recuperação/);
     expect(guia).not.toMatch(/não se muda a palavra-passe depois de a conta existir/);
-    expect(guia).toMatch(/NÃO há confirmação de email por código nem por SMS/);
+    // O email não é confirmado; o telemóvel é. Depois de a SMS entrar, «não há
+    // confirmação por SMS» passou a ser falso — e é exactamente este tipo de
+    // frase que envelhece em silêncio.
+    expect(guia).toMatch(/NÃO há confirmação de email/);
+    expect(guia).toMatch(/O que é confirmado é o telemóvel/);
   });
 });
 

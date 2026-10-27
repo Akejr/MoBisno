@@ -40,6 +40,7 @@ import { ACTIVATION_MONTHS, REJECTION_REASON_MIN } from "../../src/services/admi
 import { DELIVERY_PROVINCE } from "../../src/services/delivery.js";
 import { kzWhole, platformFeeNote } from "../../src/services/seo.js";
 import { PASSWORD_MIN_LENGTH, REGISTER_FIX_LABELS } from "../../src/ui/wizardSteps.js";
+import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../../src/services/phoneVerification.js";
 import { PLATFORM_APEX, STORE_APEX } from "./routing.js";
 
 /** Ecrãs com assistente. As lojas publicadas não têm — são o site do Dono. */
@@ -64,6 +65,12 @@ export type AssistantScreen =
 
 /** Preço da subscrição por extenso: «10.000 Kz por 30 dias (um mês)». */
 const PRECO = `${kzWhole(PLAN_PRICE_KZ)} por cada ${PLAN_PERIOD_DAYS} dias`;
+
+/** «20 e 45», as esperas dos reenvios do código, em segundos. */
+const REENVIOS = PHONE_RESEND_DELAYS_MS.map((ms) => String(Math.round(ms / 1000))).join(" e ");
+
+/** Validade do código de confirmação, em minutos. */
+const CODIGO_MINUTOS = Math.round(PHONE_CODE_TTL_MS / 60_000);
 
 /** Lista legível das funcionalidades «Em breve», entre aspas. */
 function emBreveLista(): string {
@@ -101,6 +108,9 @@ export function platformFacts(): string {
 - LOJAS: criar lojas é livre. «Quantas lojas posso criar?» → quantas quiseres; criar, personalizar e pré-visualizar é grátis, e cada loja que quiseres pôr online tem a sua subscrição (${PRECO}). PRODUTOS ILIMITADOS em todas as lojas.
 - O que a subscrição inclui: ${PLAN_HIGHLIGHTS.join("; ")}.
 - Criar a loja, personalizá-la e pré-visualizá-la é grátis e sem prazo. A subscrição de cada loja serve para **publicar** essa loja e a manter online.
+- PUBLICAR exige **duas** coisas: a subscrição desta loja em vigor **e** o telemóvel da conta confirmado por SMS. Criar, personalizar e pré-visualizar não exige nenhuma das duas.
+- O telemóvel confirma-se uma vez por conta, com um código de ${PHONE_CODE_LENGTH} algarismos enviado por SMS, e serve todas as lojas dessa conta. Quem saltou o passo ao criar a conta confirma no Dashboard → «Início», no aviso «Confirme o seu telemóvel». A equipa MôBisno também pode confirmar à mão, se a SMS não chegar.
+- O EMAIL não é confirmado: não há código nem link de confirmação de email, e nunca houve. O que é confirmado é o número de telemóvel.
 - Renovar antes do fim não perde dias: o período novo acrescenta-se ao que ainda falta.
 - ${ESTADO_SUBSCRICAO}
 - NÃO existe teste grátis. Foi removido. Para publicar uma loja é preciso subscrição ativa.
@@ -142,7 +152,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Quem ainda não tem conta segue «Criar a minha loja», que abre o assistente de criação — é lá que a conta é criada, junto com a primeira loja.
 - PALAVRA-PASSE ESQUECIDA: há a ligação «Esqueci-me da palavra-passe». Pede o email, o botão é «Enviar link», e a resposta é sempre a mesma, exista ou não conta com aquele email: «Se existir uma conta com este email, enviámos um link para redefinir a palavra-passe.» O link tem de ser aberto **no mesmo navegador** onde foi pedido.
 - Ao voltar por esse link aparece «Definir nova palavra-passe»: a nova palavra-passe (mínimo ${PASSWORD_MIN_LENGTH} caracteres) escrita duas vezes, e «Guardar a nova palavra-passe». Depois de guardar, o destino é o Dashboard.
-- NÃO há confirmação de email por código nem por SMS.
+- NÃO há confirmação de email: nem código, nem link. O email nunca é verificado. O que é confirmado é o telemóvel, e isso acontece no assistente de criação da conta (ou depois, no Dashboard).
 - Depois de entrar, o destino é o Dashboard; sem loja criada, o Dashboard convida a criar a primeira.`,
 
   criar: `ECRÃ: assistente de criação de loja (por conversa). Trata sempre por «tu».
@@ -151,8 +161,12 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Se as duas palavras-passe não coincidirem, o assistente diz «As duas palavras-passe não são iguais» e pede **as duas de novo** — não só a segunda, para o Dono não ter de adivinhar qual estava errada. A palavra-passe nunca aparece no chat: fica sempre «••••••••».
 - Antes de criar a conta aparece o cartão «Os teus dados», com «Nome» e «Email», e três botões: «Está tudo certo», «${REGISTER_FIX_LABELS.nome}» e «${REGISTER_FIX_LABELS.email}». Corrigir um campo pede só esse campo e volta ao mesmo cartão: os passos anteriores não se repetem.
 - Se a criação da conta falhar, o assistente mostra o motivo e pergunta o que corrigir, com «${REGISTER_FIX_LABELS.email}», «${REGISTER_FIX_LABELS.nome}» e «${REGISTER_FIX_LABELS.password}». Quando o email já tem conta, aparece primeiro «${REGISTER_FIX_LABELS.entrar}», que leva ao início de sessão (${PLATFORM_APEX}/login) — depois de entrar, volta-se aqui para criar a loja. A escolha de para onde voltar é do Dono: o assistente não decide sozinho.
-- O QUE NÃO EXISTE NESTE ECRÃ: não se recupera a palavra-passe aqui dentro, e não há confirmação de email por código nem por SMS. Quem se esqueceu da palavra-passe usa «Esqueci-me da palavra-passe» no ecrã de início de sessão.
-- Com sessão já iniciada, os passos da conta não aparecem: o assistente começa no nome da loja.
+- O QUE NÃO EXISTE NESTE ECRÃ: não se recupera a palavra-passe aqui dentro, e o email não é confirmado — não há código de email nem link de confirmação de email. A SMS deste ecrã confirma o **telemóvel**, não o email. Quem se esqueceu da palavra-passe usa «Esqueci-me da palavra-passe» no ecrã de início de sessão.
+- TELEMÓVEL, logo depois de a conta ser criada (e não antes: o código é pedido ao servidor com a sessão já iniciada). O assistente pede o número — nove algarismos, a começar por nove — e envia um código de ${PHONE_CODE_LENGTH} algarismos por SMS, válido ${CODIGO_MINUTOS} minutos. Escrever o código completo confirma sozinho, sem tocar em mais nada.
+- No ecrã do código há «Reenviar código», que abre ao fim de ${REENVIOS} segundos (dois reenvios, por esta ordem; o botão conta o tempo sozinho), e «Trocar o número», para quem se enganou num algarismo.
+- Esgotados os dois reenvios aparece «Não recebi o código». Escolhê-lo **não cancela nada**: a conta fica criada, o assistente continua para a loja, e o número confirma-se mais tarde no Dashboard. O que fica por fazer é **publicar** a loja.
+- Se a SMS não puder ser enviada (serviço de SMS em baixo, sem saldo ou por configurar), o assistente di-lo e oferece «Tentar de novo», «Trocar o número» e «Continuar sem confirmar». Nunca fica ninguém preso à espera de uma SMS.
+- Com sessão já iniciada, os passos da conta não aparecem: o assistente começa no telemóvel, se ainda não estiver confirmado, e depois no nome da loja.
 - LOJA, a seguir à conta: nome da loja, tipo de negócio, a descrição do negócio, o título e a descrição para o Google (gerados por IA, com pré-visualização) e o endereço (subdomínio).
 - O endereço só aceita letras minúsculas, números e hífen, e fica «nomedaloja.${STORE_APEX}». É pedido outro se já estiver ocupado. O prefixo «modelo-» está reservado às lojas de demonstração da MôBisno.
 - A loja nasce como rascunho e o assistente leva logo à galeria de modelos prontos, que é onde se escolhe o aspeto. Publicar exige subscrição ativa.`,
@@ -160,7 +174,8 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
   painel: `ECRÃ: Dashboard do Dono, separador «Início».
 - Começa com a saudação ao Dono e o resumo da loja escolhida.
 - FAIXA «Estado da loja», no topo, numa linha: a loja está «Publicada» ou em «Rascunho», com uma frase curta («A loja está no ar.», «Publicada, mas fora do ar: a subscrição desta loja não está ativa.» ou «Ainda só você a vê.»), o endereço da loja e a subscrição desta loja («Subscrição desta loja ativa até <data>.», «Esta loja não tem subscrição ativa.», «A subscrição desta loja caducou.» ou «Conta de administração: publica sem subscrição.»).
-- Na mesma faixa: «Copiar», «Abrir» (loja no ar) ou «Pré-visualizar» (rascunho ou fora do ar), e o botão «Publicar a loja» ou «Despublicar». Sem subscrição ativa, «Publicar a loja» aparece desligado e, junto ao endereço, está «Ative a subscrição para publicar.» com a ligação «Ver o plano».
+- Na mesma faixa: «Copiar», «Abrir» (loja no ar) ou «Pré-visualizar» (rascunho ou fora do ar), e o botão «Publicar a loja» ou «Despublicar». Quando falta algo para publicar, «Publicar a loja» aparece desligado e, junto ao endereço, está a razão: «Confirme o número de telemóvel para publicar.» com «Confirmar agora», ou «Ative a subscrição para publicar.» com a ligação «Ver o plano». O telemóvel vem primeiro porque é grátis e leva um minuto.
+- CARTÃO «Confirme o seu telemóvel», só para quem escolheu «Não recebi o código» ao criar a conta: diz que a loja não pode ser publicada enquanto o número não estiver confirmado, e «Confirmar o número» abre uma janela que pede o número e o código de ${PHONE_CODE_LENGTH} algarismos. É o mesmo código por SMS do assistente de criação, com os mesmos reenvios (${REENVIOS} segundos). Confirmado, o botão de publicar acende.
 - Por baixo, à esquerda, o que a loja recebeu. CARTÃO «Encomendas por WhatsApp»: a lista de quem tocou em «Finalizar via WhatsApp» e do que tinha no carrinho — os artigos, o total, a entrega, o desconto e o contacto —, mesmo que a mensagem nunca tenha sido enviada. Cada linha abre com o detalhe e tem «Falar no WhatsApp», «Marcar como tratada» e «Apagar». As que estão «Por tratar» aparecem contadas no topo do cartão. **É aqui que uma loja sem pagamentos digitais vê as suas vendas.**
 - CARTÕES «Vendas» e «Levantamentos» (Multicaixa Express e Referência Bancária): só aparecem quando a loja já tem pagamentos digitais a funcionar, ou quando já há vendas ou levantamentos para mostrar. Trazem «Recebido (líquido)» — já sem a comissão da MôBisno —, «Disponível para levantar» com «Solicitar levantamento», «Vendas pagas» e «Referências pendentes». O levantamento vai para a conta bancária **aprovada**, e mais nenhuma.
 - O «Disponível para levantar» é o que a loja recebeu menos a comissão: ${platformFeeNote()}
@@ -235,6 +250,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - A subscrição paga-se numa página do fornecedor de pagamentos, onde se escolhe entre Multicaixa Express e Referência Bancária; depois o Dono volta ao painel e a subscrição da loja é confirmada. Pagar por referência só ativa quando o banco processar.
 - A comissão de vendas não tem nada a ver com a subscrição: ${platformFeeNote()}
 - Sem subscrição ativa a loja não se publica e, se estava publicada, sai da web até o pagamento ser feito. Os dados ficam, e as outras lojas da conta não mudam.
+- A subscrição não é a única condição para publicar: o telemóvel da conta tem de estar confirmado por SMS. Se faltar, o aviso está no «Início» e a subscrição não resolve isso — são coisas diferentes.
 - Uma conta de administrador não vê preços nem botão de pagamento aqui: não paga.`,
 
   config: `ECRÃ: Dashboard → «Configurações».
@@ -288,7 +304,8 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Se o Administrador tiver criado lojas com a **própria conta**, elas não entram nos números da Visão geral (são de teste, e contá-las dava uma leitura falsa do negócio). A Visão geral diz-lho numa nota, com ligação para «Lojas», que é onde elas aparecem. Em «Contas», a conta de administração está no filtro «Administradores», não no de entrada.
 - Quando uma secção não consegue ler os dados, aparece «Não foi possível carregar esta secção» **com a causa** e um botão «Tentar de novo». Se a causa disser que falta uma coluna ou uma tabela, falta aplicar uma migração de supabase/migrations: é a diferença entre a plataforma estar vazia e a leitura ter falhado.
 - APROVAÇÕES: os pedidos das empresas para receber por Multicaixa Express e Referência Bancária. Os que estão «${VERIFICATION_STATUS_LABEL.pending}» vêm primeiro, o mais antigo à frente, com o dono, a empresa, o NIF, o banco, o titular, o IBAN e a data de envio. «Ver matrícula» e «Ver certidão» abrem os documentos num separador novo, com uma ligação temporária. «Aprovar» pede confirmação e liga sozinho os pagamentos digitais da loja; «Rejeitar» exige um motivo com pelo menos ${REJECTION_REASON_MIN} caracteres, que o Dono lê no painel dele, e desliga-os. Há «Histórico», com filtros «Aprovados» e «Rejeitados».
-- CONTAS: os Donos, com email, número de lojas e estado da subscrição (a conta está «com subscrição» enquanto alguma loja dela estiver); filtros «Com subscrição», «A terminar», «Sem subscrição» e «Administradores». Em «Detalhes» estão as lojas da conta, com o estado e a subscrição de cada uma, e «Eliminar conta».
+- CONTAS: os Donos, com email, número de lojas, estado da subscrição (a conta está «com subscrição» enquanto alguma loja dela estiver) e o selo «Telefone por confirmar» quando o número não foi confirmado por SMS; filtros «Com subscrição», «A terminar», «Sem subscrição», «Telefone por confirmar» e «Administradores». Em «Detalhes» estão as lojas da conta, com o estado e a subscrição de cada uma, o telemóvel gravado, «Confirmar telefone» e «Eliminar conta».
+- «Telefone por confirmar» são contas que existem mas não conseguem pôr nenhuma loja no ar: criaram a conta e escolheram «Não recebi o código». «Confirmar telefone» marca o número como confirmado à mão, e serve para quando a SMS não chega ou o Dono fala com a equipa — pede confirmação antes, porque é a nossa palavra de que o número é dele.
 - LOJAS: pesquisa e filtros «Publicadas», «Fora do ar», «Rascunho», «Pagamentos digitais» e «Lojas-modelo». A subscrição é de cada loja, e cada linha mostra a dela; «Publicada · fora do ar» quer dizer loja sem subscrição. A subscrição ativa-se aqui, à mão e loja a loja: «Ativar» (ou «Prolongar», se ainda estiver ativa) com ${ACTIVATION_MONTHS.slice(0, -1).join(", ")} ou ${ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]} meses, somados ao fim do período em curso. «Desativar» termina já e tira essa loja do ar, sem apagar nada e sem mexer nas outras lojas do dono. Dá também para editar, publicar, despublicar e eliminar.
 - MODELOS: importar os predefinidos, criar, editar no editor e apagar as lojas-modelo. Apagar verifica primeiro se alguma loja de cliente usa o modelo.
 - PAGAMENTOS: «Subscrições» (pagamentos do plano), «Encomendas das lojas» (só leitura) e «Levantamentos», com «Aprovar», «Marcar como pago» e «Rejeitar».

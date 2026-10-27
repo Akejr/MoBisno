@@ -19,7 +19,8 @@ import {
   pill, plural, segmented,
 } from "./ui.js";
 import { PLAN_HIGHLIGHTS, PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ, PLAN_UNIT_LABEL } from "../../../src/services/plans.js";
-import type { BillingState } from "../../../src/services/billing.js";
+import type { BillingState, PublishDecision } from "../../../src/services/billing.js";
+import { formatPhoneForDisplay } from "../../../src/services/phoneVerification.js";
 import { COMING_SOON_LABELS, isComingSoon, type ComingSoonFeature } from "../../../src/services/comingSoon.js";
 import {
   COMPANY_DOCUMENTS, DOCUMENT_MAX_BYTES, VERIFICATION_STATUS_LABEL, changeRequiresReview, formatIban, maskIban,
@@ -255,10 +256,35 @@ export function subscriptionLine(b: BillingState): string {
 export interface StoreStatusInput {
   state: "Publicada" | "Rascunho";
   billing: BillingState;
-  /** Resultado de `canPublishStore(billing).allowed`. */
-  canPublish: boolean;
+  /**
+   * Resultado de `canPublishStore(billing, phoneVerified)`. É a decisão
+   * inteira, e não só o `allowed`, porque a frase depende do que falta: pagar a
+   * subscrição e confirmar o telemóvel resolvem-se em sítios diferentes.
+   */
+  publish: PublishDecision;
   storeUrl: string;
   previewUrl: string;
+}
+
+/**
+ * Aviso de que falta confirmar o telemóvel da conta.
+ *
+ * Aparece no «Início» de quem escolheu «Não recebi o código» no assistente de
+ * criação. É um cartão e não uma linha porque é a única coisa que separa a loja
+ * de poder ir para o ar — e porque o Dono saiu do assistente sem perceber
+ * necessariamente o que ficou pendente.
+ */
+export function phoneNoticeHtml(o: { phone: string | null }): string {
+  const numero = o.phone ? formatPhoneForDisplay(o.phone) : "";
+  return card(`${notice(
+    "warning",
+    "phone_iphone",
+    "Confirme o seu telemóvel",
+    numero
+      ? `Enviamos um código por SMS para ${numero}. Enquanto o número não estiver confirmado, a loja não pode ser publicada.`
+      : "Enviamos um código por SMS. Enquanto o número não estiver confirmado, a loja não pode ser publicada.",
+    `<button type="button" id="verify-phone-card" class="${BTN_PRIMARY} mt-3">${icon("sms", "text-[18px]")} Confirmar o número</button>`,
+  )}`);
 }
 
 /**
@@ -282,12 +308,17 @@ export function storeStatusHtml(o: StoreStatusInput): string {
   const destino = noAr ? o.storeUrl : o.previewUrl;
   const endereco = o.storeUrl.replace(/^https?:\/\//, "");
   const semPlano = !o.billing.accessActive && !o.billing.byAdmin;
-  const subscricao = !publicada && !o.canPublish
-    ? `<span id="publish-why">Ative a subscrição para publicar. <a href="#/painel/plano" class="${BTN_LINK}">Ver o plano</a></span>`
+  // Cada impedimento diz onde se resolve. «Não podes publicar» sem dizer
+  // porquê deixava o Dono a procurar o botão que falta.
+  const porQue = o.publish.reason === "telefone-por-confirmar"
+    ? `<span id="publish-why">Confirme o número de telemóvel para publicar. <button type="button" id="verify-phone" class="${BTN_LINK}">Confirmar agora</button></span>`
+    : `<span id="publish-why">Ative a subscrição para publicar. <a href="#/painel/plano" class="${BTN_LINK}">Ver o plano</a></span>`;
+  const subscricao = !publicada && !o.publish.allowed
+    ? porQue
     : `<span>${subscriptionLine(o.billing)}${semPlano ? ` <a href="#/painel/plano" class="${BTN_LINK}">${o.billing.expired ? "Renovar" : "Ver o plano"}</a>` : ""}</span>`;
   const acao = publicada
     ? `<button type="button" id="toggle-state" data-next="Rascunho" class="${BTN_SECONDARY}">${icon("visibility_off", "text-[18px]")} Despublicar</button>`
-    : o.canPublish
+    : o.publish.allowed
       ? `<button type="button" id="toggle-state" data-next="Publicada" class="${BTN_PRIMARY}">${icon("rocket_launch", "text-[18px]")} Publicar a loja</button>`
       : `<button type="button" disabled aria-describedby="publish-why" class="${BTN_PRIMARY}">${icon("lock", "text-[18px]")} Publicar a loja</button>`;
   return `<section aria-label="Estado da loja" class="rounded-2xl border border-gray-200 bg-white px-4 py-3.5 md:px-5 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">

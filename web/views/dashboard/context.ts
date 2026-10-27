@@ -16,6 +16,15 @@ export interface DashCtx {
   /** Todas as lojas do Dono, sem as lojas-modelo. */
   stores: readonly Store[];
   billing: BillingState;
+  /**
+   * O telemóvel da conta está confirmado por SMS (migração 0026)?
+   *
+   * É da **conta**, não da loja: um número confirmado serve todas as lojas do
+   * Dono. Enquanto for `false`, nenhuma delas pode ser publicada.
+   */
+  phoneVerified: boolean;
+  /** Número confirmado, ou o que ficou gravado por confirmar. `null` se não houver. */
+  phone: string | null;
   /** Endereço público da loja (em desenvolvimento, o caminho `/loja/…`). */
   storeUrl: string;
   /** Endereço da pré-visualização privada (a loja por publicar). */

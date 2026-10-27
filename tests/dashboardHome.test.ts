@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { canDeleteOrder, orderEffectiveStatus, type OrderLifecycle } from "../src/services/payments.js";
-import { resolveBilling, type BillingState } from "../src/services/billing.js";
+import { canPublishStore, resolveBilling, type BillingState, type PublishDecision } from "../src/services/billing.js";
 import { WA_DEFAULT_PHONE } from "../src/services/storeCustom.js";
 import { VERIFICATION_STATUS_LABEL, type VerificationStatus } from "../src/services/paymentVerification.js";
 
@@ -50,7 +50,8 @@ interface Venda {
   customer: { name?: string; phone?: string; nif?: string } | null; products: unknown[]; createdAt: string; paidAt: string | null;
 }
 interface Markup {
-  storeStatusHtml(o: { state: "Publicada" | "Rascunho"; billing: BillingState; canPublish: boolean; storeUrl: string; previewUrl: string }): string;
+  storeStatusHtml(o: { state: "Publicada" | "Rascunho"; billing: BillingState; publish: PublishDecision; storeUrl: string; previewUrl: string }): string;
+  phoneNoticeHtml(o: { phone: string | null }): string;
   funnelHtml(c: Funil): string;
   funnelConversion(c: Funil): string;
   nextSteps(i: {
@@ -78,6 +79,11 @@ const inativa = resolveBilling({ planExpiresAt: null }, AGORA);
 const URL_LOJA = "https://kitanda.sualoja.digital";
 const PREVIA = "/previsualizar/kitanda";
 
+/** As três decisões de `canPublishStore`, pelos nomes que o ecrã lhes dá. */
+const PODE: PublishDecision = { allowed: true, reason: "ok" };
+const SEM_PLANO: PublishDecision = { allowed: false, reason: "sem-subscricao" };
+const SEM_TELEFONE: PublishDecision = { allowed: false, reason: "telefone-por-confirmar" };
+
 const semNada = {
   products: 0, hasLogo: false, whatsappOk: false, deliveryOk: false,
   published: false, accessActive: false, verification: "none" as VerificationStatus,
@@ -87,7 +93,7 @@ const semNada = {
 
 describe("Início — estado da loja, encomendas, próximos passos e funil", () => {
   it("pinta a faixa e os cartões a partir das funções do markup e de vendas.ts", () => {
-    expect(INICIO).toContain("storeStatusHtml({ state: store.state, billing, canPublish: publicar.allowed, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })");
+    expect(INICIO).toContain("storeStatusHtml({ state: store.state, billing, publish: publicar, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })");
     expect(INICIO).toContain("vendasHtml(vendas)");
     expect(INICIO).toContain("ligarVendas(ctx, vendas, () => renderInicio(ctx));");
     expect(INICIO).toContain("funnelHtml({ visits: analytics.visits30, views: analytics.views30, carts: analytics.carts30, whatsapp: analytics.whatsapp30 })");
@@ -122,7 +128,7 @@ describe("Início — estado da loja, encomendas, próximos passos e funil", () 
 
 describe("Estado da loja — Publicada ou Rascunho, e publicar sujeito à subscrição", () => {
   it("rascunho com subscrição: botão «Publicar a loja»", () => {
-    const html = M.storeStatusHtml({ state: "Rascunho", billing: ativa, canPublish: true, storeUrl: URL_LOJA, previewUrl: PREVIA });
+    const html = M.storeStatusHtml({ state: "Rascunho", billing: ativa, publish: PODE, storeUrl: URL_LOJA, previewUrl: PREVIA });
     expect(html).toContain("Rascunho");
     expect(html).toMatch(/id="toggle-state" data-next="Publicada"/);
     expect(html).toContain("Publicar a loja");
@@ -132,15 +138,27 @@ describe("Estado da loja — Publicada ou Rascunho, e publicar sujeito à subscr
   });
 
   it("sem subscrição: o botão fica desligado e a frase diz porquê e onde resolver", () => {
-    const html = M.storeStatusHtml({ state: "Rascunho", billing: inativa, canPublish: false, storeUrl: URL_LOJA, previewUrl: PREVIA });
+    const html = M.storeStatusHtml({ state: "Rascunho", billing: inativa, publish: SEM_PLANO, storeUrl: URL_LOJA, previewUrl: PREVIA });
     expect(html).not.toContain('id="toggle-state"');
     expect(html).toMatch(/<button type="button" disabled aria-describedby="publish-why"/);
     expect(html).toContain("Ative a subscrição para publicar");
     expect(html).toContain('href="#/painel/plano"');
   });
 
+  it("telemóvel por confirmar: o botão fica desligado e a frase manda confirmar, não pagar", () => {
+    // São dois impedimentos diferentes, e resolvem-se em sítios diferentes:
+    // mandar «ver o plano» a quem só tem de escrever um código de SMS é a
+    // não-resposta que esta guarda impede.
+    const html = M.storeStatusHtml({ state: "Rascunho", billing: ativa, publish: SEM_TELEFONE, storeUrl: URL_LOJA, previewUrl: PREVIA });
+    expect(html).not.toContain('id="toggle-state"');
+    expect(html).toMatch(/<button type="button" disabled aria-describedby="publish-why"/);
+    expect(html).toContain("Confirme o número de telemóvel para publicar.");
+    expect(html).toContain('id="verify-phone"');
+    expect(html).not.toContain("Ative a subscrição para publicar");
+  });
+
   it("publicada e com subscrição: no ar, com «Despublicar» e o endereço público", () => {
-    const html = M.storeStatusHtml({ state: "Publicada", billing: ativa, canPublish: true, storeUrl: URL_LOJA, previewUrl: PREVIA });
+    const html = M.storeStatusHtml({ state: "Publicada", billing: ativa, publish: PODE, storeUrl: URL_LOJA, previewUrl: PREVIA });
     expect(html).toContain("Publicada");
     expect(html).toMatch(/id="toggle-state" data-next="Rascunho"/);
     expect(html).toContain("Despublicar");
@@ -151,7 +169,7 @@ describe("Estado da loja — Publicada ou Rascunho, e publicar sujeito à subscr
   });
 
   it("publicada sem subscrição: diz que está fora do ar e não manda para um endereço morto", () => {
-    const html = M.storeStatusHtml({ state: "Publicada", billing: inativa, canPublish: false, storeUrl: URL_LOJA, previewUrl: PREVIA });
+    const html = M.storeStatusHtml({ state: "Publicada", billing: inativa, publish: SEM_PLANO, storeUrl: URL_LOJA, previewUrl: PREVIA });
     expect(html).toContain("fora do ar");
     expect(html).not.toContain(`href="${URL_LOJA}"`);
     expect(html).toContain(`href="${PREVIA}"`);
@@ -159,8 +177,13 @@ describe("Estado da loja — Publicada ou Rascunho, e publicar sujeito à subscr
 
   it("publicar passa por canPublishStore antes de ir à base de dados", () => {
     const fn = INICIO.slice(INICIO.indexOf("async function mudarEstado("));
-    expect(fn).toContain("if (!canPublishStore(ctx.billing).allowed)");
+    expect(fn).toContain("const decisao = canPublishStore(ctx.billing, ctx.phoneVerified);");
+    expect(fn).toContain("if (!decisao.allowed)");
     expect(fn).toContain('go("#/painel/plano")');
+    // Cada impedimento leva ao sítio onde se resolve: o telemóvel abre o modal,
+    // a subscrição muda de separador.
+    expect(fn).toContain('decisao.reason === "telefone-por-confirmar"');
+    expect(fn).toContain("openPhoneVerify({");
     expect(fn.indexOf("canPublishStore(")).toBeLessThan(fn.indexOf("setStoreState("));
     // Despublicar pede confirmação: a loja sai da web para os clientes.
     expect(fn).toContain("confirm(");
@@ -170,6 +193,50 @@ describe("Estado da loja — Publicada ou Rascunho, e publicar sujeito à subscr
   it("copiar o endereço tem saída quando a área de transferência não existe", () => {
     expect(INICIO).toContain("copyText(ctx.storeUrl)");
     expect(INICIO).toContain("Copie o endereço à mão:");
+  });
+});
+
+describe("Telemóvel por confirmar — o aviso que falta fechar", () => {
+  /**
+   * Quem escolheu «Não recebi o código» no assistente ficou com a conta criada
+   * e a loja por publicar. Sem este aviso, saía do assistente sem saber o que
+   * ficou pendente — e encontrava um botão de publicar desligado sem explicação.
+   */
+  it("o Início mostra o aviso só a quem tem o número por confirmar", () => {
+    expect(INICIO).toContain("ctx.phoneVerified ? \"\" : `<div class=\"mt-6\">${phoneNoticeHtml({ phone: ctx.phone })}</div>`");
+  });
+
+  it("o aviso diz o que está em causa e abre o modal de confirmação", () => {
+    const html = M.phoneNoticeHtml({ phone: "244923456789" });
+    expect(html).toContain("Confirme o seu telemóvel");
+    expect(html).toContain("a loja não pode ser publicada");
+    expect(html).toContain('id="verify-phone-card"');
+    // O número é mostrado legível, a partir da função do domínio.
+    expect(html).toContain("+244 923 456 789");
+  });
+
+  it("sem número gravado, o aviso não inventa um", () => {
+    const html = M.phoneNoticeHtml({ phone: null });
+    expect(html).toContain("Confirme o seu telemóvel");
+    expect(html).not.toMatch(/\+244/);
+  });
+
+  it("os dois botões abrem o mesmo modal, e confirmar redesenha o painel", () => {
+    expect(INICIO).toContain('for (const id of ["verify-phone", "verify-phone-card"])');
+    expect(INICIO).toContain("onVerified: () => { void ctx.reload(); }");
+  });
+
+  it("a decisão de publicar usa o telemóvel da conta, não o da loja", () => {
+    // O número é da conta e serve todas as lojas dela: ler o estado por loja
+    // dava avisos diferentes em separadores do mesmo painel.
+    expect(INICIO).toContain("canPublishStore(billing, ctx.phoneVerified)");
+    expect(DASHBOARD).toContain("readPhoneStatus(ownerId)");
+    expect(DASHBOARD).toContain("phoneVerified: telefone.verified");
+  });
+
+  it("uma conta de administrador publica sem confirmar nada", () => {
+    expect(DASHBOARD).toContain("isAdmin ? { verified: true, phone: phoneStatus.phone } : phoneStatus");
+    expect(canPublishStore(resolveBilling({ planExpiresAt: null, isAdmin: true }), false).allowed).toBe(true);
   });
 });
 
@@ -221,8 +288,11 @@ describe("Próximos passos — calculados, e cada um leva ao sítio onde se faz"
 
   it("nenhum desenho do Início mostra «undefined», «NaN» ou «[object Object]»", () => {
     const amostras = [
-      M.storeStatusHtml({ state: "Rascunho", billing: inativa, canPublish: false, storeUrl: URL_LOJA, previewUrl: PREVIA }),
-      M.storeStatusHtml({ state: "Publicada", billing: ativa, canPublish: true, storeUrl: URL_LOJA, previewUrl: PREVIA }),
+      M.storeStatusHtml({ state: "Rascunho", billing: inativa, publish: SEM_PLANO, storeUrl: URL_LOJA, previewUrl: PREVIA }),
+      M.storeStatusHtml({ state: "Publicada", billing: ativa, publish: PODE, storeUrl: URL_LOJA, previewUrl: PREVIA }),
+      M.storeStatusHtml({ state: "Rascunho", billing: ativa, publish: SEM_TELEFONE, storeUrl: URL_LOJA, previewUrl: PREVIA }),
+      M.phoneNoticeHtml({ phone: "244923456789" }),
+      M.phoneNoticeHtml({ phone: null }),
       M.funnelHtml({ visits: 0, views: 0, carts: 0, whatsapp: 0 }),
       M.funnelHtml({ visits: 3, views: 1, carts: 0, whatsapp: 0 }),
       M.nextStepsHtml(M.nextSteps(semNada)),

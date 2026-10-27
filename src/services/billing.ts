@@ -73,18 +73,29 @@ export interface PublishDecision {
   /** A Loja pode ir para a web agora. */
   allowed: boolean;
   /** Razão para apresentar ao Dono quando não pode publicar. */
-  reason: "ok" | "sem-subscricao";
+  reason: "ok" | "telefone-por-confirmar" | "sem-subscricao";
 }
 
 /**
- * Pode esta conta publicar uma Loja?
+ * Pode esta Loja ir para o ar?
  *
- * Com um só plano e lojas ilimitadas há uma pergunta só: a subscrição está
- * ativa? A base de dados impõe a mesma regra (gatilho
- * `stores_publish_requires_plan`); esta função existe para o painel dar uma
- * frase útil antes de o Postgres recusar.
+ * Duas condições, e a base de dados impõe as mesmas (gatilho
+ * `stores_publish_requires_plan`, migração 0026): a subscrição **desta loja**
+ * está em vigor, e o telemóvel da conta está confirmado. Esta função existe
+ * para o painel dar uma frase útil — e dizer **onde** se resolve — antes de o
+ * Postgres recusar com uma excepção.
+ *
+ * O telemóvel é verificado primeiro de propósito: é grátis e leva um minuto.
+ * Mandar o Dono pagar e só depois descobrir que falta confirmar o número era
+ * guardar a má notícia para o fim.
+ *
+ * `phoneVerified` tem valor por omissão porque uma conta de administrador não
+ * confirma nada, e porque todas as contas que já existiam quando a migração
+ * correu ficaram confirmadas.
  */
-export function canPublishStore(state: BillingState): PublishDecision {
+export function canPublishStore(state: BillingState, phoneVerified = true): PublishDecision {
+  if (state.byAdmin) return { allowed: true, reason: "ok" };
+  if (!phoneVerified) return { allowed: false, reason: "telefone-por-confirmar" };
   return state.accessActive ? { allowed: true, reason: "ok" } : { allowed: false, reason: "sem-subscricao" };
 }
 

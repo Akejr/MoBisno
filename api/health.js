@@ -16,6 +16,7 @@
 import { configStatus, send } from "./_shared.js";
 import { getPaymentProvider } from "./_provider.js";
 import { resendConfigured } from "./_resend.js";
+import { nsanguConfigured } from "./_nsangu.js";
 
 export default async function handler(_req, res) {
   const s = configStatus();
@@ -31,5 +32,12 @@ export default async function handler(_req, res) {
     // paga horas depois nunca chega a ser confirmada.
     paymentWebhook: !!process.env.WIPAY_WEBHOOK_SECRET,
     email: resendConfigured(),
+    // Confirmação do telemóvel por SMS (Nsangu). Sem isto, quem cria conta não
+    // recebe o código e fica com a loja por publicar até confirmar o número.
+    //
+    // Só o booleano: o saldo de SMS é informação do negócio, e este endpoint é
+    // público. Lê-lo aqui também punha qualquer visita a gastar um pedido à API
+    // da Nsangu.
+    sms: nsanguConfigured(),
   });
 }

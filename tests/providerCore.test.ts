@@ -249,6 +249,7 @@ describe("GET /api/health sem fornecedor", () => {
     paymentProvider: null,
     paymentWebhook: false,
     email: false,
+    sms: false,
   };
 
   it("diz que não há fornecedor, nem callback, nem email, e que o Supabase está configurado", async () => {

@@ -42,6 +42,13 @@ export interface AdminAccount {
   createdAt: string;
   /** Fim do período de subscrição pago (ISO) ou null. */
   planExpiresAt: string | null;
+  /** Telemóvel gravado (`2449XXXXXXXX`) ou `null`. */
+  phone: string | null;
+  /**
+   * Telemóvel confirmado por SMS (migração 0026). Sem isto, nenhuma loja da
+   * conta pode ser publicada — é o que distingue um registo real de um teste.
+   */
+  phoneVerified: boolean;
 }
 
 export interface AdminStore {
@@ -294,7 +301,7 @@ function paymentStatus(status: unknown, method: unknown, dueDate: unknown): Paym
 export async function listAccounts(): Promise<AdminAccount[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, name, is_admin, created_at, plan_expires_at")
+    .select("id, email, name, is_admin, created_at, plan_expires_at, phone, phone_verified_at")
     .order("created_at", { ascending: false });
   readOrThrow("as contas", error);
   return (data ?? []).map((p) => ({
@@ -304,7 +311,35 @@ export async function listAccounts(): Promise<AdminAccount[]> {
     isAdmin: p.is_admin === true,
     createdAt: p.created_at ?? "",
     planExpiresAt: p.plan_expires_at ?? null,
+    phone: typeof p.phone === "string" ? p.phone : null,
+    phoneVerified: !!p.phone_verified_at,
   }));
+}
+
+/**
+ * Confirma o telemóvel de uma conta à mão.
+ *
+ * Existe pela mesma razão que a ativação manual da subscrição: o serviço de SMS
+ * pode estar em baixo, sem saldo, ou o Dono pode ter mudado de número e falado
+ * com a equipa. Sem esta saída, uma conta ficava sem poder publicar e sem
+ * ninguém a poder desbloquear.
+ *
+ * A escrita passa porque `request_is_privileged()` é verdadeiro para um
+ * administrador; a qualquer outra pessoa o gatilho `profiles_guard` repõe o
+ * valor antigo em silêncio, e é por isso que se confirma lendo de volta.
+ */
+export async function adminVerifyPhone(ownerId: string): Promise<AdminResult> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ phone_verified_at: new Date().toISOString() })
+    .eq("id", ownerId)
+    .select("phone_verified_at");
+  forgetProfiles();
+  if (error) {
+    console.error("adminVerifyPhone", error);
+    return { ok: false, message: WRITE_FAILED };
+  }
+  return (data ?? [])[0]?.phone_verified_at ? { ok: true } : { ok: false, message: WRITE_REFUSED };
 }
 
 /** Lê o fim da subscrição de uma loja e se o dono dela é administrador. */
@@ -432,7 +467,10 @@ export async function adminSetStoreState(storeId: string, state: "Publicada" | "
   if (error) {
     console.error("adminSetStoreState", error);
     if (errorMentions(error, "PLAN_REQUIRED_TO_PUBLISH")) {
-      return { ok: false, message: "O dono desta loja não tem subscrição ativa: a loja não pode ser publicada." };
+      return { ok: false, message: "Esta loja não tem subscrição ativa: não pode ser publicada." };
+    }
+    if (errorMentions(error, "PHONE_REQUIRED_TO_PUBLISH")) {
+      return { ok: false, message: "O dono desta loja ainda não confirmou o telemóvel: a loja não pode ser publicada. Confirme em «Contas»." };
     }
     return { ok: false, message: WRITE_FAILED };
   }

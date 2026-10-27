@@ -10,6 +10,7 @@
 import { render, go, esc, setDocTitle } from "../lib/dom.js";
 import { appState, currentOwnerId, logout, storeRepository, publicStoreUrl } from "../composition.js";
 import { isCurrentUserAdmin } from "../supabase/admin.js";
+import { readPhoneStatus } from "../supabase/phone.js";
 import { isModelIdentifier } from "../../src/services/domains.js";
 import { resolveBilling, type BillingState } from "../../src/services/billing.js";
 import { PLAN_UNIT_LABEL } from "../../src/services/plans.js";
@@ -162,6 +163,12 @@ interface ShellInput {
   billing: BillingState;
   storeUrl: string;
   previewUrl: string;
+}
+
+/** Estado do telemóvel da conta, lido uma vez por entrada no painel. */
+interface PhoneState {
+  verified: boolean;
+  phone: string | null;
 }
 
 /** Estado público de uma loja, para o ponto de cor do seletor. A subscrição é de cada loja. */
@@ -334,11 +341,12 @@ export async function renderDashboard(): Promise<void> {
     }));
     return;
   }
-  // As duas só dependem do `ownerId` e não uma da outra: juntas custam o tempo
-  // da mais lenta. É o caminho que corre outra vez a cada troca de separador.
-  const [allStores, isAdmin] = await Promise.all([
+  // As três só dependem do `ownerId` e não umas das outras: juntas custam o
+  // tempo da mais lenta. É o caminho que corre outra vez a cada troca de separador.
+  const [allStores, isAdmin, phoneStatus] = await Promise.all([
     storeRepository.listByOwner(ownerId),
     isCurrentUserAdmin(),
+    readPhoneStatus(ownerId),
   ]);
   if (seq !== renderSeq) return;
   // Esconde as lojas-modelo (secção Modelos do admin) do painel pessoal.
@@ -360,6 +368,9 @@ export async function renderDashboard(): Promise<void> {
   appState.storeId = store.id;
   // A subscrição é de cada loja (migração 0025): o estado é o da loja escolhida.
   const billing = resolveBilling({ planExpiresAt: store.planExpiresAt ?? null, isAdmin });
+  // O telemóvel é da conta, e serve todas as lojas. Um administrador publica
+  // sem confirmar nada.
+  const telefone: PhoneState = isAdmin ? { verified: true, phone: phoneStatus.phone } : phoneStatus;
 
   const { tab, known } = tabFromPath(location.pathname);
   // Um separador que já não existe mostra o «Início», e o endereço passa a
@@ -378,6 +389,8 @@ export async function renderDashboard(): Promise<void> {
     store,
     stores,
     billing,
+    phoneVerified: telefone.verified,
+    phone: telefone.phone,
     storeUrl,
     previewUrl,
     paint(content: string): boolean {

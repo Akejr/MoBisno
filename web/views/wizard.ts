@@ -2,13 +2,25 @@
  * Assistente de Criação — formato de CHAT guiado pelo robô do MôBisno.
  * Identidade visual branco + #F95901, com animações. O assistente conduz o
  * utilizador: nome → email → palavra-passe → confirmação da palavra-passe →
- * resumo dos dados (confirmar ou corrigir) → cria conta → nome da loja →
- * tipo de negócio → descrição (título e descrição para o Google) → subdomínio
- * (recomenda/aprova) → cria a loja em rascunho → galeria de modelos prontos.
+ * resumo dos dados (confirmar ou corrigir) → cria conta → **telemóvel e código
+ * por SMS** → nome da loja → tipo de negócio → descrição (título e descrição
+ * para o Google) → subdomínio (recomenda/aprova) → cria a loja em rascunho →
+ * galeria de modelos prontos.
  *
  * Qualquer passo pode ser repetido para corrigir um campo: `askName` e
  * `askEmail` recebem o passo seguinte, e uma correção regressa ao resumo em vez
  * de arrastar o utilizador pelos passos que já estavam bem.
+ *
+ * ## Porque é que o telemóvel vem DEPOIS de a conta existir
+ *
+ * O código é pedido e comparado pelo servidor, que identifica o Dono pelo token
+ * da sessão (`api/phone-verify.js`). Antes de a conta existir não há sessão, e a
+ * única forma de o navegador dizer «este número está confirmado» seria uma
+ * afirmação que ele próprio escreve — ou seja, nenhuma confirmação.
+ *
+ * Quem não receber a SMS escolhe «Não recebi o código»: a conta e a loja ficam
+ * criadas, e o número confirma-se depois no Dashboard. O que fica por fazer é
+ * **publicar** — exigir a confirmação para criar deixaria o Dono sem nada.
  *
  * Reutiliza a validação e os serviços do fluxo original (wizardSteps,
  * authService, wizardFlow, identifierService).
@@ -21,6 +33,11 @@ import {
   buildRegisterFixOptions, REGISTER_FIX_LABELS,
 } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
+import { confirmPhoneCode, readPhoneStatus, requestPhoneCode } from "../supabase/phone.js";
+import { isValidAoPhone, normalizeAoPhone } from "../../src/services/payments.js";
+import {
+  PHONE_CODE_LENGTH, cleanPhoneCode, formatPhoneForDisplay,
+} from "../../src/services/phoneVerification.js";
 import { generateSeoDescription, generateSeoTitle } from "../lib/seoGen.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import type { AuthError, Session } from "../../src/services/authService.js";
@@ -166,7 +183,21 @@ function googlePreviewCard(title: string, description: string): string {
 
 /* --------------------------------- Inputs -------------------------------- */
 
-function clearInput(): void { $("#chat-input")!.innerHTML = ""; }
+/**
+ * Temporizador do botão de reenvio do código.
+ *
+ * Vive fora dos passos porque `clearInput()` apaga o HTML da zona de entrada
+ * sem parar nada: sem isto, o intervalo continuava a contar sobre um botão que
+ * já não existe, e a contagem seguinte ficava com duas a escrever no mesmo
+ * sítio.
+ */
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopTick(): void {
+  if (tickTimer !== null) { clearInterval(tickTimer); tickTimer = null; }
+}
+
+function clearInput(): void { stopTick(); $("#chat-input")!.innerHTML = ""; }
 
 function inputText(opts: { placeholder: string; type?: string; cta?: string; onSubmit: (v: string) => void }): void {
   const zone = $("#chat-input")!;
@@ -231,7 +262,90 @@ function inputYesNo(onYes: () => void, onNo: () => void): void {
 }
 
 function inputBusy(label: string): void {
+  clearInput();
   $("#chat-input")!.innerHTML = `<div class="flex items-center justify-center gap-2 text-gray-500 text-sm py-2"><span class="mb-dot"></span><span class="mb-dot" style="animation-delay:.15s"></span><span class="mb-dot" style="animation-delay:.3s"></span> <span class="ml-1">${esc(label)}</span></div>`;
+}
+
+/** Classes de um chip secundário (contorno, sobre branco). */
+const CHIP_ALT = "mb-chip inline-flex items-center gap-1.5 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:hover:bg-white";
+
+/**
+ * Entrada do código de confirmação: a caixa dos algarismos e, debaixo, o que se
+ * pode fazer enquanto a SMS não chega.
+ *
+ * Os reenvios abrem por tempo (`resendInMs`): o botão nasce fechado, conta até
+ * zero e abre sozinho. Esgotados os reenvios, o botão desaparece e fica
+ * «Não recebi o código», que segue sem confirmar.
+ *
+ * A contagem escreve no **nó de texto** do botão, e não em `textContent` do
+ * elemento. Não é preciosismo: o `MutationObserver` da moldura observa
+ * `childList` com `subtree` e rola o chat a cada mutação. Substituir o conteúdo
+ * do botão a cada segundo punha a conversa a rolar sozinha de segundo a segundo;
+ * alterar um nó de texto é uma mutação de `characterData`, que não é observada.
+ */
+function inputCode(opts: {
+  /** Espera até o reenvio abrir, ou `null` quando já não há reenvios. */
+  resendInMs: number | null;
+  onSubmit: (code: string) => void;
+  onResend: () => void;
+  onGiveUp: () => void;
+  onChangePhone: () => void;
+}): void {
+  const zone = $("#chat-input")!;
+  stopTick();
+  const semReenvio = opts.resendInMs === null;
+  zone.innerHTML = `<form class="flex flex-col gap-3">
+    <div class="flex items-center gap-2">
+      <label for="otp" class="sr-only">Código recebido por SMS</label>
+      <input id="otp" class="mb-cinput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="${PHONE_CODE_LENGTH}" placeholder="${"•".repeat(PHONE_CODE_LENGTH)}" style="letter-spacing:.4em;text-align:center;font-weight:800" />
+      <button type="submit" class="shrink-0 w-12 h-12 rounded-full text-white flex items-center justify-center shadow-sm hover:opacity-95 transition-opacity" style="background:${ACCENT}" title="Confirmar"><span class="material-symbols-outlined">arrow_upward</span></button>
+    </div>
+    <div class="flex flex-wrap gap-2 justify-center">
+      ${semReenvio
+        ? `<button type="button" data-giveup class="${CHIP_ALT}"><span class="material-symbols-outlined text-[18px]">sms_failed</span> Não recebi o código</button>`
+        : `<button type="button" data-resend disabled class="${CHIP_ALT}"><span class="material-symbols-outlined text-[18px]">refresh</span> <span data-tick>Reenviar código</span></button>`}
+      <button type="button" data-phone class="${CHIP_ALT}"><span class="material-symbols-outlined text-[18px]">edit</span> Trocar o número</button>
+    </div>
+  </form>`;
+
+  const form = zone.querySelector("form")!;
+  const input = zone.querySelector<HTMLInputElement>("#otp")!;
+  input.focus();
+  // Só algarismos, e o código completo envia sozinho: é o que o teclado do
+  // telemóvel sugere ao ler a SMS, e poupa um toque no botão.
+  input.addEventListener("input", () => {
+    const limpo = cleanPhoneCode(input.value);
+    if (limpo !== input.value) input.value = limpo;
+    if (limpo.length === PHONE_CODE_LENGTH) form.requestSubmit();
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = cleanPhoneCode(input.value);
+    if (v.length !== PHONE_CODE_LENGTH) return;
+    opts.onSubmit(v);
+  });
+
+  zone.querySelector("[data-phone]")!.addEventListener("click", opts.onChangePhone);
+  zone.querySelector("[data-giveup]")?.addEventListener("click", opts.onGiveUp);
+
+  const botao = zone.querySelector<HTMLButtonElement>("[data-resend]");
+  const alvo = zone.querySelector<HTMLElement>("[data-tick]")?.firstChild ?? null;
+  if (!botao || opts.resendInMs === null) return;
+  botao.addEventListener("click", () => { if (!botao.disabled) opts.onResend(); });
+
+  const abreEm = Date.now() + opts.resendInMs;
+  const pintar = (): void => {
+    const faltaS = Math.ceil((abreEm - Date.now()) / 1000);
+    if (faltaS <= 0) {
+      stopTick();
+      botao.disabled = false;
+      if (alvo) alvo.nodeValue = "Reenviar código";
+      return;
+    }
+    if (alvo) alvo.nodeValue = `Reenviar código em ${faltaS}s`;
+  };
+  pintar();
+  tickTimer = setInterval(pintar, 250);
 }
 
 /* --------------------------------- Fluxo --------------------------------- */
@@ -257,6 +371,13 @@ async function start(): Promise<void> {
     appState.ownerId = sess.ownerId;
     wiz.data[WIZARD_FIELDS.ownerId] = sess.ownerId;
     await botSay(`Olá de novo! Sou o assistente do MôBisno e vou ajudar-te a criar uma nova loja.`);
+    // Quem já tem conta mas nunca confirmou o número confirma-o agora: a loja
+    // que está a criar não poderia ser publicada.
+    const tel = await readPhoneStatus(sess.ownerId);
+    if (!tel.verified) {
+      askPhone("Antes disso, falta confirmar o teu número de telemóvel — é o que permite pôr a loja online. Qual é o número?");
+      return;
+    }
     askStoreName();
     return;
   }
@@ -447,7 +568,7 @@ function createAccount(): void {
       appState.ownerId = res.value.ownerId;
       wiz.data[WIZARD_FIELDS.ownerId] = res.value.ownerId;
       await botSay("Boa, conta criada! 🎉");
-      askStoreName();
+      askPhone();
     } finally {
       registering = false;
     }
@@ -479,6 +600,146 @@ function offerRegisterFix(error: AuthError): void {
     );
   })();
 }
+
+/* --------------------- Confirmação do telemóvel por SMS -------------------- */
+
+/**
+ * Momento em que o reenvio abre, e quantas SMS já saíram neste desafio.
+ *
+ * Guardados fora dos passos para a contagem **sobreviver** a um código errado:
+ * sem isto, cada tentativa falhada voltava a abrir o botão de reenviar, e a
+ * espera de 20 s deixava de existir.
+ */
+let codeResendAt: number | null = null;
+
+/** Telemóvel escrito, já normalizado. */
+function phoneEscrito(): string {
+  return String(wiz.data[WIZARD_FIELDS.phone] ?? "");
+}
+
+/** Pede o número. `intro` permite reaproveitar o passo como correção. */
+function askPhone(intro?: string): void {
+  void (async () => {
+    await botSay(intro ?? "Agora o teu telemóvel. Envio-te um código por SMS para confirmar que o número é teu — é por ele que as encomendas te vão chegar.");
+    inputText({
+      placeholder: "9XX XXX XXX",
+      type: "tel",
+      onSubmit: async (v) => {
+        userSay(v);
+        if (!isValidAoPhone(v)) {
+          await botSay("Esse número não parece válido. Escreve os nove algarismos do telemóvel, a começar por 9.");
+          return;
+        }
+        wiz.data[WIZARD_FIELDS.phone] = normalizeAoPhone(v);
+        clearInput();
+        await enviarCodigo(true);
+      },
+    });
+  })();
+}
+
+/**
+ * Pede o código ao servidor e abre o ecrã de confirmação.
+ *
+ * Nenhuma falha prende o Dono: um número recusado volta ao passo do número, e
+ * um serviço de SMS indisponível oferece seguir sem confirmar. Era o risco
+ * óbvio de pôr uma SMS no caminho da criação de conta — se a SMS não sai,
+ * ninguém cria conta.
+ */
+async function enviarCodigo(primeiro: boolean): Promise<void> {
+  const phone = phoneEscrito();
+  inputBusy(primeiro ? "A enviar o código…" : "A enviar outro código…");
+  const r = await requestPhoneCode(phone);
+  clearInput();
+
+  if (r.success) {
+    if (r.alreadyVerified) {
+      await botSay("Este número já está confirmado. 👍");
+      askStoreName();
+      return;
+    }
+    codeResendAt = typeof r.resendInMs === "number" ? Date.now() + r.resendInMs : null;
+    await botSay(primeiro
+      ? `Enviei um código para ${formatPhoneForDisplay(phone)}. Escreve-o aqui — chega em poucos segundos.`
+      : "Enviei outro código. Escreve-o aqui.");
+    askPhoneCode();
+    return;
+  }
+
+  if (r.code === "BAD_PHONE") {
+    await botSay(r.error ?? "Esse número não é válido.");
+    askPhone("Qual é o número correto?");
+    return;
+  }
+  // `TOO_SOON` e `MAX_SENDS` são respostas ao reenvio: o código anterior ainda
+  // vale, e o ecrã de confirmação continua a ser o sítio certo.
+  if (r.code === "TOO_SOON" || r.code === "MAX_SENDS") {
+    codeResendAt = r.code === "TOO_SOON" && typeof r.waitMs === "number" ? Date.now() + r.waitMs : null;
+    await botSay(r.error ?? "Aguarde um pouco para pedir outro código.");
+    askPhoneCode();
+    return;
+  }
+  // Serviço de SMS em baixo, sem saldo ou por configurar. Dizer a verdade e
+  // deixar escolher: tentar outra vez, ou seguir e confirmar depois.
+  await botSay(r.error ?? "Não foi possível enviar a SMS agora.");
+  inputChips(
+    [
+      { value: "retry", label: "Tentar de novo" },
+      { value: "phone", label: "Trocar o número" },
+      { value: "skip", label: "Continuar sem confirmar" },
+    ],
+    async (value, label) => {
+      userSay(label);
+      clearInput();
+      if (value === "retry") { await enviarCodigo(primeiro); return; }
+      if (value === "phone") { askPhone("Qual é o número?"); return; }
+      seguirSemConfirmar();
+    },
+  );
+}
+
+/** Ecrã de confirmação, com o estado do reenvio que estiver em vigor. */
+function askPhoneCode(): void {
+  inputCode({
+    resendInMs: codeResendAt === null ? null : Math.max(0, codeResendAt - Date.now()),
+    onSubmit: (code) => {
+      userSay(code);
+      void confirmarCodigo(code);
+    },
+    onResend: () => { clearInput(); void enviarCodigo(false); },
+    onGiveUp: () => { userSay("Não recebi o código"); clearInput(); seguirSemConfirmar(); },
+    onChangePhone: () => { clearInput(); askPhone("Certo. Qual é o número correto?"); },
+  });
+}
+
+/** Confirma o código escrito. Um código errado volta ao mesmo ecrã, com a espera intacta. */
+async function confirmarCodigo(code: string): Promise<void> {
+  inputBusy("A confirmar o código…");
+  const r = await confirmPhoneCode(code);
+  clearInput();
+  if (r.success) {
+    await botSay("Número confirmado. ✅");
+    askStoreName();
+    return;
+  }
+  await botSay(r.error ?? "Não foi possível confirmar o código.");
+  // Sem tentativas ou com o código caducado, insistir no mesmo código não leva
+  // a nada: o reenvio é o caminho, e abre já.
+  if (r.code === "MAX_ATTEMPTS" || r.code === "EXPIRED" || r.code === "NO_CHALLENGE") codeResendAt = Date.now();
+  askPhoneCode();
+}
+
+/** Segue sem confirmar: a conta fica, e publicar é que exige o número confirmado. */
+function seguirSemConfirmar(): void {
+  void (async () => {
+    codeResendAt = null;
+    await botSay("Sem problema, seguimos. A tua conta está criada e podes montar a loja à vontade.");
+    await botSay("Para a pôres online é que precisas de confirmar o número — fazes isso no Dashboard, no aviso que vai estar no «Início».");
+    askStoreName();
+  })();
+}
+
+/* ---------------------------------- A loja ---------------------------------- */
 
 function askStoreName(): void {
   void (async () => {
@@ -709,6 +970,7 @@ function goToModels(): void {
     await wait(900);
     // Reinicia o estado para uma próxima criação.
     wiz.data = {}; wiz.session = null; wiz.subdomain = ""; wiz.storeId = "";
+    codeResendAt = null;
     go("#/modelos");
   })();
 }

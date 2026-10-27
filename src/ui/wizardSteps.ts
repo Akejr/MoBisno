@@ -56,6 +56,12 @@ export const WIZARD_FIELDS = {
   email: "email",
   password: "password",
   ownerName: "ownerName",
+  /**
+   * Telemóvel do Dono, normalizado (`2449XXXXXXXX`), confirmado por SMS depois
+   * de a conta existir (`api/phone-verify.js`). Não entra na criação da Loja: o
+   * que ele decide é se a Loja pode ser **publicada**.
+   */
+  phone: "phone",
   /** Identificador do Dono autenticado, gravado após o passo de autenticação. */
   ownerId: "ownerId",
 } as const;

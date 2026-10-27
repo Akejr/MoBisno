@@ -71,7 +71,7 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
 > (Settings → Domains → Redirect) para ser instantâneo, sem carregar a app.
 
 ## 4. Supabase
-1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0025`.
+1. Aplicar as migrações por ordem no **SQL Editor**, da `0001` à `0026`.
    Nenhuma é opcional, e a ordem conta.
 
    | Migração | O que faz |
@@ -91,14 +91,17 @@ lojas é configurável numa só constante: `STORE_APEX` em `web/lib/routing.ts`.
    | **`0023_single_plan_and_company_verification.sql`** | **Plano único de 10.000 Kz/30 dias** (saem as colunas de lugares pagos) e **verificação de empresa** para os pagamentos digitais: dados e documentos em `store_payments`, bucket privado `company-documents`, e o gatilho que liga `stores.digital_payments` quando o Administrador aprova |
    | **`0024_wizapay_vero_and_whatsapp_orders.sql`** | **Pagamentos a sério.** O serviço e o código de estado que a Wiza devolveu (`orders`, `plan_payments`); a factura da empresa do Dono (`orders.invoice_*`, `store_payments.vero_org_id`/`vero_api_key` e as colunas derivadas `vero_key_set`/`vero_key_test`, que são as únicas que o navegador lê); `orders.notified_at`, que impede o mesmo aviso de venda duas vezes; a restrição `orders_net_within_amount` (o líquido nunca excede o montante nem é negativo); e a tabela **`whatsapp_orders`**, com inserção pública, onde cai quem toca em «Finalizar via WhatsApp» |
    | **`0025_plan_per_store.sql`** | **A subscrição passa a ser de cada loja** (10.000 Kz por 30 dias, por loja): `stores.plan_expires_at`, preenchida na transição com o período em curso da conta; o gatilho `stores_plan_guard` (só a plataforma mexe na data); publicar e a leitura pública passam a olhar para a subscrição da loja; e `plan_payments.store_id` |
+   | **`0026_phone_verification.sql`** | **Confirmação do telemóvel por SMS.** `profiles.phone` e `profiles.phone_verified_at` (as contas que já existiam ficam confirmadas, uma vez só, no momento em que a coluna nasce); `profiles_guard` passa a proteger as duas colunas (o Dono não se confirma a si próprio); a tabela `phone_verifications`, com RLS ligada e **sem políticas** (só a service role lhe toca, e guarda o SHA-256 do código, nunca o código); e publicar passa a exigir **telemóvel confirmado e** subscrição em vigor |
 
-   > Numa instalação feita antes desta versão faltam a 0022, a 0023, a 0024 e a 0025.
+   > Numa instalação feita antes desta versão faltam a 0022, a 0023, a 0024, a
+   > 0025 e a 0026.
    > Sem a 0022, qualquer utilizador autenticado se promove a administrador
    > (`update profiles set is_admin = true`). Sem a 0023, o painel de
    > «Pagamentos» falha ao gravar a verificação de empresa. Sem a 0024, uma
    > venda digital não grava a factura e o «Início» falha a ler as encomendas
    > por WhatsApp. Sem a 0025, todas as lojas aparecem sem subscrição e o
-   > pagamento do plano é recusado.
+   > pagamento do plano é recusado. Sem a 0026, a confirmação do telemóvel falha
+   > ao gravar e ninguém consegue publicar.
 
 2. **Tornar uma conta administrador** (acesso ao painel `/adminPainel`):
    no SQL Editor, correr
@@ -275,6 +278,29 @@ Uma loja **sem** pagamentos digitais não vê saldo nem levantamentos: vê, no
 «Início», as **«Encomendas por WhatsApp»** — quem tocou em «Finalizar via
 WhatsApp» e o que tinha no carrinho (tabela `whatsapp_orders`, migração 0024).
 
+### Confirmação do telemóvel
+
+Publicar uma loja exige **duas** coisas: a subscrição dela em vigor e o
+telemóvel da conta confirmado por SMS. As duas são impostas pelo gatilho
+`stores_publish_requires_plan` (migração 0026), que lança
+`PHONE_REQUIRED_TO_PUBLISH` ou `PLAN_REQUIRED_TO_PUBLISH` — o painel traduz cada
+uma na frase que diz onde se resolve.
+
+O código tem 6 algarismos, vale 10 minutos e é enviado pela **Nsangu**
+(`api/_nsangu.js`, categoria `OTP`, com `Idempotency-Key` por mensagem). Nunca é
+gravado: fica o SHA-256 de `<id do desafio>:<código>` em `phone_verifications`.
+Há dois reenvios, aos 20 s e aos 45 s; depois disso o Dono escolhe «Não recebi o
+código», a conta fica criada e o número confirma-se mais tarde no Dashboard →
+«Início».
+
+Tetos, porque cada SMS é paga e o registo é público: 3 envios por desafio, 6 por
+conta por hora, e 120 na plataforma por hora. Batido o teto global, o registo
+continua a funcionar — só não envia SMS.
+
+Quem ficou sem confirmar aparece no Painel de Administração → «Contas», no filtro
+**«Telefone por confirmar»**, e o botão «Confirmar telefone» marca o número à
+mão (para quando a SMS não chega).
+
 ### Subscrição do plano
 
 Cada loja tem a sua subscrição (migração 0025). Paga-se pelo mesmo caminho
@@ -300,6 +326,8 @@ Todas na Vercel → Settings → Environment Variables (Production + Preview). E
 | `WIPAY_CLIENT_SECRET` | `api/_wizapay.js` | para cobrar (secreta) | — |
 | `WIPAY_WEBHOOK_SECRET` | `api/payment-webhook.js` | para cobrar (secreta) | — |
 | `WIPAY_BASE_URL` | `api/_wizapay.js` | não | `https://api.wipay.ao` |
+| `NSANGU_API_KEY` | `api/_nsangu.js` | para a SMS de confirmação (secreta) | — |
+| `NSANGU_BASE_URL` | `api/_nsangu.js` | não | `https://api.nsangu.com` |
 | `RESEND_API_KEY` | `api/_resend.js` | para avisar por email (secreta) | — |
 | `RESEND_FROM` | `api/_resend.js` | não | `MôBisno <vendas@mobisno.store>` |
 | `VERO_BASE_URL` | `api/_vero.js` | não | a API pública do Vero |
@@ -317,10 +345,14 @@ não da Plataforma, e o Dono escreve-as no painel dele. Ficam em
 derivadas `vero_key_set`/`vero_key_test`, nunca a chave.
 
 ## Checklist de lançamento
-- [ ] Migrações `0001` … `0025` (as duas `0018` incluídas). **A 0022, a 0023, a
-      0024 e a 0025 são obrigatórias**: sem a 0022, qualquer utilizador se
-      promove a administrador; sem a 0024, uma venda digital não grava a
-      factura; sem a 0025, nenhuma loja tem subscrição.
+- [ ] Migrações `0001` … `0026` (as duas `0018` incluídas). **A 0022, a 0023, a
+      0024, a 0025 e a 0026 são obrigatórias**: sem a 0022, qualquer utilizador
+      se promove a administrador; sem a 0024, uma venda digital não grava a
+      factura; sem a 0025, nenhuma loja tem subscrição; sem a 0026, ninguém
+      consegue publicar.
+- [ ] `NSANGU_API_KEY` configurada **antes** de abrir o registo ao público:
+      sem ela, quem cria conta não recebe o código e fica com a loja por
+      publicar. `/api/health` responde `"sms": true` quando está no lugar.
 - [ ] Bucket `store-assets` público (criado pela `0001`) e `company-documents`
       **privado** (criado pela `0023`).
 - [ ] Variáveis de ambiente da tabela acima, incluindo as `WIPAY_*` e as

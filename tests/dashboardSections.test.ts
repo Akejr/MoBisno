@@ -603,10 +603,18 @@ describe("Nada do que saiu do domínio continua a ser importado", () => {
     expect(CODIGO).not.toMatch(/\bPRICE_KZ\b/);
   });
 
-  it("canPublishStore recebe só o estado da subscrição", () => {
-    const chamadas = [...CODIGO.matchAll(/canPublishStore\(([^)]*)\)/g)].map((m) => m[1]!);
+  it("canPublishStore recebe a subscrição e o telemóvel, e mais nada", () => {
+    // A guarda nasceu com os «lugares pagos»: a decisão de publicar recebia uma
+    // contagem de lojas, e mudar a contagem mudava quem podia publicar. Hoje são
+    // duas condições, e são estas duas (migração 0026).
+    const chamadas = [...CODIGO.matchAll(/canPublishStore\(([^)]*)\)/g)].map((m) => m[1]!.trim());
     expect(chamadas.length).toBeGreaterThan(0);
-    for (const args of chamadas) expect(args, `canPublishStore(${args})`).not.toContain(",");
+    for (const args of chamadas) {
+      const partes = args.split(",").map((a) => a.trim()).filter(Boolean);
+      expect(partes.length, `canPublishStore(${args}): argumentos a mais`).toBeLessThanOrEqual(2);
+      expect(partes[0], `canPublishStore(${args})`).toMatch(/billing$/);
+      if (partes[1]) expect(partes[1], `canPublishStore(${args})`).toMatch(/phoneVerified$/);
+    }
   });
 
   it("openPlanCheckout recebe só a loja e o { onPaid }: nem lojas a contar nem ciclos", () => {
