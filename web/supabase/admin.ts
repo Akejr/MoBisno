@@ -400,20 +400,66 @@ export async function adminDeactivateStorePlan(
   return writeStorePlan(storeId, deactivationPatch().plan_expires_at);
 }
 
-/** Cancela a conta: remove as lojas (em cascata: produtos, encomendas, pedidos) e o perfil. */
+/** Cabeçalho com o token da sessão do Administrador, para as funções serverless. */
+async function authHeader(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Elimina a conta de verdade: as lojas, o perfil e a **identidade**.
+ *
+ * Isto era feito aqui, do navegador: um `delete` nas lojas e outro no perfil. A
+ * identidade vive em `auth.users`, que só a service role pode tocar, e
+ * sobrevivia — o email ficava ocupado para sempre. Quem tentasse criar conta com
+ * ele ouvia «já existe uma conta associada a este email», e quem entrasse
+ * entrava numa conta sem perfil. A caixa de confirmação prometia apagar a conta
+ * e apagava metade.
+ *
+ * O trabalho passou para `api/admin-account.js`, que faz os três passos com a
+ * service role depois de confirmar, no servidor, que quem pede é administrador.
+ */
 export async function adminDeleteAccount(ownerId: string): Promise<AdminResult> {
-  const { error: storesError } = await supabase.from("stores").delete().eq("owner_id", ownerId);
-  if (storesError) {
-    console.error("adminDeleteAccount (lojas)", storesError);
-    return { ok: false, message: WRITE_FAILED };
+  try {
+    const r = await fetch("/api/admin-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ ownerId }),
+    });
+    const body = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    forgetProfiles();
+    if (r.ok && body?.ok === true) return { ok: true };
+    return { ok: false, message: body?.error || WRITE_FAILED };
+  } catch {
+    return { ok: false, message: "Não foi possível falar com o servidor. Verifique a ligação e tente de novo." };
   }
-  const { data, error } = await supabase.from("profiles").delete().eq("id", ownerId).select("id");
-  forgetProfiles();
-  if (error) {
-    console.error("adminDeleteAccount", error);
-    return { ok: false, message: WRITE_FAILED };
+}
+
+/** Conta que existe em `auth.users` mas já não tem perfil: um email preso. */
+export interface OrphanAccount {
+  id: string;
+  email: string;
+  /** Quando a conta foi criada (ISO), se o servidor a souber. */
+  createdAt: string | null;
+}
+
+/**
+ * Os emails presos: contas sem perfil que continuam a ocupar o email.
+ *
+ * São o rasto das eliminações feitas antes de `api/admin-account.js` existir.
+ * Uma falha devolve lista vazia de propósito: isto é um aviso dentro do painel,
+ * não uma razão para o ecrã das contas não abrir.
+ */
+export async function listOrphanAccounts(): Promise<OrphanAccount[]> {
+  try {
+    const r = await fetch("/api/admin-account", { headers: await authHeader() });
+    if (!r.ok) return [];
+    const body = (await r.json()) as { orphans?: OrphanAccount[] };
+    return Array.isArray(body.orphans) ? body.orphans : [];
+  } catch {
+    return [];
   }
-  return (data ?? []).length ? { ok: true } : { ok: false, message: WRITE_REFUSED };
 }
 
 /* ================================== Lojas ================================== */

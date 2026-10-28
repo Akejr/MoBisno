@@ -14,10 +14,19 @@
  *
  * As lojas da conta, com o estado de cada uma, e a eliminação da conta ficam
  * atrás de «Detalhes».
+ *
+ * ## Os emails presos
+ *
+ * No topo, só quando existem: contas que foram eliminadas sem a identidade ser
+ * apagada e continuam a ocupar o email em `auth.users`. É o rasto do defeito que
+ * `api/admin-account.js` corrigiu — eliminar apagava as lojas e o perfil, e o
+ * email ficava ocupado para sempre. Estas não aparecem na lista de contas (não
+ * têm perfil para listar), e por isso precisam de um sítio só delas.
  */
 import { esc, toast, withBusy } from "../../lib/dom.js";
 import {
-  adminDeleteAccount, adminVerifyPhone, listAccounts, listStores, type AdminAccount, type AdminStore,
+  adminDeleteAccount, adminVerifyPhone, listAccounts, listOrphanAccounts, listStores,
+  type AdminAccount, type AdminStore, type OrphanAccount,
 } from "../../supabase/admin.js";
 import { ADMIN_HREFS, accountStatus, latestExpiry, storeStatus, type AccountStatus } from "../../../src/services/adminMetrics.js";
 import { formatPhoneForDisplay } from "../../../src/services/phoneVerification.js";
@@ -85,6 +94,31 @@ function storeLine(s: AdminStore): string {
   </li>`;
 }
 
+/**
+ * Os emails presos, com a saída. «Libertar o email» apaga a identidade que
+ * ficou atrás: não há conta, não há lojas, não há nada para recuperar — o que há
+ * é um email que ninguém consegue usar.
+ */
+function orphansCard(list: readonly OrphanAccount[]): string {
+  if (list.length === 0) return "";
+  return `<div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+    <div class="flex items-start gap-2">
+      <span class="material-symbols-outlined mb-ico text-[20px] text-amber-700" aria-hidden="true">mail_lock</span>
+      <div class="min-w-0">
+        <h3 class="font-bold text-gray-900">${esc(plural(list.length, "email preso", "emails presos"))}</h3>
+        <p class="mt-0.5 text-sm text-gray-700">Contas eliminadas sem a identidade ter sido apagada: o email continua ocupado e ninguém consegue criar conta com ele. Libertar apaga só essa identidade.</p>
+      </div>
+    </div>
+    <ul role="list" class="mt-3 divide-y divide-amber-200">${list.map((o) => `
+      <li class="flex flex-wrap items-center gap-2 py-2">
+        <span class="min-w-0 flex-1 break-all font-semibold text-gray-900">${esc(o.email || o.id)}</span>
+        ${o.createdAt ? `<span class="text-xs text-gray-600">criada a ${esc(fmtDate(o.createdAt))}</span>` : ""}
+        <button type="button" data-act="free" data-id="${esc(o.id)}" aria-label="Libertar o email ${esc(o.email || o.id)}" class="${btnClass("dangerOutline", "sm")}">${icon("lock_open")} Libertar o email</button>
+      </li>`).join("")}
+    </ul>
+  </div>`;
+}
+
 function accountRow(row: AccountRow, open: boolean): string {
   const a = row.account;
   const clientStores = row.stores.filter((s) => !s.isModel).length;
@@ -126,8 +160,9 @@ function accountRow(row: AccountRow, open: boolean): string {
 /** Desenha a secção «Contas». */
 export async function renderAccounts(view: AdminView): Promise<void> {
   view.loading();
-  const [accounts, stores] = await Promise.all([listAccounts(), listStores()]);
+  const [accounts, stores, orfas] = await Promise.all([listAccounts(), listStores(), listOrphanAccounts()]);
   if (!view.isCurrent()) return;
+  let presos = orfas;
 
   const byOwner = new Map<string, AdminStore[]>();
   for (const s of stores) {
@@ -156,6 +191,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
 
   const painted = view.paint(`
     ${liveRegion(LIVE)}
+    <div id="acc-orphans"></div>
     <div class="mb-3">${searchField("acc-search", "Pesquisar contas", "Pesquisar por nome ou email…")}</div>
     <div class="mb-4">${filterChips("acc-filter", "Filtrar contas", [
       { value: "donos", label: "Donos de loja", count: c.donos },
@@ -170,6 +206,8 @@ export async function renderAccounts(view: AdminView): Promise<void> {
   if (!painted) return;
 
   function draw(): void {
+    const presosEl = document.getElementById("acc-orphans");
+    if (presosEl) presosEl.innerHTML = orphansCard(presos);
     const q = fold(query.trim());
     const inFilter = rows.filter((r) => matches(r, filter));
     const shown = inFilter.filter((r) => !q || fold(`${r.account.name} ${r.account.email}`).includes(q));
@@ -240,6 +278,36 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     toast(msg);
     announce(LIVE, msg);
   }
+
+  /** Liberta um email preso: apaga a identidade que ficou sem conta. */
+  async function free(id: string): Promise<void> {
+    const o = presos.find((x) => x.id === id);
+    if (!o) return;
+    const confirmed = await openDialog({
+      title: "Libertar o email?",
+      body: `<p>Apaga a identidade de <strong class="break-all">${esc(o.email || o.id)}</strong>, que ficou atrás de uma conta eliminada. A partir daí o email volta a estar livre e a pessoa pode criar conta de novo.</p>
+        <p>Não há lojas nem dados por apagar: esta conta já não tem perfil.</p>`,
+      confirmLabel: "Libertar o email",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    const result = await withBusy(() => adminDeleteAccount(o.id), "A libertar…");
+    if (!result.ok) {
+      toast(result.message, "error");
+      announce(LIVE, result.message);
+      return;
+    }
+    presos = presos.filter((x) => x.id !== o.id);
+    draw();
+    const msg = `Email ${o.email || o.id} libertado.`;
+    toast(msg);
+    announce(LIVE, msg);
+  }
+
+  document.getElementById("acc-orphans")?.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act="free"]');
+    if (btn) void free(btn.dataset.id ?? "");
+  });
 
   document.getElementById("acc-search")?.addEventListener("input", (e) => {
     query = (e.target as HTMLInputElement).value;

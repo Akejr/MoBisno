@@ -1151,6 +1151,45 @@ describe("Orientação do ecrã «registo» — a redefinição da palavra-passe
   });
 });
 
+describe("Orientação do ecrã «Administração» — eliminar uma conta liberta o email", () => {
+  /*
+   * «Eliminar conta» apagava as lojas e o perfil, do navegador. A identidade
+   * ficava em `auth.users`, e o email ficava ocupado para sempre: um Dono cuja
+   * conta foi apagada tentou criar outra e ouviu «já existe uma conta associada
+   * a este email». Quem perguntar isto ao assistente tem de ouvir a resposta
+   * certa, e não «usa outro email».
+   */
+  const guia = resolver(guiaDe("admin"));
+
+  it("diz que eliminar apaga a identidade e liberta o email", () => {
+    expect(guia).toMatch(/apaga as lojas, o perfil \*\*e a identidade\*\*/);
+    expect(guia).toMatch(/o email volta a estar livre/);
+    expect(guia, "sem isto o assistente promete eliminar a conta de um administrador")
+      .toMatch(/Ninguém elimina a própria conta nem a de outro administrador/);
+  });
+
+  it("explica os emails presos e onde se libertam", () => {
+    expect(guia).toContain("EMAILS PRESOS");
+    expect(guia).toContain("Libertar o email");
+    expect(guia).toMatch(/já existe uma conta associada a este email/);
+    const PAINEL = readFileSync(join(ROOT, "web/views/admin/accounts.ts"), "utf8");
+    expect(PAINEL, "o cartão dos emails presos não existe no ecrã").toContain("Libertar o email");
+    expect(PAINEL).toContain("listOrphanAccounts");
+  });
+
+  it("a eliminação passa pelo servidor, com a service role", () => {
+    // Do navegador não há forma de tocar em `auth.users`: a chave pública não o
+    // permite. Se isto voltar a ser um `delete` daqui, o email fica preso outra vez.
+    const DADOS = readFileSync(join(ROOT, "web/supabase/admin.ts"), "utf8");
+    const i = DADOS.indexOf("export async function adminDeleteAccount(");
+    expect(i, "adminDeleteAccount não encontrada").toBeGreaterThan(0);
+    const corpo = DADOS.slice(i, DADOS.indexOf("\n}", i));
+    expect(corpo).toContain("/api/admin-account");
+    expect(corpo, "voltou a apagar o perfil do navegador").not.toContain('from("profiles")');
+    expect(readFileSync(join(ROOT, "api/admin-account.js"), "utf8")).toContain("auth.admin.deleteUser(");
+  });
+});
+
 describe("Orientação do ecrã «Assistente_de_Criação» — sair a meio não perde nada", () => {
   /*
    * A mala de dados vivia só em memória: fechar o separador perdia o nome da
