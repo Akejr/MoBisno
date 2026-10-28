@@ -11,9 +11,12 @@
  *  2. Alguém aplica a arte da plataforma às páginas de LOJA ou de PRODUTO — o
  *     mesmo defeito ao contrário: o dono partilha o seu produto e sai o nosso
  *     cartaz.
- *  3. Alguém aponta o `og:image` ao original de 1,7 MB (ou regenera a versão
- *     leve maior do que devia). O WhatsApp desiste da imagem acima de poucas
- *     centenas de kB e o cartão volta a sair sem ela — sem erro nenhum.
+ *  3. Alguém aponta o `og:image` ao original de mais de 1 MB (ou regenera a
+ *     versão leve maior do que devia). O WhatsApp desiste da imagem acima de
+ *     poucas centenas de kB e o cartão volta a sair sem ela — sem erro nenhum.
+ *  4. A arte nova não é quadrada. O conversor estica-a para 1200×1200 e ela sai
+ *     deformada, sem nada falhar: a arte chegou a existir em 1080×1350, que é o
+ *     formato de uma publicação de Instagram.
  *
  * As asserções são sobre o **texto-fonte**: `api/` está fora do programa do `tsc`
  * e `web/` não é verificado por tipos. É o padrão de `tests/seoInfra.test.ts`.
@@ -37,6 +40,26 @@ const SHELL = read("web/index.html");
 
 /** Ficheiro público correspondente a um caminho de `og:image`. */
 const publicFile = (path: string): string => join(ROOT, "web/public", path.replace(/^\//, ""));
+
+/**
+ * Caminho da arte original, lido do próprio conversor.
+ *
+ * Estava escrito aqui à mão (`artmobisno1.png`). Trocar a arte passava a ser
+ * mudar o nome em dois sítios, e o teste guardava o nome de um ficheiro que já
+ * ninguém usava. Agora a fonte de verdade é o script.
+ */
+function origemDaArte(): string {
+  const m = /const SRC = "([^"]+)"/.exec(read("scripts/share-image.mjs"));
+  expect(m, "SRC não encontrado em scripts/share-image.mjs").not.toBeNull();
+  return m![1]!;
+}
+
+/** Medidas de um PNG, do IHDR (os primeiros 8 bytes depois da assinatura). */
+function pngSize(file: string): { width: number; height: number } | null {
+  const buf = readFileSync(file);
+  if (buf.length < 24 || buf.readUInt32BE(0) !== 0x89504e47) return null;
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
 
 /**
  * Limite acima do qual o WhatsApp deixa de pré-visualizar a imagem. É a razão
@@ -95,13 +118,21 @@ describe("Arte de partilha — o ficheiro", () => {
   });
 
   it("o original fica no repositório, é dele que a versão leve se refaz", () => {
-    expect(existsSync(join(ROOT, "web/public/images/artmobisno1.png"))).toBe(true);
-    expect(read("scripts/share-image.mjs")).toContain("artmobisno1.png");
+    expect(existsSync(join(ROOT, origemDaArte())), `falta ${origemDaArte()}`).toBe(true);
   });
 
-  it("nenhum metadado aponta ao original de 1,7 MB", () => {
+  it("a arte original é quadrada: esticada num 4:5, sairia deformada", () => {
+    const size = pngSize(join(ROOT, origemDaArte()));
+    expect(size, "a arte original tem de ser um PNG").not.toBeNull();
+    expect(size!.width, `arte ${size!.width}x${size!.height}`).toBe(size!.height);
+    // E com pelo menos o lado que os metadados declaram: ampliar perde nitidez.
+    expect(size!.width).toBeGreaterThanOrEqual(PLATFORM_SHARE_IMAGE_WIDTH);
+  });
+
+  it("nenhum metadado aponta ao original, que pesa mais de 1 MB", () => {
+    const nome = origemDaArte().split("/").pop()!;
     for (const src of [SEO_API, PRERENDER, SEO_WEB, SHELL]) {
-      expect(src).not.toContain("artmobisno1.png");
+      expect(src, nome).not.toContain(nome);
     }
   });
 });

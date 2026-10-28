@@ -4,21 +4,28 @@
  *
  * ## Porquê
  *
- * O original `web/public/images/artmobisno1.png` tem 1254×1254 e ~1,7 MB. O
- * WhatsApp desiste de pré-visualizar imagens acima de poucas centenas de kB: o
- * cartão sai sem imagem, que é precisamente o defeito que a arte nova vinha
- * corrigir. Esta conversão dá um JPEG de 1200×1200 com poucas dezenas de kB — o
- * 1200 é o lado que o Facebook e o WhatsApp pedem, e a arte é quadrada, por isso
- * não há recorte nem distorção.
+ * A arte original é um PNG de ~1,4 MB. O WhatsApp desiste de pré-visualizar
+ * imagens acima de poucas centenas de kB: o cartão sai sem imagem, que é
+ * precisamente o defeito que a arte vinha corrigir. Esta conversão dá um JPEG de
+ * 1200×1200 com poucas centenas de kB — o 1200 é o lado que o Facebook e o
+ * WhatsApp pedem.
  *
- * O original **fica** no repositório: é a fonte de onde esta versão se refaz.
+ * O original **fica** no repositório, em `src/images/`, que é onde vivem as
+ * fontes de desenho e **não** é servido: um PNG de 1,4 MB em `web/public/` ia
+ * para produção sem nada o pedir.
  *
  * ## Uso
  *
  *   node scripts/share-image.mjs
  *
- * Refazer sempre que a arte mudar. As medidas do ficheiro gerado estão fixadas
- * em `api/_seo.js` (`SHARE_IMAGE_*`) e verificadas em `tests/shareImage.test.ts`.
+ * Refazer sempre que a arte mudar: muda-se o `SRC` (ou escreve-se por cima do
+ * ficheiro) e corre-se isto.
+ *
+ * **A arte tem de ser quadrada.** O desenho é esticado para 1200×1200, por isso
+ * uma origem 4:5 — o formato de uma publicação de Instagram — sairia deformada.
+ * Quadrada também não é recortada pelo cartão do WhatsApp. `tests/shareImage.test.ts`
+ * verifica as duas coisas: que a origem é quadrada e que o JPEG gerado tem as
+ * medidas que `src/services/seo.ts` e o espelho `api/_seo.js` declaram.
  *
  * ## Como funciona
  *
@@ -30,7 +37,7 @@ import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 
-const SRC = "web/public/images/artmobisno1.png";
+const SRC = "src/images/Mobisno3.png";
 const OUT = "web/public/images/share.jpg";
 
 /** Lado do quadrado. 1200 é a largura mínima recomendada pelo Open Graph. */
