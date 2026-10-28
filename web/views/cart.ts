@@ -9,7 +9,7 @@
  * escreve a Combinação de cada linha (antes este ficheiro tinha a sua própria
  * cópia do texto e deixava-a cair).
  */
-import { render, $, esc, formatKz, fadeInImages, toast } from "../lib/dom.js";
+import { render, $, esc, formatKz, fadeInImages } from "../lib/dom.js";
 import { storeBasePath, storeHomePath } from "../lib/routing.js";
 import { loadStorefront } from "../lib/storeCache.js";
 import {
@@ -149,7 +149,7 @@ export async function renderCartPage(identifier: string): Promise<void> {
         total: cartTotal(storeId),
         origin: "carrinho",
       });
-      toast("A abrir o WhatsApp para finalizar…");
+      // Sem aviso flutuante: o WhatsApp abre por cima, e o leitor de ecrã ouve isto.
       announce("A abrir o WhatsApp para finalizar a encomenda.");
     });
 

@@ -1,7 +1,7 @@
 /** Página individual de produto — resolve a loja, encontra o produto e liga a compra. */
-import { render, esc, toast, fadeInImages, formatKz } from "../lib/dom.js";
+import { render, esc, fadeInImages, formatKz } from "../lib/dom.js";
 import { loadStorefront } from "../lib/storeCache.js";
-import { addToCart, cartCount, updateCartBadge } from "../lib/cart.js";
+import { addToCart, announce, updateCartBadge } from "../lib/cart.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { navigate, storeBasePath } from "../lib/routing.js";
 import { applyInk } from "../lib/ink.js";
@@ -206,17 +206,15 @@ function mountVariationPicker(
     resolve(): VariantChoice | null {
       const missing = missingAxes(axes, selection);
       if (missing.length > 0) {
-        const message = `Falta escolher: ${missing.join(", ")}.`;
-        showNote(message);
-        toast(message, "error");
+        // O aviso fica junto às opções (`showNote`). Um aviso flutuante a
+        // repeti-lo, na cor da plataforma e não na da loja, era o que destoava.
+        showNote(`Falta escolher: ${missing.join(", ")}.`);
         return null;
       }
       const values = selection as string[];
       const comb = findCombination(v, values);
       if (!combinationAvailable(comb)) {
-        const message = "Esta combinação está esgotada.";
-        showNote(message);
-        toast(message, "error");
+        showNote("Esta combinação está esgotada.");
         return null;
       }
       clearNote();
@@ -307,9 +305,26 @@ function mountPurchase(app: HTMLElement, ctx: PurchaseCtx): void {
     return true;
   };
 
+  /*
+   * A confirmação é o próprio botão: «Adicionado», nas cores da loja, durante
+   * um instante. Havia um aviso flutuante, «Adicionado ao carrinho (7
+   * item(s))», na cor da plataforma, que destoava de todas as lojas. O
+   * contador do carrinho já muda, e o leitor de ecrã ouve `announce`.
+   */
+  const original = new Map<HTMLElement, string>();
+  const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
   app.querySelectorAll<HTMLElement>("[data-add-cart]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (add()) toast(`Adicionado ao carrinho (${cartCount(storeId)} item(s)).`);
+      if (!add()) return;
+      announce(`${product.name} adicionado ao carrinho.`);
+      if (!original.has(btn)) original.set(btn, btn.innerHTML);
+      btn.innerHTML = `<span class="material-symbols-outlined" aria-hidden="true" style="font-size:1.1em;vertical-align:-.15em">check</span> Adicionado`;
+      const antes = timers.get(btn);
+      if (antes) clearTimeout(antes);
+      timers.set(btn, setTimeout(() => {
+        btn.innerHTML = original.get(btn) ?? btn.innerHTML;
+        timers.delete(btn);
+      }, 1600));
     });
   });
 
@@ -601,15 +616,18 @@ function mountReviews(
     const nameEl = section.querySelector<HTMLInputElement>("[data-rv-name]");
     const commentEl = section.querySelector<HTMLTextAreaElement>("[data-rv-comment]");
     const err = await submitReview(storeId, productId, { author: nameEl?.value ?? "", rating: picked, comment: commentEl?.value ?? "" });
-    if (err) { toast(err, "error"); return; }
+    const note = section.querySelector<HTMLElement>("[data-rv-note]");
+    // O que falhou fica no próprio formulário, como o «obrigado» de baixo.
+    if (err) {
+      if (note) { note.textContent = err; note.classList.remove("hidden"); }
+      return;
+    }
     // A avaliação entra por aprovar (`web/supabase/reviews.ts`): não aparece já
     // na lista, e o visitante tem de saber porquê — senão parece que se perdeu.
-    toast(REVIEW_PENDING_MESSAGE);
     if (nameEl) nameEl.value = "";
     if (commentEl) commentEl.value = "";
     picked = 0;
     paint();
-    const note = section.querySelector<HTMLElement>("[data-rv-note]");
     if (note) {
       note.textContent = REVIEW_PENDING_MESSAGE;
       note.classList.remove("hidden");

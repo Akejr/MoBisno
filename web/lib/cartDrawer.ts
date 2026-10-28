@@ -5,7 +5,7 @@
  * É um diálogo modal: o foco entra no painel ao abrir, fica preso nele com o
  * Tab, `Escape` fecha, e ao fechar o foco volta ao ícone que o abriu.
  */
-import { esc, formatKz, toast } from "./dom.js";
+import { esc, formatKz } from "./dom.js";
 import {
   getCart, setQuantity, removeFromCart, findCartLine, cartTotal, updateCartBadge, announce, type CartItem,
 } from "./cart.js";
@@ -223,7 +223,7 @@ export async function openCartDrawer(identifier: string): Promise<void> {
         total: cartTotal(storeId),
         origin: "gaveta",
       });
-      toast("A abrir o WhatsApp para finalizar…");
+      // Sem aviso flutuante: o WhatsApp abre por cima, e o leitor de ecrã ouve isto.
       announce("A abrir o WhatsApp para finalizar a encomenda.");
     });
     foot.querySelector("[data-go]")?.addEventListener("click", close);

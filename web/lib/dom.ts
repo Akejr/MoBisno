@@ -210,17 +210,25 @@ let toastTimer: number | undefined;
 
 /** Mostra uma notificação breve (sucesso/erro) no canto. */
 export function toast(message: string, kind: "success" | "error" = "success"): void {
+  /*
+   * Cartão branco e neutro, com a cor só no ícone. Era um bloco cheio na cor
+   * `primary` do sistema de desenho, que não é a de nada à volta: no painel
+   * destoava, e nas lojas destoava da marca de cada uma. As lojas já não o usam
+   * (`tests/storeNoToast.test.ts`); aqui fica para o que o Dono e o
+   * Administrador precisam de saber que aconteceu, como «Guardado».
+   */
   let el = document.getElementById("toast");
   if (!el) {
     el = document.createElement("div");
     el.id = "toast";
-    el.className = "fixed bottom-6 right-6 z-[100] max-w-sm";
+    el.className = "pointer-events-none fixed inset-x-4 bottom-4 z-[100] flex justify-center sm:inset-x-auto sm:bottom-6 sm:right-6";
     document.body.appendChild(el);
   }
-  const color = kind === "success" ? "bg-primary text-on-primary" : "bg-error text-on-error";
-  el.innerHTML = `<div class="${color} px-5 py-3 rounded-xl shadow-lg font-label-md animate-entrance flex items-center gap-2">
-    <span class="material-symbols-outlined text-[20px]">${kind === "success" ? "check_circle" : "error"}</span>
-    <span>${esc(message)}</span></div>`;
+  const ico = kind === "success"
+    ? `<span class="material-symbols-outlined shrink-0 text-[20px] text-emerald-600" aria-hidden="true">check_circle</span>`
+    : `<span class="material-symbols-outlined shrink-0 text-[20px] text-red-600" aria-hidden="true">error</span>`;
+  el.innerHTML = `<div role="${kind === "error" ? "alert" : "status"}" class="pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-900 shadow-[0_12px_32px_-12px_rgba(17,24,39,.35)] animate-entrance">
+    ${ico}<span class="pt-px">${esc(message)}</span></div>`;
   if (toastTimer) window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => { if (el) el.innerHTML = ""; }, 3500);
 }
