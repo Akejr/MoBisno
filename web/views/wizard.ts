@@ -41,7 +41,7 @@ import { TEMPLATES, identifierService, authService, wizardFlow, appState, curren
 import {
   validatePassoNomeTipo, resolvePassoSubdominio, buildStoreTypeOptions, WIZARD_FIELDS,
   PASSWORD_MIN_LENGTH, validatePasswordLength, validatePasswordConfirmation,
-  buildRegisterFixOptions, REGISTER_FIX_LABELS,
+  buildRegisterFixOptions, REGISTER_FIX_LABELS, sanitizeIdentifierInput, identifierProblem,
 } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { confirmPhoneCode, readPhoneStatus, requestPhoneCode } from "../supabase/phone.js";
@@ -93,7 +93,26 @@ function injectStyle(): void {
     ".mb-chip:hover{transform:translateY(-2px)}" +
     ".mb-cinput{width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:9999px;padding:.8rem 1.1rem;outline:none;transition:border-color .2s,box-shadow .2s;font-size:1rem;color:#111827}" +
     ".mb-cinput:focus{border-color:#F95901;box-shadow:0 0 0 3px rgba(249,89,1,.15)}" +
-    ".mb-chat-root{height:100vh;height:100dvh}";
+    ".mb-chat-root{height:100vh;height:100dvh}" +
+    // O campo do endereço: `[____].sualoja.digital`, só a parte da frente se escreve.
+    ".mb-sub-box{display:flex;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:1rem;overflow:hidden;transition:border-color .2s,box-shadow .2s}" +
+    ".mb-sub-box:focus-within{border-color:#F95901;box-shadow:0 0 0 3px rgba(249,89,1,.15)}" +
+    ".mb-sub-box[data-state=bad]{border-color:#ef4444}.mb-sub-box[data-state=bad]:focus-within{box-shadow:0 0 0 3px rgba(239,68,68,.15)}" +
+    ".mb-sub-box[data-state=ok]{border-color:#22c55e}.mb-sub-box[data-state=ok]:focus-within{box-shadow:0 0 0 3px rgba(34,197,94,.15)}" +
+    ".mb-sub-ico{padding-left:.9rem;color:#9ca3af;font-size:20px}" +
+    // O campo cresce com o texto (uma cópia invisível do valor dá-lhe a largura),
+    // para o «.sualoja.digital» ficar colado ao que se escreveu: o endereço lê-se
+    // como um só. Clicar em qualquer sítio da caixa põe o cursor no campo.
+    ".mb-sub-box{cursor:text}" +
+    ".mb-sub-grow{display:inline-grid;flex:0 1 auto;min-width:0;padding:.85rem 2px .85rem .5rem}" +
+    ".mb-sub-grow::after,.mb-sub-grow>input{grid-area:1/1;font-family:inherit;font-size:1rem;font-weight:700;letter-spacing:normal;padding:0;margin:0;border:0}" +
+    ".mb-sub-grow::after{content:attr(data-value);visibility:hidden;white-space:pre;overflow:hidden}" +
+    ".mb-sub-grow>input{width:100%;min-width:2ch;outline:none;background:transparent;color:#111827}" +
+    ".mb-sub-suffix{flex:1 0 auto;padding:.85rem 1rem .85rem 0;color:#6b7280;font-size:1rem;white-space:nowrap;user-select:none}" +
+    ".mb-sub-hint{display:flex;align-items:center;gap:.35rem;min-height:1.25rem;font-size:.8125rem;color:#6b7280}" +
+    ".mb-sub-hint[data-state=bad]{color:#b91c1c}.mb-sub-hint[data-state=ok]{color:#15803d}" +
+    "@keyframes mbSpin{to{transform:rotate(360deg)}}.mb-spin{animation:mbSpin 1s linear infinite}" +
+    ".mb-sub-go:disabled{opacity:.45;cursor:not-allowed}";
   document.head.appendChild(st);
 }
 
@@ -266,14 +285,105 @@ function inputTextarea(opts: { placeholder: string; cta?: string; onSubmit: (v: 
   });
 }
 
-function inputYesNo(onYes: () => void, onNo: () => void): void {
+/**
+ * O campo do endereço: `[____].sualoja.digital`, em que só a parte da frente se
+ * escreve.
+ *
+ * ## Porque é que é um campo e não uma conversa
+ *
+ * Era uma conversa: o robô recomendava, o Dono dizia que não, escrevia outro, e
+ * cada tentativa errada era uma volta inteira com um parágrafo sobre hífenes e
+ * 63 caracteres. Agora o aviso aparece por baixo **enquanto se escreve**, e o
+ * robô não precisa de dizer nada.
+ *
+ * O que se escreve é limpo à medida (`sanitizeIdentifierInput`: minúsculas, sem
+ * acentos, espaço passa a hífen), o formato é avisado na hora
+ * (`identifierProblem`), e a disponibilidade é perguntada à base de dados um
+ * pouco depois de se parar de escrever. Uma resposta atrasada de uma tecla
+ * anterior não pinta por cima da atual (`seq`).
+ *
+ * «Usar este endereço» só acende quando o endereço está livre, ou quando a
+ * verificação não respondeu: aí segue e a criação da loja é a última palavra.
+ */
+function inputIdentifier(inicial: string, onSubmit: (v: string) => void): void {
   const zone = $("#chat-input")!;
-  zone.innerHTML = `<div class="flex gap-3 justify-center">
-    <button data-yes class="mb-chip inline-flex items-center gap-2 text-white font-semibold px-7 py-3 rounded-full shadow-sm" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">check</span> Sim</button>
-    <button data-no class="mb-chip inline-flex items-center gap-2 text-gray-700 font-semibold px-7 py-3 rounded-full border border-gray-200 bg-white hover:bg-gray-50"><span class="material-symbols-outlined text-[18px]">edit</span> Não</button>
-  </div>`;
-  zone.querySelector("[data-yes]")!.addEventListener("click", onYes);
-  zone.querySelector("[data-no]")!.addEventListener("click", onNo);
+  zone.innerHTML = `<form class="flex flex-col gap-2" novalidate>
+    <label for="sub-input" class="text-xs font-semibold text-gray-500">Endereço da loja</label>
+    <div class="mb-sub-box">
+      <span class="material-symbols-outlined mb-sub-ico" aria-hidden="true">language</span>
+      <span class="mb-sub-grow" data-value="${esc(inicial)}"><input id="sub-input" type="text" size="1" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="63" aria-describedby="sub-hint" value="${esc(inicial)}" /></span>
+      <span class="mb-sub-suffix" aria-hidden="true">.${esc(STORE_APEX)}</span>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <p id="sub-hint" class="mb-sub-hint" aria-live="polite"></p>
+      <button type="submit" class="mb-sub-go ml-auto inline-flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-full shadow-sm hover:opacity-95" style="background:${ACCENT}" disabled>Usar este endereço <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span></button>
+    </div>
+  </form>`;
+
+  const form = zone.querySelector("form")!;
+  const input = zone.querySelector<HTMLInputElement>("#sub-input")!;
+  const box = zone.querySelector<HTMLElement>(".mb-sub-box")!;
+  const grow = zone.querySelector<HTMLElement>(".mb-sub-grow")!;
+  box.addEventListener("click", (e) => { if (e.target !== input) input.focus(); });
+  const hint = zone.querySelector<HTMLElement>("#sub-hint")!;
+  const btn = zone.querySelector<HTMLButtonElement>(".mb-sub-go")!;
+
+  let seq = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  /** O último valor que pode ser usado: confirmado livre, ou sem resposta da verificação. */
+  let pronto: string | null = null;
+
+  const pintar = (state: "checking" | "ok" | "bad" | "unknown", texto: string): void => {
+    box.dataset.state = state;
+    hint.dataset.state = state;
+    const ico = { checking: "progress_activity", ok: "check_circle", bad: "error", unknown: "info" }[state];
+    hint.innerHTML = `<span class="material-symbols-outlined mb-ico text-[16px]${state === "checking" ? " mb-spin" : ""}" aria-hidden="true">${ico}</span><span>${esc(texto)}</span>`;
+    btn.disabled = !(state === "ok" || state === "unknown");
+  };
+
+  const verificar = (): void => {
+    const v = input.value;
+    seq += 1;
+    const meu = seq;
+    if (timer) clearTimeout(timer);
+    pronto = null;
+    const problema = identifierProblem(v);
+    if (problema) { pintar("bad", problema); return; }
+    pintar("checking", "A verificar…");
+    timer = setTimeout(() => {
+      void (async () => {
+        let livre: boolean | null;
+        try { livre = await identifierService.isAvailable(v); } catch { livre = null; }
+        if (meu !== seq || !input.isConnected) return;
+        if (livre === false) { pintar("bad", "Este endereço já está em uso. Experimenta outro."); return; }
+        pronto = v;
+        if (livre === true) pintar("ok", "Disponível.");
+        else pintar("unknown", "Não deu para verificar agora. Podes continuar.");
+      })();
+    }, 350);
+  };
+
+  input.addEventListener("input", () => {
+    const limpo = sanitizeIdentifierInput(input.value);
+    if (limpo !== input.value) {
+      // O cursor fica onde estava, menos o que foi tirado antes dele.
+      const pos = Math.max(0, (input.selectionStart ?? limpo.length) - (input.value.length - limpo.length));
+      input.value = limpo;
+      input.setSelectionRange(pos, pos);
+    }
+    grow.dataset.value = input.value;
+    verificar();
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (btn.disabled || pronto === null || pronto !== input.value) return;
+    if (timer) clearTimeout(timer);
+    onSubmit(input.value);
+  });
+
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  verificar();
 }
 
 function inputBusy(label: string): void {
@@ -855,7 +965,7 @@ function retomar(step: WizardStep): void {
     else askSeoPreview();
     return;
   }
-  if (step === "subdomain") { askSubdomainRecommend(); return; }
+  if (step === "subdomain") { askSubdomain(); return; }
   askStoreName();
 }
 
@@ -966,7 +1076,7 @@ function showSeoPreview(): void {
         clearInput();
         if (value === "edit") { seoEditForm(); return; }
         guardarRascunho("subdomain");
-        askSubdomainRecommend();
+        askSubdomain();
       },
     );
   })();
@@ -1014,52 +1124,42 @@ async function resolveSub(): Promise<{ ok: true; subdomain: string } | { ok: fal
   return { ok: true, subdomain: res.value.subdomain };
 }
 
-function askSubdomainRecommend(): void {
+/**
+ * Pede o endereço da loja, num campo já preenchido a partir do nome.
+ *
+ * O robô fala **uma** vez. Os avisos de formato e de disponibilidade estão no
+ * próprio campo (`inputIdentifier`); a conversa só volta a falar se a criação
+ * falhar no fim, e nesse caso o campo reaparece com o que estava escrito.
+ *
+ * @param aviso O que dizer em vez da pergunta de sempre (a criação falhou).
+ */
+function askSubdomain(aviso?: string): void {
   void (async () => {
-    inputBusy("A preparar o teu endereço…");
-    // Recomendação derivada do nome (sem identifier definido).
-    delete wiz.data[WIZARD_FIELDS.identifier];
-    const r = await resolveSub();
-    clearInput();
-    if (!r.ok) {
-      await botSay(r.message);
-      askSubdomainCustom();
-      return;
-    }
-    await botSay(`Recomendo este endereço para a tua loja: ${r.subdomain.split(".")[0]}.${STORE_APEX}`);
-    await botSay("É assim que as pessoas vão ver o link da tua loja. Aprovas?");
-    inputYesNo(
-      () => { userSay("Sim, aprovo"); clearInput(); createStore(); },
-      () => { userSay("Não, quero outro"); clearInput(); askSubdomainCustom(); },
-    );
+    await botSay(aviso ?? "Por fim, o endereço da tua loja. Já o preenchi a partir do nome: podes ficar com ele ou mudar a parte da frente.");
+    const escrito = String(wiz.data[WIZARD_FIELDS.identifier] ?? "").trim();
+    const inicial = sanitizeIdentifierInput(escrito || identifierService.normalize(String(wiz.data[WIZARD_FIELDS.name] ?? "")));
+    inputIdentifier(inicial, (v) => {
+      userSay(`${v}.${STORE_APEX}`);
+      wiz.data[WIZARD_FIELDS.identifier] = v;
+      guardarRascunho("subdomain");
+      clearInput();
+      void confirmarEndereco();
+    });
   })();
 }
 
-function askSubdomainCustom(): void {
-  void (async () => {
-    await botSay("Sem problema! Qual vai ser o endereço desejado? (só letras minúsculas, números e hífen)");
-    inputText({
-      placeholder: "a-sua-loja",
-      onSubmit: async (v) => {
-        userSay(`${v}.${STORE_APEX}`);
-        wiz.data[WIZARD_FIELDS.identifier] = v;
-        clearInput();
-        inputBusy("A verificar o endereço…");
-        const r = await resolveSub();
-        clearInput();
-        if (!r.ok) {
-          await botSay(r.message);
-          askSubdomainCustom();
-          return;
-        }
-        await botSay(`Perfeito: ${r.subdomain.split(".")[0]}.${STORE_APEX}. Confirmas?`);
-        inputYesNo(
-          () => { userSay("Sim, confirmo"); clearInput(); createStore(); },
-          () => { userSay("Não, quero outro"); clearInput(); askSubdomainCustom(); },
-        );
-      },
-    });
-  })();
+/**
+ * A verificação final antes de criar: formato e disponibilidade outra vez, no
+ * mesmo `resolvePassoSubdominio` de sempre. O campo já não deixa passar um
+ * endereço mal escrito; o que pode falhar aqui é outra pessoa ter ficado com o
+ * mesmo endereço entretanto.
+ */
+async function confirmarEndereco(): Promise<void> {
+  inputBusy("A confirmar o endereço…");
+  const r = await resolveSub();
+  clearInput();
+  if (!r.ok) { askSubdomain("Esse endereço acabou de ficar ocupado. Escolhe outro."); return; }
+  createStore();
 }
 
 function createStore(): void {
@@ -1070,8 +1170,7 @@ function createStore(): void {
 
     const result = await wizardFlow.completeCreation(wiz.data, wiz.session);
     if (result.status !== "created") {
-      await botSay(result.message || "Não foi possível criar a loja. Vamos tentar o endereço novamente.");
-      askSubdomainCustom();
+      askSubdomain(result.message || "Não foi possível criar a loja com este endereço. Experimenta outro.");
       return;
     }
     // A loja NASCE EM RASCUNHO. Publicar exige subscrição ativa, e é imposto

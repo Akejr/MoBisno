@@ -30,7 +30,13 @@ import {
   VALID_STORE_TYPES,
   type CreateStoreInput,
 } from "../services/storeService.js";
-import type { IdentifierService } from "../services/identifierService.js";
+import {
+  DEFAULT_RESERVED_IDENTIFIERS,
+  MAX_IDENTIFIER_LENGTH,
+  MIN_IDENTIFIER_LENGTH,
+  type IdentifierService,
+} from "../services/identifierService.js";
+import { MODEL_STORE_PREFIX, isModelIdentifier } from "../services/domains.js";
 import type {
   AuthService,
   AuthError,
@@ -387,6 +393,63 @@ export async function resolvePassoSubdominio(
     value: { identifier, subdomain, origin },
     data: { ...data, [WIZARD_FIELDS.identifier]: identifier },
   };
+}
+
+/* ========================================================================== */
+/*  O campo do endereço, enquanto o Dono escreve                              */
+/* ========================================================================== */
+
+/*
+ * O endereço escolhia-se por conversa: o robô recomendava, o Dono dizia que não,
+ * escrevia outro, e o robô respondia com um parágrafo sobre hífenes e 63
+ * caracteres — uma volta por cada tentativa. Agora é um campo
+ * `[____].sualoja.digital` em que só a parte da frente se escreve, e o aviso
+ * aparece por baixo enquanto se escreve.
+ *
+ * Estas duas funções são o que o campo faz a cada tecla. Não substituem
+ * `resolvePassoSubdominio`: essa continua a ser a verificação final, com a
+ * disponibilidade, antes de a loja ser criada.
+ */
+
+/**
+ * O que o Dono escreveu, já na forma que um endereço pode ter: minúsculas, sem
+ * acentos, espaços e «_» passados a hífen, e nada além de letras, números e
+ * hífen. Corta no comprimento máximo.
+ *
+ * **Não** junta hífenes nem os tira das pontas: quem escreveu «loja-» vai a meio
+ * de escrever a palavra seguinte, e apagar-lhe o hífen debaixo do cursor seria
+ * corrigir uma coisa que ainda não está errada. Isso é avisado
+ * (`identifierProblem`), não corrigido.
+ */
+export function sanitizeIdentifierInput(raw: string): string {
+  return String(raw ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, MAX_IDENTIFIER_LENGTH);
+}
+
+/**
+ * O que impede este endereço, numa frase curta para ficar debaixo do campo, ou
+ * `null` quando o formato está certo.
+ *
+ * `null` não quer dizer «livre»: a disponibilidade é uma pergunta à base de
+ * dados, e é o campo que a faz a seguir. Quer dizer que vale a pena perguntar.
+ * As frases são curtas de propósito: a de `resolvePassoSubdominio` tem 40
+ * palavras e enumera as quatro regras de uma vez; aqui diz-se só a que falhou.
+ */
+export function identifierProblem(value: string): string | null {
+  const v = String(value ?? "");
+  if (v.length === 0) return "Escreve o endereço da loja.";
+  if (v.length < MIN_IDENTIFIER_LENGTH) return `Tem de ter pelo menos ${MIN_IDENTIFIER_LENGTH} caracteres.`;
+  if (v.length > MAX_IDENTIFIER_LENGTH) return `Tem de ter no máximo ${MAX_IDENTIFIER_LENGTH} caracteres.`;
+  if (/[^a-z0-9-]/.test(v)) return "Só letras minúsculas, números e hífen.";
+  if (v.startsWith("-") || v.endsWith("-")) return "Não pode começar nem acabar em hífen.";
+  if (v.includes("--")) return "Não pode ter dois hífenes seguidos.";
+  if (isModelIdentifier(v)) return `O início «${MODEL_STORE_PREFIX}» está reservado à MôBisno.`;
+  if (DEFAULT_RESERVED_IDENTIFIERS.includes(v)) return "Este endereço está reservado. Escolhe outro.";
+  return null;
 }
 
 /* ========================================================================== */

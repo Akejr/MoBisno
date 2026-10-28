@@ -1101,6 +1101,34 @@ describe("Orientação do ecrã «Assistente_de_Criação» — o email é verif
   });
 });
 
+describe("Orientação do ecrã «Assistente_de_Criação» — o endereço é um campo", () => {
+  /*
+   * O endereço escolhia-se por conversa: o robô recomendava, o Dono recusava,
+   * escrevia outro, e cada erro era uma volta com um parágrafo sobre hífenes.
+   * Agora é `[____].sualoja.digital`, com o aviso por baixo enquanto se escreve.
+   */
+  const guia = resolver(guiaDe("criar"));
+  const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
+
+  it("a orientação descreve o campo e o botão pelo rótulo", () => {
+    expect(guia).toMatch(/não é uma pergunta do robô, é um campo/);
+    expect(guia).toContain("Usar este endereço");
+    expect(guia).toContain("Disponível");
+    // O sufixo é o do domínio, interpolado, e não escrito à mão.
+    expect(guia).toContain("«.${STORE_APEX}» fixo à direita");
+  });
+
+  it("o ecrã usa o campo, e a conversa do sim/não saiu", () => {
+    expect(WIZARD).toContain("function inputIdentifier(");
+    expect(WIZARD).toContain("Usar este endereço");
+    expect(WIZARD).toContain("identifierProblem(");
+    expect(WIZARD).toContain("sanitizeIdentifierInput(");
+    for (const velho of ["askSubdomainRecommend", "askSubdomainCustom", "inputYesNo", "Aprovas?"]) {
+      expect(WIZARD, `voltou: ${velho}`).not.toContain(velho);
+    }
+  });
+});
+
 describe("Orientação do ecrã «Assistente_de_Criação» — o código por SMS", () => {
   /**
    * O passo novo é o que mais perguntas vai gerar («não me chegou a SMS»), e é

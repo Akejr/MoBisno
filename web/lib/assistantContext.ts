@@ -41,6 +41,7 @@ import { DELIVERY_PROVINCE } from "../../src/services/delivery.js";
 import { kzWhole, platformFeeNote } from "../../src/services/seo.js";
 import { PASSWORD_MIN_LENGTH, REGISTER_FIX_LABELS, WIZARD_DRAFT_TTL_DAYS } from "../../src/ui/wizardSteps.js";
 import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../../src/services/phoneVerification.js";
+import { MIN_IDENTIFIER_LENGTH } from "../../src/services/identifierService.js";
 import { PLATFORM_APEX, STORE_APEX } from "./routing.js";
 
 /** Ecrãs com assistente. As lojas publicadas não têm — são o site do Dono. */
@@ -173,7 +174,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - SAIR A MEIO NÃO PERDE O QUE JÁ FOI ESCRITO. A partir do nome da loja, cada resposta é guardada no próprio navegador. Ao voltar ao assistente, ele diz «Tínhamos ficado a meio da loja «nome». Queres continuar de onde ficaste?», com «Continuar» e «Começar de novo». Continuar retoma na pergunta que faltava, já com o nome, o tipo, o texto sobre o negócio e os textos para o Google, e os textos que a IA escreveu não são gerados outra vez, para não apagar as correções do Dono. O rascunho é daquela conta (outra conta no mesmo computador não o vê), vale ${WIZARD_DRAFT_TTL_DAYS} dias e é apagado quando a loja é criada.
 - Os passos da CONTA não são guardados, de propósito: são três respostas e uma delas é a palavra-passe, que nunca é escrita no navegador. Quem sai antes de a conta existir recomeça pelo nome; a partir daí é a sessão que o traz de volta.
 - LOJA, a seguir à conta: nome da loja, tipo de negócio, a descrição do negócio, o título e a descrição para o Google (gerados por IA, com pré-visualização) e o endereço (subdomínio).
-- O endereço só aceita letras minúsculas, números e hífen, e fica «nomedaloja.${STORE_APEX}». É pedido outro se já estiver ocupado. O prefixo «modelo-» está reservado às lojas de demonstração da MôBisno.
+- ENDEREÇO: não é uma pergunta do robô, é um campo. Aparece já preenchido a partir do nome da loja, com «.${STORE_APEX}» fixo à direita: só a parte da frente se escreve. Enquanto se escreve, o campo põe as letras em minúsculas, tira os acentos e troca os espaços por hífen, e diz logo por baixo o que está mal (menos de ${MIN_IDENTIFIER_LENGTH} caracteres, hífen no início ou no fim, dois hífenes seguidos, o início «modelo-», que está reservado às lojas de demonstração da MôBisno) ou se o endereço já está em uso. Quando está livre aparece «Disponível», e só então o botão «Usar este endereço» acende. O robô não volta a perguntar a cada tentativa.
 - A loja nasce como rascunho e o assistente leva logo à galeria de modelos prontos, que é onde se escolhe o aspeto. Publicar exige subscrição ativa.
 - O título e a descrição para o Google são escritos por IA a partir do que o Dono contou sobre a loja, e são mostrados num cartão com o aspeto de um resultado do Google antes de serem aceites («Sim, está ótimo» ou «Editar título e descrição»). Se a IA não responder, o assistente **di-lo** e parte do texto do próprio Dono, que fica editável. Não finjas que o texto é da IA quando ele diz que não foi.`,
 
