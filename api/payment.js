@@ -10,8 +10,11 @@
  *    O montante é calculado no servidor (`api/_payments.js`). `expectedTotal` é o
  *    total que o comprador viu: se divergir do calculado, responde
  *    `409 PRICE_CHANGED` em vez de cobrar outro valor.
- *  - `kind: "plan"` — subscrição de 30 dias (10.000 Kz). O Dono é lido do token
- *    da sessão (`Authorization: Bearer <access_token>`), nunca do corpo.
+ *  - `kind: "plan"` — subscrição de uma loja. Corpo: { kind, storeId, method }.
+ *    O montante é o do domínio (`PLAN_PRICE_KZ`), o Dono vem do token da sessão
+ *    (`Authorization: Bearer <access_token>`) e o telemóvel vem do perfil dele:
+ *    nenhum dos três se lê do corpo. `phone` só é aceite quando a conta ainda
+ *    não tem número gravado, e é esse o caso que responde `PHONE_REQUIRED`.
  *
  * Sem fornecedor de pagamentos ligado (`api/_provider.js`) responde
  * `503 PAYMENTS_UNAVAILABLE` antes de tocar na base de dados.
@@ -82,11 +85,19 @@ export default async function handler(req, res) {
   const method = body.method === "mcx" ? "mcx" : body.method === "reference" ? "reference" : null;
   if (!method) return send(res, 400, { success: false, error: "Método inválido.", code: "INVALID_METHOD" });
 
-  // O telemóvel é exigido em **qualquer** pagamento digital, e não só no
-  // Multicaixa Express: o fornecedor identifica o pagador por ele ao criar a
-  // cobrança, antes de o cliente escolher o método.
-  const phone = aoPhone(body.phone ?? body.customer?.phone);
-  if (!phone) {
+  /*
+   * O telemóvel que o pedido traz. É exigido em **qualquer** pagamento digital,
+   * e não só no Multicaixa Express: o fornecedor identifica o pagador por ele ao
+   * criar a cobrança (`wizaCreateCharge` recusa sem ele), antes de o cliente
+   * escolher o método.
+   *
+   * Numa encomenda vem do comprador, que não tem conta aqui. Na subscrição
+   * **não vem**: o Dono já confirmou o número da conta para poder publicar, e
+   * voltar a pedi-lo na janela de pagamento é pedir o que a plataforma já sabe.
+   * No ramo do plano é lido do perfil, e o do corpo fica como recurso.
+   */
+  const phoneDoPedido = aoPhone(body.phone ?? body.customer?.phone);
+  if (!phoneDoPedido && kind === "store") {
     return send(res, 400, { success: false, error: "Indique um número de telemóvel angolano válido (9 algarismos, a começar por 9).", code: "MISSING_PHONE" });
   }
 
@@ -101,6 +112,28 @@ export default async function handler(req, res) {
       if (!loja || loja.owner_id !== ownerId) {
         return send(res, 404, { success: false, error: "Loja não encontrada.", code: "STORE_NOT_FOUND" });
       }
+      /*
+       * O telemóvel do Dono vem da conta dele: é o número que ele confirmou
+       * para poder publicar (`api/phone-verify.js` grava-o em `profiles.phone`).
+       * A Wiza exige um para criar a cobrança — não se pode simplesmente
+       * largar. O que se larga é o campo: a janela do painel pedia outra vez o
+       * que a plataforma já tinha, e deixava pagar com um número diferente do
+       * da conta.
+       *
+       * O do corpo só serve de recurso: uma conta que já existia quando a
+       * coluna nasceu (migração 0027) ficou confirmada sem número gravado. Sem
+       * nenhum dos dois, `PHONE_REQUIRED` — e é só nesse caso que a janela
+       * mostra o campo.
+       */
+      const { data: perfil } = await db.from("profiles").select("phone").eq("id", ownerId).maybeSingle();
+      const phone = aoPhone(perfil?.phone) || phoneDoPedido;
+      if (!phone) {
+        return send(res, 400, {
+          success: false, code: "PHONE_REQUIRED",
+          error: "A sua conta não tem um telemóvel confirmado. Indique o número para continuar.",
+        });
+      }
+
       const payment = await createPlanPayment(db, ownerId, method, loja.id);
       // A causa vai na resposta: «não foi possível» sem ela é indistinguível de
       // uma migração que falta, e foi o que esteve a esconder uma coluna
@@ -166,7 +199,7 @@ export default async function handler(req, res) {
 
     const r = await provider.createPayment({
       method, amount: priced.total, reference: orderId,
-      description: `Encomenda ${priced.store.name}`, phone,
+      description: `Encomenda ${priced.store.name}`, phone: phoneDoPedido,
       customer: { name: customer.name, nif: customer.nif, phone: customer.phone, email: customer.email },
       items: providerProducts(items),
       payee: { iban: priced.payee.iban, beneficiaryName: priced.payee.beneficiary_name, bankName: priced.payee.bank_name },

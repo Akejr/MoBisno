@@ -677,7 +677,7 @@ Resposta: `{ success, orderId, kind, method, status, transactionId, operationId,
 `status` é `"paid"` no MCX (imediato) e `"open"` na Referência Bancária.
 Erros: `{ success: false, error, code }` com `code` em `INVALID_METHOD`,
 `MISSING_PRODUCTS`, `INVALID_PRODUCT`, `AMOUNT_MISMATCH`, `BELOW_MINIMUM`,
-`MISSING_PHONE`, `MISSING_STORE`, `PAYMENTS_NOT_ENABLED`, `PLAN_NOT_COVERED`,
+`MISSING_PHONE`, `PHONE_REQUIRED`, `MISSING_STORE`, `PAYMENTS_NOT_ENABLED`, `PLAN_NOT_COVERED`,
 `OUT_OF_STOCK`, `GATEWAY_ERROR`, `PAYMENT_FAILED`, `SERVER_NOT_CONFIGURED`.
 
 ### `api/payment-status.js`

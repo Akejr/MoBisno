@@ -1,6 +1,6 @@
 /**
  * Checkout da SUBSCRIÇÃO de uma loja (a receita é da plataforma). Um modal com
- * o preço e o telemóvel, e daí direto para a página de pagamento.
+ * o preço, e daí direto para a página de pagamento.
  *
  * ## Porque é que já não há aqui escolha de método
  *
@@ -12,6 +12,17 @@
  *
  * O que fica gravado no momento da cobrança é a **intenção**; o método real
  * chega com a confirmação do fornecedor.
+ *
+ * ## E porque é que também já não pede o telemóvel
+ *
+ * A Wiza exige um telemóvel para criar a cobrança, mas a plataforma já o tem: o
+ * Dono confirma um número por SMS antes de poder publicar, e o servidor lê-o de
+ * `profiles.phone` (`api/payment.js`). Pedi-lo aqui era pedir o que já se sabe,
+ * e deixava pagar com um número diferente do da conta.
+ *
+ * O campo continua a existir para um caso só: uma conta que ficou confirmada
+ * sem número gravado (migração 0027). Aparece quando o servidor responde
+ * `PHONE_REQUIRED`, e não antes.
  *
  * Cada loja tem a sua subscrição (migração 0025): o pagamento leva o `storeId`,
  * e o servidor confirma que a loja é de quem paga. O preço mostrado é só para o
@@ -69,6 +80,19 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
 
 
 
+  /**
+   * O telemóvel só é pedido depois de o servidor dizer que a conta não tem
+   * nenhum gravado. Por omissão, o número é o da conta e o Dono não o vê.
+   */
+  let pedirTelemovel = false;
+
+  const campoTelemovel = `
+      <label class="block mt-4">
+        <span class="text-sm font-semibold text-gray-700">Telemóvel</span>
+        <input id="plan-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXX" class="mt-1.5 w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-base outline-none focus:border-[#F95901] focus:ring-2 focus:ring-[#F95901]/20" />
+        <span class="mt-1.5 block text-xs text-gray-500">A sua conta não tem um número confirmado. É por este número que o pagamento é identificado.</span>
+      </label>`;
+
   function drawForm(): void {
     card.innerHTML = `
       <div class="flex items-start justify-between gap-3">
@@ -80,11 +104,7 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
         <span class="text-sm text-gray-600">${PLAN_PERIOD_DAYS} dias, com tudo incluído</span>
         <strong class="text-xl font-black tracking-tight" style="color:${ACCENT}">${esc(formatKz(PLAN_PRICE_KZ))}</strong>
       </div>
-      <label class="block mt-4">
-        <span class="text-sm font-semibold text-gray-700">Telemóvel</span>
-        <input id="plan-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXX" class="mt-1.5 w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-base outline-none focus:border-[#F95901] focus:ring-2 focus:ring-[#F95901]/20" />
-        <span class="mt-1.5 block text-xs text-gray-500">É por este número que o pagamento é identificado.</span>
-      </label>
+      ${pedirTelemovel ? campoTelemovel : ""}
       <button id="plan-pay" type="button" class="mt-5 w-full py-3 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2" style="background:${ACCENT}">Continuar para o pagamento <span class="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_forward</span></button>
       <p class="mt-3 text-center text-xs text-gray-500">Abre a página de pagamento, onde escolhe Multicaixa Express ou Referência Bancária.</p>`;
     bindForm();
@@ -97,16 +117,23 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
   }
 
   async function pay(): Promise<void> {
-    const phone = (card.querySelector("#plan-phone") as HTMLInputElement | null)?.value.trim() || "";
-    // O telemóvel é pedido em qualquer um dos métodos: o fornecedor identifica
-    // o pagador por ele ao criar a cobrança, antes de o método ser escolhido.
-    if (!isValidAoPhone(phone)) { toast("Indique um telemóvel válido.", "error"); return; }
+    const campo = card.querySelector("#plan-phone") as HTMLInputElement | null;
+    const phone = campo?.value.trim() || "";
+    // Só há o que validar quando o campo existe — e ele só existe depois de um
+    // `PHONE_REQUIRED`. Sem campo, o telemóvel é o que o Dono confirmou por SMS,
+    // e quem o lê é o servidor.
+    if (campo && !isValidAoPhone(phone)) { toast("Indique um telemóvel válido.", "error"); return; }
     const btn = card.querySelector("#plan-pay") as HTMLButtonElement | null;
     if (btn) { btn.disabled = true; btn.style.opacity = "0.7"; btn.textContent = "A processar…"; }
 
-    const res = await initPayment({ kind: "plan", method, phone, storeId });
+    const res = await initPayment({ kind: "plan", method, storeId, ...(phone ? { phone } : {}) });
 
     if (!res.success || !res.id) {
+      /*
+       * A conta não tem número gravado: é agora, e só agora, que o pedimos. O
+       * campo traz a explicação, e o Dono volta a tocar no mesmo botão.
+       */
+      if (res.code === "PHONE_REQUIRED" && !campo) { pedirTelemovel = true; drawForm(); return; }
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = `Continuar para o pagamento <span class="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_forward</span>`; }
       toast(res.error || "Não foi possível processar o pagamento.", "error");
       return;

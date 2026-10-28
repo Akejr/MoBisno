@@ -21,6 +21,9 @@
  *    o painel abria na primeira loja da conta e não na que ele pagou;
  *  - `failureUrl`, o mesmo com a marca de desistência.
  *
+ * Cobre também **de onde vem o telemóvel** da subscrição: do perfil do Dono, e
+ * não do corpo do pedido — a janela do painel deixou de o pedir.
+ *
  * O especificador fica numa constante: com ele literal, o `tsc` segue-o e
  * compila `api/` dentro do programa de `tests/`.
  */
@@ -29,6 +32,8 @@ import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 const LOJA = "7c1e4b2a-33d5-4f6e-9a8b-1c2d3e4f5a60";
 const PAGAMENTO = "9a6d597f-86b2-45aa-8cb7-91aa94cd20ae";
 const DONO = "3f1c2a4e-9b7d-4c1e-8a2f-6d5e4c3b2a10";
+/** O número que o Dono confirmou por SMS, já normalizado como fica em `profiles`. */
+const TELEMOVEL_DA_CONTA = "244912000111";
 
 const env = vi.hoisted(() => {
   const nomes = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WIPAY_WEBHOOK_SECRET"] as const;
@@ -54,15 +59,18 @@ vi.mock("../api/_provider.js", async (importOriginal) => ({
 }));
 
 /**
- * Base de dados falsa: só o que o ramo da subscrição lê — a loja, para
- * confirmar que é de quem paga.
+ * Base de dados falsa: as duas linhas que o ramo da subscrição lê — a loja,
+ * para confirmar que é de quem paga, e o perfil, de onde vem o telemóvel. É
+ * preenchida em `beforeEach`; cada teste pode mudar uma delas.
  */
+const base = vi.hoisted(() => ({ linhas: {} as Record<string, Record<string, unknown> | null> }));
+
 vi.mock("../api/_shared.js", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   admin: () => ({
-    from: () => ({
+    from: (tabela: string) => ({
       select: () => ({
-        eq: () => ({ maybeSingle: async () => ({ data: { id: LOJA, name: "Kitanda", owner_id: DONO } }) }),
+        eq: () => ({ maybeSingle: async () => ({ data: base.linhas[tabela] ?? null }) }),
       }),
     }),
   }),
@@ -96,20 +104,32 @@ function resposta() {
   return r;
 }
 
-/** Pedido de subscrição, com o domínio que a Vercel põe no cabeçalho. */
+/**
+ * Pedido de subscrição, com o domínio que a Vercel põe no cabeçalho. **Sem
+ * telemóvel**: é o que a janela envia desde que deixou de o pedir.
+ */
 function pedidoPlano(host = "mobisno.store") {
   return {
     method: "POST",
     headers: { host, authorization: "Bearer token-de-teste" },
     query: {},
-    body: { kind: "plan", method: "mcx", phone: "923456789", storeId: LOJA },
+    body: { kind: "plan", method: "mcx", storeId: LOJA },
     on() { throw new Error("o corpo já vem lido"); },
   };
+}
+
+/** O mesmo pedido, com um telemóvel no corpo. */
+function pedidoPlanoCom(phone: string) {
+  return { ...pedidoPlano(), body: { kind: "plan", method: "mcx", storeId: LOJA, phone } };
 }
 
 beforeEach(() => {
   recebido.ultimo = null;
   gravacao.resultado = { ok: true, id: PAGAMENTO, amount: 10_000 };
+  base.linhas = {
+    stores: { id: LOJA, name: "Kitanda", owner_id: DONO },
+    profiles: { id: DONO, phone: TELEMOVEL_DA_CONTA },
+  };
 });
 
 afterAll(() => {
@@ -175,17 +195,65 @@ describe("Pagar a subscrição — a cobrança é criada e devolve a página de 
 
   it("sem loja no corpo não há cobrança: cada loja tem a sua subscrição", async () => {
     const res = resposta();
-    await payment({ ...pedidoPlano(), body: { kind: "plan", method: "mcx", phone: "923456789" } }, res);
+    await payment({ ...pedidoPlano(), body: { kind: "plan", method: "mcx" } }, res);
     expect(res.statusCode).toBe(400);
     expect(res.body).toMatchObject({ code: "MISSING_STORE" });
     expect(recebido.ultimo, "não pode criar cobrança sem saber a loja").toBeNull();
   });
 
-  it("sem telemóvel válido não há cobrança", async () => {
+  it("o telemóvel é o da conta, e o pedido não o traz", async () => {
+    /*
+     * A janela pedia o número outra vez, depois de o Dono o ter confirmado por
+     * SMS para poder publicar. A Wiza exige um telemóvel para criar a cobrança,
+     * e o certo é o que a plataforma confirmou: pedi-lo de novo era um passo a
+     * mais, e deixava pagar com um número diferente do da conta.
+     */
     const res = resposta();
-    await payment({ ...pedidoPlano(), body: { kind: "plan", method: "mcx", phone: "123", storeId: LOJA } }, res);
+    await payment(pedidoPlano(), res);
+    expect(res.statusCode, JSON.stringify(res.body)).toBe(200);
+    expect(recebido.ultimo?.phone).toBe(TELEMOVEL_DA_CONTA);
+  });
+
+  it("um número no corpo não ganha ao da conta, nem válido nem inválido", async () => {
+    // O corpo é escrito pelo cliente. Antes, um «123» no campo respondia 400
+    // mesmo com um número confirmado na conta; agora o corpo não decide isto.
+    for (const doCorpo of ["923456789", "123"]) {
+      recebido.ultimo = null;
+      const res = resposta();
+      await payment(pedidoPlanoCom(doCorpo), res);
+      expect(res.statusCode, `${doCorpo}: ${JSON.stringify(res.body)}`).toBe(200);
+      const cobrado = recebido.ultimo as Record<string, unknown> | null;
+      expect(cobrado?.phone, doCorpo).toBe(TELEMOVEL_DA_CONTA);
+    }
+  });
+
+  it("uma conta sem número gravado pede-o — e só essa", async () => {
+    /*
+     * As contas que já existiam quando a coluna nasceu (migração 0027) ficaram
+     * confirmadas sem número em `profiles.phone`. É para essas, e só para
+     * essas, que a janela mostra o campo: quem lho diz é o `PHONE_REQUIRED`.
+     */
+    base.linhas.profiles = { id: DONO, phone: null };
+    const semNumero = resposta();
+    await payment(pedidoPlano(), semNumero);
+    expect(semNumero.statusCode).toBe(400);
+    expect(semNumero.body).toMatchObject({ code: "PHONE_REQUIRED" });
+    expect(recebido.ultimo, "cobrou sem telemóvel nenhum").toBeNull();
+
+    // Indicado na janela, a cobrança segue com ele.
+    const comNumero = resposta();
+    await payment(pedidoPlanoCom("923456789"), comNumero);
+    expect(comNumero.statusCode, JSON.stringify(comNumero.body)).toBe(200);
+    expect(recebido.ultimo?.phone).toBe("244923456789");
+  });
+
+  it("sem número na conta e com um inválido no corpo, não há cobrança", async () => {
+    base.linhas.profiles = { id: DONO, phone: null };
+    const res = resposta();
+    await payment(pedidoPlanoCom("123"), res);
     expect(res.statusCode).toBe(400);
-    expect(res.body).toMatchObject({ code: "MISSING_PHONE" });
+    expect(res.body).toMatchObject({ code: "PHONE_REQUIRED" });
+    expect(recebido.ultimo).toBeNull();
   });
 
   it("uma gravação falhada diz a CAUSA, e não cobra nada", async () => {

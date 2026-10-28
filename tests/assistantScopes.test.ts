@@ -860,6 +860,22 @@ describe("Orientação dos ecrãs «Plano» e «Configurações»", () => {
     expect(guia.replace(/\$\{[^}]*\}/g, "")).not.toMatch(/\d/);
   });
 
+  it("diz que a janela já não pede o telemóvel: o número é o da conta", () => {
+    /*
+     * O Dono confirma um número por SMS para poder publicar, e a janela de
+     * pagamento pedia-o outra vez. Era pedir o que a plataforma já sabia — e
+     * deixava pagar com um número diferente do confirmado. Quem o lê agora é o
+     * servidor, de `profiles.phone` (`tests/paymentCallbacks.test.ts` verifica
+     * que é esse o que chega ao fornecedor).
+     */
+    const guia = resolver(guiaDe("plano"));
+    expect(guia).toMatch(/já não pede o telemóvel/);
+    expect(guia).toMatch(/confirmou por SMS/);
+    const CHECKOUT = readFileSync(join(ROOT, "web/lib/planCheckout.ts"), "utf8");
+    // O campo fica para um caso só, e só depois de o servidor o pedir.
+    expect(CHECKOUT, "a janela voltou a pedir o telemóvel sempre").toContain("PHONE_REQUIRED");
+  });
+
   it("as Configurações são exactamente as três funcionalidades «Em breve», pelos rótulos do domínio", () => {
     const guia = guiaDe("config");
     for (const k of ["customDomain", "marketing", "sms"] as const) {
