@@ -4584,6 +4584,7 @@ var LUANDA_AREAS = [
 var ACCENT = PLATFORM_ACCENT;
 var ACCENT_INK = "#C2410C";
 var SOFT = "#fff4ed";
+var VERO_URL = "https://vero.ao/";
 var WRAP = "max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop";
 var H2 = "mt-4 text-[2.25rem] leading-[1.08] md:text-5xl font-black tracking-[-0.03em] text-gray-900";
 var LEAD = "mt-5 text-lg md:text-xl leading-relaxed text-gray-600";
@@ -4607,8 +4608,10 @@ function landingNavActions(loggedIn) {
        <a href="/criar" id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
 }
 function landingHeroActions(loggedIn) {
-  return loggedIn ? `<a href="/painel" id="cta-hero-painel" class="${BTN_MAIN}" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">dashboard</span> Abrir Dashboard</a>` : `<a href="/criar" id="cta-hero" class="${BTN_MAIN}" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">arrow_forward</span></a>
-       <a href="/login" id="cta-hero-login" class="${BTN_ALT}">J\xE1 tenho conta</a>`;
+  const exemplos = `<a href="/" data-goto="${SHOWCASE_SECTION_ID}" id="cta-hero-exemplos" class="${BTN_ALT}">${icon("storefront", "text-[20px]")} Ver lojas de exemplo</a>`;
+  return loggedIn ? `<a href="/painel" id="cta-hero-painel" class="${BTN_MAIN}" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">dashboard</span> Abrir Dashboard</a>
+       ${exemplos}` : `<a href="/criar" id="cta-hero" class="${BTN_MAIN}" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">arrow_forward</span></a>
+       ${exemplos}`;
 }
 function icon(name, cls = "text-[22px]") {
   return `<span class="material-symbols-outlined mb-ico ${cls}" aria-hidden="true">${esc(name)}</span>`;
@@ -4658,7 +4661,7 @@ function heroSection() {
           <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
             <div class="w-full lg:w-1/2 text-center lg:text-left">
               <h1 class="text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl font-black tracking-[-0.035em] text-gray-900">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
-              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Os seus clientes veem os produtos, escolhem e encomendam sozinhos, a qualquer hora. Cada pedido chega-lhe ao WhatsApp com o total j\xE1 calculado.</p>
+              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Uma loja online para quem vende em Angola. Produtos, pre\xE7os, encomendas e pagamentos, tudo organizado numa \xFAnica plataforma.</p>
               <div id="hero-actions" class="mt-9 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">${landingHeroActions(false)}</div>
               <p class="mt-5 text-sm text-gray-500">Sem programar. Gr\xE1tis at\xE9 publicar.</p>
             </div>
@@ -4732,8 +4735,8 @@ function featuresSection() {
         <div class="${WRAP}">
           <div data-motion data-reveal class="max-w-2xl">
             ${eyebrow("Funcionalidades")}
-            <h2 class="${H2}">Tudo o que o WhatsApp n\xE3o faz sozinho.</h2>
-            <p class="${LEAD}">Cat\xE1logo, stock, entregas e descontos, ligados \xE0s conversas que j\xE1 tem.</p>
+            <h2 class="${H2}">Tudo o que precisa para vender al\xE9m das redes sociais.</h2>
+            <p class="${LEAD}">Continue a divulgar no Instagram, Facebook e WhatsApp. Na sua loja, os clientes encontram produtos, consultam pre\xE7os e fazem encomendas com stock, entregas e pagamentos organizados.</p>
           </div>
           <div data-motion class="mt-14">
             <ul data-reveal class="grid grid-cols-1 gap-px overflow-hidden rounded-3xl border border-gray-200 bg-gray-200 sm:grid-cols-2 lg:grid-cols-3">${FEATURES.map((f, i) => `
@@ -4743,6 +4746,26 @@ function featuresSection() {
                 <p class="mt-1.5 text-gray-600">${esc(f.body)}</p>
               </li>`).join("")}
             </ul>
+          </div>
+        </div>
+      </section>`;
+}
+var SHOWCASE_SECTION_ID = "lojas-exemplo";
+var SHOWCASE_GRID_ID = "lojas-exemplo-grelha";
+function examplesSection() {
+  return `
+      <section id="${SHOWCASE_SECTION_ID}" class="scroll-mt-20 w-full py-24 md:py-32" style="background:#fffaf6">
+        <div class="${WRAP}">
+          <div data-motion data-reveal class="max-w-2xl">
+            ${eyebrow("Exemplos")}
+            <h2 class="${H2}">Lojas criadas na M\xF4Bisno.</h2>
+            <p class="${LEAD}">Lojas reais de quem vende em Angola. Abra qualquer uma e veja como fica por dentro.</p>
+          </div>
+          <div data-motion class="mt-14">
+            <ul id="${SHOWCASE_GRID_ID}" data-reveal class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"></ul>
+          </div>
+          <div data-motion data-reveal class="mt-10">
+            <a href="/lojas" class="${BTN_ALT}">Ver todas as lojas ${icon("arrow_forward", "text-[20px]")}</a>
           </div>
         </div>
       </section>`;
@@ -4778,7 +4801,7 @@ function paymentsSection() {
             ${eyebrow("Pagamentos")}
             <h2 class="${H2}">Receba como os seus clientes j\xE1 pagam.</h2>
             <p class="${LEAD}">Comece pelo WhatsApp, sem comiss\xE3o. Com a empresa aprovada, junte o Multicaixa Express e a Refer\xEAncia Banc\xE1ria.</p>
-            <p class="mt-6 flex items-center gap-2 text-sm text-gray-500">${icon("receipt_long", "text-[18px]")}A fatura de cada venda sai em nome da sua empresa.</p>
+            <p class="mt-6 flex items-start gap-2 text-sm text-gray-500">${icon("receipt_long", "text-[18px]")}<span>Cada pagamento digital leva fatura\xE7\xE3o eletr\xF3nica certificada pela AGT, emitida pelo <a href="${VERO_URL}" target="_blank" rel="noopener" class="font-bold text-gray-900 underline decoration-2 underline-offset-2">Vero</a> em nome da sua empresa.</span></p>
           </div>
           <div data-motion class="lg:col-span-7">
             <div data-reveal class="overflow-hidden rounded-[1.75rem] bg-white ring-1 ring-gray-200 shadow-[0_40px_90px_-50px_rgba(17,24,39,.45)]">${payRow({
@@ -4877,7 +4900,7 @@ function landingHtml() {
     actionsHtml: landingNavActions(false)
   })}
 
-    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${paymentsSection()}${pricingSection()}${faqSection()}
+    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${examplesSection()}${paymentsSection()}${pricingSection()}${faqSection()}
     </main>
 
     ${platformFooterHtml()}

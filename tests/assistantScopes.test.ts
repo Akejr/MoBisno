@@ -1205,6 +1205,40 @@ describe("Orientação do ecrã «editor» — o que se acrescenta depende do mo
   });
 });
 
+describe("Orientação da página inicial — as secções que a página tem agora", () => {
+  /*
+   * `tests/landingCopy.test.ts` já garante que **cada título** da página está
+   * aqui. Estas asserções são sobre o que não é título e o visitante pergunta:
+   * o botão que substituiu o «Já tenho conta», o que a secção das lojas faz, e
+   * quem emite a fatura.
+   */
+  const guia = resolver(guiaDe("site"));
+
+  it("descreve os dois botões do topo, e que o «Já tenho conta» saiu", () => {
+    expect(guia).toContain("Criar minha loja");
+    expect(guia).toContain("Ver lojas de exemplo");
+    expect(guia).toMatch(/já não há «Já tenho conta»/);
+    expect(guia, "o login desapareceu da orientação").toContain("cabeçalho");
+  });
+
+  it("explica a secção das lojas de exemplo: o que abre cada botão", () => {
+    expect(guia).toContain("Lojas criadas na MôBisno.");
+    expect(guia).toMatch(/«Ver a loja» abre a loja inteira numa janela/);
+    expect(guia).toContain("Ver todas as lojas");
+    expect(guia).toContain("/lojas");
+    // São lojas de clientes: não prometer maquetas nem lojas de demonstração.
+    expect(guia).toMatch(/lojas verdadeiras de clientes/);
+  });
+
+  it("diz quem emite a fatura, e que a chave é do Dono", () => {
+    expect(guia).toMatch(/certificada pela AGT/);
+    expect(guia).toContain("Vero");
+    expect(guia).toContain("vero.ao");
+    expect(guia, "sem isto o assistente promete faturas a quem não tem chave")
+      .toMatch(/sem elas a loja vende e recebe como sempre, só não emite fatura/);
+  });
+});
+
 describe("Orientação do ecrã «legal» — descreve o que os documentos dizem agora", () => {
   const guia = resolver(guiaDe("legal"));
 

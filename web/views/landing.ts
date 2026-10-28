@@ -14,7 +14,12 @@ import { mountLandingMotion } from "../lib/landingMotion.js";
 import {
   landingHtml, landingNavActions, landingHeroActions,
   CAP_ACTIVE, CAP_IDLE, ACC_OPEN_WIDTH, ACC_IDLE_WIDTH, ACC_INITIAL,
+  SHOWCASE_GRID_ID, SHOWCASE_COUNT,
 } from "./landingHtml.js";
+import {
+  loadShowcaseCards, mountShowcaseCards, showcaseSkeletonHtml, showcaseEmptyHtml,
+  type ShowcaseCard,
+} from "../lib/storeShowcase.js";
 
 /**
  * Desenha a página inicial.
@@ -34,6 +39,7 @@ export async function renderLanding(): Promise<void> {
   // fica preparada e entra com movimento quando lá se chega.
   mountLandingMotion(document.getElementById("app") ?? document);
   mountSectionNav();
+  void mountShowcase();
   // Chegámos aqui por um clique numa secção feito noutra página: o destino ficou
   // guardado e é agora que existe algo para onde rolar. `requestAnimationFrame`
   // dá um frame ao layout; sem isso a posição é calculada antes de as secções
@@ -53,6 +59,41 @@ export async function renderLanding(): Promise<void> {
   const navBox = navCta.parentElement;
   if (navBox) navBox.innerHTML = landingNavActions(true);
   heroActions.innerHTML = landingHeroActions(true);
+  // Os botões são outros nós: «Ver lojas de exemplo» precisa do ouvinte de novo,
+  // senão o `href="/"` recarregava a página em vez de rolar até à secção.
+  mountSectionNav(heroActions);
+}
+
+/**
+ * Enche a secção «Lojas criadas na MôBisno» com as lojas que estão online.
+ *
+ * O HTML do servidor traz a grelha vazia: as lojas publicadas mudam e esta
+ * página é guardada em cache. Os cartões de espera entram **antes** de qualquer
+ * `await`, para a secção nunca ser um buraco entre o título e a ligação, e são
+ * substituídos pelas lojas verdadeiras, cada uma com a pré-visualização do
+ * modelo dela e o botão que a abre inteira (`web/lib/storeShowcase.ts`).
+ *
+ * Uma falha de rede não deixa a secção a girar para sempre: fica o aviso de que
+ * ainda não há lojas, e `/lojas` continua lá em baixo.
+ */
+async function mountShowcase(): Promise<void> {
+  const grid = document.getElementById(SHOWCASE_GRID_ID);
+  if (!grid) return;
+  grid.innerHTML = showcaseSkeletonHtml(SHOWCASE_COUNT);
+
+  let cards: ShowcaseCard[] = [];
+  try {
+    cards = (await loadShowcaseCards()).slice(0, SHOWCASE_COUNT);
+  } catch {
+    cards = [];
+  }
+  // A vista pode ter sido substituída a meio da consulta.
+  if (!grid.isConnected) return;
+  if (cards.length === 0) {
+    grid.innerHTML = showcaseEmptyHtml();
+    return;
+  }
+  mountShowcaseCards(grid, cards);
 }
 
 /**

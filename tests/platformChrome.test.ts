@@ -40,6 +40,8 @@ const CHROME = read("web/templates/platformChrome.ts");
 const LANDING_HTML = read("web/views/landingHtml.ts");
 const LANDING = `${LANDING_HTML}\n${read("web/views/landing.ts")}`;
 const DIRECTORY = read("web/views/directory.ts");
+/** A vitrina: que lojas se mostram e como. Saiu de `directory.ts` quando a página inicial passou a mostrar as mesmas. */
+const SHOWCASE = read("web/lib/storeShowcase.ts");
 const SEO_API = read("api/_seo.js");
 const PRERENDER = read("api/prerender.js");
 
@@ -117,12 +119,12 @@ describe("Cromo servido pelo servidor — ligações absolutas à plataforma", (
   });
 });
 
-describe("Diretório de lojas — destaques com domínio próprio", () => {
-  /** Endereços declarados em `FEATURED_STORES` de `web/views/directory.ts`. */
+describe("Vitrina de lojas — destaques com domínio próprio", () => {
+  /** Endereços declarados em `FEATURED_STORES` de `web/lib/storeShowcase.ts`. */
   function destaquesDaSpa(): string[] {
-    const i = DIRECTORY.indexOf("const FEATURED_STORES");
+    const i = SHOWCASE.indexOf("const FEATURED_STORES");
     expect(i).toBeGreaterThanOrEqual(0);
-    const bloco = DIRECTORY.slice(i, DIRECTORY.indexOf("];", i));
+    const bloco = SHOWCASE.slice(i, SHOWCASE.indexOf("];", i));
     return [...bloco.matchAll(/url:\s*"([^"]+)"/g)].map((m) => m[1]!);
   }
 
@@ -150,7 +152,7 @@ describe("Diretório de lojas — destaques com domínio próprio", () => {
       expect(m, "PRIORITY_HOSTS não encontrada").not.toBeNull();
       return [...m![1]!.matchAll(/`([^`]+)`|"([^"]+)"/g)].map((x) => (x[1] ?? x[2]!).trim());
     };
-    const spa = daSpa(DIRECTORY);
+    const spa = daSpa(SHOWCASE);
     expect(spa.length).toBeGreaterThan(0);
     expect(daSpa(PRERENDER)).toEqual(spa);
     // A vitrina abre com uma loja da plataforma: essa não custa nada a desenhar,
@@ -160,7 +162,7 @@ describe("Diretório de lojas — destaques com domínio próprio", () => {
   });
 
   it("as duas listas ordenam pela vitrina, não pela origem dos dados", () => {
-    expect(DIRECTORY).toContain(".sort(byPriority)");
+    expect(SHOWCASE).toContain(".sort(byPriority)");
     expect(PRERENDER).toMatch(/\.sort\(\(a, b\) => rank\(a\.host\) - rank\(b\.host\)\)/);
   });
 
@@ -173,16 +175,16 @@ describe("Diretório de lojas — destaques com domínio próprio", () => {
     // Embutir a página verdadeira carregava-a inteira (JavaScript, tipos de letra,
     // o carrossel do topo a animar) a cada visita, e duas vezes quando a loja
     // também aparecia no hero. A fotografia é um pedido que fica em cache.
-    expect(DIRECTORY).not.toContain("data-preview-url");
-    expect(DIRECTORY).toMatch(/kind: "image"/);
-    expect(DIRECTORY).toContain('loading="lazy"');
+    expect(SHOWCASE).not.toContain("data-preview-url");
+    expect(SHOWCASE).toMatch(/kind: "image"/);
+    expect(SHOWCASE).toContain('loading="lazy"');
     // Nenhum `iframe` pode apontar para fora: os da plataforma usam `srcdoc`.
-    expect(DIRECTORY).not.toMatch(/frame\.src\s*=/);
+    expect(SHOWCASE).not.toMatch(/frame\.src\s*=/);
   });
 
   it("a fotografia declarada existe no repositório", () => {
-    const i = DIRECTORY.indexOf("const FEATURED_STORES");
-    const bloco = DIRECTORY.slice(i, DIRECTORY.indexOf("];", i));
+    const i = SHOWCASE.indexOf("const FEATURED_STORES");
+    const bloco = SHOWCASE.slice(i, SHOWCASE.indexOf("];", i));
     const imagens = [...bloco.matchAll(/image:\s*"([^"]+)"/g)].map((m) => m[1]!);
     for (const img of imagens) {
       // Sem o ficheiro, o `onerror` deixa a capa com a inicial e ninguém repara.

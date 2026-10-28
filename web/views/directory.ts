@@ -7,26 +7,14 @@
  * esteja. Esta página, num domínio já indexado, dá a cada loja uma ligação
  * normal (seguida pelos rastreadores) e um ponto de entrada estável.
  *
- * ## A pré-visualização é a loja a sério
+ * ## A vitrina é partilhada com a página inicial
  *
- * Não é o banner nem a inicial do nome: é o **modelo renderizado com os dados
- * reais**, num `iframe` a 1280px encolhido para caber no cartão. Vê-se o
- * cabeçalho, o hero, a grelha de produtos — a loja como ela é. É o mesmo
- * mecanismo da galeria de modelos do editor (`storePreviewDoc`), e o `iframe` é
- * obrigatório por duas razões explicadas nesse módulo: isola os `<style>` de cada
- * modelo, e faz as medias queries responderem à largura do quadro em vez da
- * janela.
- *
- * Cada pré-visualização custa uma leitura da loja, por isso só é montada quando o
- * cartão **entra no ecrã** (`IntersectionObserver`). Com poucas lojas é
- * indiferente; com centenas é a diferença entre abrir e não abrir.
- *
- * ## Lojas-modelo ficam de fora
- *
- * São as demonstrações dos modelos, criadas pelo Administrador. Apareciam aqui
- * como se fossem lojas de clientes — conteúdo fino e quase duplicado entre si, a
- * diluir a página (`SEO.md` §7.2). A marca é `customization.__template`, a mesma
- * convenção de `listStores`, `adminOverview` e `isLojaModelo`.
+ * Que lojas se mostram, por que ordem, e como se desenha a pré-visualização de
+ * cada uma está em `web/lib/storeShowcase.ts` (inclui as lojas-modelo que ficam
+ * de fora e o `iframe` sem scripts). Esta página mostra-as todas; a secção
+ * «Lojas criadas na MôBisno» da página inicial mostra as primeiras. Duas listas
+ * da mesma coisa era a avaria à espera de acontecer: uma mudava e a outra ficava
+ * para trás sem nada falhar.
  *
  * O HTML equivalente é gerado no servidor (`api/prerender.js` →
  * `renderDirectory`) para quem não executa JavaScript: lá as ligações são texto,
@@ -34,279 +22,21 @@
  * importar daqui (ver `platformChrome.ts`).
  */
 import { render, esc } from "../lib/dom.js";
-import { supabase } from "../supabase/client.js";
 import { applySeo } from "../lib/seo.js";
 import { collectionJsonLd, breadcrumbJsonLd, truncate, PLATFORM_NAME } from "../../src/services/seo.js";
-import { STORE_APEX, PLATFORM_APEX } from "../lib/routing.js";
+import { PLATFORM_APEX } from "../lib/routing.js";
 import { platformNavHtml, platformFooterHtml, PLATFORM_ACCENT, mountSectionNav } from "../templates/platformChrome.js";
 import { mountGlowCards, ensureGlowCardStyle } from "../lib/glowCards.js";
-import { loadStorefront } from "../lib/storeCache.js";
-import { getTemplate } from "../templates/registry.js";
-import { storePreviewDoc, loadPreviewDoc } from "../lib/storePreviewDoc.js";
-import { safeCssColor } from "../../src/services/storeCustom.js";
+import {
+  loadShowcaseCards, previewSlotHtml, mountStorePreviews, type ShowcaseCard,
+} from "../lib/storeShowcase.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
-
-/** Largura do desenho pedido ao modelo. Encolhido depois para caber no cartão. */
-const PREVIEW_WIDTH = 1280;
-/** Altura da janela da pré-visualização. 4:3 — mostra o hero e o início dos produtos. */
-const PREVIEW_HEIGHT = 960;
-
-interface DirectoryStore {
-  id: string;
-  name: string;
-  identifier: string;
-  store_type: string | null;
-  /** `customization.__template`. Presente ⇒ Loja_Modelo. */
-  tpl: unknown;
-  /** `customization.colors.primary` — a cor de marca da loja. */
-  brand: unknown;
-}
-
-/**
- * Cor de marca utilizável, ou o laranja da plataforma. Entra num `style` desta
- * página pública, por isso passa pela mesma validação de todas as cores do Dono
- * (`safeCssColor`).
- */
-function brandOf(value: unknown): string {
-  return safeCssColor(value, PLATFORM_ACCENT);
-}
-
-/**
- * Loja feita com a MôBisno que **não vive num subdomínio da plataforma** — tem
- * domínio próprio e por isso não aparece na consulta a `stores`.
- *
- * É uma lista curada, escrita à mão de propósito: são poucas e cada entrada é
- * uma decisão editorial (quem abre a página vê primeiro uma marca que já
- * reconhece). Aparecem antes das restantes.
- */
-interface FeaturedStore {
-  name: string;
-  type: string;
-  /** Endereço apresentado, sem esquema. */
-  host: string;
-  /** Endereço a abrir, com esquema. */
-  url: string;
-  brand: string;
-  /**
-   * Fotografia da loja, servida por nós (`web/public/previews/`).
-   *
-   * **Não é o site embutido, e é de propósito.** Embutir a página verdadeira
-   * custava carregá-la inteira — JavaScript, tipos de letra, o carrossel do topo
-   * a animar — a cada visita, e duas vezes quando a loja também aparece na janela
-   * do hero. A fotografia é um pedido de ~100 kB que o navegador guarda em cache e
-   * partilha entre o cartão e o hero.
-   *
-   * Refazer com `node scripts/preview-shot.mjs --url <endereço> --out <ficheiro>`
-   * quando o site mudar de aspeto. Sem fotografia, fica a capa com a inicial.
-   */
-  image?: string;
-}
-
-const FEATURED_STORES: readonly FeaturedStore[] = [
-  {
-    name: "DOT Angola",
-    type: "Gift cards e subscrições",
-    host: "www.dotangola.com",
-    url: "https://www.dotangola.com/",
-    // `theme-color` do próprio site.
-    brand: "#01042D",
-    image: "/previews/dotangola.jpg",
-  },
-];
-
-/**
- * O que um cartão precisa de saber, venha a loja da base de dados ou da lista
- * curada. `preview` diz **como** se desenha a pré-visualização: as lojas da
- * plataforma são renderizadas por nós a partir dos dados; as de domínio próprio
- * são a própria página, embutida.
- */
-interface CardVM {
-  name: string;
-  type: string;
-  host: string;
-  url: string;
-  brand: string;
-  preview:
-    | { kind: "store"; identifier: string }
-    | { kind: "image"; src: string }
-    | { kind: "none" };
-}
-
-function cardOfStore(s: DirectoryStore): CardVM {
-  return {
-    name: s.name,
-    type: s.store_type ?? "",
-    host: `${s.identifier}.${STORE_APEX}`,
-    url: `https://${encodeURIComponent(s.identifier)}.${STORE_APEX}/`,
-    brand: brandOf(s.brand),
-    preview: { kind: "store", identifier: s.identifier },
-  };
-}
-
-function cardOfFeatured(f: FeaturedStore): CardVM {
-  return {
-    name: f.name, type: f.type, host: f.host, url: f.url, brand: f.brand,
-    preview: f.image ? { kind: "image", src: f.image } : { kind: "none" },
-  };
-}
-
-/**
- * Ordem editorial da página: estes endereços vêm primeiro, nesta ordem, e o
- * **primeiro deles ocupa a janela da frente do hero**.
- *
- * É uma decisão de vitrina, não de dados — a loja escolhida é a que representa
- * melhor a plataforma neste momento. Mudar a vitrina é reordenar esta lista.
- *
- * Uma loja da plataforma que esteja aqui não custa nada a mostrar: temos os dados
- * e desenhamos o modelo. Uma loja de domínio próprio custa a fotografia estática
- * de `FEATURED_STORES` — razão a mais para a janela da frente ser de uma loja
- * nossa.
- *
- * Um endereço que não exista (loja não publicada, por exemplo) é ignorado sem
- * ruído: a lista continua na ordem que sobra.
- */
-const PRIORITY_HOSTS: readonly string[] = [
-  `juddycosmetics.${STORE_APEX}`,
-  "www.dotangola.com",
-];
-
-/** Ordena pela vitrina. Estável: quem não está na lista mantém a ordem que trazia. */
-function byPriority(a: CardVM, b: CardVM): number {
-  const rank = (c: CardVM): number => {
-    const i = PRIORITY_HOSTS.indexOf(c.host);
-    return i === -1 ? PRIORITY_HOSTS.length : i;
-  };
-  return rank(a) - rank(b);
-}
-
-/**
- * Lojas de cliente publicadas e com conta ativa (a RLS já filtra as suspensas).
- *
- * Extrai `__template` e a cor de marca **na consulta**, em vez de trazer a
- * Personalização inteira: são até 500 lojas e esse JSON tem blocos, produtos
- * extra, variações. O filtro fica em JavaScript, e não no `.is()` da consulta,
- * para uma mudança de semântica do filtro nunca poder devolver um diretório
- * vazio sem ninguém notar — vazio não parece defeito, parece «ainda não há
- * lojas».
- */
-async function listPublishedStores(): Promise<DirectoryStore[]> {
-  const { data, error } = await supabase
-    .from("stores")
-    .select("id, name, identifier, store_type, tpl:customization->__template, brand:customization->colors->primary")
-    .eq("state", "Publicada")
-    .order("created_at", { ascending: false })
-    .limit(500);
-  if (error) {
-    console.error("stores.directory", error);
-    return [];
-  }
-  const rows = (data ?? []) as unknown as DirectoryStore[];
-  return rows.filter((s) => s.tpl === undefined || s.tpl === null || s.tpl === false);
-}
-
-/**
- * Janela da pré-visualização, ainda vazia. A inicial sobre a cor de marca é o
- * estado de espera **e** o recurso final: se a loja não abrir, fica isto em vez
- * de um retângulo cinzento.
- */
-function previewSlotHtml(c: CardVM): string {
-  const initial = esc(c.name.trim().charAt(0).toUpperCase() || "M");
-  const attr = c.preview.kind === "store" ? `data-preview-store="${esc(c.preview.identifier)}"` : "";
-  // A fotografia vem no HTML, não por JavaScript: é um `<img>` normal, com
-  // `loading="lazy"` a cargo do navegador. `onerror` remove-a se faltar, e a capa
-  // com a inicial — que está por baixo — volta a aparecer em vez de um espaço
-  // branco. `object-top` mostra o topo da página, que é a parte que interessa.
-  const img = c.preview.kind === "image"
-    ? `<img src="${esc(c.preview.src)}" alt="Pré-visualização da loja ${esc(c.name)}" loading="lazy" decoding="async"
-           class="absolute inset-0 w-full h-full object-cover object-top" onerror="this.remove()" />`
-    : "";
-  return `<div ${attr} class="absolute inset-0 overflow-hidden bg-white">
-    <div data-preview-fallback class="absolute inset-0 flex items-center justify-center" style="background:${esc(c.brand)}">
-      <span class="text-white/90 font-black" style="font-size:clamp(36px,6vw,56px);line-height:1">${initial}</span>
-    </div>
-    ${img}
-  </div>`;
-}
-
-/**
- * Monta as pré-visualizações reais dos cartões visíveis.
- *
- * O quadro leva `pointer-events:none`, `tabindex="-1"` e `aria-hidden`: é
- * decoração dentro de uma ligação. Sem isso, o clique caía dentro da loja
- * embutida em vez de abrir o cartão, e o leitor de ecrã lia a loja toda.
- */
-function mountStorePreviews(root: ParentNode): void {
-  const slots = Array.from(root.querySelectorAll<HTMLElement>("[data-preview-store]"));
-  if (slots.length === 0) return;
-
-  const fit = (slot: HTMLElement, frame: HTMLIFrameElement): void => {
-    const k = slot.clientWidth / PREVIEW_WIDTH;
-    if (k > 0) frame.style.transform = `scale(${k})`;
-  };
-
-  /** Quadro vazio, com a geometria e as protecções comuns às duas variantes. */
-  const makeFrame = (title: string): HTMLIFrameElement => {
-    const frame = document.createElement("iframe");
-    frame.title = title;
-    frame.setAttribute("tabindex", "-1");
-    frame.setAttribute("aria-hidden", "true");
-    frame.setAttribute("scrolling", "no");
-    frame.style.cssText = `border:0;background:#fff;width:${PREVIEW_WIDTH}px;height:${PREVIEW_HEIGHT}px;`
-      + "transform-origin:top left;pointer-events:none;position:absolute;top:0;left:0";
-    return frame;
-  };
-
-  const attach = (slot: HTMLElement, frame: HTMLIFrameElement): void => {
-    slot.appendChild(frame);
-    fit(slot, frame);
-    // A capa de recurso sai só depois de o quadro existir, para não haver um
-    // instante de branco entre as duas.
-    slot.querySelector<HTMLElement>("[data-preview-fallback]")?.remove();
-    if (typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(() => fit(slot, frame)).observe(slot);
-    }
-  };
-
-  const fill = async (slot: HTMLElement): Promise<void> => {
-    if (slot.dataset.previewDone === "1") return;
-    slot.dataset.previewDone = "1";
-
-    const identifier = slot.dataset.previewStore;
-    if (!identifier) return;
-    try {
-      const { view, custom } = await loadStorefront(identifier);
-      if (view.kind !== "render") return; // fica o recurso
-      const html = getTemplate(view.templateId).render(view, custom);
-      if (!html) return;
-      const frame = makeFrame(`Pré-visualização da loja ${view.storeName}`);
-      // `sandbox` sem scripts, antes do `srcdoc`: o conteúdo é de um Dono
-      // qualquer e o `iframe` teria a origem — e a sessão — da plataforma.
-      loadPreviewDoc(frame, storePreviewDoc(html, custom));
-      attach(slot, frame);
-    } catch {
-      /* a capa com a inicial fica — nunca um espaço vazio */
-    }
-  };
-
-  if (typeof IntersectionObserver === "undefined") {
-    slots.forEach((s) => void fill(s));
-    return;
-  }
-  const io = new IntersectionObserver((entries) => {
-    for (const e of entries) {
-      if (!e.isIntersecting) continue;
-      io.unobserve(e.target);
-      void fill(e.target as HTMLElement);
-    }
-  }, { rootMargin: "300px" });
-  slots.forEach((s) => io.observe(s));
-}
 
 /**
  * Cartão de uma loja. `bento-item` dá-lhe o brilho da casa; o `--i` escalona a
  * entrada, para a grelha aparecer em cascata em vez de num bloco.
  */
-function storeCard(c: CardVM, index: number): string {
+function storeCard(c: ShowcaseCard, index: number): string {
   return `
     <li class="mb-rise" style="--i:${index}">
       <a href="${esc(c.url)}" target="_blank" rel="noopener"
@@ -347,9 +77,9 @@ function skeletonCard(_: unknown, index: number): string {
  * segunda atrás, inclinada. Antes exigia três lojas e, com duas, o hero ficava
  * com metade direita vazia — era o que estava feio.
  */
-function heroPreviewHtml(cards: CardVM[]): string {
+function heroPreviewHtml(cards: ShowcaseCard[]): string {
   if (cards.length === 0) return "";
-  const chrome = (c: CardVM, front: boolean): string => {
+  const chrome = (c: ShowcaseCard, front: boolean): string => {
     const pos = front
       ? "relative z-20"
       : "absolute inset-0 z-10 translate-x-6 translate-y-6 rotate-3 opacity-70 hidden sm:block";
@@ -446,12 +176,9 @@ export async function renderDirectory(): Promise<void> {
   }));
 
   // As lojas da base de dados e as de domínio próprio entram no mesmo saco, e a
-  // ordem é a da vitrina (`PRIORITY_HOSTS`): a primeira é a que ocupa a janela da
-  // frente do hero.
-  const cards = [
-    ...(await listPublishedStores()).map(cardOfStore),
-    ...FEATURED_STORES.map(cardOfFeatured),
-  ].sort(byPriority);
+  // ordem é a da vitrina: a primeira é a que ocupa a janela da frente do hero
+  // (`web/lib/storeShowcase.ts`).
+  const cards = await loadShowcaseCards();
 
   const canonical = `https://${PLATFORM_APEX}/lojas`;
   const description = truncate(

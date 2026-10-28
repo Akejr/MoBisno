@@ -323,6 +323,26 @@ describe("Página inicial — as secções do cromo existem", () => {
     expect(html).toContain('href="/lojas"');
     expect(html).toContain('href="/modelos"');
   });
+
+  it("a secção das lojas de exemplo sai vazia do servidor, e o botão do topo leva até ela", async () => {
+    /*
+     * A grelha sai **vazia** de propósito: as lojas publicadas mudam e este HTML
+     * é pré-renderizado e guardado em cache. Quem a enche é a vista, com os
+     * cartões de espera antes da consulta (`web/lib/storeShowcase.ts`). Um
+     * cartão escrito aqui seria uma loja que pode já não existir.
+     */
+    const mod = (await import(ESP_LANDING)) as { SHOWCASE_SECTION_ID: string; SHOWCASE_GRID_ID: string };
+    const secao = html.slice(html.indexOf(`id="${mod.SHOWCASE_SECTION_ID}"`), html.indexOf('id="pagamentos"'));
+    expect(secao, "a secção das lojas não está antes dos pagamentos").not.toBe("");
+    expect(secao).toContain(`id="${mod.SHOWCASE_GRID_ID}"`);
+    expect(secao, "a grelha do servidor não pode trazer lojas escritas à mão").not.toContain("<li");
+    expect(secao, "sem saída para o diretório").toContain('href="/lojas"');
+    // O botão do topo é o que substituiu o «Já tenho conta»: leva às lojas, não
+    // ao login. Quem chega à página sem conta quer ver, não entrar.
+    expect(html).toContain(`data-goto="${mod.SHOWCASE_SECTION_ID}"`);
+    expect(visivel(html)).not.toContain("Já tenho conta");
+    expect(FONTE_VISTA).toContain("mountShowcase(");
+  });
 });
 
 describe("Página inicial — determinista, como a adoção do HTML exige", () => {
@@ -392,7 +412,10 @@ describe("Página inicial — o texto é curto e sem travessões", () => {
     const titulos = [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => visivel(m[1] ?? "").trim());
     expect(titulos.length).toBeGreaterThanOrEqual(5);
     for (const t of titulos) {
-      expect(t.split(/\s+/).length, `título comprido: ${t}`).toBeLessThanOrEqual(8);
+      // Dez palavras, e não oito: «Tudo o que precisa para vender além das redes
+      // sociais.» foi escrito assim pelo Dono, para a página deixar de falar só
+      // do WhatsApp. O limite continua a travar um parágrafo a fazer-se título.
+      expect(t.split(/\s+/).length, `título comprido: ${t}`).toBeLessThanOrEqual(10);
     }
   });
 });
@@ -476,6 +499,15 @@ describe("Página inicial — o exemplo da comissão é feito pelas funções da
         expect(codigo, `o valor ${valor} está escrito à mão (${forma})`).not.toMatch(new RegExp(`(?<![\\w.])${forma.replace(/\./g, "\\.")}(?![\\w.])`));
       }
     }
+  });
+
+  it("a fatura diz quem a emite, e o Vero tem ligação para quem a quiser confirmar", () => {
+    // «A fatura de cada venda sai em nome da sua empresa» não dizia como. Quem
+    // a emite é o Vero, com as credenciais do Dono, e é certificada pela AGT.
+    const texto = visivel(html);
+    expect(texto).toMatch(/certificada pela AGT/);
+    expect(texto).toContain("Vero");
+    expect(html).toContain('href="https://vero.ao/"');
   });
 
   it("o WhatsApp mostra a comissão que o domínio lhe dá: nenhuma", () => {

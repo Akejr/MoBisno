@@ -469,7 +469,7 @@ function platformPages() {
       heading: "Crie a sua loja online em minutos",
       intro: "A MôBisno é a plataforma angolana que permite a qualquer empreendedor abrir uma loja online, sem conhecimentos técnicos. Escolha um modelo pronto, personalize os textos, as fotografias e as cores, adicione os seus produtos e comece a vender em Kwanzas, com entrega em Luanda e em todo o país.",
       sections: [
-        { title: "Tudo o que o WhatsApp não faz sozinho", items: [
+        { title: "Tudo o que precisa para vender além das redes sociais", items: [
           "Editor visual ao vivo: muda cores, textos e imagens e vê o resultado na hora",
           "Encomendas por WhatsApp com mensagem pronta, em todas as lojas",
           pagamentos,

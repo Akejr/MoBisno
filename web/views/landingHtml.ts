@@ -66,6 +66,14 @@ const ACCENT_INK = "#C2410C";
 /** Fundo dos ícones. */
 const SOFT = "#fff4ed";
 
+/**
+ * O Vero é quem emite a Fatura-Recibo certificada pela AGT, com as credenciais
+ * da empresa do Dono (ver o cartão «Fatura automática (Vero)» no separador
+ * «Pagamentos» do painel). O nome é dito e tem ligação: é um terceiro, e quem
+ * vende tem o direito de ir confirmar quem é.
+ */
+const VERO_URL = "https://vero.ao/";
+
 /* ------------------------------- Vocabulário ------------------------------- */
 
 const WRAP = "max-w-6xl mx-auto px-margin-mobile md:px-margin-desktop";
@@ -126,10 +134,19 @@ export function landingNavActions(loggedIn: boolean): string {
  * `id` são o que ela procura.
  */
 export function landingHeroActions(loggedIn: boolean): string {
+  /*
+   * O segundo botão era «Já tenho conta», a apontar para o `/login`. Quem chega
+   * à página inicial sem conta não quer entrar: quer ver se isto serve para o
+   * negócio dele. Por isso leva agora às lojas que já existem, e vai nos dois
+   * estados — com sessão também se quer ver como ficam as lojas dos outros. O
+   * login continua no cabeçalho.
+   */
+  const exemplos = `<a href="/" data-goto="${SHOWCASE_SECTION_ID}" id="cta-hero-exemplos" class="${BTN_ALT}">${icon("storefront", "text-[20px]")} Ver lojas de exemplo</a>`;
   return loggedIn
-    ? `<a href="/painel" id="cta-hero-painel" class="${BTN_MAIN}" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">dashboard</span> Abrir Dashboard</a>`
+    ? `<a href="/painel" id="cta-hero-painel" class="${BTN_MAIN}" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">dashboard</span> Abrir Dashboard</a>
+       ${exemplos}`
     : `<a href="/criar" id="cta-hero" class="${BTN_MAIN}" style="background:${ACCENT}">Criar minha loja <span class="material-symbols-outlined mb-ico text-[20px]" aria-hidden="true">arrow_forward</span></a>
-       <a href="/login" id="cta-hero-login" class="${BTN_ALT}">Já tenho conta</a>`;
+       ${exemplos}`;
 }
 
 /**
@@ -218,7 +235,7 @@ function heroSection(): string {
           <div class="flex flex-col lg:flex-row items-center justify-between gap-12">
             <div class="w-full lg:w-1/2 text-center lg:text-left">
               <h1 class="text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-5xl xl:text-6xl font-black tracking-[-0.035em] text-gray-900">Crie a sua loja<br/><span class="whitespace-nowrap">online <span data-typed class="whitespace-nowrap" style="color:${ACCENT}">em minutos</span></span></h1>
-              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Os seus clientes veem os produtos, escolhem e encomendam sozinhos, a qualquer hora. Cada pedido chega-lhe ao WhatsApp com o total já calculado.</p>
+              <p class="mt-6 text-lg md:text-xl leading-relaxed text-gray-600 max-w-xl mx-auto lg:mx-0">Uma loja online para quem vende em Angola. Produtos, preços, encomendas e pagamentos, tudo organizado numa única plataforma.</p>
               <div id="hero-actions" class="mt-9 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">${landingHeroActions(false)}</div>
               <p class="mt-5 text-sm text-gray-500">Sem programar. Grátis até publicar.</p>
             </div>
@@ -312,8 +329,8 @@ function featuresSection(): string {
         <div class="${WRAP}">
           <div data-motion data-reveal class="max-w-2xl">
             ${eyebrow("Funcionalidades")}
-            <h2 class="${H2}">Tudo o que o WhatsApp não faz sozinho.</h2>
-            <p class="${LEAD}">Catálogo, stock, entregas e descontos, ligados às conversas que já tem.</p>
+            <h2 class="${H2}">Tudo o que precisa para vender além das redes sociais.</h2>
+            <p class="${LEAD}">Continue a divulgar no Instagram, Facebook e WhatsApp. Na sua loja, os clientes encontram produtos, consultam preços e fazem encomendas com stock, entregas e pagamentos organizados.</p>
           </div>
           <div data-motion class="mt-14">
             <ul data-reveal class="grid grid-cols-1 gap-px overflow-hidden rounded-3xl border border-gray-200 bg-gray-200 sm:grid-cols-2 lg:grid-cols-3">${FEATURES.map((f, i) => `
@@ -323,6 +340,48 @@ function featuresSection(): string {
                 <p class="mt-1.5 text-gray-600">${esc(f.body)}</p>
               </li>`).join("")}
             </ul>
+          </div>
+        </div>
+      </section>`;
+}
+
+/* ------------------------------ Lojas de exemplo ------------------------------ */
+
+/** `id` da secção das lojas de exemplo. É aqui que o botão do topo rola. */
+export const SHOWCASE_SECTION_ID = "lojas-exemplo";
+/** `id` da grelha que a vista enche com as lojas que estão online. */
+export const SHOWCASE_GRID_ID = "lojas-exemplo-grelha";
+/** Quantas lojas a secção mostra. As restantes estão em `/lojas`. */
+export const SHOWCASE_COUNT = 3;
+
+/**
+ * As lojas que já existem, para quem quer ver antes de criar.
+ *
+ * A grelha sai **vazia** do servidor, de propósito. As lojas publicadas mudam, e
+ * este HTML é pré-renderizado e guardado em cache: a lista é carregada pela
+ * vista (`web/views/landing.ts` → `web/lib/storeShowcase.ts`), que mete os
+ * cartões de espera antes de consultar. Quem não executa JavaScript fica com o
+ * título e a ligação para `/lojas`, que é a página onde o servidor escreve a
+ * lista toda.
+ *
+ * O fundo é o creme do exemplo da comissão, e não o cinzento das outras secções:
+ * entre as funcionalidades (branco) e os pagamentos (cinzento), uma terceira
+ * faixa cinzenta deixava de se distinguir da seguinte.
+ */
+function examplesSection(): string {
+  return `
+      <section id="${SHOWCASE_SECTION_ID}" class="scroll-mt-20 w-full py-24 md:py-32" style="background:#fffaf6">
+        <div class="${WRAP}">
+          <div data-motion data-reveal class="max-w-2xl">
+            ${eyebrow("Exemplos")}
+            <h2 class="${H2}">Lojas criadas na MôBisno.</h2>
+            <p class="${LEAD}">Lojas reais de quem vende em Angola. Abra qualquer uma e veja como fica por dentro.</p>
+          </div>
+          <div data-motion class="mt-14">
+            <ul id="${SHOWCASE_GRID_ID}" data-reveal class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"></ul>
+          </div>
+          <div data-motion data-reveal class="mt-10">
+            <a href="/lojas" class="${BTN_ALT}">Ver todas as lojas ${icon("arrow_forward", "text-[20px]")}</a>
           </div>
         </div>
       </section>`;
@@ -380,7 +439,7 @@ function paymentsSection(): string {
             ${eyebrow("Pagamentos")}
             <h2 class="${H2}">Receba como os seus clientes já pagam.</h2>
             <p class="${LEAD}">Comece pelo WhatsApp, sem comissão. Com a empresa aprovada, junte o Multicaixa Express e a Referência Bancária.</p>
-            <p class="mt-6 flex items-center gap-2 text-sm text-gray-500">${icon("receipt_long", "text-[18px]")}A fatura de cada venda sai em nome da sua empresa.</p>
+            <p class="mt-6 flex items-start gap-2 text-sm text-gray-500">${icon("receipt_long", "text-[18px]")}<span>Cada pagamento digital leva faturação eletrónica certificada pela AGT, emitida pelo <a href="${VERO_URL}" target="_blank" rel="noopener" class="font-bold text-gray-900 underline decoration-2 underline-offset-2">Vero</a> em nome da sua empresa.</span></p>
           </div>
           <div data-motion class="lg:col-span-7">
             <div data-reveal class="overflow-hidden rounded-[1.75rem] bg-white ring-1 ring-gray-200 shadow-[0_40px_90px_-50px_rgba(17,24,39,.45)]">${payRow({
@@ -499,7 +558,7 @@ export function landingHtml(): string {
       actionsHtml: landingNavActions(false),
     })}
 
-    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${paymentsSection()}${pricingSection()}${faqSection()}
+    <main class="flex-grow flex flex-col">${heroSection()}${partnersStrip()}${stepsSection()}${featuresSection()}${examplesSection()}${paymentsSection()}${pricingSection()}${faqSection()}
     </main>
 
     ${platformFooterHtml()}

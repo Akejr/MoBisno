@@ -157,7 +157,10 @@ describe("Pré-visualizações — `sandbox` sem `allow-scripts`, sempre", () =>
   });
 
   it("cada pré-visualização carrega o documento por loadPreviewDoc", () => {
-    for (const f of ["web/views/directory.ts", "web/views/presetGallery.ts", "web/lib/templatePreview.ts", "web/views/editor.ts"]) {
+    // A vitrina de lojas saiu de `web/views/directory.ts` para
+    // `web/lib/storeShowcase.ts` quando a página inicial passou a mostrar as
+    // mesmas lojas: é lá que vivem os `iframe` do cartão e da janela.
+    for (const f of ["web/lib/storeShowcase.ts", "web/views/presetGallery.ts", "web/lib/templatePreview.ts", "web/views/editor.ts"]) {
       expect(ler(f), f).toContain("loadPreviewDoc(");
     }
   });
@@ -266,7 +269,7 @@ describe("As cores do Dono passam por safeCssColor antes do CSS", () => {
   });
 
   it("os sítios que interpolam cores do Dono em CSS usam safeCssColor", () => {
-    for (const f of ["web/lib/storePreviewDoc.ts", "web/lib/fieldColors.ts", "web/templates/blocks.ts", "web/views/editor.ts", "web/views/presetGallery.ts", "web/views/directory.ts"]) {
+    for (const f of ["web/lib/storePreviewDoc.ts", "web/lib/fieldColors.ts", "web/templates/blocks.ts", "web/views/editor.ts", "web/views/presetGallery.ts", "web/lib/storeShowcase.ts"]) {
       expect(ler(f), f).toContain("safeCssColor(");
     }
     // A gaveta do editor: marca, tinta e ícones entram no `style` do corpo.
