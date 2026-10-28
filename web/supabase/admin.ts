@@ -781,6 +781,28 @@ export async function adminRejectVerification(storeId: string, reason: string): 
   return writeDecision(storeId, built.patch);
 }
 
+/**
+ * Alguma loja recebe por Multicaixa Express e Referência Bancária?
+ *
+ * É a coluna que só a aprovação liga (`stores.digital_payments`, migração 0023).
+ * Sem nenhuma, as vendas das lojas e os levantamentos não têm nada para mostrar,
+ * e «Pagamentos» deixa de oferecer esses dois separadores. Uma contagem, e não a
+ * lista das lojas: só interessa se há alguma.
+ */
+export async function anyDigitalPaymentsStore(): Promise<boolean> {
+  const { count, error } = await supabase
+    .from("stores")
+    .select("id", { count: "exact", head: true })
+    .eq("digital_payments", true);
+  if (error) {
+    // Na dúvida, mostrar: esconder vendas que existem seria pior do que mostrar
+    // dois separadores vazios.
+    console.error("anyDigitalPaymentsStore", error);
+    return true;
+  }
+  return (count ?? 0) > 0;
+}
+
 /** Quantos pedidos de verificação e levantamentos estão à espera (navegação). */
 export async function adminPendingCounts(): Promise<AdminPendingCounts> {
   const [v, w] = await Promise.all([

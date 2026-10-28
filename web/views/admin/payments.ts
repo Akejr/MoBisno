@@ -11,10 +11,18 @@
  *
  * Os separadores são endereços (`#/adminPainel/pagamentos/<separador>`), por
  * isso a Visão geral leva diretamente aos levantamentos pedidos.
+ *
+ * ## Só o que existe
+ *
+ * As encomendas das lojas e os levantamentos são as vendas por Multicaixa
+ * Express e Referência Bancária. Enquanto nenhuma loja tiver os pagamentos
+ * digitais ligados, não há nada para mostrar nesses dois separadores, e eles
+ * não aparecem. A exceção são os levantamentos por tratar: é dinheiro devido a
+ * um Dono, e não desaparece por os pagamentos terem sido desligados depois.
  */
 import { esc, formatKz, toast, withBusy } from "../../lib/dom.js";
 import {
-  ADMIN_ORDERS_LIMIT, adminDeletePlanPayment, adminProcessWithdrawal, listAllWithdrawals, listPlanPayments,
+  ADMIN_ORDERS_LIMIT, adminDeletePlanPayment, adminProcessWithdrawal, anyDigitalPaymentsStore, listAllWithdrawals, listPlanPayments,
   listStoreOrders, type AdminOrder, type AdminPlanPayment, type AdminWithdrawal, type PaymentStatusView,
 } from "../../supabase/admin.js";
 import { ADMIN_HREFS, businessHealth } from "../../../src/services/adminMetrics.js";
@@ -86,10 +94,15 @@ function paymentChips(group: string, label: string, counts: Record<PaymentFilter
   ], active);
 }
 
-/** Separadores de «Pagamentos», como ligações (cada um é um endereço). */
-function tabsNav(active: Tab, requested: number): string {
+/**
+ * Separadores de «Pagamentos», como ligações (cada um é um endereço). Só os
+ * `visiveis`; com um só, não há o que escolher e a barra não aparece.
+ */
+function tabsNav(active: Tab, requested: number, visiveis: readonly Tab[]): string {
+  const tabs = TABS.filter((t) => visiveis.includes(t.id));
+  if (tabs.length < 2) return "";
   return `<nav aria-label="Tipos de pagamento" class="mb-6 flex gap-2 overflow-x-auto pb-1">
-    ${TABS.map((t) => {
+    ${tabs.map((t) => {
       const on = t.id === active;
       // `data-nav-count`: o painel atualiza este contador com os da navegação.
       const badge = t.id === "levantamentos"
@@ -404,9 +417,15 @@ async function renderWithdrawals(view: AdminView, tabsFor: (requested: number) =
 /** Desenha a secção «Pagamentos» no separador do endereço (Subscrições por omissão). */
 export async function renderPayments(view: AdminView): Promise<void> {
   view.loading();
-  const tab: Tab = TABS.some((t) => t.id === view.sub) ? (view.sub as Tab) : "subscricoes";
   const requested = view.navCounts()?.withdrawals ?? 0;
-  if (tab === "encomendas") await renderOrders(view, tabsNav(tab, requested));
-  else if (tab === "levantamentos") await renderWithdrawals(view, (n) => tabsNav(tab, n));
-  else await renderSubscriptions(view, tabsNav(tab, requested));
+  const digitais = PAYMENTS_PROVIDER_READY && (await anyDigitalPaymentsStore());
+  if (!view.isCurrent()) return;
+  const visiveis: Tab[] = ["subscricoes"];
+  if (digitais) visiveis.push("encomendas");
+  if (digitais || requested > 0) visiveis.push("levantamentos");
+  // Um endereço para um separador escondido abre as subscrições.
+  const tab: Tab = visiveis.includes(view.sub as Tab) ? (view.sub as Tab) : "subscricoes";
+  if (tab === "encomendas") await renderOrders(view, tabsNav(tab, requested, visiveis));
+  else if (tab === "levantamentos") await renderWithdrawals(view, (n) => tabsNav(tab, n, visiveis));
+  else await renderSubscriptions(view, tabsNav(tab, requested, visiveis));
 }

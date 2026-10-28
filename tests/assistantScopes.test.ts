@@ -1230,6 +1230,17 @@ describe("Orientação do ecrã «registo» — a redefinição da palavra-passe
   });
 });
 
+describe("Orientação do ecrã «Administração» — os separadores de vendas só com pagamentos digitais", () => {
+  it("diz que as vendas das lojas e os levantamentos só aparecem com uma loja a receber", () => {
+    const guia = resolver(guiaDe("admin"));
+    expect(guia).toMatch(/enquanto nenhuma loja tiver os pagamentos digitais ligados, não aparecem/);
+    const PAG = readFileSync(join(ROOT, "web/views/admin/payments.ts"), "utf8");
+    expect(PAG).toContain("anyDigitalPaymentsStore()");
+    // Dinheiro devido a um Dono não desaparece com os pagamentos desligados.
+    expect(PAG).toContain("if (digitais || requested > 0) visiveis.push(\"levantamentos\");");
+  });
+});
+
 describe("Orientação do ecrã «Administração» — eliminar uma conta liberta o email", () => {
   /*
    * «Eliminar conta» apagava as lojas e o perfil, do navegador. A identidade

@@ -10,8 +10,11 @@
  *  1. **Encomendas por WhatsApp**: sempre. Existem em toda a loja desde o
  *     primeiro dia, e numa loja sem pagamentos digitais são as únicas vendas.
  *  2. **Vendas e levantamentos** (Multicaixa Express e Referência Bancária): só
- *     quando os pagamentos digitais estão visíveis na loja, ou quando já há
- *     vendas ou levantamentos para mostrar.
+ *     quando os pagamentos digitais estão ligados na loja, ou quando há vendas
+ *     **pagas** ou levantamentos para mostrar — o dinheiro que lá está não some
+ *     por os pagamentos terem sido desligados. Tentativas falhadas ou por pagar
+ *     não contam: punham os dois cartões, a zeros, numa loja que não recebe
+ *     por Multicaixa.
  */
 import { formatKz, toast, withButton } from "../../lib/dom.js";
 import { deleteOrder, getOrderStats, listOrders, type OrderRow, type OrderStats, type PaymentVerification } from "../../supabase/payments.js";
@@ -67,7 +70,7 @@ export async function loadVendas(store: Store): Promise<VendasLidas> {
 export function modeloVendas(store: Store, lidas: VendasLidas, verificacao: PaymentVerification): ModeloVendas {
   const { orders, withdrawals, stats, committed } = lidas;
   const digitalVisible = digitalPaymentsVisible(store);
-  const mostrarVendas = digitalVisible || orders.length > 0 || withdrawals.length > 0;
+  const mostrarVendas = digitalVisible || stats.paidCount > 0 || withdrawals.length > 0;
   const available = Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100);
   // O levantamento vai para a conta APROVADA. Com dados novos à espera de
   // aprovação, não há conta verificada para onde mandar o dinheiro.

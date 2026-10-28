@@ -352,7 +352,8 @@ describe("Pagamentos digitais — verificação da empresa", () => {
   });
 
   it("vendas e levantamentos só aparecem com pagamentos digitais ou com histórico", () => {
-    expect(mod("vendas.ts")).toContain("const mostrarVendas = digitalVisible || orders.length > 0 || withdrawals.length > 0;");
+    // Tentativas falhadas não põem os cartões numa loja sem pagamentos digitais.
+    expect(mod("vendas.ts")).toContain("const mostrarVendas = digitalVisible || stats.paidCount > 0 || withdrawals.length > 0;");
     expect(mod("vendas.ts")).toContain("const digitalVisible = digitalPaymentsVisible(store);");
   });
 
