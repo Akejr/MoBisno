@@ -17,6 +17,11 @@
  *  4. A arte nova não é quadrada. O conversor estica-a para 1200×1200 e ela sai
  *     deformada, sem nada falhar: a arte chegou a existir em 1080×1350, que é o
  *     formato de uma publicação de Instagram.
+ *  5. A arte muda e o endereço fica igual. O Facebook e o WhatsApp guardam a
+ *     imagem por URL: o cartão continua a mostrar a arte velha mesmo depois de
+ *     a página ser re-lida (aconteceu, com um 200 no depurador do Facebook).
+ *     Daí o número no nome do ficheiro — e daí esta guarda sobre o `<head>`
+ *     estático de `web/index.html`, que foi o que ficou atrás.
  *
  * As asserções são sobre o **texto-fonte**: `api/` está fora do programa do `tsc`
  * e `web/` não é verificado por tipos. É o padrão de `tests/seoInfra.test.ts`.
@@ -171,6 +176,24 @@ describe("Arte de partilha — páginas da plataforma", () => {
       expect(SHELL, meta).toContain(`property="${meta}"`);
     }
     expect(SHELL).toContain('name="twitter:card" content="summary_large_image"');
+  });
+
+  it("o `<head>` estático aponta à mesma arte que as constantes declaram", () => {
+    // `web/index.html` tem o endereço completo escrito à mão. Quando a arte
+    // mudou de nome, foi o único sítio que ficou a apontar ao antigo: as
+    // partilhas da raiz saíam com a imagem velha e nada falhava.
+    const alvos = [...SHELL.matchAll(/(?:og:image|twitter:image)" content="([^"]+)"/g)].map((m) => m[1]!);
+    expect(alvos, "og:image e twitter:image no shell").toHaveLength(2);
+    for (const url of alvos) {
+      expect(url.endsWith(PLATFORM_SHARE_IMAGE), `${url} não acaba em ${PLATFORM_SHARE_IMAGE}`).toBe(true);
+    }
+  });
+
+  it("o conversor escreve onde os metadados apontam, não num caminho à parte", () => {
+    const script = read("scripts/share-image.mjs");
+    expect(script).toContain("PLATFORM_SHARE_IMAGE");
+    expect(script, "o caminho de saída voltou a ser escrito à mão")
+      .not.toMatch(/const OUT = "web\/public/);
   });
 
   it("a SPA usa a mesma arte por omissão", () => {

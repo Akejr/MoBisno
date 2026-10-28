@@ -19,7 +19,10 @@
  *   node scripts/share-image.mjs
  *
  * Refazer sempre que a arte mudar: muda-se o `SRC` (ou escreve-se por cima do
- * ficheiro) e corre-se isto.
+ * ficheiro), **sobe-se o número de `PLATFORM_SHARE_IMAGE`** em `api/_seo.js` e
+ * em `src/services/seo.ts`, e corre-se isto. O número é o que faz o Facebook e o
+ * WhatsApp buscarem a imagem nova: eles guardam-na pelo endereço, e re-ler a
+ * página não a renova (o porquê está em `src/services/seo.ts`).
  *
  * **A arte tem de ser quadrada.** O desenho é esticado para 1200×1200, por isso
  * uma origem 4:5 — o formato de uma publicação de Instagram — sairia deformada.
@@ -34,11 +37,25 @@
  * projeto por causa de um ficheiro que se gera de meses a meses.
  */
 import { execFileSync } from "node:child_process";
-import { statSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const SRC = "src/images/Mobisno3.png";
-const OUT = "web/public/images/share.jpg";
+
+/**
+ * Para onde escrever: o endereço que os metadados declaram
+ * (`PLATFORM_SHARE_IMAGE` em `api/_seo.js`, ficheiro JavaScript que se lê sem
+ * compilar). Estava escrito aqui à mão, e era uma segunda fonte de verdade a
+ * precisar de ser mudada ao mesmo tempo — exatamente o tipo de passo que se
+ * esquece.
+ */
+function outPath() {
+  const m = /PLATFORM_SHARE_IMAGE = "([^"]+)"/.exec(readFileSync("api/_seo.js", "utf8"));
+  if (!m) throw new Error("PLATFORM_SHARE_IMAGE não encontrado em api/_seo.js");
+  return join("web/public", m[1].replace(/^\//, ""));
+}
+
+const OUT = outPath();
 
 /** Lado do quadrado. 1200 é a largura mínima recomendada pelo Open Graph. */
 const SIZE = 1200;

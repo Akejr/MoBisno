@@ -45,18 +45,31 @@ export const PLATFORM_NAME = "MôBisno";
  * mostrava numa miniatura ao lado do texto. A arte quadrada dá um cartão com
  * imagem grande.
  *
- * É a versão leve (`scripts/share-image.mjs`) e não o original
- * `images/artmobisno1.png`, que tem ~1,7 MB: acima de poucas centenas de kB o
- * WhatsApp desiste de descarregar a imagem e o cartão sai sem ela — o defeito de
- * volta, agora sem nada que o denuncie.
+ * É a versão leve (`scripts/share-image.mjs`) e não o original, que pesa mais de
+ * 1 MB: acima de poucas centenas de kB o WhatsApp desiste de descarregar a
+ * imagem e o cartão sai sem ela — o defeito de volta, agora sem nada que o
+ * denuncie.
+ *
+ * ## O número no nome não é decoração
+ *
+ * **O Facebook e o WhatsApp guardam a imagem pelo ENDEREÇO dela**, não pela
+ * página. Quando a arte mudou e o ficheiro continuou a chamar-se `share.jpg`, o
+ * «Scrape Again» do depurador do Facebook leu a página outra vez, respondeu 200
+ * e mostrou **a arte antiga**: ele já tinha aquele URL em cache e não voltou a
+ * buscá-lo. Não há botão que force; o que funciona é um endereço novo.
+ *
+ * Por isso: **arte nova, número novo**, aqui e no espelho. O conversor escreve
+ * para onde esta constante aponta, e o ficheiro antigo fica onde está — os
+ * cartões que alguém já partilhou continuam a ter imagem em vez de um 404.
  *
  * As medidas são declaradas porque é por elas que o WhatsApp e o Facebook
  * decidem entre cartão grande e miniatura, antes de terem a imagem.
  *
- * Espelhado em `api/_seo.js` com os mesmos nomes: as funções serverless não
- * podem importar de `src/` (`SEO.md` §5.2). Ao mudar aqui, mudar lá.
+ * Espelhado em `api/_seo.js` com os mesmos nomes (as funções serverless não
+ * podem importar de `src/`, `SEO.md` §5.2) e no `<head>` de `web/index.html`,
+ * que é HTML estático. Ao mudar aqui, mudar nos dois.
  */
-export const PLATFORM_SHARE_IMAGE = "/images/share.jpg";
+export const PLATFORM_SHARE_IMAGE = "/images/share-2.jpg";
 export const PLATFORM_SHARE_IMAGE_WIDTH = 1200;
 export const PLATFORM_SHARE_IMAGE_HEIGHT = 1200;
 export const PLATFORM_SHARE_IMAGE_TYPE = "image/jpeg";

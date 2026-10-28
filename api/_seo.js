@@ -38,11 +38,15 @@ const ACCENT_KZ = "#F95901";
  * este HTML. A versão leve existe porque acima de poucas centenas de kB o
  * WhatsApp desiste da imagem e o cartão sai sem ela (`scripts/share-image.mjs`).
  *
+ * O número no nome do ficheiro sobe a cada arte nova: os dois guardam a imagem
+ * pelo endereço, e re-ler a página não os faz buscá-la outra vez (ver o
+ * comentário longo em `src/services/seo.ts`).
+ *
  * Só as páginas da plataforma. As de LOJA usam o logótipo do dono e as de
  * PRODUTO a fotografia do produto — partilhar a nossa arte no lugar delas seria
  * o mesmo defeito ao contrário.
  */
-export const PLATFORM_SHARE_IMAGE = "/images/share.jpg";
+export const PLATFORM_SHARE_IMAGE = "/images/share-2.jpg";
 export const PLATFORM_SHARE_IMAGE_WIDTH = 1200;
 export const PLATFORM_SHARE_IMAGE_HEIGHT = 1200;
 export const PLATFORM_SHARE_IMAGE_TYPE = "image/jpeg";
