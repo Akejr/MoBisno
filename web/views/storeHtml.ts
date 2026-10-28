@@ -36,7 +36,7 @@ import { digitalPaymentsVisible } from "../../src/services/paymentVisibility.js"
 import { scanHtml, applyEdits, type HtmlEdit, type ScanElement } from "../ssr/htmlScan.js";
 
 /** Rótulo da faixa das páginas de uma loja por publicar, vistas pelo próprio Dono. */
-export const STORE_DRAFT_LABEL = "Pré-visualização — esta loja ainda não está publicada";
+export const STORE_DRAFT_LABEL = "Pré-visualização: esta loja ainda não está publicada";
 
 /**
  * O que é verdade nesta loja, para as descrições geradas (`StoreSeoFacts`):

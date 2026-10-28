@@ -80,7 +80,7 @@ export function renderLogin(): void {
             <img src="/favicon.svg" alt="MôBisno" class="w-10 h-10" />
           </a>
           <p class="text-3xl font-black mb-2 tracking-tight" style="color:${ACCENT}">MôBisno</p>
-          <p class="text-sm text-gray-600 max-w-xs">Inicie sessão para gerir as suas lojas, produtos e vendas — tudo num só lugar.</p>
+          <p class="text-sm text-gray-600 max-w-xs">Inicie sessão para gerir as suas lojas, produtos e vendas, tudo num só lugar.</p>
         </div>
       </div>
 

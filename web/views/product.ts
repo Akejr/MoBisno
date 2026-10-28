@@ -36,7 +36,7 @@ import type { StoreProductView, StoreCustomization } from "../templates/types.js
  * encontrado» como se fosse a página do produto.
  */
 function productNotFound(identifier: string, storeName: string): void {
-  applySeo({ title: `Produto não encontrado — ${storeName}`, description: "", noindex: true });
+  applySeo({ title: `Produto não encontrado | ${storeName}`, description: "", noindex: true });
   render(productNotFoundHtml(identifier));
 }
 
@@ -497,7 +497,7 @@ function mountReviews(
       return items.map((r) => `<div class="p-8 flex flex-col h-full" style="background:rgba(249,247,242,.8);backdrop-filter:blur(12px);border:1px solid rgba(228,226,221,.4);box-shadow:0 30px 50px -15px rgba(28,27,27,.05)">
         <div class="flex mb-4">${starsHtml(r.rating, 16, gold)}</div>
         ${r.comment ? `<p class="lx-body text-sm leading-relaxed mb-6" style="color:#464742">${esc(r.comment)}</p>` : ""}
-        <p class="lx-body lx-track uppercase text-[12px] mt-auto" style="color:#1c1b1b">— ${esc(r.author)}</p>
+        <p class="lx-body lx-track uppercase text-[12px] mt-auto" style="color:#1c1b1b">${esc(r.author)}</p>
       </div>`).join("");
     }
     return items.map((r) => `<div class="border-b border-neutral-100 py-4">

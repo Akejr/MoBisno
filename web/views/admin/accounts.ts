@@ -284,7 +284,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     const expected = a.email || "ELIMINAR";
     const answer = await openDialog({
       title: "Eliminar a conta?",
-      body: `<p>Apaga a conta <strong class="break-all">${esc(a.email || a.name)}</strong> e todas as lojas dela — produtos, imagens, encomendas e pedidos de levantamento. Não é possível desfazer.</p>`,
+      body: `<p>Apaga a conta <strong class="break-all">${esc(a.email || a.name)}</strong> e todas as lojas dela: produtos, imagens, encomendas e pedidos de levantamento. Não é possível desfazer.</p>`,
       confirmLabel: "Eliminar conta",
       tone: "danger",
       fields: [{

@@ -89,7 +89,7 @@ const PRIVACIDADE: LegalSection[] = [
     "Recolhemos os dados necessários para operar o serviço: dados de conta (nome, email), dados das Lojas e produtos, e dados das encomendas. Quando um cliente faz uma compra numa Loja, são tratados os dados necessários à encomenda (nome, contacto, morada de entrega quando aplicável).",
   ] },
   { h: "2. Dados da empresa para os pagamentos digitais", p: [
-    "Quando o Dono da Loja pede os pagamentos por Multicaixa Express e Referência Bancária, recolhemos os dados da empresa para a verificar: o nome da empresa, o NIF, o banco, o titular e o IBAN da conta onde recebe, e os documentos da empresa — a Matrícula e a Certidão.",
+    "Quando o Dono da Loja pede os pagamentos por Multicaixa Express e Referência Bancária, recolhemos os dados da empresa para a verificar: o nome da empresa, o NIF, o banco, o titular e o IBAN da conta onde recebe, e os documentos da empresa: a Matrícula e a Certidão.",
     "Estes dados e documentos são guardados de forma privada, sem acesso público. Na plataforma, só os veem o próprio Dono da Loja e a administração da MôBisno; nunca são mostrados aos clientes da Loja.",
     "Usamo-los apenas para verificar a empresa e para lhe pagar as vendas feitas por estes meios, o que inclui indicar a conta de destino ao fornecedor de pagamentos.",
   ] },
@@ -146,7 +146,7 @@ export function renderLegal(page: LegalPage): void {
   const home = platformHomeUrl();
 
   applySeo({
-    title: `${data.title} — MôBisno`,
+    title: `${data.title} | MôBisno`,
     description: data.intro,
     canonical: `${location.origin}/${page}`,
     type: "website",

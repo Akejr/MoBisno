@@ -165,7 +165,7 @@ export function platformFooterHtml(): string {
           </div>
           <!-- Os titulos das colunas sao h3, e nao h4: a pagina acima deles
                acaba em h2, e saltar de h2 para h4 deixa um degrau vazio na
-               arvore de titulos — um leitor de ecra anuncia uma seccao de nivel
+               arvore de titulos, um leitor de ecra anuncia uma seccao de nivel
                quatro sem a de nivel tres existir. O teste landingCopy guarda-o.
                (Sem acentos graves aqui: isto esta dentro de um template literal.) -->
           <div class="md:col-span-3">

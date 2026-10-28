@@ -111,17 +111,17 @@ const DAY_MS = 86_400_000;
 
 /** «12 jan. 2026», ou «—» sem data válida. */
 export function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("pt-PT", { day: "2-digit", month: "short", year: "numeric" });
+  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleDateString("pt-PT", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** «12 jan. 2026, 14:05», ou «—» sem data válida. */
 export function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
-    ? "—"
+    ? "-"
     : d.toLocaleString("pt-PT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 

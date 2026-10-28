@@ -165,13 +165,13 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
     card.innerHTML = `
       <div class="flex items-center justify-between mb-2"><h3 class="text-lg font-black text-gray-900">Referência de pagamento</h3><button data-close type="button" aria-label="Fechar" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button></div>
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-500">Entidade</span><span class="font-black tracking-wider">${esc(ref?.entity ?? "—")}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Referência</span><span class="font-black tracking-wider">${esc(ref?.number ?? "—")}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Entidade</span><span class="font-black tracking-wider">${esc(ref?.entity ?? "-")}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Referência</span><span class="font-black tracking-wider">${esc(ref?.number ?? "-")}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">Montante</span><span class="font-black" style="color:${ACCENT}">${esc(formatKz(res.amount ?? PLAN_PRICE_KZ))}</span></div>
         ${due ? `<div class="flex justify-between"><span class="text-gray-500">Validade</span><span class="font-semibold">${esc(due)}</span></div>` : ""}
       </div>
       <p id="plan-ref-status" class="text-center text-sm text-gray-500 mt-3" aria-live="polite"></p>
-      <button id="plan-check" type="button" class="mt-2 w-full py-3 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]" aria-hidden="true">refresh</span> Já paguei — verificar</button>`;
+      <button id="plan-check" type="button" class="mt-2 w-full py-3 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]" aria-hidden="true">refresh</span> Já paguei, verificar</button>`;
     card.querySelector("[data-close]")?.addEventListener("click", close);
     let busy = false;
     card.querySelector("#plan-check")?.addEventListener("click", async () => {

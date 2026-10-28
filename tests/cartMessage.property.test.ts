@@ -52,7 +52,7 @@ describe("cartMessage — mensagem de WhatsApp da encomenda (propriedade)", () =
           // não em qualquer sítio da mensagem (R3.11). O formato é o que o
           // design fixa em § Components (`• 2x Camisola oficial — Cor: Azul ·
           // Tamanho: M (30 000,00 Kz)`).
-          const combinacao = etiqueta ? ` — ${etiqueta}` : "";
+          const combinacao = etiqueta ? ` · ${etiqueta}` : "";
           const esperado =
             `• ${line.quantity}x ${line.name}${combinacao}` +
             ` (${dinheiro(line.price * line.quantity)})`;

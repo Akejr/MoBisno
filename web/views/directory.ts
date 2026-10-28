@@ -111,7 +111,7 @@ function heroPreviewHtml(cards: ShowcaseCard[]): string {
  * que a página existe para mostrar.
  */
 function leadFor(n: number): string {
-  if (n === 0) return "Ainda não há lojas publicadas. A sua pode ser a primeira — escolha um modelo, adicione os produtos e publique no mesmo dia.";
+  if (n === 0) return "Ainda não há lojas publicadas. A sua pode ser a primeira: escolha um modelo, adicione os produtos e publique no mesmo dia.";
   if (n === 1) return "A primeira loja já está online. Veja como fica, e crie a sua com endereço próprio, pagamentos em Kwanzas e encomendas pelo WhatsApp.";
   return "Lojas reais de empreendedores angolanos, com endereço próprio, pagamentos em Kwanzas e encomendas pelo WhatsApp. Entre em qualquer uma para ver como fica.";
 }
@@ -208,7 +208,7 @@ export async function renderDirectory(): Promise<void> {
   mountAiAgent(app, { screen: "lojas" });
 
   applySeo({
-    title: "Lojas Online em Angola — Diretório MôBisno",
+    title: "Lojas Online em Angola | Diretório MôBisno",
     description,
     canonical,
     type: "website",

@@ -377,7 +377,7 @@ export async function renderDashboard(): Promise<void> {
   // dizer isso — senão recarregar a página voltava a pedir o separador velho.
   if (!known) history.replaceState(history.state, "", "/painel");
   const titulo = DASH_SECTIONS.find((s) => s.tab === tab)?.label ?? "Início";
-  setDocTitle(`${titulo} · Dashboard — MôBisno`);
+  setDocTitle(`${titulo} · Dashboard | MôBisno`);
 
   const storeUrl = publicStoreUrl(store.identifier);
   const previewUrl = `/previsualizar/${encodeURIComponent(store.identifier)}`;

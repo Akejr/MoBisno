@@ -390,7 +390,7 @@ async function start(): Promise<void> {
     // que está a criar não poderia ser publicada.
     const tel = await readPhoneStatus(sess.ownerId);
     if (!tel.verified) {
-      askPhone("Antes disso, falta confirmar o teu número de telemóvel — é o que permite pôr a loja online. Qual é o número?");
+      askPhone("Antes disso, falta confirmar o teu número de telemóvel. É o que permite pôr a loja online. Qual é o número?");
       return;
     }
     continuarLoja();
@@ -498,7 +498,7 @@ function emailJaTemConta(next: () => void): void {
  */
 function askPassword(intro?: string): void {
   void (async () => {
-    await botSay(intro ?? `Agora cria uma palavra-passe (mínimo ${PASSWORD_MIN_LENGTH} caracteres) — vai ser a tua conta.`);
+    await botSay(intro ?? `Agora cria uma palavra-passe (mínimo ${PASSWORD_MIN_LENGTH} caracteres) para a tua conta.`);
     inputText({
       placeholder: "••••••••",
       type: "password",
@@ -563,7 +563,7 @@ function accountSummaryCard(): string {
  */
 function askConfirmAccount(): void {
   void (async () => {
-    await botSay("Antes de criar a conta, confere o que tenho — é isto que vai ficar a valer:");
+    await botSay("Antes de criar a conta, confere o que tenho. É isto que vai ficar a valer:");
     botCard(accountSummaryCard());
     inputChips(
       [
@@ -586,7 +586,7 @@ function askConfirmAccount(): void {
 function correctEmail(): void {
   const antigo = String(wiz.data[WIZARD_FIELDS.email] ?? "");
   askEmail(askConfirmAccount, antigo
-    ? `Certo. Escreve o email correto — o anterior (${antigo}) deixa de valer.`
+    ? `Certo. Escreve o email correto. O anterior (${antigo}) deixa de valer.`
     : "Certo. Qual é o teu email?");
 }
 
@@ -594,7 +594,7 @@ function correctEmail(): void {
 function correctName(): void {
   const antigo = String(wiz.data[WIZARD_FIELDS.ownerName] ?? "");
   askName(askConfirmAccount, antigo
-    ? `Certo. Escreve o nome correto — o anterior (${antigo}) deixa de valer.`
+    ? `Certo. Escreve o nome correto. O anterior (${antigo}) deixa de valer.`
     : "Certo. Qual é o teu nome?");
 }
 
@@ -679,7 +679,7 @@ function phoneEscrito(): string {
 /** Pede o número. `intro` permite reaproveitar o passo como correção. */
 function askPhone(intro?: string): void {
   void (async () => {
-    await botSay(intro ?? "Agora o teu telemóvel. Envio-te um código por SMS para confirmar que o número é teu — é por ele que as encomendas te vão chegar.");
+    await botSay(intro ?? "Agora o teu telemóvel. Envio-te um código por SMS para confirmar que o número é teu. É por ele que as encomendas te vão chegar.");
     inputText({
       placeholder: "9XX XXX XXX",
       type: "tel",
@@ -719,7 +719,7 @@ async function enviarCodigo(primeiro: boolean): Promise<void> {
     }
     codeResendAt = typeof r.resendInMs === "number" ? Date.now() + r.resendInMs : null;
     await botSay(primeiro
-      ? `Enviei um código para ${formatPhoneForDisplay(phone)}. Escreve-o aqui — chega em poucos segundos.`
+      ? `Enviei um código para ${formatPhoneForDisplay(phone)}. Chega em poucos segundos, escreve-o aqui.`
       : "Enviei outro código. Escreve-o aqui.");
     askPhoneCode();
     return;
@@ -793,7 +793,7 @@ function seguirSemConfirmar(): void {
   void (async () => {
     codeResendAt = null;
     await botSay("Sem problema, seguimos. A tua conta está criada e podes montar a loja à vontade.");
-    await botSay("Para a pôres online é que precisas de confirmar o número — fazes isso no Dashboard, no aviso que vai estar no «Início».");
+    await botSay("Para a pôres online, precisas de confirmar o número. Fazes isso no Dashboard, no aviso que vai estar no «Início».");
     continuarLoja();
   })();
 }
@@ -905,7 +905,7 @@ function askType(): void {
 function askAbout(): void {
   void (async () => {
     await botSay("Conta-me tudo sobre a tua loja: o que vendes, o que te torna especial, para quem é, onde entregas… quanto mais detalhado, melhor.");
-    await botSay("Vou usar estas informações para criar a melhor descrição da tua loja para o Google e as redes sociais — isto ajuda mesmo a apareceres nas pesquisas. 😉");
+    await botSay("Vou usar estas informações para criar a melhor descrição da tua loja para o Google e as redes sociais. Isto ajuda mesmo a apareceres nas pesquisas. 😉");
     inputTextarea({
       placeholder: "Ex: Vendemos cosméticos naturais feitos em Angola, com entrega em Luanda…",
       onSubmit: (v) => {
@@ -952,7 +952,7 @@ function askSeoPreview(): void {
 function showSeoPreview(): void {
   void (async () => {
     await botSay(wiz.data.seoByAi === false
-      ? "A IA não respondeu agora, por isso parti do teu texto. Podes editar à vontade — é assim que a loja vai aparecer no Google:"
+      ? "A IA não respondeu agora, por isso parti do teu texto. Podes editar à vontade. É assim que a loja vai aparecer no Google:"
       : "Prontinho! A tua loja vai aparecer assim no Google:");
     botCard(googlePreviewCard(String(wiz.data.seoTitle ?? ""), String(wiz.data.seoDescription ?? "")));
     await botSay("Concordas? Podes editar o título e a descrição se quiseres.");
@@ -1097,7 +1097,7 @@ function createStore(): void {
     // deixá-lo faria o próximo «criar loja» oferecer-se para continuar uma loja
     // que está criada.
     clearWizardDraft();
-    await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade — para a pôres online, ativas a subscrição no Dashboard.");
+    await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade. Para a pôres online, ativas a subscrição no Dashboard.");
     goToModels();
   })();
 }
@@ -1105,7 +1105,7 @@ function createStore(): void {
 /** Leva o dono à galeria de modelos prontos (por agora só usamos modelos). */
 function goToModels(): void {
   void (async () => {
-    await botSay("Agora escolhe o modelo da tua loja — vou levar-te à galeria de modelos prontos. 🎨");
+    await botSay("Agora escolhe o modelo da tua loja. Vou levar-te à galeria de modelos prontos. 🎨");
     clearInput();
     await wait(900);
     // Reinicia o estado para uma próxima criação.

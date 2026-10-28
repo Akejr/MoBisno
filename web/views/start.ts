@@ -21,7 +21,7 @@ import { mountShaderHero } from "../lib/shaderHero.js";
  * para o botão.
  */
 const HERO = {
-  badge: "MôBisno — a plataforma angolana de lojas online",
+  badge: "MôBisno | A plataforma angolana de lojas online",
   line1: "Cria a tua loja",
   line2: "online em minutos",
   subtitle: "Sem código, sem complicações. Agora é fácil ter a própria loja online.",

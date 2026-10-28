@@ -201,7 +201,7 @@ export function openProductForm(opts: ProductFormOptions): void {
             <span class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:${ACCENT}1a"><span class="material-symbols-outlined text-[26px]" style="color:${ACCENT}">tune</span></span>
             <div>
               <p class="text-sm font-bold text-gray-900">Este produto tem versões diferentes?</p>
-              <p class="text-[13px] text-gray-500 leading-snug mt-1 max-w-xs">Cada versão pode ter o seu preço, a sua foto e o seu stock — por exemplo, uma cor ou um tamanho.</p>
+              <p class="text-[13px] text-gray-500 leading-snug mt-1 max-w-xs">Cada versão pode ter o seu preço, a sua foto e o seu stock. Por exemplo, uma cor ou um tamanho.</p>
             </div>
             <button type="button" data-var-start class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white font-bold text-sm transition-opacity hover:opacity-95" style="background:${ACCENT}">
               <span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação
@@ -452,7 +452,7 @@ export function openProductForm(opts: ProductFormOptions): void {
       <button type="button" data-add-item class="self-start inline-flex items-center gap-1 text-sm font-bold" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">add</span> Adicionar variação</button>
       <p class="text-[11px] text-gray-500 leading-snug">Com <strong>Preço original</strong> marcado, a variação custa o preço do produto. ${stockOn
         ? "Stock vazio não é controlado; <strong>0</strong> marca a variação como esgotada."
-        : `Para dar stock a cada variação, ligue <strong>Controlar stock</strong> nas opções — sem isso o produto nunca esgota.`} A foto é opcional — quando existe, a loja troca a imagem ao escolher esta variação.</p>`;
+        : `Para dar stock a cada variação, ligue <strong>Controlar stock</strong> nas opções. Sem isso, o produto nunca esgota.`} A foto é opcional. Quando existe, a loja troca a imagem ao escolher esta variação.</p>`;
 
     // O nome do grupo acompanha cada tecla sem redesenhar: redesenhar tirava o
     // foco ao Dono a meio da escrita.

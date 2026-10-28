@@ -810,7 +810,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       <div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style="background:#fffbeb"><span class="material-symbols-outlined" aria-hidden="true" style="font-size:34px;color:#b45309">schedule</span></div>
       <h1 id="done-title" tabindex="-1" class="text-2xl font-black mt-4 outline-none">Pagamento por confirmar</h1>
       <p class="text-neutral-600 mt-2">${esc(texto)}</p>
-      ${statusCheck("Já paguei — verificar")}
+      ${statusCheck("Já paguei, verificar")}
       ${homeLink()}
     </div>`;
   }
@@ -847,12 +847,12 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
         <p class="text-neutral-600 mt-2">Pague no Multicaixa (ATM) ou no Internet Banking com os dados abaixo.</p>
       </div>
       <dl class="bg-white border border-neutral-200 rounded-2xl p-6 mt-6 space-y-3">
-        ${row("Entidade", ref?.entity ?? "—")}
-        ${row("Referência", ref?.number ?? "—")}
+        ${row("Entidade", ref?.entity ?? "-")}
+        ${row("Referência", ref?.number ?? "-")}
         ${row("Montante", formatKz(typeof res.amount === "number" ? res.amount : purchaseValue))}
         ${due ? row("Validade", due, false) : ""}
       </dl>
-      ${statusCheck("Já paguei — verificar")}
+      ${statusCheck("Já paguei, verificar")}
       ${homeLink()}
     </div>`;
   }
@@ -864,7 +864,7 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       <div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style="background:rgba(0,0,0,.05)"><span class="material-symbols-outlined" aria-hidden="true" style="font-size:36px;color:var(--brand)">smartphone</span></div>
       <h1 id="done-title" tabindex="-1" class="text-2xl font-black mt-4 outline-none">Confirme o pagamento no telemóvel</h1>
       <p class="text-neutral-600 mt-2">Enviámos o pedido de pagamento de ${esc(formatKz(purchaseValue))}${esc(to)}. Abra a aplicação Multicaixa Express e confirme.</p>
-      ${statusCheck("Já confirmei — verificar")}
+      ${statusCheck("Já confirmei, verificar")}
       ${homeLink()}
     </div>`;
   }

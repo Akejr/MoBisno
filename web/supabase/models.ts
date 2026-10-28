@@ -298,8 +298,8 @@ export function defaultFactoryModels(): FactoryModel[] {
   // nomes anteriores ficam declarados, do mais recente para o mais antigo, para
   // o Semeador renomear a loja-modelo já existente em vez de criar outra.
   if (vermelho) out.push({ name: vermelho.name, description: vermelho.description, templateId: "galeria", base: vermelho.customization, products: VERMELHO_PRODUCTS, previousNames: ["Ekolo sports", "Vermelho Moderno"] });
-  out.push({ name: "Lumière Chic", description: "Luxo minimalista para beleza e cosmética — tipografia editorial e tons creme.", templateId: "lumiere", base: lumiereBase(), products: LUMIERE_PRODUCTS });
-  out.push({ name: "Tech Essentials", description: "Minimalismo moderno para electrónica e informática — muito espaço branco, cartões limpos e azul eléctrico nas acções.", templateId: "tech-essentials", base: techEssentialsBase(), products: TECH_PRODUCTS });
+  out.push({ name: "Lumière Chic", description: "Luxo minimalista para beleza e cosmética, com tipografia editorial e tons creme.", templateId: "lumiere", base: lumiereBase(), products: LUMIERE_PRODUCTS });
+  out.push({ name: "Tech Essentials", description: "Minimalismo moderno para electrónica e informática, com muito espaço branco, cartões limpos e azul eléctrico nas acções.", templateId: "tech-essentials", base: techEssentialsBase(), products: TECH_PRODUCTS });
   // Os dois modelos que saíram do registo (o escuro e a mercearia) saíram também
   // desta lista (R1.5): o Semeador deixa de os saber criar ou recriar, e é isso
   // que torna definitiva a eliminação feita pelo administrador. Sem esta

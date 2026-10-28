@@ -390,7 +390,7 @@ export default async function handler(req, res) {
 
     /* ------------------ Páginas transacionais → não indexar ------------------ */
     if (rest === "/carrinho" || rest === "/checkout") {
-      const title = `${rest === "/carrinho" ? "Carrinho" : "Finalizar compra"} — ${storeName}`;
+      const title = `${rest === "/carrinho" ? "Carrinho" : "Finalizar compra"} | ${storeName}`;
       const tags = metaTags({
         title, description: storeDesc, canonical: `${canonicalBase}${rest}`,
         image: logoUrl, siteName: storeName, noindex: true,
@@ -464,7 +464,7 @@ function platformPages() {
     : "Multicaixa Express e Referência Bancária em breve, para empresas registadas depois de aprovadas pela MôBisno";
   return {
     "/": {
-      title: "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais",
+      title: "MôBisno | Criar Loja Online em Angola | Sites e Lojas Virtuais",
       description: `Crie a sua loja online em Angola em minutos com a MôBisno. Editor visual ao vivo, encomendas por WhatsApp, endereço próprio e SEO otimizado. ${preco} por loja, com produtos ilimitados.`,
       heading: "Crie a sua loja online em minutos",
       intro: "A MôBisno é a plataforma angolana que permite a qualquer empreendedor abrir uma loja online, sem conhecimentos técnicos. Escolha um modelo pronto, personalize os textos, as fotografias e as cores, adicione os seus produtos e comece a vender em Kwanzas, com entrega em Luanda e em todo o país.",
@@ -498,19 +498,19 @@ function platformPages() {
     // o Google penaliza. A palavra-chave «criar loja online em Angola» é
     // trabalhada na página inicial, cujo título já é exatamente esse.
     "/termos": {
-      title: "Termos de Utilização — MôBisno",
+      title: "Termos de Utilização | MôBisno",
       description: "Termos de utilização da plataforma MôBisno: condições de uso, responsabilidades do titular da loja, subscrição, vendas e cancelamento.",
       heading: "Termos de Utilização",
       intro: "Condições que regem a utilização da plataforma MôBisno pelos donos de loja e pelos seus clientes.",
     },
     "/privacidade": {
-      title: "Política de Privacidade — MôBisno",
+      title: "Política de Privacidade | MôBisno",
       description: "Como a MôBisno recolhe, usa e protege os dados pessoais dos donos de loja, os dados da empresa enviados para a verificação e os dados dos clientes das lojas.",
       heading: "Política de Privacidade",
       intro: "Como tratamos os dados pessoais recolhidos na plataforma e nas lojas criadas com a MôBisno.",
     },
     "/politica": {
-      title: "Políticas da Plataforma — MôBisno",
+      title: "Políticas da Plataforma | MôBisno",
       description: "Políticas gerais da MôBisno: utilização aceitável, conteúdos proibidos, reembolsos e suspensão de contas.",
       heading: "Políticas da Plataforma",
       intro: "Regras de utilização aceitável, conteúdos proibidos e condições de suspensão.",
@@ -659,7 +659,7 @@ async function renderDirectory(shell, db, host) {
   ].sort((a, b) => rank(a.host) - rank(b.host));
   const total = all.length;
 
-  const title = "Lojas Online em Angola — Diretório MôBisno";
+  const title = "Lojas Online em Angola | Diretório MôBisno";
   const description = truncate(
     `${total} lojas online angolanas criadas com a MôBisno. Compre em Kwanzas com Multicaixa Express, Referência Bancária ou WhatsApp, com entrega em Luanda e em todo o país.`,
     160,
@@ -730,7 +730,7 @@ const STORE_NOT_FOUND_SECONDARY_LABEL = "Ver lojas criadas na MôBisno";
  * dispensa passar `host`/`path` a cada um dos quatro pontos de chamada.
  */
 function notFoundHtml(shell, heading, canonical) {
-  const title = `${heading} — ${PLATFORM_NAME}`;
+  const title = `${heading} | ${PLATFORM_NAME}`;
   const platform = `https://${PLATFORM_APEX}`;
   const address = String(canonical || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const tags = metaTags({

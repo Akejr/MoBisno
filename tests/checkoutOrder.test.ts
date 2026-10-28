@@ -165,7 +165,7 @@ describe("mensagem de WhatsApp do checkout — itens, entrega, desconto e os dad
     const desconto = { code: "VERAO10", amount: discountAmount({ type: "percent", value: 10 }, total) };
     expect(mensagem(COMPLETO, 1_500, desconto)).toBe([
       "Olá! Gostaria de encomendar:",
-      "• 2x Camisola oficial — Cor: Azul · Tamanho: M (30.000,00 Kz)",
+      "• 2x Camisola oficial · Cor: Azul · Tamanho: M (30.000,00 Kz)",
       "• 1x Boné (8.000,00 Kz)",
       "Entrega: Kilamba (1.500,00 Kz)",
       "Desconto (VERAO10): -3.950,00 Kz",
@@ -200,7 +200,7 @@ describe("mensagem de WhatsApp do checkout — itens, entrega, desconto e os dad
   it("sem dados do comprador (página do carrinho e gaveta) o total é a última linha", () => {
     const msg = buildCartWhatsAppMessage(linhas, formatKz);
     expect(msg.split("\n").at(-1)).toBe("Total: 38.000,00 Kz");
-    expect(msg).toContain("• 2x Camisola oficial — Cor: Azul · Tamanho: M (30.000,00 Kz)");
+    expect(msg).toContain("• 2x Camisola oficial · Cor: Azul · Tamanho: M (30.000,00 Kz)");
     expect(buildCartWhatsAppMessage(linhas, formatKz, { customer: {} }).split("\n").at(-1)).toBe("Total: 38.000,00 Kz");
   });
 });

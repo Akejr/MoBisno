@@ -873,7 +873,7 @@ export async function renderEditor(): Promise<void> {
       // o Dono procurar no menu o que nunca vai encontrar.
       const nativas = (tpl.sections?.native ?? []).map((t) => BLOCK_LABELS[t]);
       const nativasNota = nativas.length
-        ? `<p class="px-3 pt-2 pb-1 text-xs text-neutral-400 border-t border-neutral-100 mt-1">${esc(nativas.join(" e "))} já ${nativas.length > 1 ? "fazem" : "faz"} parte deste modelo — ${nativas.length > 1 ? "edite-os" : "edite-o"} na própria secção.</p>`
+        ? `<p class="px-3 pt-2 pb-1 text-xs text-neutral-400 border-t border-neutral-100 mt-1">${esc(nativas.join(" e "))} já ${nativas.length > 1 ? "fazem" : "faz"} parte deste modelo: ${nativas.length > 1 ? "edite-os" : "edite-o"} na própria secção.</p>`
         : "";
       addSec.innerHTML = `
         <button type="button" data-add-toggle aria-haspopup="true" aria-expanded="false" class="w-full border-2 border-dashed border-neutral-300 text-neutral-500 hover:text-neutral-900 hover:border-neutral-500 rounded-xl py-4 flex items-center justify-center gap-2 transition-colors"><span class="material-symbols-outlined" aria-hidden="true">add</span> Adicionar secção</button>
@@ -2177,10 +2177,10 @@ ${fieldCss}
     { sel: "", title: "Bem-vindo ao editor 👋", text: "Vou mostrar-te, em poucos passos, como personalizar a tua loja. Tudo o que mudas aqui aparece ao vivo.", screen: "home" },
     { sel: "[data-edit-logo]", title: "O teu logótipo", text: "Clica no logótipo para trocar a imagem e usa − / + para ajustar o tamanho.", screen: "home" },
     { sel: "#preview [data-edit]", title: "Editar textos", text: "Clica em qualquer texto (títulos, descrições, contactos) e escreve diretamente.", screen: "home" },
-    { sel: "#color-dot", title: "Cor principal", text: "Define a cor da marca — aplica-se a botões e destaques em toda a loja, ao vivo." },
+    { sel: "#color-dot", title: "Cor principal", text: "Define a cor da marca. Aplica-se a botões e destaques em toda a loja, ao vivo." },
     { sel: "#ink-dot", title: "Cor dos textos", text: "Muda a cor dos textos e ícones da loja." },
     { sel: "#theme-style", title: "Estilo geral", text: "Escolhe um estilo (moderno, clássico ou minimal) para dar coerência a tudo." },
-    { sel: "#tour-hero", title: "Modelo do cabeçalho (hero)", text: "Troca o topo da loja entre vários modelos — passa o rato em cada opção para pré-visualizar.", screen: "home" },
+    { sel: "#tour-hero", title: "Modelo do cabeçalho (hero)", text: "Troca o topo da loja entre vários modelos. Passa o rato em cada opção para pré-visualizar.", screen: "home" },
     { sel: "#tour-grid", title: "Disposição dos produtos", text: "Muda a forma como os produtos aparecem: retrato, quadrado ou alto.", screen: "home" },
     { sel: "[data-edit-products]", title: "Os teus produtos", text: "Adiciona e edita produtos aqui. Passa o rato num produto para o editar.", screen: "home" },
     { sel: "[data-add-toggle]", title: "Adicionar secções", text: "Monta a página por blocos: produtos, informação, texto, testemunhos ou localização.", screen: "home" },

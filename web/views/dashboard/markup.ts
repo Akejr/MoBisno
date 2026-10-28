@@ -955,7 +955,7 @@ export function orderRowHtml(o: OrderRow): string {
   const status = orderEffectiveStatus(o);
   const cliente = o.customer?.name || o.customer?.phone || "Cliente";
   const metodo = METHOD_LABELS[o.method] ?? o.method;
-  const ref = o.referenceNumber ? `${o.referenceEntity ? `${o.referenceEntity} · ` : ""}${o.referenceNumber}` : "—";
+  const ref = o.referenceNumber ? `${o.referenceEntity ? `${o.referenceEntity} · ` : ""}${o.referenceNumber}` : "-";
   const apagavel = canDeleteOrder(o);
   const detalhe = `order-detail-${o.id}`;
   const item = (rotulo: string, valor: string): string =>
@@ -1057,7 +1057,7 @@ export const PLAN_PRICE_TEXT = `${kzRound(PLAN_PRICE_KZ)}/${PERIODO}`;
 
 /** Ligação de email para pedir a ativação, com o identificador da loja no assunto. */
 export function planActivationMailto(storeName: string, identifier: string): string {
-  const assunto = `Ativar a subscrição ${PLAN_NAME} — loja ${identifier}`;
+  const assunto = `Ativar a subscrição ${PLAN_NAME} da loja ${identifier}`;
   const corpo = `Olá, equipa ${PLAN_NAME}.\r\n\r\nQuero ativar a subscrição da loja «${storeName}» (identificador: ${identifier}).\r\n\r\nObrigado.`;
   return `mailto:${PLATFORM_CONTACT_EMAIL}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
 }
@@ -1225,7 +1225,7 @@ export function whatsappOrdersHtml(rows: readonly WhatsappOrderRow[]): string {
     return emptyState({
       icon: "chat",
       title: "Ainda não há encomendas por WhatsApp",
-      text: "Cada vez que um cliente toca em «Finalizar via WhatsApp», a encomenda dele aparece aqui — com o que escolheu, o total e o contacto — mesmo que a mensagem não chegue a ser enviada.",
+      text: "Cada vez que um cliente toca em «Finalizar via WhatsApp», a encomenda dele aparece aqui, com o que escolheu, o total e o contacto, mesmo que a mensagem não chegue a ser enviada.",
     });
   }
   return `<ul class="mt-4 -mx-5 md:-mx-6 border-t border-gray-100 divide-y divide-gray-100">
@@ -1323,7 +1323,7 @@ export function invoicingCardHtml(o: { orgId: string; hasKey: boolean; isTestKey
       icon: "receipt_long", title: "Fatura automática (Vero)",
       subtitle: "Cada venda digital gera uma Fatura-Recibo emitida pela sua empresa.", aside: estado,
     })}
-    <p class="mt-4 text-sm text-gray-700">Quem vende é a sua empresa, por isso é ela que fatura ao cliente — a MôBisno não aparece na fatura. Indique a organização e a chave do seu <strong>Vero</strong> e a fatura passa a ser emitida e enviada ao cliente sozinha, logo depois de cada pagamento.</p>
+    <p class="mt-4 text-sm text-gray-700">Quem vende é a sua empresa, por isso é ela que fatura ao cliente. A MôBisno não aparece na fatura. Indique a organização e a chave do seu <strong>Vero</strong> e a fatura passa a ser emitida e enviada ao cliente sozinha, logo depois de cada pagamento.</p>
     ${o.isTestKey ? notice("warning", "science", "A chave é de teste", "Os documentos não chegam à AGT. Para faturar a sério, use a chave de produção (vero_live_sk_…).") : ""}
     <form id="vero-form" novalidate class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
       ${field({
@@ -1343,5 +1343,5 @@ export function invoicingCardHtml(o: { orgId: string; hasKey: boolean; isTestKey
         <p id="vero-error" role="alert" class="text-sm font-semibold text-red-700"></p>
       </div>
     </form>
-    <p class="${HINT} mt-4">Sem isto, a loja vende e recebe como sempre — só não emite fatura. A fatura de uma venda que falhe pode ser emitida outra vez a partir da lista de vendas.</p>`);
+    <p class="${HINT} mt-4">Sem isto, a loja vende e recebe como sempre, só não emite fatura. A fatura de uma venda que falhe pode ser emitida outra vez a partir da lista de vendas.</p>`);
 }

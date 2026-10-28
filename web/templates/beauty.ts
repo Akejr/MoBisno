@@ -335,7 +335,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
               <p data-product-price style="${SERIF}" class="text-2xl text-[#1c1b1b]">${esc(formatKz(product.price))}</p>
             </div>
 
-            <!-- Variações (tipografia e cantos do modelo — MODELO-GUIA §0.2) -->
+            <!-- Variações (tipografia e cantos do modelo, MODELO-GUIA §0.2) -->
             ${variationPickerHtml(product, custom, {
               labelClass: "text-xs tracking-widest uppercase text-[#685b5f] font-bold",
               valueClass: "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold tracking-[0.1em] uppercase text-[#6e6165] transition-colors disabled:cursor-not-allowed disabled:opacity-50",

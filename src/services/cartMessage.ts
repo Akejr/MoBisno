@@ -121,7 +121,7 @@ export function buildCartWhatsAppMessage(
   extras?: OrderExtras,
 ): string {
   const itemLines = lines.map((l) => {
-    const label = l.variantLabel && l.variantLabel.trim() ? ` — ${l.variantLabel.trim()}` : "";
+    const label = l.variantLabel && l.variantLabel.trim() ? ` · ${l.variantLabel.trim()}` : "";
     return `• ${l.quantity}x ${l.name}${label} (${formatMoney(l.price * l.quantity)})`;
   });
 

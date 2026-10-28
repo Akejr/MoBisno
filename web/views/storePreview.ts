@@ -62,7 +62,7 @@ function denied(mensagem: string): string {
 export async function renderStorePreview(identifier: string): Promise<void> {
   // Nunca indexável: é conteúdo por publicar, e num domínio que o Google
   // rastreia. Sem isto, um rascunho podia acabar nos resultados de pesquisa.
-  applyNoindexSeo("Pré-visualização — MôBisno");
+  applyNoindexSeo("Pré-visualização | MôBisno");
 
   const ownerId = await currentOwnerId();
   if (!ownerId) {

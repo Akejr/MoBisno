@@ -22,18 +22,19 @@ const STYLE_RULES = `ESTILO DAS RESPOSTAS:
 - Usa passos numerados SÓ quando houver mesmo vários passos (3+). Caso contrário, frase corrida.
 - Destaca termos-chave com **negrito** (com moderação). Não repitas a pergunta nem te alongues.
 - Português de Portugal, simpático e prático.
+- NUNCA uses travessões (\u2014). Separa as ideias com ponto final, vírgula ou dois pontos.
 
 RESPONDE, NÃO MANDES PROCURAR (REGRA DURA):
 - Se a resposta está no CONTEXTO abaixo, dá a resposta. NUNCA digas "vê na secção de preços", "consulta o Dashboard", "verifica na página" ou equivalente para algo que o contexto já diz. Isso é uma não-resposta e trata o utilizador como se ele não tivesse perguntado.
 - Números (preços, prazos, comissões, limites) saem do contexto, tal como lá estão. Não os arredondes nem os reformules.
-- Se o contexto disser que algo é ILIMITADO, responde "não há limite" — não mandes consultar tabela nenhuma.
+- Se o contexto disser que algo é ILIMITADO, responde "não há limite", não mandes consultar tabela nenhuma.
 - Só remetes o utilizador para um ecrã quando a informação é da CONTA dele (o saldo, as vendas, a data de renovação), porque essa não está no contexto. E nesse caso diz exactamente onde: que separador do Dashboard.
 - Se o contexto não cobrir a pergunta, di-lo com franqueza numa frase em vez de inventar. Nunca prometas funcionalidades que o contexto não confirme.
 
 ÂMBITO (MUITO IMPORTANTE):
 - Só falas sobre o MôBisno (criar/gerir/personalizar a loja e a plataforma).
 - Se a pergunta NÃO for sobre o MôBisno (ex.: treinos, receitas, código, conselhos gerais, atualidade, matemática, etc.), RECUSA educadamente numa única frase e redireciona. NÃO respondas ao pedido, mesmo que saibas a resposta e mesmo que insistam.
-- Resposta padrão para fora do âmbito: "Só consigo ajudar com o MôBisno — a tua loja e a plataforma. Em que posso ajudar por aqui?"`;
+- Resposta padrão para fora do âmbito: "Só consigo ajudar com o MôBisno, a tua loja e a plataforma. Em que posso ajudar por aqui?"`;
 
 /**
  * Contexto do DONO (autenticado: Dashboard, editor, produtos, pagamentos, plano…).
@@ -55,7 +56,7 @@ ${STYLE_RULES}
 
 COMO FUNCIONA O EDITOR (MUITO IMPORTANTE):
 - A loja foi criada a partir de um MODELO PRONTO de site, escolhido na galeria de modelos. A ESTRUTURA desse modelo mantém-se: cabeçalho, topo (hero), ordem e desenho das secções que vêm do modelo, página de produto, checkout e rodapé são os do modelo e não se trocam no editor.
-- No editor personalizas TRÊS coisas: os TEXTOS, as FOTOGRAFIAS e as CORES. Não montas a loja peça por peça — o modelo já traz a loja montada.
+- No editor personalizas TRÊS coisas: os TEXTOS, as FOTOGRAFIAS e as CORES. Não montas a loja peça por peça, o modelo já traz a loja montada.
 
 TEXTOS:
 - Clicar em qualquer texto do preview e escrever diretamente (títulos, descrições, botões, contactos e textos do rodapé).
@@ -86,14 +87,14 @@ const SYSTEM_SITE = `És o assistente do MôBisno na página inicial. Ajudas vis
 ${STYLE_RULES}
 
 SOBRE O MÔBISNO:
-- É uma plataforma para criar lojas online em Angola, sem código. Criar uma loja é ESCOLHER UM MODELO PRONTO de site — uma loja completa, já com cabeçalho, secções, página de produto e rodapé — e depois PERSONALIZAR os textos, as fotografias e as cores. Não se monta a loja peça por peça.
-- PERCURSO, por esta ordem: 1) CRIAR CONTA — por chat, o assistente pergunta nome, email, palavra-passe, nome da loja, tipo de negócio e o endereço (subdomínio); 2) ESCOLHER O MODELO PRONTO na galeria de modelos, com pré-visualização real em computador e telemóvel, no botão "Usar este modelo"; 3) PERSONALIZAR no editor visual ao vivo — textos, fotografias (logótipo e imagens) e cores; 4) PUBLICAR, com "Guardar".
+- É uma plataforma para criar lojas online em Angola, sem código. Criar uma loja é ESCOLHER UM MODELO PRONTO de site, uma loja completa, já com cabeçalho, secções, página de produto e rodapé, e depois PERSONALIZAR os textos, as fotografias e as cores. Não se monta a loja peça por peça.
+- PERCURSO, por esta ordem: 1) CRIAR CONTA, por chat, o assistente pergunta nome, email, palavra-passe, nome da loja, tipo de negócio e o endereço (subdomínio); 2) ESCOLHER O MODELO PRONTO na galeria de modelos, com pré-visualização real em computador e telemóvel, no botão "Usar este modelo"; 3) PERSONALIZAR no editor visual ao vivo, textos, fotografias (logótipo e imagens) e cores; 4) PUBLICAR, com "Guardar".
 - O modelo escolhido dá a ESTRUTURA da loja, e essa estrutura mantém-se. A personalização é dos textos, das fotografias e das cores; os produtos, preços e fotografias são geridos no Dashboard e no editor.
 - VENDAS: carrinho e checkout a sério. Todas as lojas vendem por WhatsApp desde o primeiro dia; Multicaixa Express e Referência Bancária são para empresas registadas, depois de aprovadas (as condições estão no CONTEXTO).
 - O QUE NÃO FAZ: o assistente não executa ações por ti (não cria nem edita sozinho); é um guia. Não se muda a estrutura do modelo no editor, e funcionalidades fora do âmbito de e-commerce simples podem não existir.
 - COMEÇAR: clicar em "Criar minha loja".
 
-PREÇOS, ENDEREÇOS, LIMITES, PAGAMENTOS E O QUE ESTÁ "EM BREVE" ESTÃO NO CONTEXTO, não aqui. Responde com os valores que lá estão, exactamente como lá estão, e NUNCA mandes o visitante ver a secção de preços — os números que ele pede estão no contexto.
+PREÇOS, ENDEREÇOS, LIMITES, PAGAMENTOS E O QUE ESTÁ "EM BREVE" ESTÃO NO CONTEXTO, não aqui. Responde com os valores que lá estão, exactamente como lá estão, e NUNCA mandes o visitante ver a secção de preços, os números que ele pede estão no contexto.
 Se perguntarem algo específico da CONTA de alguém (saldo, vendas, data de renovação), aí sim: diz que precisa de entrar e ver no Dashboard.`;
 
 /** Contexto SEO (gerar a meta-descrição da loja a partir do que o dono descreve). */
@@ -114,6 +115,19 @@ REGRAS:
 - Sem o nome da loja, sem aspas, sem emojis, sem o símbolo "|", sem pontos finais. Devolve só a frase.`;
 
 const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seotitle: SYSTEM_SEOTITLE };
+
+/**
+ * Tira os travessões da resposta, venha ela de que âmbito vier.
+ *
+ * O site deixou de os usar (dão o tom de texto gerado) e a regra está no
+ * estilo, mas um modelo não obedece sempre: a descrição para o Google, que o
+ * Dono aceita com um toque, e a conversa do assistente saíam com eles. Aqui é a
+ * garantia. « — » entre frases passa a vírgula; um travessão solto, a hífen.
+ */
+export function semTravessoes(texto) {
+  return String(texto ?? "").replace(/\s*\u2014\s*/g, (m, i, s) => (i === 0 || i + m.length === s.length ? "" : ", "))
+    .replace(/\u2014/g, "-");
+}
 
 /*
  * A origem e o limite por IP vivem em `api/_http.js`.
@@ -166,7 +180,7 @@ export default async function handler(req, res) {
     }
 
     const system = context
-      ? `${PROMPTS[scope]}\n\nCONTEXTO (verdade actual da plataforma e do ecrã onde o utilizador está — responde com base nisto):\n${context}`
+      ? `${PROMPTS[scope]}\n\nCONTEXTO (verdade actual da plataforma e do ecrã onde o utilizador está, responde com base nisto):\n${context}`
       : PROMPTS[scope];
 
     const r = await aiChat({
@@ -191,7 +205,7 @@ export default async function handler(req, res) {
       res.status(502).json({ error: r.error, code: r.code });
       return;
     }
-    res.status(200).json({ answer: r.answer });
+    res.status(200).json({ answer: semTravessoes(r.answer) });
   } catch (err) {
     console.error("[assistant]", err);
     res.status(500).json({ error: "Erro interno do assistente.", code: "INTERNAL" });

@@ -200,7 +200,7 @@ export function buyerReceiptEmail({ storeName, orderId, total, items, invoiceUrl
     ${invoiceUrl ? `<p style="margin:24px 0 0">${botao(invoiceUrl, "Ver a factura")}</p>` : ""}
     ${storeUrl ? `<p style="margin:12px 0 0;font-size:14px"><a href="${esc(storeUrl)}" style="color:${ACENTO}">Voltar à loja</a></p>` : ""}`;
   return {
-    subject: `A sua compra em ${storeName} — ${kz(total)}`,
+    subject: `A sua compra em ${storeName}, ${kz(total)}`,
     html: moldura({
       titulo: "Pagamento confirmado",
       corpo,

@@ -34,7 +34,7 @@ const lazy = {
   start: () => import("./views/start.js").then((m) => m.renderStart()),
 };
 
-const DEFAULT_TITLE = "MôBisno — Crie a sua loja online";
+const DEFAULT_TITLE = "MôBisno | Crie a sua loja online";
 
 /**
  * Aplica o logótipo da loja ao favicon da aba.
@@ -62,7 +62,7 @@ async function applyStoreBranding(identifier: string): Promise<void> {
       if (logo) setSquareFavicon(logo);
       else setFavicon("/favicon.svg");
     } else {
-      setDocTitle("Loja não encontrada — MôBisno");
+      setDocTitle("Loja não encontrada | MôBisno");
       setFavicon("/favicon.svg");
     }
   } catch {
@@ -143,11 +143,11 @@ function route(): void {
     void lazy.preview(decodeURIComponent(path.replace(/^\/preview\/?/, "")) || "galeria");
   } else if (path.startsWith("/criar")) {
     resetBranding();
-    applyNoindexSeo("Criar loja — MôBisno");
+    applyNoindexSeo("Criar loja | MôBisno");
     void lazy.wizard();
   } else if (path.startsWith("/login")) {
     resetBranding();
-    applyNoindexSeo("Entrar — MôBisno");
+    applyNoindexSeo("Entrar | MôBisno");
     renderLogin();
   } else if (path === "/lojas") {
     resetBranding();
@@ -157,14 +157,14 @@ function route(): void {
     // a mensagem repete a da homepage — indexá-la punha-a a competir com a home
     // nos resultados de pesquisa.
     resetBranding();
-    applyNoindexSeo("MôBisno — Cria a tua loja online em minutos");
+    applyNoindexSeo("MôBisno | Cria a tua loja online em minutos");
     void lazy.start();
   } else if (path === "/termos" || path === "/privacidade" || path === "/politica") {
     resetBranding();
     void lazy.legal(path.slice(1) as "termos" | "privacidade" | "politica");
   } else if (path.toLowerCase().startsWith("/adminpainel")) {
     resetBranding();
-    applyNoindexSeo("Administração — MôBisno");
+    applyNoindexSeo("Administração | MôBisno");
     void lazy.adminPanel();
   } else if (path.startsWith("/previsualizar/")) {
     // Pré-visualização privada da loja por publicar. Fica no domínio da
@@ -174,19 +174,19 @@ function route(): void {
     void lazy.storePreview(decodeURIComponent(path.slice("/previsualizar/".length)));
   } else if (path.startsWith("/painel")) {
     resetBranding();
-    applyNoindexSeo("Dashboard — MôBisno");
+    applyNoindexSeo("Dashboard | MôBisno");
     void lazy.dashboard();
   } else if (path.startsWith("/personalizar")) {
     resetBranding();
-    applyNoindexSeo("Personalizar loja — MôBisno");
+    applyNoindexSeo("Personalizar loja | MôBisno");
     void lazy.editor();
   } else if (path.startsWith("/modelos")) {
     resetBranding();
-    applyNoindexSeo("Modelos prontos — MôBisno");
+    applyNoindexSeo("Modelos prontos | MôBisno");
     void lazy.presetGallery();
   } else if (path.startsWith("/teste-modelos")) {
     resetBranding();
-    applyNoindexSeo("Teste de Modelos — MôBisno");
+    applyNoindexSeo("Teste de Modelos | MôBisno");
     void lazy.presetGalleryTest();
   } else if (path.startsWith("/loja/")) {
     const rest = path.slice("/loja/".length);

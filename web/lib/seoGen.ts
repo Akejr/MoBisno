@@ -64,7 +64,7 @@ export async function generateSeoDescription(input: {
   storeType?: string;
   about: string;
 }): Promise<SeoText> {
-  const fallback = toMetaDescription(input.about || `${input.storeName} — compras online em Angola.`);
+  const fallback = toMetaDescription(input.about || `${input.storeName}: compras online em Angola.`);
   const question =
     `Cria a meta-descrição de SEO (uma única frase, até 160 caracteres, em português de Portugal, ` +
     `apelativa e com palavras-chave naturais, sem aspas nem emojis) para esta loja online em Angola.\n` +

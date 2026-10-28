@@ -213,7 +213,7 @@ export function storeDescription(storeName: string, custom?: string | null, fact
 
 /** Título de uma página de categoria: `Categoria em Nome da Loja | Angola`. */
 export function categoryTitle(category: string, storeName: string): string {
-  return `${category.trim()} — ${storeName.trim()} | Comprar em Angola`;
+  return `${category.trim()} | ${storeName.trim()} | Comprar em Angola`;
 }
 
 /**
@@ -244,7 +244,7 @@ export function categoryDescription(input: {
 
 /** Título do produto: `Nome do Produto — Nome da Loja` (foco na loja). */
 export function productTitle(productName: string, storeName: string): string {
-  return `${productName.trim()} — ${storeName.trim()}`;
+  return `${productName.trim()} | ${storeName.trim()}`;
 }
 
 /** Descrição do produto a partir dos seus dados (gerada automaticamente). */
@@ -282,7 +282,7 @@ export function platformPriceLabel(): string {
 }
 
 export function platformTitle(): string {
-  return "MôBisno — Criar Loja Online em Angola | Sites e Lojas Virtuais";
+  return "MôBisno | Criar Loja Online em Angola | Sites e Lojas Virtuais";
 }
 
 /**

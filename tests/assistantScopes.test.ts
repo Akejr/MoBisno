@@ -732,8 +732,8 @@ describe("Orientação do ecrã «Análises» — os quatro números do ecrã re
   });
 
   it("descreve a dica do gráfico e o estado vazio", () => {
-    expect(guia).toContain("Visitas — últimos 14 dias");
-    expect(ANALISES).toContain("Visitas — últimos 14 dias");
+    expect(guia).toContain("Visitas nos últimos 14 dias");
+    expect(ANALISES).toContain("Visitas nos últimos 14 dias");
     expect(guia).toContain("Ainda não há visitas para mostrar");
     expect(ANALISES).toContain("Ainda não há visitas para mostrar");
   });

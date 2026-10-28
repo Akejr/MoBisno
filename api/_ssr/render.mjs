@@ -2216,7 +2216,7 @@ function renderProduct(view, product, custom) {
 
           ${product.description ? `<p class="mt-6 text-neutral-600 leading-relaxed whitespace-pre-line">${esc(product.description)}</p>` : `<p class="mt-6 text-neutral-400 italic">Sem descri\xE7\xE3o.</p>`}
 
-          <!-- Varia\xE7\xF5es (cantos e molduras do modelo \u2014 MODELO-GUIA \xA70.2) -->
+          <!-- Varia\xE7\xF5es (cantos e molduras do modelo, MODELO-GUIA \xA70.2) -->
           ${variationPickerHtml(product, custom, {
     labelClass: "text-sm font-medium text-neutral-700",
     valueClass: "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-neutral-300 text-sm font-bold text-neutral-900 hover:bg-neutral-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
@@ -2584,7 +2584,7 @@ function renderProduct2(view, product, custom) {
               <p data-product-price style="${SERIF}" class="text-2xl text-[#1c1b1b]">${esc(formatKz(product.price))}</p>
             </div>
 
-            <!-- Varia\xE7\xF5es (tipografia e cantos do modelo \u2014 MODELO-GUIA \xA70.2) -->
+            <!-- Varia\xE7\xF5es (tipografia e cantos do modelo, MODELO-GUIA \xA70.2) -->
             ${variationPickerHtml(product, custom, {
     labelClass: "text-xs tracking-widest uppercase text-[#685b5f] font-bold",
     valueClass: "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold tracking-[0.1em] uppercase text-[#6e6165] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
@@ -4506,7 +4506,7 @@ function platformFooterHtml() {
           </div>
           <!-- Os titulos das colunas sao h3, e nao h4: a pagina acima deles
                acaba em h2, e saltar de h2 para h4 deixa um degrau vazio na
-               arvore de titulos \u2014 um leitor de ecra anuncia uma seccao de nivel
+               arvore de titulos, um leitor de ecra anuncia uma seccao de nivel
                quatro sem a de nivel tres existir. O teste landingCopy guarda-o.
                (Sem acentos graves aqui: isto esta dentro de um template literal.) -->
           <div class="md:col-span-3">

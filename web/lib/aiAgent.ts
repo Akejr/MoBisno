@@ -105,7 +105,7 @@ export function mountAiAgent(
 
   const widget = document.createElement("div");
   widget.id = WIDGET_ID;
-  widget.setAttribute("title", "Assistente IA — tira dúvidas");
+  widget.setAttribute("title", "Assistente IA: tira dúvidas");
   widget.style.cssText = [
     "position:fixed",
     "right:20px",
@@ -401,10 +401,10 @@ export function mountAiAgent(
     // Repõe o histórico anterior (se houver) ou mostra a saudação.
     if (!chatHistory.length) {
       addMsg("assistant", scope === "site"
-        ? "Olá! Sou o assistente do MôBisno. Aqui escolhes um modelo pronto de site — uma loja completa, já montada — e personalizas os textos, as fotografias e as cores. Pergunta-me o que quiseres: como começar a tua loja, os planos, ou o que dá (ou não) para fazer."
+        ? "Olá! Sou o assistente do MôBisno. Aqui escolhes um modelo pronto de site (uma loja completa, já montada) e personalizas os textos, as fotografias e as cores. Pergunta-me o que quiseres: como começar a tua loja, os planos, ou o que dá (ou não) para fazer."
         : screen === "editor"
-          ? "Olá! Pergunta-me o que quiseres sobre o editor — por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d"
-          : "Olá! Pergunta-me o que quiseres sobre este ecrã ou sobre a plataforma — por exemplo: \u201cquantas lojas posso criar?\u201d");
+          ? "Olá! Pergunta-me o que quiseres sobre o editor. Por exemplo: \u201ccomo aumento o tamanho do logótipo?\u201d"
+          : "Olá! Pergunta-me o que quiseres sobre este ecrã ou sobre a plataforma. Por exemplo: \u201cquantas lojas posso criar?\u201d");
     } else {
       for (const m of chatHistory) addMsg(m.role, m.content);
     }

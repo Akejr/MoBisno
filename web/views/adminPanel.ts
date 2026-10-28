@@ -385,21 +385,21 @@ function usageCountsHtml(usage: AdminTemplateUsage): string {
   return `<div class="mb-3 flex flex-wrap gap-2">
     ${pill(`${affected} loja(s) de cliente`, affected ? "red" : "green")}
     ${pill(`${usage.models.length} loja(s)-modelo`, "orange")}
-    ${pill(`verificado: ${usage.ids.join(", ") || "—"}`, "gray")}
+    ${pill(`verificado: ${usage.ids.join(", ") || "-"}`, "gray")}
   </div>`;
 }
 
 /** Uma Loja no resultado da verificação: nome, endereço, dono e estado. */
 function usageStoreItem(s: AdminTemplateUser): string {
-  const how = s.matchedBy.map(matchLabel).join(" e ") || "—";
+  const how = s.matchedBy.map(matchLabel).join(" e ") || "-";
   return `<li class="flex min-w-0 flex-col gap-1 px-4 py-3">
     <div class="flex flex-wrap items-start justify-between gap-2">
-      <p class="min-w-0 font-bold text-gray-900 break-words">${esc(s.name || "—")}</p>
+      <p class="min-w-0 font-bold text-gray-900 break-words">${esc(s.name || "-")}</p>
       ${s.state === "Publicada" ? pill("Publicada", "green") : pill("Rascunho", "gray")}
     </div>
     <p class="text-xs text-gray-600 break-all">${esc(s.identifier)}.${esc(STORE_APEX)}</p>
     <p class="text-xs text-gray-600 break-all">${esc(s.ownerEmail || "dono sem email registado")}</p>
-    <p class="text-xs text-gray-600 break-words">Modelo: ${esc(s.templateId || "—")}${s.basedOn ? ` · baseada em: ${esc(s.basedOn)}` : ""} · encontrada por: ${esc(how)}</p>
+    <p class="text-xs text-gray-600 break-words">Modelo: ${esc(s.templateId || "-")}${s.basedOn ? ` · baseada em: ${esc(s.basedOn)}` : ""} · encontrada por: ${esc(how)}</p>
   </li>`;
 }
 
@@ -452,7 +452,7 @@ function modelCheckHtml(v: ModelCheckView): string {
   }
 
   if (v.kind === "error") {
-    return checkPanel("danger", "error", "A verificação falhou — a eliminação não avança",
+    return checkPanel("danger", "error", "A verificação falhou. A eliminação não avança",
       `<p class="mb-2">Não foi possível contar as Lojas que usam «${esc(name)}», por isso a eliminação foi recusada e o modelo mantém-se registado.</p>
        <p class="mb-2 break-words rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">${esc(v.message)}</p>
        <p class="text-xs text-gray-700">Uma falha de leitura não é prova de que não existem Lojas afetadas. Corrija a falha e verifique de novo antes de apagar.</p>`,
@@ -460,7 +460,7 @@ function modelCheckHtml(v: ModelCheckView): string {
   }
 
   if (v.kind === "blocked") {
-    return checkPanel("danger", "block", "Eliminação bloqueada — há lojas de cliente a usar este modelo",
+    return checkPanel("danger", "block", "Eliminação bloqueada: há lojas de cliente a usar este modelo",
       `${usageCountsHtml(v.usage)}
        <p class="mb-3">O modelo <strong>${esc(name)}</strong> <strong>mantém-se registado</strong> e nada foi apagado. Apagá-lo deixaria estas lojas de cliente com o modelo errado.</p>
        <p class="mb-2 font-bold text-gray-900">Lojas de cliente afetadas</p>

@@ -187,7 +187,7 @@ export async function renderAnalises(ctx: DashCtx): Promise<void> {
     <section class="mb-ana-rise bg-white border border-gray-200 rounded-2xl shadow-sm p-5 md:p-6 min-w-0" style="--mb-i:4">
       <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div class="min-w-0">
-          <h2 class="font-black text-gray-900">Visitas — últimos 14 dias</h2>
+          <h2 class="font-black text-gray-900">Visitas nos últimos 14 dias</h2>
           <p class="text-sm text-gray-500 mt-0.5">${total14} visita(s) no período. Passe o rato num dia para ver o valor.</p>
         </div>
         <span class="inline-flex items-center gap-1.5 text-xs font-bold rounded-full px-2.5 py-1 shrink-0" style="background:#fff4ed;color:#C2410C">

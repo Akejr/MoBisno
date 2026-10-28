@@ -355,7 +355,7 @@ function renderProduct(view: StoreRenderView, product: StoreProductView, custom?
             ? `<p class="mt-6 text-neutral-600 leading-relaxed whitespace-pre-line">${esc(product.description)}</p>`
             : `<p class="mt-6 text-neutral-400 italic">Sem descrição.</p>`}
 
-          <!-- Variações (cantos e molduras do modelo — MODELO-GUIA §0.2) -->
+          <!-- Variações (cantos e molduras do modelo, MODELO-GUIA §0.2) -->
           ${variationPickerHtml(product, custom, {
             labelClass: "text-sm font-medium text-neutral-700",
             valueClass: "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-neutral-300 text-sm font-bold text-neutral-900 hover:bg-neutral-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50",

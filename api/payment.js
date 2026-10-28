@@ -187,7 +187,7 @@ export default async function handler(req, res) {
 
     const items = [...priced.lines];
     if (priced.deliveryFee > 0) {
-      items.push({ productName: `Entrega${customer.area ? ` — ${customer.area}` : ""}`, productPrice: priced.deliveryFee, productQuantity: 1 });
+      items.push({ productName: `Entrega${customer.area ? `: ${customer.area}` : ""}`, productPrice: priced.deliveryFee, productQuantity: 1 });
     }
     // O cliente volta à própria loja: ao subdomínio dela em produção, ou ao
     // caminho `/loja/<id>` quando a loja é servida pelo domínio da Plataforma.

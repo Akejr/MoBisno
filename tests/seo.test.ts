@@ -12,7 +12,7 @@ describe("SEO — títulos e descrições", () => {
   });
 
   it("título do produto foca a loja", () => {
-    expect(productTitle("Ténis Runner", "Ekolo Sports")).toBe("Ténis Runner — Ekolo Sports");
+    expect(productTitle("Ténis Runner", "Ekolo Sports")).toBe("Ténis Runner | Ekolo Sports");
   });
 
   it("truncate não corta a meio de palavra e respeita o limite", () => {
