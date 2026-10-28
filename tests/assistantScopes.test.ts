@@ -33,6 +33,7 @@ import {
   REGISTER_FIX_LABELS,
   validatePasswordConfirmation,
   type RegisterFixValue,
+  WIZARD_DRAFT_TTL_DAYS,
 } from "../src/ui/wizardSteps.js";
 import { COMING_SOON_LABELS, comingSoonList } from "../src/services/comingSoon.js";
 import { VERIFICATION_STATUS_LABEL, COMPANY_DOCUMENTS } from "../src/services/paymentVerification.js";
@@ -401,7 +402,8 @@ function resolver(guia: string): string {
     .replace(/\$\{ACTIVATION_MONTHS\[ACTIVATION_MONTHS\.length - 1\]\}/g, String(ACTIVATION_MONTHS[ACTIVATION_MONTHS.length - 1]))
     .replace(/\$\{PHONE_CODE_LENGTH\}/g, String(PHONE_CODE_LENGTH))
     .replace(/\$\{CODIGO_MINUTOS\}/g, String(Math.round(PHONE_CODE_TTL_MS / 60_000)))
-    .replace(/\$\{REENVIOS\}/g, PHONE_RESEND_DELAYS_MS.map((ms) => String(Math.round(ms / 1000))).join(" e "));
+    .replace(/\$\{REENVIOS\}/g, PHONE_RESEND_DELAYS_MS.map((ms) => String(Math.round(ms / 1000))).join(" e "))
+    .replace(/\$\{WIZARD_DRAFT_TTL_DAYS\}/g, String(WIZARD_DRAFT_TTL_DAYS));
 }
 
 describe("Factos da plataforma — derivados do domínio, nunca escritos à mão", () => {
@@ -1146,6 +1148,50 @@ describe("Orientação do ecrã «registo» — a redefinição da palavra-passe
     // frase que envelhece em silêncio.
     expect(guia).toMatch(/NÃO há confirmação de email/);
     expect(guia).toMatch(/O que é confirmado é o telemóvel/);
+  });
+});
+
+describe("Orientação do ecrã «Assistente_de_Criação» — sair a meio não perde nada", () => {
+  /*
+   * A mala de dados vivia só em memória: fechar o separador perdia o nome da
+   * loja, o tipo, o texto longo sobre o negócio e os textos para o Google já
+   * corrigidos. Agora a fase da loja é gravada no navegador
+   * (`web/lib/wizardDraft.ts`) e o assistente oferece-se para continuar. Quem
+   * pergunta «perdi tudo?» tem de ouvir a resposta certa.
+   */
+  const guia = resolver(guiaDe("criar"));
+  const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
+
+  it("diz que a fase da loja é guardada e como se retoma", () => {
+    expect(guia).toMatch(/SAIR A MEIO NÃO PERDE/);
+    expect(guia).toContain("Continuar");
+    expect(guia).toContain("Começar de novo");
+    expect(guia).toMatch(/é apagado quando a loja é criada/);
+    // O prazo vem do módulo, não escrito à mão no texto.
+    expect(guiaDe("criar")).toContain("${WIZARD_DRAFT_TTL_DAYS}");
+    expect(guia).toContain(`vale ${WIZARD_DRAFT_TTL_DAYS} dias`);
+  });
+
+  it("diz que a fase da conta NÃO é guardada", () => {
+    // O contrário seria pior do que não dizer nada: o Dono fica à espera de
+    // encontrar o email e a palavra-passe preenchidos.
+    expect(guia).toMatch(/Os passos da CONTA não são guardados/);
+    expect(guia).toMatch(/palavra-passe, que nunca é escrita no navegador/);
+  });
+
+  it("o ecrã grava a cada resposta da loja e limpa quando a loja nasce", () => {
+    for (const passo of ["\"type\"", "\"about\"", "\"seo\"", "\"subdomain\""]) {
+      expect(WIZARD, `nenhuma gravação com o passo ${passo}`).toContain(`guardarRascunho(${passo})`);
+    }
+    expect(WIZARD).toContain("clearWizardDraft()");
+    // E a entrada na fase da loja passa toda pelo mesmo sítio: se um caminho
+    // chamasse `askStoreName()` diretamente, esse caminho apagava o rascunho
+    // sem perguntar.
+    expect(WIZARD).toContain("function continuarLoja()");
+    // Os quatro caminhos: sessão já iniciada, número confirmado agora, número
+    // que já estava confirmado, e «Não recebi o código».
+    expect(WIZARD.match(/continuarLoja\(\);/g) ?? [], "um caminho entra na loja sem passar pelo rascunho")
+      .toHaveLength(4);
   });
 });
 

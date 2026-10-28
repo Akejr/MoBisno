@@ -22,6 +22,17 @@
  * criadas, e o número confirma-se depois no Dashboard. O que fica por fazer é
  * **publicar** — exigir a confirmação para criar deixaria o Dono sem nada.
  *
+ * ## Sair a meio não apaga o que já foi escrito
+ *
+ * A fase da loja é gravada no navegador a cada resposta (`web/lib/wizardDraft.ts`)
+ * e, ao voltar, o assistente pergunta se continua de onde ficou. Antes disto a
+ * mala de dados vivia só em memória: fechar o separador ou recarregar a página
+ * perdia o nome da loja, o tipo, o texto longo sobre o negócio e os textos para
+ * o Google que o Dono já tinha corrigido.
+ *
+ * A fase da **conta** não é gravada, de propósito: são três respostas, uma
+ * delas a palavra-passe, e a partir daí quem sobrevive é a sessão.
+ *
  * Reutiliza a validação e os serviços do fluxo original (wizardSteps,
  * authService, wizardFlow, identifierService).
  */
@@ -39,6 +50,9 @@ import {
   PHONE_CODE_LENGTH, cleanPhoneCode, formatPhoneForDisplay,
 } from "../../src/services/phoneVerification.js";
 import { generateSeoDescription, generateSeoTitle } from "../lib/seoGen.js";
+import {
+  saveWizardDraft, readWizardDraft, clearWizardDraft, type WizardStep,
+} from "../lib/wizardDraft.js";
 import { mountAiAgent } from "../lib/aiAgent.js";
 import type { AuthError, Session } from "../../src/services/authService.js";
 
@@ -378,7 +392,7 @@ async function start(): Promise<void> {
       askPhone("Antes disso, falta confirmar o teu número de telemóvel — é o que permite pôr a loja online. Qual é o número?");
       return;
     }
-    askStoreName();
+    continuarLoja();
     return;
   }
   await botSay("Olá! Sou o assistente do MôBisno e vou ajudar-te a criar a tua loja de forma rápida.");
@@ -655,7 +669,7 @@ async function enviarCodigo(primeiro: boolean): Promise<void> {
   if (r.success) {
     if (r.alreadyVerified) {
       await botSay("Este número já está confirmado. 👍");
-      askStoreName();
+      continuarLoja();
       return;
     }
     codeResendAt = typeof r.resendInMs === "number" ? Date.now() + r.resendInMs : null;
@@ -719,7 +733,7 @@ async function confirmarCodigo(code: string): Promise<void> {
   clearInput();
   if (r.success) {
     await botSay("Número confirmado. ✅");
-    askStoreName();
+    continuarLoja();
     return;
   }
   await botSay(r.error ?? "Não foi possível confirmar o código.");
@@ -735,11 +749,70 @@ function seguirSemConfirmar(): void {
     codeResendAt = null;
     await botSay("Sem problema, seguimos. A tua conta está criada e podes montar a loja à vontade.");
     await botSay("Para a pôres online é que precisas de confirmar o número — fazes isso no Dashboard, no aviso que vai estar no «Início».");
-    askStoreName();
+    continuarLoja();
   })();
 }
 
 /* ---------------------------------- A loja ---------------------------------- */
+
+/**
+ * Grava o que já foi respondido, com a pergunta que falta.
+ *
+ * Sem `ownerId` não grava: a fase da conta não é guardada, e antes dela não há
+ * dono a quem o rascunho pertença.
+ */
+function guardarRascunho(step: WizardStep): void {
+  saveWizardDraft({ ownerId: String(wiz.data[WIZARD_FIELDS.ownerId] ?? ""), step, data: wiz.data });
+}
+
+/**
+ * Entra na fase da loja. Havendo um rascunho desta conta, pergunta primeiro se
+ * continua de onde ficou — recomeçar sem avisar é que apagava o trabalho.
+ *
+ * É chamada de **todos** os sítios onde a conversa chega à loja: com sessão já
+ * iniciada, com o número confirmado agora, com o número já confirmado antes, e
+ * de quem escolheu seguir sem confirmar.
+ */
+function continuarLoja(): void {
+  const ownerId = String(wiz.data[WIZARD_FIELDS.ownerId] ?? "");
+  const rascunho = ownerId ? readWizardDraft(ownerId) : null;
+  if (!rascunho) { askStoreName(); return; }
+  void (async () => {
+    const nome = String(rascunho.data[WIZARD_FIELDS.name] ?? "").trim();
+    await botSay(nome
+      ? `Tínhamos ficado a meio da loja «${nome}». Queres continuar de onde ficaste?`
+      : "Tinhas uma loja a meio por aqui. Queres continuar de onde ficaste?");
+    inputChips(
+      [
+        { value: "sim", label: "Continuar" },
+        { value: "novo", label: "Começar de novo" },
+      ],
+      (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "novo") { clearWizardDraft(); askStoreName(); return; }
+        wiz.data = { ...wiz.data, ...rascunho.data };
+        retomar(rascunho.step);
+      },
+    );
+  })();
+}
+
+/** Retoma no passo gravado. */
+function retomar(step: WizardStep): void {
+  if (step === "type") { askType(); return; }
+  if (step === "about") { askAbout(); return; }
+  if (step === "seo") {
+    // Textos que já existem não se voltam a gerar: o Dono pode tê-los corrigido
+    // à mão, e pedi-los outra vez à IA apagava-lhe a correção.
+    const jaTem = String(wiz.data.seoTitle ?? "").trim() || String(wiz.data.seoDescription ?? "").trim();
+    if (jaTem) showSeoPreview();
+    else askSeoPreview();
+    return;
+  }
+  if (step === "subdomain") { askSubdomainRecommend(); return; }
+  askStoreName();
+}
 
 function askStoreName(): void {
   void (async () => {
@@ -749,6 +822,7 @@ function askStoreName(): void {
       onSubmit: (v) => {
         userSay(v);
         wiz.data[WIZARD_FIELDS.name] = v;
+        guardarRascunho("type");
         clearInput();
         askType();
       },
@@ -773,6 +847,7 @@ function askType(): void {
         return;
       }
       wiz.data = { ...wiz.data, ...res.data };
+      guardarRascunho("about");
       askAbout();
     });
   })();
@@ -791,6 +866,7 @@ function askAbout(): void {
       onSubmit: (v) => {
         userSay(v);
         wiz.data.aboutStore = v;
+        guardarRascunho("seo");
         clearInput();
         askSeoPreview();
       },
@@ -820,6 +896,8 @@ function askSeoPreview(): void {
     wiz.data.seoTitle = titulo.text;
     wiz.data.seoDescription = descricao.text;
     wiz.data.seoByAi = descricao.byAi && titulo.byAi;
+    // Gravado já: sair agora não obriga a esperar outra vez pela IA.
+    guardarRascunho("seo");
     clearInput();
     showSeoPreview();
   })();
@@ -841,8 +919,9 @@ function showSeoPreview(): void {
       (value, label) => {
         userSay(label);
         clearInput();
-        if (value === "edit") seoEditForm();
-        else askSubdomainRecommend();
+        if (value === "edit") { seoEditForm(); return; }
+        guardarRascunho("subdomain");
+        askSubdomainRecommend();
       },
     );
   })();
@@ -872,6 +951,7 @@ function seoEditForm(): void {
     const d = descEl.value.trim();
     if (t) wiz.data.seoTitle = t;
     if (d) wiz.data.seoDescription = d;
+    guardarRascunho("seo");
     clearInput();
     userSay("Atualizei o título e a descrição.");
     showSeoPreview();
@@ -968,6 +1048,10 @@ function createStore(): void {
       } catch { /* SEO é opcional; não bloquear a criação */ }
     }
 
+    // A loja existe: o rascunho do navegador já não tem nada a salvar, e
+    // deixá-lo faria o próximo «criar loja» oferecer-se para continuar uma loja
+    // que está criada.
+    clearWizardDraft();
     await botSay("Está tudo feito! ✨ A tua loja está criada. Podes vê-la e personalizá-la à vontade — para a pôres online, ativas a subscrição no Dashboard.");
     goToModels();
   })();

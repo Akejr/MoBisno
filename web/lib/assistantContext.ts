@@ -39,7 +39,7 @@ import { COMPANY_DOCUMENTS, VERIFICATION_STATUS_LABEL } from "../../src/services
 import { ACTIVATION_MONTHS, REJECTION_REASON_MIN } from "../../src/services/adminMetrics.js";
 import { DELIVERY_PROVINCE } from "../../src/services/delivery.js";
 import { kzWhole, platformFeeNote } from "../../src/services/seo.js";
-import { PASSWORD_MIN_LENGTH, REGISTER_FIX_LABELS } from "../../src/ui/wizardSteps.js";
+import { PASSWORD_MIN_LENGTH, REGISTER_FIX_LABELS, WIZARD_DRAFT_TTL_DAYS } from "../../src/ui/wizardSteps.js";
 import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../../src/services/phoneVerification.js";
 import { PLATFORM_APEX, STORE_APEX } from "./routing.js";
 
@@ -169,6 +169,8 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Esgotados os dois reenvios aparece «Não recebi o código». Escolhê-lo **não cancela nada**: a conta fica criada, o assistente continua para a loja, e o número confirma-se mais tarde no Dashboard. O que fica por fazer é **publicar** a loja.
 - Se a SMS não puder ser enviada (serviço de SMS em baixo, sem saldo ou por configurar), o assistente di-lo e oferece «Tentar de novo», «Trocar o número» e «Continuar sem confirmar». Nunca fica ninguém preso à espera de uma SMS.
 - Com sessão já iniciada, os passos da conta não aparecem: o assistente começa no telemóvel, se ainda não estiver confirmado, e depois no nome da loja.
+- SAIR A MEIO NÃO PERDE O QUE JÁ FOI ESCRITO. A partir do nome da loja, cada resposta é guardada no próprio navegador. Ao voltar ao assistente, ele diz «Tínhamos ficado a meio da loja «nome». Queres continuar de onde ficaste?», com «Continuar» e «Começar de novo». Continuar retoma na pergunta que faltava, já com o nome, o tipo, o texto sobre o negócio e os textos para o Google — e os textos que a IA escreveu não são gerados outra vez, para não apagar as correções do Dono. O rascunho é daquela conta (outra conta no mesmo computador não o vê), vale ${WIZARD_DRAFT_TTL_DAYS} dias e é apagado quando a loja é criada.
+- Os passos da CONTA não são guardados, de propósito: são três respostas e uma delas é a palavra-passe, que nunca é escrita no navegador. Quem sai antes de a conta existir recomeça pelo nome; a partir daí é a sessão que o traz de volta.
 - LOJA, a seguir à conta: nome da loja, tipo de negócio, a descrição do negócio, o título e a descrição para o Google (gerados por IA, com pré-visualização) e o endereço (subdomínio).
 - O endereço só aceita letras minúsculas, números e hífen, e fica «nomedaloja.${STORE_APEX}». É pedido outro se já estiver ocupado. O prefixo «modelo-» está reservado às lojas de demonstração da MôBisno.
 - A loja nasce como rascunho e o assistente leva logo à galeria de modelos prontos, que é onde se escolhe o aspeto. Publicar exige subscrição ativa.

@@ -66,6 +66,20 @@ export const WIZARD_FIELDS = {
   ownerId: "ownerId",
 } as const;
 
+/**
+ * Dias que um rascunho do Assistente_de_Criação vale.
+ *
+ * O ecrã grava as respostas da loja no navegador para quem sai a meio poder
+ * continuar (`web/lib/wizardDraft.ts`). Passado este prazo o rascunho é
+ * ignorado: ninguém quer retomar uma conversa de há um mês, e oferecer-se para
+ * continuar uma loja que o Dono já esqueceu é pior do que começar.
+ *
+ * Vive aqui, e não no módulo do navegador, porque é uma regra do assistente e
+ * porque é daqui que a orientação do assistente de IA a lê — um número escrito
+ * à mão num texto fica errado no dia em que o prazo mudar.
+ */
+export const WIZARD_DRAFT_TTL_DAYS = 7;
+
 /* -------------------------------------------------------------------------- */
 /*  Tipos de resultado comuns                                                 */
 /* -------------------------------------------------------------------------- */
