@@ -93,7 +93,9 @@ function injectStyle(): void {
     ".mb-chip:hover{transform:translateY(-2px)}" +
     ".mb-cinput{width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:9999px;padding:.8rem 1.1rem;outline:none;transition:border-color .2s,box-shadow .2s;font-size:1rem;color:#111827}" +
     ".mb-cinput:focus{border-color:#F95901;box-shadow:0 0 0 3px rgba(249,89,1,.15)}" +
-    ".mb-chat-root{height:100vh;height:100dvh}" +
+    // Presa ao ecrã, e com a altura da parte VISÍVEL (`fitToViewport`): é o que
+    // impede a página de fugir para cima quando o teclado do telemóvel abre.
+    ".mb-chat-root{position:fixed;top:0;left:0;right:0;height:100vh;height:100dvh}" +
     // O campo do endereço: `[____].sualoja.digital`, só a parte da frente se escreve.
     ".mb-sub-box{display:flex;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:1rem;overflow:hidden;transition:border-color .2s,box-shadow .2s}" +
     ".mb-sub-box:focus-within{border-color:#F95901;box-shadow:0 0 0 3px rgba(249,89,1,.15)}" +
@@ -142,6 +144,58 @@ function renderShell(): void {
     obs.observe(chatEl, { childList: true, subtree: true });
     if (inputEl) obs.observe(inputEl, { childList: true, subtree: true });
   }
+  fitToViewport();
+}
+
+/**
+ * Mantém a conversa do tamanho da parte do ecrã que se vê.
+ *
+ * ## O que acontecia no telemóvel
+ *
+ * A conversa tinha `height: 100dvh`. Quando o teclado abre, o telemóvel **não**
+ * encolhe essa altura (nem o Safari nem o Chrome de Android, por omissão):
+ * encolhe só a parte visível e desloca a página inteira para o campo de escrita
+ * aparecer. O cabeçalho saía por cima, a conversa ficava cortada, e ao fechar o
+ * teclado a página não voltava ao sítio.
+ *
+ * ## O que faz agora
+ *
+ * A conversa está presa ao ecrã (`position: fixed`) e, a cada mudança da parte
+ * visível (`visualViewport`), fica com a altura dela e acompanha-a se o
+ * telemóvel a deslocar. O campo de escrita fica logo acima do teclado e o
+ * cabeçalho não sai do sítio. No Chrome de Android, a meta `viewport` pede
+ * também `interactive-widget=resizes-content` (`web/index.html`), que faz o
+ * próprio navegador encolher a página.
+ *
+ * Os ouvintes saem sozinhos quando a conversa deixa de estar na página, porque
+ * as vistas são trocadas sem aviso (`render`).
+ */
+function fitToViewport(): void {
+  const root = document.querySelector<HTMLElement>(".mb-chat-root");
+  const vv = window.visualViewport;
+  if (!root || !vv) return;
+  const ajustar = (): boolean => {
+    if (!root.isConnected) {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onScroll);
+      return false;
+    }
+    root.style.height = `${Math.round(vv.height)}px`;
+    root.style.transform = vv.offsetTop > 0 ? `translateY(${Math.round(vv.offsetTop)}px)` : "";
+    return true;
+  };
+  // O teclado abriu ou fechou: a última mensagem fica à vista, sem animação.
+  function onResize(): void {
+    if (!ajustar()) return;
+    const c = $("#chat");
+    if (c) c.scrollTop = c.scrollHeight;
+  }
+  // O telemóvel deslocou a parte visível: segui-la, sem mexer na conversa (quem
+  // estava a ler para trás não é atirado para o fim).
+  function onScroll(): void { ajustar(); }
+  vv.addEventListener("resize", onResize);
+  vv.addEventListener("scroll", onScroll);
+  ajustar();
 }
 
 /* ------------------------------- Mensagens ------------------------------- */
