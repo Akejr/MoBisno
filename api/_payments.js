@@ -187,7 +187,12 @@ export async function priceStoreOrder(db, { storeId, lines, area, discountCode }
   return { ok: true, store, payee, lines: priced, subtotal, deliveryFee, discount, discountId, total };
 }
 
-/** Grava a encomenda (estado «aberta») antes de qualquer cobrança. Devolve o id. */
+/**
+ * Grava a encomenda (estado «aberta») antes de qualquer cobrança.
+ *
+ * Devolve `{ ok: true, id }` ou `{ ok: false, cause }` — e não `null`. Uma
+ * coluna que não exista na base de dados tem de dizer qual é.
+ */
 export async function createStoreOrder(db, priced, { method, customer }) {
   const { data, error } = await db.from("orders").insert({
     store_id: priced.store.id,
@@ -203,11 +208,22 @@ export async function createStoreOrder(db, priced, { method, customer }) {
     products: priced.lines,
     customer,
   }).select("id").single();
-  if (error || !data) return null;
-  return data.id;
+  if (error || !data) {
+    console.error("createStoreOrder", dbCause(error));
+    return { ok: false, cause: dbCause(error) };
+  }
+  return { ok: true, id: data.id };
 }
 
-/** Grava o que o fornecedor devolveu ao iniciar o pagamento. */
+/**
+ * Grava o que o fornecedor devolveu ao iniciar o pagamento.
+ *
+ * `provider_ref` é o que liga o aviso do fornecedor a esta linha
+ * (`findByProviderRef`): se esta escrita falhar, um pagamento feito horas
+ * depois nunca é confirmado. Por isso a falha vai para os registos — a cobrança
+ * já foi criada e não se desfaz aqui, mas ninguém tem de a descobrir pelo
+ * cliente a reclamar.
+ */
 export async function saveProviderResult(db, table, id, result) {
   const patch = { provider_ref: result.providerRef || null };
   if (result.referenceInfo) {
@@ -216,7 +232,8 @@ export async function saveProviderResult(db, table, id, result) {
     patch.reference_due_date = result.referenceInfo.dueDate || null;
   }
   if (result.invoiceUrl) patch.invoice_url = result.invoiceUrl;
-  await db.from(table).update(patch).eq("id", id);
+  const { error } = await db.from(table).update(patch).eq("id", id);
+  if (error) console.error("saveProviderResult", table, id, dbCause(error));
 }
 
 /**
@@ -298,21 +315,34 @@ export async function ownerFromRequest(db, req) {
 }
 
 /**
- * Grava o pagamento da subscrição de uma loja (preço do servidor). Devolve
- * `{ id, amount }`. Cada loja tem a sua subscrição (migração 0025).
+ * Grava o pagamento da subscrição de uma loja (preço do servidor). Cada loja
+ * tem a sua subscrição (migração 0025).
+ *
+ * Devolve `{ ok: true, id, amount }` ou `{ ok: false, cause }`.
+ *
+ * ## O que saiu daqui, e porquê
+ *
+ * `period: "mensal"` era escrito em cada pagamento. Vinha de quando havia ciclo
+ * mensal e anual; com um só plano de 30 dias, não distingue nada. Pior: a coluna
+ * não existia na base de dados de produção, o insert falhava, e o endpoint
+ * respondia 500 «não foi possível registar o pagamento» — **nenhum pagamento de
+ * subscrição funcionou até isto ser encontrado**. Um campo que não é lido por
+ * ninguém não vale o risco de ser escrito.
  */
 export async function createPlanPayment(db, ownerId, method, storeId) {
   const { data, error } = await db.from("plan_payments").insert({
     owner_id: ownerId,
     store_id: storeId,
     plan: "pro",
-    period: "mensal",
     amount: PLAN_PRICE_KZ,
     method,
     status: "open",
   }).select("id, amount").single();
-  if (error || !data) return null;
-  return { id: data.id, amount: Number(data.amount) };
+  if (error || !data) {
+    console.error("createPlanPayment", dbCause(error));
+    return { ok: false, cause: dbCause(error) };
+  }
+  return { ok: true, id: data.id, amount: Number(data.amount) };
 }
 
 /**

@@ -328,6 +328,16 @@ export interface StoreStatusInput {
   publish: PublishDecision;
   storeUrl: string;
   previewUrl: string;
+  /**
+   * Loja ainda sem nada: a faixa encolhe e **todas** as ações passam para o
+   * cartão dos passos (`onboardingHtml`).
+   *
+   * Sem isto havia três instruções diferentes no mesmo ecrã — «falta prepará-la»,
+   * «ative a subscrição para publicar» e «comece pelos produtos» — e o elemento
+   * mais vistoso era um botão laranja **desligado**. Um ecrã com uma ação
+   * principal não pode ter essa ação indisponível.
+   */
+  onboarding?: boolean;
 }
 
 /**
@@ -385,6 +395,23 @@ export function storeStatusHtml(o: StoreStatusInput): string {
     : o.publish.allowed
       ? `<button type="button" id="toggle-state" data-next="Publicada" class="${BTN_PRIMARY}">${icon("rocket_launch", "text-[18px]")} Publicar a loja</button>`
       : `<button type="button" disabled aria-describedby="publish-why" class="${BTN_PRIMARY}">${icon("lock", "text-[18px]")} Publicar a loja</button>`;
+
+  /*
+   * Loja sem nada: uma linha e nada mais. O estado, o que isso significa, e o
+   * endereço que abre a pré-visualização. Zero botões — publicar, copiar e
+   * pré-visualizar vivem no cartão dos passos e no cabeçalho, e repeti-los aqui
+   * era o que fazia o ecrã parecer cheio sem dizer mais nada.
+   */
+  if (o.onboarding) {
+    return `<section aria-label="Estado da loja" class="rounded-2xl border border-gray-200 bg-white px-4 py-3 md:px-5 flex items-center gap-3">
+      <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}">${icon("storefront", "text-[20px]")}</span>
+      <div class="min-w-0">
+        <p class="flex items-center gap-2 flex-wrap">${estado}<span class="text-sm text-gray-700">${esc(frase)}</span></p>
+        <a href="${esc(o.previewUrl)}" target="_blank" rel="noopener" class="text-xs font-bold break-all hover:underline" style="color:${ACCENT_INK}">${esc(endereco)}<span class="sr-only"> (pré-visualizar, noutro separador)</span></a>
+      </div>
+    </section>`;
+  }
+
   return `<section aria-label="Estado da loja" class="rounded-2xl border border-gray-200 bg-white px-4 py-3.5 md:px-5 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
     <div class="flex items-center gap-3 min-w-0 flex-1">
       <span class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}">${icon("storefront")}</span>

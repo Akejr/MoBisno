@@ -19,7 +19,7 @@
  * Resposta: { success, kind, id, method, status ("paid" | "open"), amount,
  *             reference?: { entity, number, dueDate }, invoiceUrl? }
  */
-import { admin, readBody, send, missingEnvMessage, providerProducts } from "./_shared.js";
+import { admin, readBody, send, missingEnvMessage, providerProducts, dbCause } from "./_shared.js";
 import { getPaymentProvider, PAYMENTS_UNAVAILABLE } from "./_provider.js";
 import { PLATFORM_APEX, platformOrigin, STORE_APEX } from "./_seo.js";
 import {
@@ -102,7 +102,12 @@ export default async function handler(req, res) {
         return send(res, 404, { success: false, error: "Loja não encontrada.", code: "STORE_NOT_FOUND" });
       }
       const payment = await createPlanPayment(db, ownerId, method, loja.id);
-      if (!payment) return send(res, 500, { success: false, error: "Não foi possível registar o pagamento.", code: "PERSIST_FAILED" });
+      // A causa vai na resposta: «não foi possível» sem ela é indistinguível de
+      // uma migração que falta, e foi o que esteve a esconder uma coluna
+      // inexistente enquanto nenhum pagamento funcionava.
+      if (!payment.ok) {
+        return send(res, 500, { success: false, error: `Não foi possível registar o pagamento: ${payment.cause}`, code: "PERSIST_FAILED" });
+      }
 
       const urls = callbackUrls({
         host, kind, id: payment.id, returnBase: `${platformOrigin(host)}/painel/plano`, storeId: loja.id,
@@ -141,8 +146,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const orderId = await createStoreOrder(db, priced, { method, customer });
-    if (!orderId) return send(res, 500, { success: false, error: "Não foi possível registar a encomenda.", code: "PERSIST_FAILED" });
+    const criada = await createStoreOrder(db, priced, { method, customer });
+    if (!criada.ok) {
+      return send(res, 500, { success: false, error: `Não foi possível registar a encomenda: ${criada.cause}`, code: "PERSIST_FAILED" });
+    }
+    const orderId = criada.id;
 
     const items = [...priced.lines];
     if (priced.deliveryFee > 0) {
@@ -177,7 +185,10 @@ export default async function handler(req, res) {
       reference: r.referenceInfo ?? null, invoiceUrl: r.invoiceUrl ?? null,
     });
   } catch (e) {
+    // Também aqui: a mensagem da excepção é o que distingue um `ReferenceError`
+    // no nosso código de uma falha do fornecedor.
     console.error("payment", e);
-    return send(res, 500, { success: false, error: "Erro interno ao iniciar o pagamento.", code: "INTERNAL" });
+    const detalhe = e instanceof Error ? e.message : String(e);
+    return send(res, 500, { success: false, error: `Erro interno ao iniciar o pagamento: ${detalhe}`, code: "INTERNAL" });
   }
 }

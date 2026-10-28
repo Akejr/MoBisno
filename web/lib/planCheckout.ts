@@ -1,6 +1,17 @@
 /**
- * Checkout da SUBSCRIÇÃO de uma loja (a receita é da plataforma). Abre um modal
- * para o Dono pagar 30 dias por Multicaixa Express ou Referência Bancária.
+ * Checkout da SUBSCRIÇÃO de uma loja (a receita é da plataforma). Um modal com
+ * o preço e o telemóvel, e daí direto para a página de pagamento.
+ *
+ * ## Porque é que já não há aqui escolha de método
+ *
+ * Havia dois cartões, «Multicaixa Express» e «Referência Bancária», e a escolha
+ * não ia a sítio nenhum: `wizaCreateCharge` (`api/_wizapay.js`) **não recebe o
+ * método**. Quem o escolhe é o cliente, na página da Wiza, que mostra sempre os
+ * dois. Pedir a mesma decisão duas vezes, e na primeira sem efeito, é pedir ao
+ * Dono para adivinhar qual delas conta.
+ *
+ * O que fica gravado no momento da cobrança é a **intenção**; o método real
+ * chega com a confirmação do fornecedor.
  *
  * Cada loja tem a sua subscrição (migração 0025): o pagamento leva o `storeId`,
  * e o servidor confirma que a loja é de quem paga. O preço mostrado é só para o
@@ -21,7 +32,12 @@ const ACCENT = "#F95901";
 
 export function openPlanCheckout(opts: { storeId: string; storeName: string; onPaid: () => void }): void {
   const { storeId, storeName, onPaid } = opts;
-  let method: "mcx" | "reference" = "mcx";
+  /**
+   * Intenção registada na cobrança. Não decide o que a Wiza mostra — ela
+   * apresenta sempre os dois métodos — e é substituída pelo método real quando o
+   * pagamento é confirmado.
+   */
+  const method = "mcx" as const;
 
   document.getElementById("mb-plan-checkout")?.remove();
   const host = document.createElement("div");
@@ -51,42 +67,32 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
   }
   overlay.addEventListener("click", close);
 
-  function methodCard(id: "mcx" | "reference", icon: string, title: string, desc: string): string {
-    const active = method === id;
-    return `<button type="button" data-m="${id}" aria-pressed="${active}" class="w-full text-left rounded-xl border-2 p-3 flex items-center gap-3 transition-colors" style="border-color:${active ? ACCENT : "#e5e7eb"}">
-      <span class="material-symbols-outlined" style="color:${ACCENT}" aria-hidden="true">${icon}</span>
-      <span class="flex-1"><span class="block font-bold text-gray-900 text-sm">${esc(title)}</span><span class="block text-xs text-gray-500">${esc(desc)}</span></span>
-      <span class="material-symbols-outlined" style="color:${active ? ACCENT : "#d4d4d8"}" aria-hidden="true">${active ? "radio_button_checked" : "radio_button_unchecked"}</span>
-    </button>`;
-  }
+
 
   function drawForm(): void {
     card.innerHTML = `
-      <div class="flex items-center justify-between mb-1">
-        <h3 class="text-lg font-black text-gray-900">Subscrição da loja</h3>
-        <button data-close type="button" aria-label="Fechar" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button>
+      <div class="flex items-start justify-between gap-3">
+        <h3 class="text-lg font-black text-gray-900">Ativar a subscrição</h3>
+        <button data-close type="button" aria-label="Fechar" class="text-gray-400 hover:text-gray-700 shrink-0"><span class="material-symbols-outlined">close</span></button>
       </div>
-      <p class="text-gray-500 text-sm mb-4"><b class="text-gray-900">${esc(storeName)}</b>: <b style="color:${ACCENT}">${esc(formatKz(PLAN_PRICE_KZ))}</b> por ${PLAN_PERIOD_DAYS} dias, com tudo incluído.</p>
-      <div class="space-y-2 mb-4">
-        ${methodCard("mcx", "smartphone", "Multicaixa Express", "Ativação imediata.")}
-        ${methodCard("reference", "receipt_long", "Referência Bancária", "Pague no ATM ou no Internet Banking.")}
+      <p class="mt-0.5 text-sm text-gray-600">Loja <strong class="text-gray-900">${esc(storeName)}</strong></p>
+      <div class="mt-4 flex items-baseline justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+        <span class="text-sm text-gray-600">${PLAN_PERIOD_DAYS} dias, com tudo incluído</span>
+        <strong class="text-xl font-black tracking-tight" style="color:${ACCENT}">${esc(formatKz(PLAN_PRICE_KZ))}</strong>
       </div>
-      <label class="block mb-4" data-phone-wrap>
+      <label class="block mt-4">
         <span class="text-sm font-semibold text-gray-700">Telemóvel</span>
-        <input id="plan-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXX" class="mt-1 w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-base outline-none focus:border-[#F95901]" />
+        <input id="plan-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="9XX XXX XXX" class="mt-1.5 w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-base outline-none focus:border-[#F95901] focus:ring-2 focus:ring-[#F95901]/20" />
+        <span class="mt-1.5 block text-xs text-gray-500">É por este número que o pagamento é identificado.</span>
       </label>
-      <button id="plan-pay" type="button" class="w-full py-3 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]" aria-hidden="true">bolt</span> Pagar e ativar</button>`;
+      <button id="plan-pay" type="button" class="mt-5 w-full py-3 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2" style="background:${ACCENT}">Continuar para o pagamento <span class="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_forward</span></button>
+      <p class="mt-3 text-center text-xs text-gray-500">Abre a página de pagamento, onde escolhe Multicaixa Express ou Referência Bancária.</p>`;
     bindForm();
   }
 
   function bindForm(): void {
     card.querySelector("[data-close]")?.addEventListener("click", close);
-    card.querySelectorAll<HTMLElement>("[data-m]").forEach((b) =>
-      b.addEventListener("click", () => { method = b.dataset.m as "mcx" | "reference"; drawForm(); }));
-    // O telemóvel é sempre pedido (ver `pay`): o fornecedor identifica o pagador
-    // por ele ao criar a cobrança, antes de o método ser escolhido.
-    const wrap = card.querySelector<HTMLElement>("[data-phone-wrap]");
-    if (wrap) wrap.style.display = "block";
+    (card.querySelector("#plan-phone") as HTMLInputElement | null)?.focus();
     card.querySelector("#plan-pay")?.addEventListener("click", () => void pay());
   }
 
@@ -101,7 +107,7 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
     const res = await initPayment({ kind: "plan", method, phone, storeId });
 
     if (!res.success || !res.id) {
-      if (btn) { btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = `<span class="material-symbols-outlined text-[20px]" aria-hidden="true">bolt</span> Pagar e ativar`; }
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = `Continuar para o pagamento <span class="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_forward</span>`; }
       toast(res.error || "Não foi possível processar o pagamento.", "error");
       return;
     }

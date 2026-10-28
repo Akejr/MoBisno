@@ -28,7 +28,7 @@
  * num ecrã à espera de uma SMS que não vai chegar.
  */
 import { createHash, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
-import { admin, missingEnvMessage, readBody, send } from "./_shared.js";
+import { admin, missingEnvMessage, readBody, send, dbCause } from "./_shared.js";
 import { sendPhoneCode } from "./_nsangu.js";
 
 /* ----------------------- Espelho de phoneVerification.ts ----------------------- */
@@ -56,17 +56,10 @@ const MAX_SENDS_PER_HOUR_GLOBAL = 120;
 /* --------------------------------- Auxiliares --------------------------------- */
 
 /**
- * Causa de um erro da base de dados, curta e sem dados de ninguém.
- *
- * Vai na resposta de propósito, pelo mesmo motivo de `readOrThrow`
- * (`src/services/dbErrors.ts`): «não foi possível» sem a causa é indistinguível
- * de uma migração que falta, e foi exactamente isso que custou uma ronda de
- * perguntas quando este endpoint respondeu 500 pela primeira vez.
+ * Causa de um erro da base de dados. Uma definição só, em `api/_shared.js`,
+ * partilhada com os pagamentos: a mesma falha tem de dar a mesma frase.
  */
-function causa(error) {
-  const texto = error?.message ? String(error.message) : "erro na base de dados";
-  return error?.code ? `${texto} (${error.code})` : texto;
-}
+const causa = dbCause;
 
 /** Telemóvel angolano normalizado (`2449XXXXXXXX`), ou `""`. Espelha `normalizeAoPhone`. */
 function aoPhone(raw) {

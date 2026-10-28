@@ -833,6 +833,26 @@ describe("Orientação dos ecrãs «Plano» e «Configurações»", () => {
     expect(guia).toMatch(/Não há escalões nem ciclo anual/);
     expect(guia).toContain("A subscrição desta loja");
     expect(readFileSync(join(ROOT, "web/views/dashboard/markup.ts"), "utf8")).toContain("A subscrição desta loja");
+  });
+
+  it("diz que o método se escolhe na página do fornecedor, não na janela do painel", () => {
+    /*
+     * A janela tinha dois cartões, «Multicaixa Express» e «Referência
+     * Bancária», e a escolha não ia a sítio nenhum: `wizaCreateCharge` não
+     * recebe o método, e a página do fornecedor mostra sempre os dois. Pedir a
+     * mesma decisão duas vezes, e na primeira sem efeito, era pedir ao Dono
+     * para adivinhar qual contava.
+     */
+    const guia = resolver(guiaDe("plano"));
+    expect(guia).toMatch(/é feita lá/);
+    expect(guia).toContain("Continuar para o pagamento");
+    const CHECKOUT = readFileSync(join(ROOT, "web/lib/planCheckout.ts"), "utf8");
+    expect(CHECKOUT).toContain("Continuar para o pagamento");
+    expect(CHECKOUT, "a janela voltou a escolher o método").not.toContain("methodCard");
+    expect(CHECKOUT).not.toContain("data-m=");
+    // E o fornecedor continua a não receber método nenhum.
+    expect(readFileSync(join(ROOT, "api/_wizapay.js"), "utf8"))
+      .toMatch(/export async function wizaCreateCharge\(\{ amountKz, referenceId, phone/);
     for (const estado of ["Ativa até", "Inativa", "Caducada", "Conta de administração"]) {
       expect(guia, `estado ausente: ${estado}`).toContain(estado);
     }

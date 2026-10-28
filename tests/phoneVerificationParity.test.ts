@@ -226,8 +226,10 @@ describe("Falhar sem prender ninguém", () => {
   });
 
   it("uma falha da base de dados diz a causa, em vez de «não foi possível»", () => {
-    expect(ENDPOINT).toContain("function causa(error)");
-    expect(ENDPOINT).toContain("error?.code");
+    // Uma definição só, em `api/_shared.js`, partilhada com os pagamentos: a
+    // mesma falha tem de dar a mesma frase nos dois sítios.
+    expect(ENDPOINT).toContain("const causa = dbCause;");
+    expect(readFileSync(join(ROOT, "api/_shared.js"), "utf8")).toContain("export function dbCause(error)");
     const quantas = [...ENDPOINT.matchAll(/causa\(error\)/g)].length;
     expect(quantas, "há falhas de gravação sem causa na resposta").toBeGreaterThanOrEqual(4);
   });

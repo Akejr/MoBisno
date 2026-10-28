@@ -75,11 +75,13 @@ export async function renderInicio(ctx: DashCtx): Promise<void> {
   const pintado = ctx.paint(`
     <section class="mb-5">
       <h2 class="text-2xl md:text-3xl font-black tracking-tight text-gray-900 break-words">Olá, ${esc(primeiroNome)}</h2>
-      <p class="mt-1 text-gray-600">${semNada
-        ? `A sua loja <strong class="text-gray-900">${esc(store.name)}</strong> está criada. Falta prepará-la.`
-        : `O resumo da loja <strong class="text-gray-900">${esc(store.name)}</strong>.`}</p>
+      ${semNada
+        // O nome da loja e o que falta fazer já são o título do cartão abaixo:
+        // repeti-los aqui dava três instruções no mesmo ecrã.
+        ? ""
+        : `<p class="mt-1 text-gray-600">O resumo da loja <strong class="text-gray-900">${esc(store.name)}</strong>.</p>`}
     </section>
-    ${storeStatusHtml({ state: store.state, billing, publish: publicar, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })}
+    ${storeStatusHtml({ state: store.state, billing, publish: publicar, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl, onboarding: semNada })}
     ${ctx.phoneVerified ? "" : `<div class="mt-6">${phoneNoticeHtml({ phone: ctx.phone })}</div>`}
     ${semNada
       ? `<div class="mt-6">${onboardingHtml({ storeName: store.name, steps: passos })}</div>`

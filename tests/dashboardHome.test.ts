@@ -50,7 +50,10 @@ interface Venda {
   customer: { name?: string; phone?: string; nif?: string } | null; products: unknown[]; createdAt: string; paidAt: string | null;
 }
 interface Markup {
-  storeStatusHtml(o: { state: "Publicada" | "Rascunho"; billing: BillingState; publish: PublishDecision; storeUrl: string; previewUrl: string }): string;
+  storeStatusHtml(o: {
+    state: "Publicada" | "Rascunho"; billing: BillingState; publish: PublishDecision;
+    storeUrl: string; previewUrl: string; onboarding?: boolean;
+  }): string;
   phoneNoticeHtml(o: { phone: string | null }): string;
   onboardingHtml(o: { storeName: string; steps: readonly Passo[] }): string;
   funnelHtml(c: Funil): string;
@@ -94,7 +97,7 @@ const semNada = {
 
 describe("Início — estado da loja, encomendas, próximos passos e funil", () => {
   it("pinta a faixa e os cartões a partir das funções do markup e de vendas.ts", () => {
-    expect(INICIO).toContain("storeStatusHtml({ state: store.state, billing, publish: publicar, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl })");
+    expect(INICIO).toContain("storeStatusHtml({ state: store.state, billing, publish: publicar, storeUrl: ctx.storeUrl, previewUrl: ctx.previewUrl, onboarding: semNada })");
     expect(INICIO).toContain("vendasHtml(vendas)");
     expect(INICIO).toContain("ligarVendas(ctx, vendas, () => renderInicio(ctx));");
     expect(INICIO).toContain("funnelHtml({ visits: analytics.visits30, views: analytics.views30, carts: analytics.carts30, whatsapp: analytics.whatsapp30 })");
@@ -315,6 +318,43 @@ describe("Loja recém-criada — um cartão com os passos, não três cartões v
   it("diz onde as encomendas vão aparecer, para o ecrã vazio não parecer o ecrã final", () => {
     const html = M.onboardingHtml({ storeName: "Kitanda", steps: M.nextSteps(semNada) });
     expect(html).toMatch(/As encomendas e as vendas aparecem aqui/);
+  });
+
+  it("a faixa de estado encolhe: uma linha, sem botões e sem um «Publicar» desligado", () => {
+    /*
+     * O que o Dono reportou como confuso. No mesmo ecrã havia três instruções
+     * diferentes — «falta prepará-la», «ative a subscrição para publicar» e
+     * «comece pelos produtos» — e o elemento mais vistoso era um botão laranja
+     * **desligado**. Um ecrã com uma ação principal não pode ter essa ação
+     * indisponível, e «Pré-visualizar» aparecia duas vezes (cabeçalho e faixa).
+     */
+    const faixa = M.storeStatusHtml({
+      state: "Rascunho", billing: inativa, publish: SEM_PLANO,
+      storeUrl: URL_LOJA, previewUrl: PREVIA, onboarding: true,
+    });
+    expect(faixa).toContain("Rascunho");
+    expect(faixa).toContain("Ainda só você a vê");
+    expect(faixa).toContain(`href="${PREVIA}"`);
+    // Zero botões: publicar, copiar e pré-visualizar vivem no cartão e no cabeçalho.
+    expect(faixa).not.toContain("<button");
+    expect(faixa).not.toContain("Publicar a loja");
+    expect(faixa).not.toContain('id="copy-url"');
+    expect(faixa).not.toContain("Ative a subscrição para publicar");
+  });
+
+  it("fora do arranque, a faixa continua a ser a faixa completa", () => {
+    const faixa = M.storeStatusHtml({
+      state: "Rascunho", billing: ativa, publish: PODE, storeUrl: URL_LOJA, previewUrl: PREVIA,
+    });
+    expect(faixa).toContain('id="toggle-state"');
+    expect(faixa).toContain('id="copy-url"');
+  });
+
+  it("no arranque, a saudação não repete o que o cartão já diz", () => {
+    // Três títulos antes do primeiro conteúdo era o que tornava o ecrã confuso.
+    const bloco = INICIO.slice(INICIO.indexOf('<h2 class="text-2xl'), INICIO.indexOf("</section>"));
+    expect(bloco).toContain("semNada");
+    expect(bloco).not.toContain("Falta prepará-la");
   });
 
   it("nada deste desenho mostra «undefined», «NaN» ou «[object Object]»", () => {

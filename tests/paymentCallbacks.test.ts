@@ -68,10 +68,15 @@ vi.mock("../api/_shared.js", async (importOriginal) => ({
   }),
 }));
 
+/** Gravação do pagamento: por omissão corre bem; um teste troca-a por uma falha. */
+const gravacao = vi.hoisted(() => ({
+  resultado: { ok: true, id: "", amount: 10_000 } as { ok: boolean; id?: string; amount?: number; cause?: string },
+}));
+
 vi.mock("../api/_payments.js", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ownerFromRequest: async () => DONO,
-  createPlanPayment: async () => ({ id: PAGAMENTO, amount: 10_000 }),
+  createPlanPayment: async () => gravacao.resultado,
   saveProviderResult: async () => undefined,
   markNotPaid: async () => undefined,
 }));
@@ -104,6 +109,7 @@ function pedidoPlano(host = "mobisno.store") {
 
 beforeEach(() => {
   recebido.ultimo = null;
+  gravacao.resultado = { ok: true, id: PAGAMENTO, amount: 10_000 };
 });
 
 afterAll(() => {
@@ -180,5 +186,39 @@ describe("Pagar a subscrição — a cobrança é criada e devolve a página de 
     await payment({ ...pedidoPlano(), body: { kind: "plan", method: "mcx", phone: "123", storeId: LOJA } }, res);
     expect(res.statusCode).toBe(400);
     expect(res.body).toMatchObject({ code: "MISSING_PHONE" });
+  });
+
+  it("uma gravação falhada diz a CAUSA, e não cobra nada", async () => {
+    /*
+     * O segundo 500 dos pagamentos: `createPlanPayment` escrevia a coluna
+     * `period`, que não existe na base de dados de produção. O insert falhava, a
+     * função devolvia `null`, e a resposta era «não foi possível registar o
+     * pagamento» — indistinguível de uma migração que falta. Foram precisas
+     * duas rondas de perguntas para encontrar o nome de uma coluna que o
+     * Postgres já tinha dito.
+     */
+    gravacao.resultado = { ok: false, cause: 'column plan_payments.period does not exist (42703)' };
+    const res = resposta();
+    await payment(pedidoPlano(), res);
+    expect(res.statusCode).toBe(500);
+    expect(res.body).toMatchObject({ success: false, code: "PERSIST_FAILED" });
+    expect(String(res.body?.error)).toContain("plan_payments.period");
+    expect(String(res.body?.error)).toContain("42703");
+    // E não se pede cobrança nenhuma de um pagamento que não ficou gravado.
+    expect(recebido.ultimo, "cobrou sem ter gravado o pagamento").toBeNull();
+  });
+
+  it("o `period` saiu do insert: com um só plano não distingue nada", async () => {
+    // A coluna vinha de quando havia ciclo mensal e anual. Escrever um campo
+    // que ninguém lê não vale o risco de ele não existir.
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const fonte = readFileSync(join(__dirname, "..", "api/_payments.js"), "utf8");
+    const fn = fonte.slice(fonte.indexOf("export async function createPlanPayment("));
+    const corpo = fn.slice(0, fn.indexOf("\n}"));
+    expect(corpo).not.toContain("period");
+    // E a falha devolve a causa, em vez de `null`.
+    expect(corpo).toContain("dbCause(error)");
+    expect(corpo).toContain("ok: false");
   });
 });

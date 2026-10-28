@@ -138,6 +138,21 @@ export async function readBody(req) {
   });
 }
 
+/**
+ * Causa de um erro da base de dados, curta e sem dados de ninguém.
+ *
+ * Existe porque o contrário já custou três diagnósticos às cegas. Um
+ * `if (error) return null` transforma «a coluna `period` não existe» em «não foi
+ * possível registar o pagamento», e a diferença entre as duas é uma tarde.
+ *
+ * O código do Postgres (`42703`, `23503`) é o que identifica a falha sem
+ * ambiguidade; a mensagem diz logo o nome da coluna ou da restrição.
+ */
+export function dbCause(error) {
+  const texto = error?.message ? String(error.message) : "erro na base de dados";
+  return error?.code ? `${texto} (${error.code})` : texto;
+}
+
 export function send(res, code, obj) {
   res.status(code).json(obj);
 }
