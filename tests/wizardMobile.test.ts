@@ -25,7 +25,10 @@ describe("Conversa de criação no telemóvel — o teclado não desloca a pági
   it("acompanha a parte visível do ecrã: altura e deslocação", () => {
     const i = WIZARD.indexOf("function fitToViewport(");
     expect(i, "fitToViewport não existe").toBeGreaterThan(0);
-    const corpo = WIZARD.slice(i, WIZARD.indexOf("\n}\n", i) + 2);
+    // O ficheiro tem fins de linha CRLF: o fecho da função procura-se com `\r?`.
+    const fim = WIZARD.slice(i).search(/\r?\n\}\r?\n/);
+    expect(fim, "fim de fitToViewport não encontrado").toBeGreaterThan(0);
+    const corpo = WIZARD.slice(i, i + fim);
     expect(corpo).toContain("window.visualViewport");
     expect(corpo).toContain('vv.addEventListener("resize"');
     expect(corpo).toContain('vv.addEventListener("scroll"');
