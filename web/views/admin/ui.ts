@@ -215,10 +215,17 @@ export function statCard(label: string, value: string, hint?: string): string {
   </div>`;
 }
 
-/** Ligação para a loja publicada, num novo separador. */
+/**
+ * Ligação para a loja publicada, num novo separador.
+ *
+ * Corta com reticências quando não cabe, e o ícone fica sempre à vista. Tinha
+ * `break-all`, que numa coluna estreita partia o endereço letra a letra; o
+ * endereço inteiro está no `title`.
+ */
 export function storeLink(identifier: string): string {
   if (!identifier) return `<span class="text-sm text-gray-600">Sem endereço</span>`;
-  return `<a href="${esc(publicStoreUrl(identifier))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-sm text-orange-700 hover:underline break-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] rounded">${esc(identifier)}.${esc(STORE_APEX)}${icon("open_in_new", "text-[14px]")}<span class="sr-only"> (abre num novo separador)</span></a>`;
+  const endereco = `${identifier}.${STORE_APEX}`;
+  return `<a href="${esc(publicStoreUrl(identifier))}" target="_blank" rel="noopener noreferrer" title="${esc(endereco)}" class="inline-flex min-w-0 max-w-full items-center gap-1 rounded text-sm text-orange-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]"><span class="truncate">${esc(endereco)}</span>${icon("open_in_new", "text-[14px] shrink-0")}<span class="sr-only"> (abre num novo separador)</span></a>`;
 }
 
 /* --------------------------------- Pesquisa e filtros --------------------------------- */

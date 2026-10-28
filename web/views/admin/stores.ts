@@ -94,22 +94,33 @@ function storeRow(s: AdminStore): string {
   const subscricao = s.isModel || s.ownerIsAdmin ? "" : `
         <button type="button" data-act="activate" data-id="${esc(s.id)}" aria-label="${ativa ? "Prolongar" : "Ativar"} a subscrição da loja ${esc(name)}" class="${btnClass(ativa ? "secondary" : "primary", "sm")}">${icon(ativa ? "more_time" : "check_circle")} ${ativa ? "Prolongar" : "Ativar"}</button>
         ${ativa ? `<button type="button" data-act="deactivate" data-id="${esc(s.id)}" aria-label="Desativar a subscrição da loja ${esc(name)}" class="${btnClass("dangerOutline", "sm")}">Desativar</button>` : ""}`;
-  return `<li class="px-4 py-3">
-    <div class="flex flex-col gap-3 md:flex-row md:items-center">
+  /*
+   * Dois blocos, e não três colunas lado a lado. Em três colunas, os selos e os
+   * seis botões ficavam com a largura que queriam e a coluna do nome encolhia
+   * até ao mínimo: «dotangola.sualoja.digital» partia letra a letra numa coluna
+   * de quatro caracteres, e o email do Dono também. Agora o nome, o endereço e
+   * o Dono ocupam a linha toda e cortam com reticências quando não cabem (o
+   * texto inteiro fica no `title`); os selos vão por baixo deles, e as ações só
+   * passam para o lado em ecrãs largos, onde há espaço para as duas coisas.
+   */
+  return `<li class="px-4 py-3.5">
+    <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-6">
       <div class="min-w-0 flex-1">
-        <p class="flex flex-wrap items-center gap-2">
-          <span class="font-semibold text-gray-900 break-words">${esc(name)}</span>
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="truncate font-semibold text-gray-900" title="${esc(name)}">${esc(name)}</span>
           ${s.isModel ? pill("Loja-modelo", "orange", "dashboard_customize") : ""}
-        </p>
-        ${storeLink(s.identifier)}
-        <p class="text-sm text-gray-600 break-all">${esc(owner)}</p>
+        </div>
+        <div class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+          ${storeLink(s.identifier)}
+          <span class="min-w-0 max-w-full truncate text-sm text-gray-600" title="${esc(owner)}">${esc(owner)}</span>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+          ${statePill(st)}
+          ${s.isModel ? "" : planPill(plano)}
+          ${s.digitalPayments ? pill("Pagamentos digitais", "blue", "bolt") : ""}
+        </div>
       </div>
-      <div class="flex flex-wrap items-center gap-1.5">
-        ${statePill(st)}
-        ${s.isModel ? "" : planPill(plano)}
-        ${s.digitalPayments ? pill("Pagamentos digitais", "blue", "bolt") : ""}
-      </div>
-      <div class="flex flex-wrap items-center gap-2">${subscricao}
+      <div class="flex flex-wrap items-center gap-2 xl:shrink-0 xl:justify-end">${subscricao}
         <button type="button" data-act="edit" data-id="${esc(s.id)}" aria-label="Editar a loja ${esc(name)}" class="${btnClass("secondary", "sm")}">${icon("palette")} Editar</button>
         <button type="button" data-act="state" data-id="${esc(s.id)}" aria-label="${published ? "Despublicar" : "Publicar"} a loja ${esc(name)}" class="${btnClass("secondary", "sm")}">${icon(published ? "visibility_off" : "public")} ${published ? "Despublicar" : "Publicar"}</button>
         ${s.isModel
