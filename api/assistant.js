@@ -15,6 +15,7 @@
  * chegam no corpo do pedido, em `context` (`web/lib/assistantContext.ts`).
  */
 import { aiChat, aiConfigured } from "./_openrouter.js";
+import { allowedOrigin, rateLimited } from "./_http.js";
 
 const STYLE_RULES = `ESTILO DAS RESPOSTAS:
 - Sê CURTO e direto. Perguntas simples → 1 a 2 frases, sem listas.
@@ -114,50 +115,13 @@ REGRAS:
 
 const PROMPTS = { editor: SYSTEM_EDITOR, site: SYSTEM_SITE, seo: SYSTEM_SEO, seotitle: SYSTEM_SEOTITLE };
 
-/**
- * Origens que podem usar o assistente. O endpoint não exige sessão (o visitante
- * da página inicial também pergunta), por isso é a origem que impede outro site
- * de o usar com a nossa chave do OpenRouter. Não trava um `curl` — é por isso
- * que há também o limite de pedidos abaixo.
- */
-function allowedOrigin(req) {
-  const origin = String(req.headers?.origin || req.headers?.referer || "");
-  if (!origin) return true; // pedidos do mesmo site nem sempre trazem a origem
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    if (host === "mobisno.store" || host.endsWith(".mobisno.store")) return true;
-    if (host === "localhost" || host === "127.0.0.1") return true;
-    // As pré-visualizações da Vercel: só os URLs DESTE projeto, que a Vercel
-    // expõe nas variáveis de sistema — não qualquer `*.vercel.app`, que
-    // qualquer pessoa pode criar.
-    const own = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]
-      .filter(Boolean)
-      .map((h) => String(h).toLowerCase());
-    return own.includes(host);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Limite de pedidos por IP, por instância: 30 pedidos em 10 minutos.
+/*
+ * A origem e o limite por IP vivem em `api/_http.js`.
  *
- * É uma rede de segurança, não uma garantia — cada instância da função tem o seu
- * contador. Trava o abuso mais simples (um ciclo a disparar pedidos) sem precisar
- * de uma base de dados.
+ * Este foi o primeiro endpoint sem sessão e deixou de ser o único:
+ * `api/email-check.js` precisa das mesmas duas guardas. Duas cópias de uma regra
+ * de segurança acabam sempre com uma delas a ficar para trás.
  */
-const LIMIT = 30;
-const WINDOW_MS = 10 * 60 * 1000;
-const hits = new Map();
-function rateLimited(req) {
-  const ip = String(req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || "?").split(",")[0].trim();
-  const now = Date.now();
-  const list = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
-  list.push(now);
-  hits.set(ip, list);
-  if (hits.size > 5000) hits.clear();
-  return list.length > LIMIT;
-}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

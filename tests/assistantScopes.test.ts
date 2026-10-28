@@ -190,10 +190,20 @@ describe("Endpoint do assistente — protegido e sem fugas", () => {
   });
 
   it("as pré-visualizações aceitas são as deste projeto, não qualquer *.vercel.app", () => {
-    // `host.endsWith(".vercel.app")` deixava qualquer pessoa criar um site que
-    // passava a guarda.
-    expect(ASSISTANT).not.toContain('endsWith(".vercel.app")');
-    expect(ASSISTANT).toContain("process.env.VERCEL_URL");
+    /*
+     * `host.endsWith(".vercel.app")` deixava qualquer pessoa criar um site que
+     * passava a guarda.
+     *
+     * As duas guardas saíram para `api/_http.js` quando o segundo endpoint sem
+     * sessão (`api/email-check.js`) passou a precisar delas — é lá que a
+     * asserção tem de olhar, senão fica a verificar um ficheiro que já não tem
+     * a regra.
+     */
+    const HTTP = readFileSync(join(ROOT, "api/_http.js"), "utf8");
+    expect(HTTP).not.toContain('endsWith(".vercel.app")');
+    expect(HTTP).toContain("process.env.VERCEL_URL");
+    expect(ASSISTANT).not.toContain("function allowedOrigin(");
+    expect(ASSISTANT).toContain('from "./_http.js"');
   });
 
   it("o erro do fornecedor fica no registo do servidor, não na resposta", () => {
@@ -1050,6 +1060,47 @@ describe("Orientação do ecrã «Assistente_de_Criação» — a conta como o e
   });
 });
 
+describe("Orientação do ecrã «Assistente_de_Criação» — o email é verificado logo", () => {
+  /*
+   * «Já existe uma conta associada a este email» só aparecia no fim: depois do
+   * nome, do email, da palavra-passe escrita duas vezes e do resumo confirmado.
+   * Aconteceu com um email real e a pessoa teve de voltar atrás com tudo escrito.
+   */
+  const guia = resolver(guiaDe("criar"));
+  const WIZARD = readFileSync(join(ROOT, "web/views/wizard.ts"), "utf8");
+
+  it("a orientação diz que o email é verificado no passo do email", () => {
+    expect(guia).toMatch(/verificado \*\*no próprio passo do email\*\*/);
+    expect(guia).toContain("Já existe uma conta com este email");
+    expect(guia).toContain(REGISTER_FIX_LABELS.entrar);
+    expect(guia).toContain(REGISTER_FIX_LABELS.email);
+  });
+
+  it("o ecrã verifica no passo do email, e o registo continua a ser a última palavra", () => {
+    const i = WIZARD.indexOf("function askEmail(");
+    expect(i, "askEmail não encontrada").toBeGreaterThan(0);
+    const corpo = WIZARD.slice(i, WIZARD.indexOf("\n}", i));
+    expect(corpo).toContain("emailTaken(");
+    // `null` (não foi possível verificar) **não** trava ninguém: só `true` para.
+    expect(corpo).toContain("ocupado === true");
+    expect(WIZARD).toContain("function emailJaTemConta(");
+    // A guarda do fim fica: uma conta criada entre os dois momentos cai lá.
+    expect(WIZARD).toContain("offerRegisterFix(res.error)");
+  });
+
+  it("a verificação lê as identidades, não os perfis", () => {
+    // Um email pode estar ocupado por uma identidade sem perfil — foi esse o
+    // caso real. `select` em `profiles` dizia «livre» e o registo falhava.
+    const API = readFileSync(join(ROOT, "api/email-check.js"), "utf8");
+    expect(API).toContain("auth.admin.listUsers(");
+    expect(API, "não pode decidir por `profiles`").not.toContain('from("profiles")');
+    // Pública por necessidade (é usada antes de haver sessão), logo com as duas
+    // guardas das funções públicas.
+    expect(API).toContain("allowedOrigin(req)");
+    expect(API).toContain("rateLimited(req");
+  });
+});
+
 describe("Orientação do ecrã «Assistente_de_Criação» — o código por SMS", () => {
   /**
    * O passo novo é o que mais perguntas vai gerar («não me chegou a SMS»), e é
@@ -1175,6 +1226,27 @@ describe("Orientação do ecrã «Administração» — eliminar uma conta liber
     const PAINEL = readFileSync(join(ROOT, "web/views/admin/accounts.ts"), "utf8");
     expect(PAINEL, "o cartão dos emails presos não existe no ecrã").toContain("Libertar o email");
     expect(PAINEL).toContain("listOrphanAccounts");
+  });
+
+  it("a verificação diz sempre o que encontrou, mesmo quando falha", () => {
+    /*
+     * Da primeira vez que isto correu em produção o cartão não apareceu, e não
+     * havia forma de saber se não havia emails presos ou se a verificação tinha
+     * falhado: as duas desenhavam a mesma coisa, nada. Um Dono ficou com um
+     * email bloqueado e nós sem diagnóstico.
+     */
+    expect(guia).toMatch(/diz \*\*sempre\*\* o que a verificação encontrou/);
+    expect(guia).toContain("Verificar de novo");
+    const PAINEL = readFileSync(join(ROOT, "web/views/admin/accounts.ts"), "utf8");
+    expect(PAINEL).toContain("Não foi possível verificar os emails presos");
+    expect(PAINEL).toContain("Nenhum email preso");
+    expect(PAINEL).toContain('data-act="recheck"');
+    // E a origem dos dados não pode voltar a engolir a falha.
+    const DADOS = readFileSync(join(ROOT, "web/supabase/admin.ts"), "utf8");
+    const i = DADOS.indexOf("export async function listOrphanAccounts(");
+    const corpo = DADOS.slice(i, DADOS.indexOf("\n}", i));
+    expect(corpo).toContain("ok: false");
+    expect(corpo, "uma falha voltou a devolver lista vazia").not.toMatch(/return \[\];/);
   });
 
   it("a eliminação passa pelo servidor, com a service role", () => {

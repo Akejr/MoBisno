@@ -444,21 +444,39 @@ export interface OrphanAccount {
   createdAt: string | null;
 }
 
+/** Resultado da verificação dos emails presos: a lista, ou a causa da falha. */
+export type OrphanResult =
+  | { ok: true; list: OrphanAccount[]; checked: number }
+  | { ok: false; message: string };
+
 /**
  * Os emails presos: contas sem perfil que continuam a ocupar o email.
  *
- * São o rasto das eliminações feitas antes de `api/admin-account.js` existir.
- * Uma falha devolve lista vazia de propósito: isto é um aviso dentro do painel,
- * não uma razão para o ecrã das contas não abrir.
+ * São o rasto das eliminações feitas antes de `api/admin-account.js` apagar as
+ * três camadas.
+ *
+ * ## Porque é que uma falha não devolve lista vazia
+ *
+ * Devolvia. E a primeira vez que isto correu em produção o cartão não apareceu,
+ * sem forma de saber se **não havia** emails presos ou se a verificação tinha
+ * **falhado** — duas situações opostas a desenhar a mesma coisa: nada. Agora a
+ * causa vem na resposta, e `checked` diz quantas identidades foram lidas.
  */
-export async function listOrphanAccounts(): Promise<OrphanAccount[]> {
+export async function listOrphanAccounts(): Promise<OrphanResult> {
   try {
     const r = await fetch("/api/admin-account", { headers: await authHeader() });
-    if (!r.ok) return [];
-    const body = (await r.json()) as { orphans?: OrphanAccount[] };
-    return Array.isArray(body.orphans) ? body.orphans : [];
+    const body = (await r.json().catch(() => null)) as
+      { ok?: boolean; error?: string; orphans?: OrphanAccount[]; checked?: number } | null;
+    if (!r.ok || body?.ok !== true) {
+      return { ok: false, message: body?.error || `O servidor respondeu ${r.status}.` };
+    }
+    return {
+      ok: true,
+      list: Array.isArray(body.orphans) ? body.orphans : [],
+      checked: Number.isFinite(body.checked) ? Number(body.checked) : 0,
+    };
   } catch {
-    return [];
+    return { ok: false, message: "Não foi possível falar com o servidor." };
   }
 }
 

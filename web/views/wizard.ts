@@ -45,6 +45,7 @@ import {
 } from "../../src/ui/wizardSteps.js";
 import { getCustomization, saveCustomization } from "../supabase/customization.js";
 import { confirmPhoneCode, readPhoneStatus, requestPhoneCode } from "../supabase/phone.js";
+import { emailTaken } from "../supabase/auth.js";
 import { isValidAoPhone, normalizeAoPhone } from "../../src/services/payments.js";
 import {
   PHONE_CODE_LENGTH, cleanPhoneCode, formatPhoneForDisplay,
@@ -425,7 +426,21 @@ function askName(next: () => void = askEmail, intro?: string): void {
   })();
 }
 
-/** Pergunta o email, com a mesma validação de formato de sempre (`EMAIL_RE`). */
+/**
+ * Pergunta o email, valida o formato (`EMAIL_RE`) e **verifica logo** se já tem
+ * conta.
+ *
+ * ## Porque é que a verificação é aqui
+ *
+ * Era no fim. Quem escrevia um email que já tinha conta passava pelo nome, pela
+ * palavra-passe, pela confirmação da palavra-passe e pelo resumo — e só então
+ * ouvia «já existe uma conta associada a este email». O percurso inteiro para
+ * nada, e com a palavra-passe escrita duas vezes.
+ *
+ * A verificação falha para o lado de **seguir** (`null` quando não foi possível
+ * verificar): a última palavra continua a ser o registo, que recusa com
+ * `EMAIL_JA_REGISTADO`. Uma conta criada entre os dois momentos também cai lá.
+ */
 function askEmail(next: () => void = askPassword, intro?: string): void {
   void (async () => {
     await botSay(intro ?? "E o teu email?");
@@ -440,10 +455,40 @@ function askEmail(next: () => void = askPassword, intro?: string): void {
         }
         userSay(v);
         wiz.data[WIZARD_FIELDS.email] = v;
+        inputBusy("A verificar o email…");
+        const ocupado = await emailTaken(v);
         clearInput();
+        if (ocupado === true) { emailJaTemConta(next); return; }
         next();
       },
     });
+  })();
+}
+
+/**
+ * O email já tem conta, e sabe-se antes de a pessoa escrever mais nada. As duas
+ * saídas verdadeiras, com os mesmos rótulos do fim do registo: entrar na conta
+ * que já existe, ou usar outro email.
+ */
+function emailJaTemConta(next: () => void): void {
+  void (async () => {
+    await botSay("Já existe uma conta com este email.");
+    inputChips(
+      [
+        { value: "entrar", label: REGISTER_FIX_LABELS.entrar },
+        { value: "email", label: REGISTER_FIX_LABELS.email },
+      ],
+      async (value, label) => {
+        userSay(label);
+        clearInput();
+        if (value === "entrar") {
+          await botSay("Certo, levo-te ao início de sessão. Depois de entrares, voltas aqui para criar a loja.");
+          go("#/login");
+          return;
+        }
+        askEmail(next, "Qual é o outro email?");
+      },
+    );
   })();
 }
 

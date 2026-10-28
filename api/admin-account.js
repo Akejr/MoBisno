@@ -73,7 +73,7 @@ async function listarOrfas(db, res) {
     contas.push(...lote);
     if (lote.length < PAGINA) break;
   }
-  if (contas.length === 0) return send(res, 200, { ok: true, orphans: [] });
+  if (contas.length === 0) return send(res, 200, { ok: true, orphans: [], checked: 0 });
 
   const ids = contas.map((u) => String(u.id));
   const { data: perfis, error } = await db.from("profiles").select("id").in("id", ids);
@@ -84,7 +84,10 @@ async function listarOrfas(db, res) {
   const orphans = contas
     .filter((u) => !comPerfil.has(String(u.id)))
     .map((u) => ({ id: String(u.id), email: u.email ?? "", createdAt: u.created_at ?? null }));
-  return send(res, 200, { ok: true, orphans });
+  // `checked` é quantas identidades foram lidas. Vai na resposta porque «zero
+  // emails presos» e «não consegui ler nada» são coisas diferentes, e sem este
+  // número o painel mostrava a mesma coisa nas duas.
+  return send(res, 200, { ok: true, orphans, checked: contas.length });
 }
 
 export default async function handler(req, res) {

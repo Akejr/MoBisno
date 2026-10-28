@@ -240,3 +240,43 @@ export function createSupabaseAuthService(): AuthService {
     },
   };
 }
+
+/* ------------------------- O email já tem conta? -------------------------- */
+
+/**
+ * O email já está ocupado?
+ *
+ * `true` ocupado, `false` livre, `null` quando não foi possível verificar — e
+ * nesse caso quem chama **segue em frente**: a última palavra é sempre o
+ * registo, que falha com `EMAIL_JA_REGISTADO` se estiver ocupado.
+ *
+ * ## Porque é que isto não se faz daqui
+ *
+ * A pergunta é sobre `auth.users`, que o navegador não lê: um email pode estar
+ * ocupado por uma identidade **sem perfil** (o que ficava das contas eliminadas
+ * antes de `api/admin-account.js` apagar as três camadas), e essa é exatamente a
+ * que faz o registo falhar. Por isso a resposta vem de `api/email-check.js`, com
+ * a chave de serviço.
+ *
+ * ## Porque é que é perguntado tão cedo
+ *
+ * O assistente de criação só descobria isto no fim, depois do nome, do email, da
+ * palavra-passe escrita duas vezes e do resumo confirmado. O percurso inteiro
+ * para ouvir «já existe uma conta associada a este email».
+ */
+export async function emailTaken(email: string): Promise<boolean | null> {
+  const clean = (typeof email === "string" ? email : "").trim().toLowerCase();
+  if (!EMAIL_RE.test(clean)) return null;
+  try {
+    const r = await fetch("/api/email-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: clean }),
+    });
+    const body = (await r.json().catch(() => null)) as { ok?: boolean; taken?: boolean } | null;
+    if (!r.ok || body?.ok !== true || typeof body.taken !== "boolean") return null;
+    return body.taken;
+  } catch {
+    return null;
+  }
+}

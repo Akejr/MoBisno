@@ -241,13 +241,17 @@ describe("Emails presos — contas em auth.users sem perfil", () => {
     const presos = (res.body?.orphans ?? []) as { id: string; email: string }[];
     expect(presos).toHaveLength(1);
     expect(presos[0]).toMatchObject({ id: PRESO, email: "amigo@exemplo.ao" });
+    // Quantas identidades foram lidas: é o que distingue «nenhum email preso»
+    // de «não consegui ler nada», que o painel mostrava igual.
+    expect(res.body?.checked).toBe(3);
   });
 
-  it("sem contas em auth.users, a lista é vazia", async () => {
+  it("sem contas em auth.users, a lista é vazia e nada foi verificado", async () => {
     const res = resposta();
     await handler(pedido({ method: "GET" }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body?.orphans).toEqual([]);
+    expect(res.body?.checked).toBe(0);
   });
 
   it("a listagem também exige ser administrador: traz emails de contas", async () => {

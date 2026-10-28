@@ -26,7 +26,7 @@
 import { esc, toast, withBusy } from "../../lib/dom.js";
 import {
   adminDeleteAccount, adminVerifyPhone, listAccounts, listOrphanAccounts, listStores,
-  type AdminAccount, type AdminStore, type OrphanAccount,
+  type AdminAccount, type AdminStore, type OrphanResult,
 } from "../../supabase/admin.js";
 import { ADMIN_HREFS, accountStatus, latestExpiry, storeStatus, type AccountStatus } from "../../../src/services/adminMetrics.js";
 import { formatPhoneForDisplay } from "../../../src/services/phoneVerification.js";
@@ -99,24 +99,54 @@ function storeLine(s: AdminStore): string {
  * ficou atrás: não há conta, não há lojas, não há nada para recuperar — o que há
  * é um email que ninguém consegue usar.
  */
-function orphansCard(list: readonly OrphanAccount[]): string {
-  if (list.length === 0) return "";
-  return `<div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-    <div class="flex items-start gap-2">
+function orphansCard(estado: OrphanResult): string {
+  const caixa = (tom: "amber" | "gray" | "red", corpo: string): string => {
+    const cores = { amber: "border-amber-200 bg-amber-50", gray: "border-gray-200 bg-white", red: "border-red-200 bg-red-50" } as const;
+    return `<div class="mb-4 rounded-2xl border ${cores[tom]} p-4">${corpo}</div>`;
+  };
+  const recheck = `<button type="button" data-act="recheck" class="${btnClass("ghost", "sm")}">${icon("refresh")} Verificar de novo</button>`;
+
+  /*
+   * Os três estados aparecem **todos**. Havia dois, e um deles era o vazio:
+   * «nenhum email preso» e «a verificação falhou» desenhavam a mesma coisa, que
+   * era nada. Quem está a procurar um email ocupado ficava sem saber se a
+   * resposta era «não há» ou «não consegui ver» — e foi exactamente isso que
+   * aconteceu da primeira vez que isto correu em produção.
+   */
+  if (!estado.ok) {
+    return caixa("red", `<div class="flex flex-wrap items-start gap-2">
+      <span class="material-symbols-outlined mb-ico text-[20px] text-red-700" aria-hidden="true">error</span>
+      <div class="min-w-0 flex-1">
+        <h3 class="font-bold text-gray-900">Não foi possível verificar os emails presos</h3>
+        <p class="mt-0.5 text-sm text-gray-700 break-words">${esc(estado.message)}</p>
+      </div>
+      ${recheck}
+    </div>`);
+  }
+
+  if (estado.list.length === 0) {
+    return caixa("gray", `<div class="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+      <span class="material-symbols-outlined mb-ico text-[18px] text-gray-500" aria-hidden="true">mark_email_read</span>
+      <span class="min-w-0 flex-1">Nenhum email preso: as ${esc(plural(estado.checked, "identidade verificada", "identidades verificadas"))} têm conta. Se alguém disser que o email «já existe», procure-o na lista aqui em baixo.</span>
+      ${recheck}
+    </div>`);
+  }
+
+  return caixa("amber", `<div class="flex items-start gap-2">
       <span class="material-symbols-outlined mb-ico text-[20px] text-amber-700" aria-hidden="true">mail_lock</span>
       <div class="min-w-0">
-        <h3 class="font-bold text-gray-900">${esc(plural(list.length, "email preso", "emails presos"))}</h3>
+        <h3 class="font-bold text-gray-900">${esc(plural(estado.list.length, "email preso", "emails presos"))}</h3>
         <p class="mt-0.5 text-sm text-gray-700">Contas eliminadas sem a identidade ter sido apagada: o email continua ocupado e ninguém consegue criar conta com ele. Libertar apaga só essa identidade.</p>
       </div>
     </div>
-    <ul role="list" class="mt-3 divide-y divide-amber-200">${list.map((o) => `
+    <ul role="list" class="mt-3 divide-y divide-amber-200">${estado.list.map((o) => `
       <li class="flex flex-wrap items-center gap-2 py-2">
         <span class="min-w-0 flex-1 break-all font-semibold text-gray-900">${esc(o.email || o.id)}</span>
         ${o.createdAt ? `<span class="text-xs text-gray-600">criada a ${esc(fmtDate(o.createdAt))}</span>` : ""}
         <button type="button" data-act="free" data-id="${esc(o.id)}" aria-label="Libertar o email ${esc(o.email || o.id)}" class="${btnClass("dangerOutline", "sm")}">${icon("lock_open")} Libertar o email</button>
       </li>`).join("")}
     </ul>
-  </div>`;
+    <div class="mt-2 flex justify-end">${recheck}</div>`);
 }
 
 function accountRow(row: AccountRow, open: boolean): string {
@@ -162,7 +192,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
   view.loading();
   const [accounts, stores, orfas] = await Promise.all([listAccounts(), listStores(), listOrphanAccounts()]);
   if (!view.isCurrent()) return;
-  let presos = orfas;
+  let presos: OrphanResult = orfas;
 
   const byOwner = new Map<string, AdminStore[]>();
   for (const s of stores) {
@@ -281,7 +311,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
 
   /** Liberta um email preso: apaga a identidade que ficou sem conta. */
   async function free(id: string): Promise<void> {
-    const o = presos.find((x) => x.id === id);
+    const o = presos.ok ? presos.list.find((x) => x.id === id) : undefined;
     if (!o) return;
     const confirmed = await openDialog({
       title: "Libertar o email?",
@@ -297,7 +327,7 @@ export async function renderAccounts(view: AdminView): Promise<void> {
       announce(LIVE, result.message);
       return;
     }
-    presos = presos.filter((x) => x.id !== o.id);
+    if (presos.ok) presos = { ...presos, list: presos.list.filter((x) => x.id !== o.id) };
     draw();
     const msg = `Email ${o.email || o.id} libertado.`;
     toast(msg);
@@ -305,8 +335,16 @@ export async function renderAccounts(view: AdminView): Promise<void> {
   }
 
   document.getElementById("acc-orphans")?.addEventListener("click", (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act="free"]');
-    if (btn) void free(btn.dataset.id ?? "");
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-act]");
+    if (!btn) return;
+    if (btn.dataset.act === "free") { void free(btn.dataset.id ?? ""); return; }
+    if (btn.dataset.act === "recheck") {
+      void (async () => {
+        presos = await withBusy(() => listOrphanAccounts(), "A verificar…");
+        draw();
+        if (!presos.ok) announce(LIVE, presos.message);
+      })();
+    }
   });
 
   document.getElementById("acc-search")?.addEventListener("input", (e) => {
