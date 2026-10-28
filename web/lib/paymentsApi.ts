@@ -59,6 +59,11 @@ export interface PaymentResult {
    * pagamento está pago no momento em que é criado.
    */
   hostedUrl?: string | null;
+  /**
+   * A página do fornecedor deixa-se abrir dentro do modal? O servidor lê os
+   * cabeçalhos dela ao criar a cobrança (`api/_frame.js`). `null`: não se soube.
+   */
+  embeddable?: boolean | null;
   reference?: { entity: string; number: string; dueDate?: string } | null;
   invoiceUrl?: string | null;
 }

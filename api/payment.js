@@ -25,10 +25,23 @@
 import { admin, readBody, send, missingEnvMessage, providerProducts, dbCause } from "./_shared.js";
 import { getPaymentProvider, PAYMENTS_UNAVAILABLE } from "./_provider.js";
 import { PLATFORM_APEX, platformOrigin, STORE_APEX } from "./_seo.js";
+import { frameable } from "./_frame.js";
 import {
   requestedLines, cleanCustomer, priceStoreOrder, createStoreOrder, saveProviderResult,
   markNotPaid, ownerFromRequest, createPlanPayment,
 } from "./_payments.js";
+
+/**
+ * A origem da página que pediu o pagamento: é ela que vai abrir a página do
+ * fornecedor dentro do modal. Sem cabeçalho `Origin`, a do próprio pedido.
+ */
+function origemDoPedido(req, host) {
+  try {
+    const u = new URL(String(req.headers?.origin || ""));
+    if (u.protocol === "https:" || u.hostname === "localhost") return u.origin;
+  } catch { /* sem origem: segue para a do pedido */ }
+  return `https://${host}`;
+}
 
 /** Telemóvel angolano no formato 244XXXXXXXXX, ou `""` se não for um. */
 function aoPhone(raw) {
@@ -160,6 +173,8 @@ export default async function handler(req, res) {
       return send(res, 200, {
         success: true, kind, id: payment.id, method, status: "open",
         amount: payment.amount, hostedUrl: r.hostedUrl ?? null,
+        // A página do fornecedor deixa-se abrir no modal? (`api/_frame.js`)
+        embeddable: r.hostedUrl ? await frameable(r.hostedUrl, [origemDoPedido(req, host)]) : null,
         reference: r.referenceInfo ?? null, invoiceUrl: r.invoiceUrl ?? null,
       });
     }
@@ -215,6 +230,7 @@ export default async function handler(req, res) {
     return send(res, 200, {
       success: true, kind, id: orderId, method, status: "open",
       amount: priced.total, hostedUrl: r.hostedUrl ?? null,
+      embeddable: r.hostedUrl ? await frameable(r.hostedUrl, [origemDoPedido(req, host)]) : null,
       reference: r.referenceInfo ?? null, invoiceUrl: r.invoiceUrl ?? null,
     });
   } catch (e) {

@@ -41,6 +41,7 @@ import { applyFieldColors } from "../lib/fieldColors.js";
 import { applyIconColor } from "../lib/iconColor.js";
 import { applyTheme } from "../lib/theme.js";
 import { initPayment, checkStatus, type PaymentResult } from "../lib/paymentsApi.js";
+import { openPayModal } from "../lib/payModal.js";
 import { validateDiscount, type ValidDiscount } from "../supabase/discounts.js";
 import { trackStoreEvent } from "../supabase/analytics.js";
 import { recordWhatsappOrder } from "../supabase/whatsappOrders.js";
@@ -553,7 +554,10 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
       ));
       return;
     }
-    await submitDigital(selected, lines, expected);
+    // O método é só a intenção gravada na encomenda: o cliente escolhe entre
+    // Multicaixa Express e Referência na página do fornecedor, e o método real
+    // chega com a confirmação (`applyProviderStatus`, `api/_payments.js`).
+    await submitDigital("mcx", lines, expected);
   }
 
   /** Mostra o botão de pagar ocupado, sem o desativar (o foco fica nele). */
@@ -614,9 +618,10 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
        * depois de o servidor confirmar.
        */
       if (res.hostedUrl && res.id) {
+        // Guardado na mesma: se a página for fechada com o pagamento a meio, o
+        // regresso por `?pagamento=` continua a saber o que confirmar.
         rememberPending(res.id);
-        announce("A abrir a página de pagamento.");
-        window.location.href = res.hostedUrl;
+        abrirPagamento(res.hostedUrl, res.id, res.embeddable ?? null);
         return;
       }
       // Sem página alojada (um fornecedor que cobre logo): o estado manda.
@@ -663,6 +668,52 @@ export async function renderCheckoutPage(identifier: string): Promise<void> {
     }
     if (code === "MISSING_PHONE") { showErrors({ phone: res.error || BUYER_MESSAGES.phoneInvalid }); return; }
     setNotice(errorNotice(res.error || "Não foi possível processar o pagamento. Tente de novo."));
+  }
+
+  /**
+   * A página do fornecedor num modal por cima do checkout (`web/lib/payModal.ts`).
+   *
+   * Levava a página inteira para o fornecedor, e o cliente saía da loja a meio
+   * da compra. Agora fica: o modal pergunta o estado ao servidor enquanto está
+   * aberto, e quem diz «pago» é sempre o servidor.
+   *
+   * Fechado sem confirmação, o cliente **não** volta ao formulário: se o
+   * Multicaixa ainda estiver a confirmar, ou se tiver pedido a referência, um
+   * segundo «Pagar» era um segundo pagamento. Fica no ecrã de «por confirmar»,
+   * com a referência quando há, e o botão para verificar outra vez.
+   */
+  function abrirPagamento(url: string, id: string, embeddable: boolean | null): void {
+    lastPayment = { success: true, id };
+    setPayBusy(false);
+    announce("A abrir o pagamento.");
+    openPayModal({
+      url, kind: "store", id, embeddable, accent: brand,
+      onPaid: (st) => {
+        forgetPending();
+        clearCart(storeId);
+        updateCartBadge(storeId);
+        trackPixel(custom, { type: "Purchase", value: purchaseValue });
+        paint(successInner(st.invoiceUrl ?? null, st.invoiceStatus ?? null));
+        focusEl("#done-title");
+      },
+      onClosed: (st) => {
+        if (st?.success && (st.status === "failed" || st.status === "cancelled")) {
+          forgetPending();
+          paint(failedInner(st.message ?? null));
+          bind();
+          focusEl("#done-title");
+          return;
+        }
+        if (st?.reference?.number) {
+          lastPayment = { success: true, id, reference: st.reference };
+          paint(referenceInner({ success: true, id, reference: st.reference }));
+        } else {
+          paint(pendingInner(st?.message ?? null, false));
+        }
+        bindStatusCheck();
+        focusEl("#done-title");
+      },
+    });
   }
 
   /** Envia a encomenda por WhatsApp — itens, entrega, desconto e os dados do comprador. */

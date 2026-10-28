@@ -240,7 +240,12 @@ export default async function handler(req, res) {
     // por isso sem ele os dados embutidos não serviam para nada.
     const { data: store } = await db
       .from("stores")
-      .select("id, name, identifier, state, owner_id, customization, store_type, template_id, subdomain, created_at")
+      // `digital_payments` é o que decide se a loja mostra o Multicaixa e a
+      // Referência. Faltava aqui, e a SPA desenha a partir destes dados
+      // (`web/lib/storeCache.ts`, guardados 60 s): no primeiro minuto depois de
+      // entrar na loja, ela aparecia sem pagamentos digitais mesmo aprovada, e o
+      // checkout só oferecia o WhatsApp.
+      .select("id, name, identifier, state, owner_id, customization, store_type, template_id, subdomain, created_at, digital_payments")
       .eq("identifier", identifier)
       .eq("state", "Publicada")
       .maybeSingle();

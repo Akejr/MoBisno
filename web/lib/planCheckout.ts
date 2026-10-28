@@ -36,6 +36,7 @@
  */
 import { esc, formatKz, toast } from "./dom.js";
 import { initPayment, checkStatus, type PaymentResult } from "./paymentsApi.js";
+import { openPayModal } from "./payModal.js";
 import { PLAN_PRICE_KZ, PLAN_PERIOD_DAYS } from "../../src/services/plans.js";
 import { isValidAoPhone } from "../../src/services/payments.js";
 
@@ -139,12 +140,31 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
       return;
     }
     /*
-     * O Dono paga na página do fornecedor — é lá que escolhe entre Multicaixa
-     * Express e Referência Bancária e autoriza. Volta a `/painel/plano`, com o
-     * id do pagamento no endereço, e é aí que a subscrição é confirmada
-     * (`web/views/dashboard/plano.ts`): este modal não decide nada.
+     * O Dono paga na página do fornecedor, num modal por cima desta janela
+     * (`web/lib/payModal.ts`): é lá que escolhe entre Multicaixa Express e
+     * Referência Bancária e autoriza. Antes, a página inteira ia para o
+     * fornecedor e voltava a `/painel/plano`. Quem diz «pago» é o servidor; o
+     * regresso por `?pagamento=` (`web/views/dashboard/plano.ts`) fica para
+     * quem fechar a página a meio.
      */
-    if (res.hostedUrl) { window.location.href = res.hostedUrl; return; }
+    if (res.hostedUrl && res.id) {
+      const id = res.id;
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; btn.innerHTML = `Continuar para o pagamento <span class="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_forward</span>`; }
+      openPayModal({
+        url: res.hostedUrl, kind: "plan", id, embeddable: res.embeddable ?? null,
+        onPaid: () => drawDone(),
+        onClosed: (st) => {
+          if (st?.success && (st.status === "failed" || st.status === "cancelled")) {
+            toast(st.message || "O pagamento não foi concluído. Pode tentar de novo.", "error");
+            return;
+          }
+          // Por confirmar: com a referência, se o Dono a pediu; sem ela, o botão
+          // de verificar. Voltar ao «Continuar» era convidar a pagar duas vezes.
+          drawReference({ success: true, id, amount: res.amount, reference: st?.reference ?? null });
+        },
+      });
+      return;
+    }
     if (res.status === "paid") drawDone();
     else drawReference(res);
   }
@@ -162,7 +182,14 @@ export function openPlanCheckout(opts: { storeId: string; storeName: string; onP
   function drawReference(res: PaymentResult): void {
     const ref = res.reference;
     const due = ref?.dueDate ? new Date(ref.dueDate).toLocaleDateString("pt-PT") : null;
-    card.innerHTML = `
+    // Sem referência emitida, é um pagamento por confirmar: não há tabela para
+    // mostrar, há o botão de verificar.
+    const semReferencia = !ref?.number;
+    card.innerHTML = semReferencia ? `
+      <div class="flex items-center justify-between mb-2"><h3 class="text-lg font-black text-gray-900">Pagamento por confirmar</h3><button data-close type="button" aria-label="Fechar" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button></div>
+      <p class="text-sm text-gray-600">Ainda não recebemos a confirmação. Se já pagou, verifique aqui: a subscrição fica ativa assim que o pagamento for confirmado.</p>
+      <p id="plan-ref-status" class="text-center text-sm text-gray-500 mt-3" aria-live="polite"></p>
+      <button id="plan-check" type="button" class="mt-2 w-full py-3 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2" style="background:${ACCENT}"><span class="material-symbols-outlined text-[20px]" aria-hidden="true">refresh</span> Já paguei, verificar</button>` : `
       <div class="flex items-center justify-between mb-2"><h3 class="text-lg font-black text-gray-900">Referência de pagamento</h3><button data-close type="button" aria-label="Fechar" class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined">close</span></button></div>
       <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
         <div class="flex justify-between"><span class="text-gray-500">Entidade</span><span class="font-black tracking-wider">${esc(ref?.entity ?? "-")}</span></div>

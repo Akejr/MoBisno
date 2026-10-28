@@ -124,17 +124,20 @@ describe("checkout — o que existe em todos os layouts", () => {
       expect(html).not.toContain("Morada de entrega");
     });
 
-    it(`${variante}: sem pagamentos digitais só o WhatsApp; com eles, os três métodos`, () => {
+    it(`${variante}: sem pagamentos digitais só o WhatsApp; com eles, um botão digital e o WhatsApp`, () => {
       const so = L.renderCheckout(variante, contexto());
       expect(so).toContain('data-method="whatsapp"');
-      expect(so).not.toContain('data-method="mcx"');
-      expect(so).not.toContain('data-method="reference"');
+      expect(so).not.toContain('data-method="digital"');
       expect(so).not.toContain("Pagamento 100% seguro");
       const todos = L.renderCheckout(variante, contexto({ online: true, selected: null }));
-      for (const m of ["mcx", "reference", "whatsapp"]) expect(todos).toContain(`data-method="${m}"`);
+      // Multicaixa Express e Referência são UM botão: a escolha é na página do
+      // fornecedor, que mostra sempre as duas.
+      for (const m of ["digital", "whatsapp"]) expect(todos).toContain(`data-method="${m}"`);
+      for (const velho of ["mcx", "reference"]) expect(todos).not.toContain(`data-method="${velho}"`);
+      expect(todos).toContain("Multicaixa Express ou Referência");
       // O método escolhido diz que o está, a quem não o vê.
       expect(so).toMatch(/data-method="whatsapp" aria-pressed="true"/);
-      expect(todos).toMatch(/data-method="mcx" aria-pressed="false"/);
+      expect(todos).toMatch(/data-method="digital" aria-pressed="false"/);
     });
 
     it(`${variante}: botões de marca escrevem com var(--brand-ink), nunca branco fixo`, () => {

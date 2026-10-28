@@ -15,6 +15,7 @@ import { renderCheckoutPage } from "./views/checkout.js";
 import { mountCartUI } from "./lib/cartDrawer.js";
 import { mountSearchUI } from "./lib/search.js";
 import { mountSectionsUI } from "./lib/sections.js";
+import { paymentReturnInFrame } from "./lib/payModal.js";
 
 // Vistas de dono/admin: carregadas sob demanda (code splitting) para aliviar o
 // pacote inicial que o comprador descarrega no telemóvel.
@@ -242,6 +243,10 @@ function mountLinkInterceptor(): void {
 }
 
 async function boot(): Promise<void> {
+  // Esta página é o regresso do fornecedor dentro do modal de pagamento (ou da
+  // janela à parte): avisa a página que a abriu e não desenha a loja numa caixa.
+  if (paymentReturnInFrame()) return;
+
   // Apex do domínio das lojas (sualoja.digital) → redireciona para o painel.
   if (isStoreApexRoot()) {
     location.replace(`https://${PLATFORM_APEX}${location.pathname}${location.search}`);

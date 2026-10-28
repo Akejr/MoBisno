@@ -36,9 +36,15 @@ export const CHECKOUT_VARIANTS: { id: CheckoutVariant; label: string }[] = [
   { id: "minimal", label: "Minimal" },
 ];
 
-export type CheckoutMethodId = "mcx" | "reference" | "whatsapp";
+/**
+ * Formas de pagamento do checkout. Multicaixa Express e Referência Bancária são
+ * **uma** só (`digital`): a escolha entre as duas é feita na página do
+ * fornecedor, que mostra sempre as duas. Pedir a mesma decisão duas vezes, e na
+ * primeira sem efeito, era pedir ao cliente para adivinhar qual contava.
+ */
+export type CheckoutMethodId = "digital" | "whatsapp";
 
-interface MethodInfo { id: CheckoutMethodId; logo: string; title: string; subtitle: string; }
+interface MethodInfo { id: CheckoutMethodId; logos: readonly string[]; title: string; subtitle: string; }
 
 /** Estado do campo de código de desconto. */
 export interface CouponState {
@@ -150,16 +156,22 @@ const SUCCESS_STYLE = "color:#15803d";
 function methodList(online: boolean): MethodInfo[] {
   const list: MethodInfo[] = [];
   if (online) {
-    list.push({ id: "mcx", logo: "/integrations/Express.png", title: "Multicaixa Express", subtitle: "Instantâneo" });
-    list.push({ id: "reference", logo: "/integrations/ATM.png", title: "Referência Bancária", subtitle: "ATM / Internet Banking" });
+    list.push({
+      id: "digital", logos: ["/integrations/Express.png", "/integrations/ATM.png"],
+      title: "Multicaixa Express ou Referência", subtitle: "Escolhe na página de pagamento",
+    });
   }
-  list.push({ id: "whatsapp", logo: "/integrations/Whatsapp.png", title: "WhatsApp", subtitle: "Combinar por mensagem" });
+  list.push({ id: "whatsapp", logos: ["/integrations/Whatsapp.png"], title: "WhatsApp", subtitle: "Combinar por mensagem" });
   return list;
 }
 
-/** Logótipo do método. Decorativo (`alt=""`): o nome do método está escrito ao lado. */
+/**
+ * Logótipos do método, sobrepostos quando são dois. Decorativos (`alt=""`): o
+ * nome do método está escrito ao lado.
+ */
 const logoBox = (m: MethodInfo, size = 44): string =>
-  `<img src="${esc(m.logo)}" alt="" class="object-contain rounded-xl" style="width:${size}px;height:${size}px" onerror="this.style.display='none'" />`;
+  `<span class="inline-flex shrink-0 ${m.logos.length > 1 ? "-space-x-3" : ""}">${m.logos.map((src) =>
+    `<img src="${esc(src)}" alt="" class="object-contain rounded-full ring-2 ring-white bg-white" style="width:${size}px;height:${size}px" onerror="this.style.display='none'" />`).join("")}</span>`;
 
 /** Cartão "azulejo" (logótipo em cima). Responsivo (3 por linha, compacto no mobile). */
 function methodTile(m: MethodInfo, active: boolean): string {
@@ -414,7 +426,7 @@ function trustRow(ctx: CheckoutLayoutCtx, methods: MethodInfo[]): string {
   if (!ctx.online) return "";
   return `<div class="mt-8 pt-6 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-xs text-neutral-600">
     <span class="flex items-center gap-1.5"><span aria-hidden="true" class="material-symbols-outlined text-[16px]">lock</span> Pagamento seguro e encriptado</span>
-    <span class="flex items-center gap-2">${methods.map((m) => `<img src="${esc(m.logo)}" alt="${esc(m.title)}" class="h-6 w-auto object-contain" onerror="this.style.display='none'" />`).join("")}</span>
+    <span class="flex items-center gap-2">${methods.flatMap((m) => m.logos).map((src) => `<img src="${esc(src)}" alt="" class="h-6 w-auto object-contain" onerror="this.style.display='none'" />`).join("")}</span>
   </div>`;
 }
 

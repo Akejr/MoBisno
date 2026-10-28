@@ -68,7 +68,7 @@ export async function loadVendas(store: Store): Promise<VendasLidas> {
 
 /** As decisões da secção: o que se mostra, quanto se pode levantar e para onde. */
 export function modeloVendas(store: Store, lidas: VendasLidas, verificacao: PaymentVerification): ModeloVendas {
-  const { orders, withdrawals, stats, committed } = lidas;
+  const { withdrawals, stats, committed } = lidas;
   const digitalVisible = digitalPaymentsVisible(store);
   const mostrarVendas = digitalVisible || stats.paidCount > 0 || withdrawals.length > 0;
   const available = Math.max(0, Math.round((stats.netReceived - committed) * 100) / 100);

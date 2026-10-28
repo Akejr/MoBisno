@@ -89,6 +89,12 @@ vi.mock("../api/_payments.js", async (importOriginal) => ({
   markNotPaid: async () => undefined,
 }));
 
+/**
+ * A pergunta aos cabeçalhos da página do fornecedor sairia para a rede. Aqui
+ * responde já: o que se verifica é que a resposta a leva.
+ */
+vi.mock("../api/_frame.js", () => ({ frameable: async () => false }));
+
 const ESP_PAYMENT = "../api/payment.js";
 const payment = ((await import(ESP_PAYMENT)) as { default: (req: unknown, res: unknown) => Promise<unknown> }).default;
 
@@ -147,6 +153,8 @@ describe("Pagar a subscrição — a cobrança é criada e devolve a página de 
     expect(res.statusCode, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toMatchObject({ success: true, kind: "plan", id: PAGAMENTO, status: "open", amount: 10_000 });
     expect(res.body?.hostedUrl).toBe("https://pagar.exemplo/abc");
+    // E se a página se deixa abrir no modal (aqui: não, abre à parte).
+    expect(res.body?.embeddable).toBe(false);
   });
 
   it("nenhum dos três endereços tem «undefined»", async () => {

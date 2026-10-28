@@ -173,6 +173,7 @@ describe("Pré-visualizações — `sandbox` sem `allow-scripts`, sempre", () =>
      */
     let mapas = 0;
     let previas = 0;
+    let pagamentos = 0;
     for (const [f, src] of WEB) {
       // `<iframe` seguido de espaço: uma etiqueta de HTML, não uma expressão
       // regular que procure por ela (`/<iframe\b/`).
@@ -180,6 +181,14 @@ describe("Pré-visualizações — `sandbox` sem `allow-scripts`, sempre", () =>
         const tag = m[0];
         const mapa = /title="Mapa/.test(tag) && /\ssrc="\$\{esc\(/.test(tag);
         if (mapa) { mapas++; continue; }
+        /*
+         * A página de pagamento do fornecedor (`web/lib/payModal.ts`), pelo
+         * mesmo motivo dos mapas: outra origem, que não vê a sessão da
+         * plataforma e precisa dos seus scripts e formulários para cobrar. O
+         * endereço passa por `httpsUrl` antes (asserção abaixo).
+         */
+        const pagamento = /title="Pagamento"/.test(tag) && /\ssrc="\$\{esc\(url\)\}"/.test(tag);
+        if (pagamento) { pagamentos++; continue; }
         previas++;
         expect(tag, `${f}: iframe sem sandbox`).toMatch(/\ssandbox(=|\s|>)/);
         expect(tag, `${f}: iframe com allow-scripts`).not.toContain("allow-scripts");
@@ -189,6 +198,11 @@ describe("Pré-visualizações — `sandbox` sem `allow-scripts`, sempre", () =>
     // e computador), a pré-visualização de modelo, e os mapas.
     expect(previas).toBeGreaterThanOrEqual(3);
     expect(mapas).toBeGreaterThanOrEqual(3);
+    expect(pagamentos).toBe(1);
+    const MODAL = ler("web/lib/payModal.ts");
+    expect(MODAL).toContain('u.protocol === "https:"');
+    expect(MODAL).toContain("const url = httpsUrl(opts.url);");
+    expect(semComentarios(MODAL), "a página de pagamento não pode ir em srcdoc").not.toContain("srcdoc");
   });
 
   it("cada iframe criado por código passa por loadPreviewDoc no mesmo ficheiro", () => {
