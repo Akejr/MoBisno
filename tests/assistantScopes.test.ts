@@ -1241,6 +1241,30 @@ describe("Orientação do ecrã «Administração» — os separadores de vendas
   });
 });
 
+describe("Orientação do ecrã «Administração» — as ações das lojas são ícones com nome", () => {
+  it("diz que só a subscrição tem texto, e onde está o nome das outras", () => {
+    const guia = resolver(guiaDe("admin"));
+    expect(guia).toMatch(/«Ativar» ou «Prolongar» é o único botão com texto/);
+    expect(guia).toMatch(/o nome de cada uma aparece ao passar o rato/);
+    const LOJAS = readFileSync(join(ROOT, "web/views/admin/stores.ts"), "utf8");
+    for (const act of ["edit", "state", "delete", "deactivate"]) {
+      expect(LOJAS, act).toContain(`iconButton({ act: "${act}"`);
+    }
+  });
+});
+
+describe("Orientação do ecrã «Administração» — as ações das lojas são ícones com nome", () => {
+  it("diz que só a subscrição tem texto, e onde está o nome das outras", () => {
+    const guia = resolver(guiaDe("admin"));
+    expect(guia).toMatch(/«Ativar» ou «Prolongar» é o único botão com texto/);
+    expect(guia).toMatch(/o nome de cada uma aparece ao passar o rato/);
+    const LOJAS = readFileSync(join(ROOT, "web/views/admin/stores.ts"), "utf8");
+    for (const act of ["edit", "state", "delete", "deactivate"]) {
+      expect(LOJAS, act).toContain(`iconButton({ act: "${act}"`);
+    }
+  });
+});
+
 describe("Orientação do ecrã «Administração» — eliminar uma conta liberta o email", () => {
   /*
    * «Eliminar conta» apagava as lojas e o perfil, do navegador. A identidade

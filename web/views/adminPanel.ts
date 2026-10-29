@@ -139,7 +139,7 @@ function navCountInner(key: keyof NavCounts): string {
 
 function navCountBadge(key: keyof NavCounts, compact: boolean): string {
   const hidden = (navCounts?.[key] ?? 0) > 0 ? "" : "hidden";
-  return `<span data-nav-count="${key}" class="${hidden} ${compact ? "ml-0.5" : "ml-auto"} rounded-full bg-orange-700 px-1.5 py-0.5 text-xs font-bold leading-none text-white">${navCountInner(key)}</span>`;
+  return `<span data-nav-count="${key}" class="${hidden} ${compact ? "ml-0.5" : "ml-auto"} min-w-[1.25rem] rounded-full bg-orange-600 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none tabular-nums text-white">${navCountInner(key)}</span>`;
 }
 
 /** Atualiza os contadores já desenhados (barra lateral e atalhos do telemóvel). */
@@ -152,46 +152,46 @@ function paintNavCounts(): void {
 }
 
 function navItem(s: Section, active: boolean): string {
-  return `<a href="${esc(s.href)}" ${active ? 'aria-current="page"' : ""} class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] ${active ? "bg-orange-50 text-orange-800" : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"}">
-    ${icon(s.icon, active ? "text-[20px] text-[#F95901]" : "text-[20px] text-gray-500")}
+  return `<a href="${esc(s.href)}" ${active ? 'aria-current="page"' : ""} class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] ${active ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}">
+    ${icon(s.icon, active ? "text-[19px] text-gray-900" : "text-[19px] text-gray-400")}
     <span class="min-w-0 flex-1 truncate">${esc(s.label)}</span>
     ${s.count ? navCountBadge(s.count, false) : ""}
   </a>`;
 }
 
 function navChip(s: Section, active: boolean): string {
-  return `<a href="${esc(s.href)}" ${active ? 'aria-current="page"' : ""} class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] ${active ? "bg-orange-50 text-orange-800" : "text-gray-700 hover:bg-gray-100"}">${icon(s.icon)}${esc(s.label)}${s.count ? navCountBadge(s.count, true) : ""}</a>`;
+  return `<a href="${esc(s.href)}" ${active ? 'aria-current="page"' : ""} class="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] ${active ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"}">${icon(s.icon, "text-[17px]")}${esc(s.label)}${s.count ? navCountBadge(s.count, true) : ""}</a>`;
 }
 
-const SIDE_LINK = "flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]";
-const HEADER_ICON = "flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]";
+const SIDE_LINK = "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]";
+const HEADER_ICON = "flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]";
 
 function shell(section: Section, content: string): string {
   return `
   <div class="flex min-h-screen w-full overflow-x-hidden bg-gray-50 font-sans text-gray-900">
     <a href="#admin-main" data-skip class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[130] focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:font-semibold focus:shadow">Saltar para o conteúdo</a>
     <aside class="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-gray-200 bg-white py-5 md:flex">
-      <div class="px-5"><img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:24px" /></div>
-      <p class="mt-1 px-5 text-xs font-bold uppercase tracking-wider text-orange-700">Administração</p>
-      <nav aria-label="Secções da administração" class="mt-6 flex flex-col gap-0.5 px-3">
+      <div class="flex items-center gap-2 px-5"><img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:22px" /><span class="rounded-md border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Admin</span></div>
+      <p class="mt-7 px-5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Gestão</p>
+      <nav aria-label="Secções da administração" class="mt-2 flex flex-col gap-0.5 px-3">
         ${SECTIONS.map((s) => navItem(s, s.id === section.id)).join("")}
       </nav>
-      <div class="mt-auto flex flex-col gap-0.5 px-3">
-        <a href="#/painel" class="${SIDE_LINK}">${icon("dashboard", "text-[20px] text-gray-500")} O meu painel</a>
-        <button type="button" data-logout class="${SIDE_LINK}">${icon("logout", "text-[20px] text-gray-500")} Terminar sessão</button>
+      <div class="mt-auto flex flex-col gap-0.5 border-t border-gray-100 px-3 pt-3">
+        <a href="#/painel" class="${SIDE_LINK}">${icon("dashboard", "text-[19px] text-gray-400")} O meu painel</a>
+        <button type="button" data-logout class="${SIDE_LINK}">${icon("logout", "text-[19px] text-gray-400")} Terminar sessão</button>
       </div>
     </aside>
     <div class="flex min-w-0 flex-1 flex-col">
       <div class="sticky top-0 z-40">
-        <header class="flex items-center justify-between gap-3 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur md:px-8">
+        <header class="flex items-center justify-between gap-3 border-b border-gray-200 bg-white/95 px-4 py-3.5 backdrop-blur md:px-8">
           <div class="min-w-0">
-            <h1 class="truncate text-lg font-black tracking-tight md:text-xl">${esc(section.label)}</h1>
-            <p class="hidden truncate text-sm text-gray-600 sm:block">${esc(section.subtitle)}</p>
+            <h1 class="truncate text-[17px] font-semibold tracking-tight text-gray-900">${esc(section.label)}</h1>
+            <p class="hidden truncate text-[13px] text-gray-500 sm:block">${esc(section.subtitle)}</p>
           </div>
-          <div class="flex shrink-0 items-center gap-1">
-            <button type="button" id="admin-refresh" aria-label="Atualizar" title="Atualizar" class="${HEADER_ICON}">${icon("refresh", "text-[22px]")}</button>
-            <a href="#/painel" aria-label="O meu painel" title="O meu painel" class="${HEADER_ICON} md:hidden">${icon("dashboard", "text-[22px]")}</a>
-            <button type="button" data-logout aria-label="Terminar sessão" title="Terminar sessão" class="${HEADER_ICON} md:hidden">${icon("logout", "text-[22px]")}</button>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <button type="button" id="admin-refresh" aria-label="Atualizar" title="Atualizar" class="${HEADER_ICON}">${icon("refresh", "text-[19px]")}</button>
+            <a href="#/painel" aria-label="O meu painel" title="O meu painel" class="${HEADER_ICON} md:hidden">${icon("dashboard", "text-[19px]")}</a>
+            <button type="button" data-logout aria-label="Terminar sessão" title="Terminar sessão" class="${HEADER_ICON} md:hidden">${icon("logout", "text-[19px]")}</button>
           </div>
         </header>
         <nav aria-label="Secções da administração" class="flex gap-1 overflow-x-auto border-b border-gray-200 bg-white px-3 py-2 md:hidden">
@@ -199,7 +199,7 @@ function shell(section: Section, content: string): string {
         </nav>
       </div>
       <main id="admin-main" tabindex="-1" class="min-w-0 flex-1 p-4 focus:outline-none md:p-8">
-        <div class="mx-auto w-full max-w-5xl">${content}</div>
+        <div class="mx-auto w-full max-w-6xl">${content}</div>
       </main>
     </div>
   </div>`;
@@ -278,7 +278,7 @@ async function refreshNavCounts(seq: number): Promise<void> {
  */
 function errorState(cause: string): string {
   const texto = cause.trim() || "Verifique a ligação à internet e tente de novo.";
-  return `<div class="rounded-2xl border border-gray-200 bg-white pb-8">
+  return `<div class="rounded-xl border border-gray-200 bg-white shadow-sm pb-8">
     ${emptyState("cloud_off", "Não foi possível carregar esta secção.", texto)}
     <div class="flex justify-center"><button type="button" id="admin-retry" class="${btnClass("primary")}">${icon("refresh")} Tentar de novo</button></div>
   </div>`;
@@ -303,7 +303,7 @@ export async function renderAdminPanel(): Promise<void> {
     unmountAssistant = null;
     render(`<div class="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50 px-6 text-center">
       ${icon("shield_lock", "text-[56px] text-gray-500")}
-      <h1 class="text-2xl font-black text-gray-900">Acesso restrito</h1>
+      <h1 class="text-xl font-semibold text-gray-900">Acesso restrito</h1>
       <p class="text-gray-600">Esta área é exclusiva para administradores da plataforma.</p>
       <a href="#/painel" class="${btnClass("primary")}">Ir para o meu painel</a>
     </div>`);
@@ -421,7 +421,7 @@ const CHECK_TONES = {
  */
 function checkPanel(tone: keyof typeof CHECK_TONES, iconName: string, title: string, body: string, actions: string): string {
   const t = CHECK_TONES[tone];
-  return `<div class="min-w-0 rounded-2xl border p-4 md:p-5 ${t.box}">
+  return `<div class="min-w-0 rounded-xl border p-4 md:p-5 ${t.box}">
     <div class="flex min-w-0 items-start gap-3">
       ${icon(iconName, `text-[24px] shrink-0 ${t.icon}`)}
       <div class="min-w-0 flex-1">
@@ -484,10 +484,10 @@ function modelCheckHtml(v: ModelCheckView): string {
 
 function modelCard(m: TemplateModel): string {
   const name = m.name || "Modelo sem nome";
-  return `<li class="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
+  return `<li class="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex-1 p-5">
-      <span class="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-orange-50">${icon("dashboard_customize", "text-[22px] text-[#F95901]")}</span>
-      <h3 class="font-bold text-gray-900 break-words">${esc(name)}</h3>
+      <span class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500">${icon("dashboard_customize", "text-[19px]")}</span>
+      <h3 class="font-semibold text-gray-900 break-words">${esc(name)}</h3>
       <p class="mt-1 text-sm text-gray-600">${esc(m.description || "Sem descrição.")}</p>
       <div class="mt-2">${storeLink(m.identifier)}</div>
     </div>
@@ -535,7 +535,7 @@ async function renderModelos(view: AdminView): Promise<void> {
     <section id="model-check" aria-live="polite" class="my-6 min-w-0"></section>
     ${models.length
       ? `<ul role="list" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">${models.map(modelCard).join("")}</ul>`
-      : `<div class="rounded-2xl border border-gray-200 bg-white pb-8">
+      : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm pb-8">
            ${emptyState("dashboard_customize", "Ainda não há modelos.", "Importe os predefinidos ou crie um do zero.")}
            <div class="flex justify-center"><button type="button" id="seed-models-empty" class="${btnClass("primary")}">${icon("download")} Importar modelos predefinidos</button></div>
          </div>`}`);

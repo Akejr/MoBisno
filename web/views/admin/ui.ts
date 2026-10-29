@@ -15,6 +15,15 @@
  *
  * As classes do Tailwind estão escritas por extenso de propósito: o Tailwind só
  * gera as classes que encontra literalmente nos ficheiros de `web/`.
+ *
+ * ## O desenho: neutro, e a cor só onde diz alguma coisa
+ *
+ * O painel tinha laranja em tudo: nas ligações, nos filtros escolhidos, no menu,
+ * nos botões principais. Quando tudo é laranja, nada chama a atenção, e o ecrã
+ * parecia um protótipo. Agora é cinzento e branco, com o texto a pesar o que
+ * deve; a cor fica para os estados (os selos) e para o que pede uma decisão (os
+ * contadores da navegação). As ações secundárias de uma linha são botões só com
+ * ícone, com o nome no `aria-label` e no `title`.
  */
 import { esc } from "../../lib/dom.js";
 import { publicStoreUrl, STORE_APEX } from "../../composition.js";
@@ -57,20 +66,20 @@ export interface AdminView {
 /* ------------------------------------ Botões ------------------------------------ */
 
 const BTN_BASE =
-  "inline-flex items-center justify-center gap-1.5 rounded-xl font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
 
 const BTN_SIZE = {
-  md: "px-4 py-2.5 text-sm",
-  sm: "px-3 py-1.5 text-sm",
+  md: "h-9 px-3.5 text-sm",
+  sm: "h-8 px-2.5 text-[13px]",
 } as const;
 
 const BTN_KIND = {
-  primary: "bg-orange-700 text-white hover:bg-orange-800",
-  secondary: "bg-white text-gray-800 border border-gray-300 hover:bg-gray-50",
-  success: "bg-emerald-700 text-white hover:bg-emerald-800",
-  danger: "bg-red-700 text-white hover:bg-red-800",
-  dangerOutline: "bg-white text-red-700 border border-red-200 hover:bg-red-50",
-  ghost: "text-gray-700 hover:bg-gray-100",
+  primary: "bg-gray-900 text-white shadow-sm hover:bg-gray-800",
+  secondary: "bg-white text-gray-700 border border-gray-300 shadow-sm hover:bg-gray-50 hover:text-gray-900",
+  success: "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700",
+  danger: "bg-red-600 text-white shadow-sm hover:bg-red-700",
+  dangerOutline: "bg-white text-red-700 border border-gray-300 shadow-sm hover:border-red-200 hover:bg-red-50",
+  ghost: "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
 } as const;
 
 /** Tipo de botão: a ação principal, a secundária, a que aprova, a que apaga… */
@@ -81,20 +90,38 @@ export function btnClass(kind: ButtonKind, size: keyof typeof BTN_SIZE = "md"): 
   return `${BTN_BASE} ${BTN_SIZE[size]} ${BTN_KIND[kind]}`;
 }
 
+/**
+ * Botão só com ícone, para as ações secundárias de uma linha. O nome vai no
+ * `aria-label` (leitores de ecrã) e no `title` (quem passa o rato).
+ */
+export function iconButton(o: {
+  act: string; id: string; label: string; icon: string; danger?: boolean; extra?: string;
+}): string {
+  const tom = o.danger
+    ? "text-gray-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900";
+  return `<button type="button" data-act="${esc(o.act)}" data-id="${esc(o.id)}"${o.extra ? ` ${o.extra}` : ""} aria-label="${esc(o.label)}" title="${esc(o.label)}" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-2 ${tom}">${icon(o.icon, "text-[18px]")}</button>`;
+}
+
 /** Ícone decorativo (escondido dos leitores de ecrã: o texto ao lado diz o mesmo). */
 export function icon(name: string, cls = "text-[18px]"): string {
-  return `<span class="material-symbols-outlined ${cls}" aria-hidden="true">${esc(name)}</span>`;
+  // O tamanho vai também em linha: a folha dos Material Symbols carrega depois
+  // da nossa e o `font-size: 24px` dela ganhava ao `text-[18px]`, com a mesma
+  // especificidade. Os ícones dos selos e das ligações saíam do tamanho de um
+  // título.
+  const px = /text-\[(\d+)px\]/.exec(cls)?.[1];
+  return `<span class="material-symbols-outlined ${cls}"${px ? ` style="font-size:${px}px"` : ""} aria-hidden="true">${esc(name)}</span>`;
 }
 
 /* ------------------------------------ Selos ------------------------------------ */
 
 const TONES = {
-  green: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  amber: "bg-amber-50 text-amber-800 ring-amber-200",
-  red: "bg-red-50 text-red-800 ring-red-200",
-  gray: "bg-gray-100 text-gray-700 ring-gray-200",
-  blue: "bg-blue-50 text-blue-800 ring-blue-200",
-  orange: "bg-orange-50 text-orange-800 ring-orange-200",
+  green: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  amber: "bg-amber-50 text-amber-800 ring-amber-600/20",
+  red: "bg-red-50 text-red-700 ring-red-600/20",
+  gray: "bg-gray-50 text-gray-600 ring-gray-500/20",
+  blue: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  orange: "bg-orange-50 text-orange-800 ring-orange-600/20",
 } as const;
 
 /** Cor de um selo. A cor acompanha sempre uma palavra; nunca a substitui. */
@@ -102,7 +129,7 @@ export type Tone = keyof typeof TONES;
 
 /** Selo de estado («Publicada», «Em análise»…). */
 export function pill(text: string, tone: Tone, iconName?: string): string {
-  return `<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ring-1 ring-inset ${TONES[tone]}">${iconName ? icon(iconName, "text-[14px]") : ""}${esc(text)}</span>`;
+  return `<span class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap ring-1 ring-inset ${TONES[tone]}">${iconName ? icon(iconName, "text-[13px]") : ""}${esc(text)}</span>`;
 }
 
 /* ------------------------------------ Datas ------------------------------------ */
@@ -186,32 +213,32 @@ export function loadingBlock(): string {
 
 /** Estado vazio de uma lista. */
 export function emptyState(iconName: string, title: string, text?: string): string {
-  return `<div class="flex flex-col items-center gap-2 px-6 py-12 text-center">
-    <span class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-600">${icon(iconName, "text-[24px]")}</span>
-    <p class="font-semibold text-gray-900">${esc(title)}</p>
-    ${text ? `<p class="max-w-sm text-sm text-gray-600">${esc(text)}</p>` : ""}
+  return `<div class="flex flex-col items-center gap-1.5 px-6 py-12 text-center">
+    <span class="mb-1 flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm">${icon(iconName, "text-[20px]")}</span>
+    <p class="text-sm font-semibold text-gray-900">${esc(title)}</p>
+    ${text ? `<p class="max-w-sm text-[13px] text-gray-500">${esc(text)}</p>` : ""}
   </div>`;
 }
 
 /** Nota informativa curta. `html` já vem escapado por quem chama. */
 export function noteBox(html: string, iconName = "info"): string {
-  return `<div class="flex items-start gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
-    ${icon(iconName, "text-[20px] text-gray-500 shrink-0")}
+  return `<div class="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-600">
+    ${icon(iconName, "text-[18px] text-gray-400 shrink-0")}
     <p class="min-w-0">${html}</p>
   </div>`;
 }
 
 /** Título de um bloco dentro de uma secção, com contagem opcional. */
 export function blockTitle(id: string, title: string, count?: number, tone: Tone = "gray"): string {
-  return `<h2 id="${esc(id)}" class="flex items-center gap-2 text-base font-bold text-gray-900">${esc(title)}${typeof count === "number" ? pill(String(count), tone) : ""}</h2>`;
+  return `<h2 id="${esc(id)}" class="flex items-center gap-2 text-sm font-semibold text-gray-900">${esc(title)}${typeof count === "number" ? pill(String(count), tone) : ""}</h2>`;
 }
 
 /** Cartão de resumo pequeno (um número com rótulo). */
 export function statCard(label: string, value: string, hint?: string): string {
-  return `<div class="min-w-0 rounded-2xl border border-gray-200 bg-white px-4 py-3">
-    <p class="text-sm text-gray-600">${esc(label)}</p>
-    <p class="mt-1 text-xl font-black tracking-tight text-gray-900 break-words">${esc(value)}</p>
-    ${hint ? `<p class="mt-0.5 text-xs text-gray-600">${esc(hint)}</p>` : ""}
+  return `<div class="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <p class="text-[13px] font-medium text-gray-500">${esc(label)}</p>
+    <p class="mt-1.5 text-2xl font-semibold tracking-tight tabular-nums text-gray-900 break-words">${esc(value)}</p>
+    ${hint ? `<p class="mt-1 text-xs text-gray-500">${esc(hint)}</p>` : ""}
   </div>`;
 }
 
@@ -225,7 +252,7 @@ export function statCard(label: string, value: string, hint?: string): string {
 export function storeLink(identifier: string): string {
   if (!identifier) return `<span class="text-sm text-gray-600">Sem endereço</span>`;
   const endereco = `${identifier}.${STORE_APEX}`;
-  return `<a href="${esc(publicStoreUrl(identifier))}" target="_blank" rel="noopener noreferrer" title="${esc(endereco)}" class="inline-flex min-w-0 max-w-full items-center gap-1 rounded text-sm text-orange-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]"><span class="truncate">${esc(endereco)}</span>${icon("open_in_new", "text-[14px] shrink-0")}<span class="sr-only"> (abre num novo separador)</span></a>`;
+  return `<a href="${esc(publicStoreUrl(identifier))}" target="_blank" rel="noopener noreferrer" title="${esc(endereco)}" class="inline-flex min-w-0 max-w-full items-center gap-1 rounded text-[13px] text-gray-600 hover:text-gray-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]"><span class="truncate">${esc(endereco)}</span>${icon("open_in_new", "text-[13px] shrink-0 text-gray-400")}<span class="sr-only"> (abre num novo separador)</span></a>`;
 }
 
 /* --------------------------------- Pesquisa e filtros --------------------------------- */
@@ -234,8 +261,8 @@ export function storeLink(identifier: string): string {
 export function searchField(id: string, label: string, placeholder: string): string {
   return `<div class="relative min-w-0 flex-1">
     <label for="${esc(id)}" class="sr-only">${esc(label)}</label>
-    ${icon("search", "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-gray-500")}
-    <input id="${esc(id)}" type="search" autocomplete="off" placeholder="${esc(placeholder)}" class="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 focus:border-[#F95901] focus:ring-2 focus:ring-orange-200" />
+    ${icon("search", "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-gray-400")}
+    <input id="${esc(id)}" type="search" autocomplete="off" placeholder="${esc(placeholder)}" class="h-9 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200" />
   </div>`;
 }
 
@@ -246,13 +273,17 @@ export interface ChipOption {
   readonly count?: number;
 }
 
-const CHIP_ON = "inline-flex items-center gap-1.5 rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-1";
-const CHIP_OFF = "inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-1";
+/*
+ * Os filtros são um controlo segmentado: uma faixa só, com o escolhido em
+ * destaque. Eram seis pastilhas soltas, com borda laranja na escolhida.
+ */
+const CHIP_ON = "inline-flex shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-2.5 py-1 text-[13px] font-medium text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]";
+const CHIP_OFF = "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]";
 
 /** Grupo de filtros (botões com `aria-pressed`). */
 export function filterChips(group: string, label: string, options: readonly ChipOption[], active: string): string {
-  return `<div role="group" aria-label="${esc(label)}" class="flex flex-wrap gap-2" data-chips="${esc(group)}">
-    ${options.map((o) => `<button type="button" data-chip="${esc(o.value)}" aria-pressed="${o.value === active}" class="${o.value === active ? CHIP_ON : CHIP_OFF}">${esc(o.label)}${typeof o.count === "number" ? `<span class="text-xs font-bold">${o.count}</span>` : ""}</button>`).join("")}
+  return `<div role="group" aria-label="${esc(label)}" class="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm" data-chips="${esc(group)}">
+    ${options.map((o) => `<button type="button" data-chip="${esc(o.value)}" aria-pressed="${o.value === active}" class="${o.value === active ? CHIP_ON : CHIP_OFF}">${esc(o.label)}${typeof o.count === "number" ? `<span class="tabular-nums text-[11px] opacity-70">${o.count}</span>` : ""}</button>`).join("")}
   </div>`;
 }
 

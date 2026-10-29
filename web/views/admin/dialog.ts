@@ -125,7 +125,7 @@ export function openDialog(opts: DialogOptions): Promise<DialogResult | null> {
 
     const overlay = document.createElement("div");
     overlay.className = "fixed inset-0 z-[120] flex items-end justify-center bg-gray-900/50 sm:items-center sm:p-4";
-    overlay.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="${prefix}-title"${opts.body ? ` aria-describedby="${prefix}-body"` : ""} class="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-lg sm:rounded-2xl">
+    overlay.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="${prefix}-title"${opts.body ? ` aria-describedby="${prefix}-body"` : ""} class="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-lg sm:rounded-xl">
       <form novalidate class="p-5 sm:p-6">
         <h2 id="${prefix}-title" class="text-lg font-bold text-gray-900">${esc(opts.title)}</h2>
         ${opts.body ? `<div id="${prefix}-body" class="mt-2 space-y-2 text-sm text-gray-700">${opts.body}</div>` : ""}

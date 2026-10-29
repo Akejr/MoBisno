@@ -31,7 +31,7 @@ import {
 import { resolveBilling } from "../../../src/services/billing.js";
 import { openDialog } from "./dialog.js";
 import {
-  announce, bindChips, btnClass, emptyState, filterChips, fmtDate, fold, icon, liveRegion, monthsLabel, pill,
+  announce, bindChips, btnClass, emptyState, filterChips, fmtDate, fold, icon, iconButton, liveRegion, monthsLabel, pill,
   planPill, plural, searchField, storeLink, updateChipCounts, type AdminView,
 } from "./ui.js";
 
@@ -91,9 +91,14 @@ function storeRow(s: AdminStore): string {
   const plano = planOf(s);
   const ativa = isActive(plano);
   // As lojas de um administrador publicam sem subscrição: não há nada para ativar.
+  /*
+   * Uma ação com nome (a da subscrição, que é a que mais se usa) e as outras
+   * em botões só com ícone. Eram cinco botões com texto em cada linha, e a
+   * linha parecia uma barra de ferramentas.
+   */
   const subscricao = s.isModel || s.ownerIsAdmin ? "" : `
-        <button type="button" data-act="activate" data-id="${esc(s.id)}" aria-label="${ativa ? "Prolongar" : "Ativar"} a subscrição da loja ${esc(name)}" class="${btnClass(ativa ? "secondary" : "primary", "sm")}">${icon(ativa ? "more_time" : "check_circle")} ${ativa ? "Prolongar" : "Ativar"}</button>
-        ${ativa ? `<button type="button" data-act="deactivate" data-id="${esc(s.id)}" aria-label="Desativar a subscrição da loja ${esc(name)}" class="${btnClass("dangerOutline", "sm")}">Desativar</button>` : ""}`;
+        <button type="button" data-act="activate" data-id="${esc(s.id)}" aria-label="${ativa ? "Prolongar" : "Ativar"} a subscrição da loja ${esc(name)}" class="${btnClass(ativa ? "secondary" : "primary", "sm")}">${icon(ativa ? "more_time" : "check_circle", "text-[17px]")} ${ativa ? "Prolongar" : "Ativar"}</button>
+        ${ativa ? iconButton({ act: "deactivate", id: s.id, label: `Desativar a subscrição da loja ${name}`, icon: "event_busy", danger: true }) : ""}`;
   /*
    * Dois blocos, e não três colunas lado a lado. Em três colunas, os selos e os
    * seis botões ficavam com a largura que queriam e a coluna do nome encolhia
@@ -121,11 +126,11 @@ function storeRow(s: AdminStore): string {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 xl:shrink-0 xl:justify-end">${subscricao}
-        <button type="button" data-act="edit" data-id="${esc(s.id)}" aria-label="Editar a loja ${esc(name)}" class="${btnClass("secondary", "sm")}">${icon("palette")} Editar</button>
-        <button type="button" data-act="state" data-id="${esc(s.id)}" aria-label="${published ? "Despublicar" : "Publicar"} a loja ${esc(name)}" class="${btnClass("secondary", "sm")}">${icon(published ? "visibility_off" : "public")} ${published ? "Despublicar" : "Publicar"}</button>
+        ${iconButton({ act: "edit", id: s.id, label: `Editar a loja ${name}`, icon: "palette" })}
+        ${iconButton({ act: "state", id: s.id, label: `${published ? "Despublicar" : "Publicar"} a loja ${name}`, icon: published ? "visibility_off" : "public" })}
         ${s.isModel
           ? `<a href="${esc(ADMIN_HREFS.modelos)}" class="${btnClass("ghost", "sm")}">Gerir em Modelos</a>`
-          : `<button type="button" data-act="delete" data-id="${esc(s.id)}" aria-label="Eliminar a loja ${esc(name)}" class="${btnClass("dangerOutline", "sm")}">${icon("delete")}<span class="hidden sm:inline">Eliminar</span></button>`}
+          : iconButton({ act: "delete", id: s.id, label: `Eliminar a loja ${name}`, icon: "delete", danger: true })}
       </div>
     </div>
   </li>`;
@@ -174,8 +179,8 @@ export async function renderStores(view: AdminView): Promise<void> {
     const list = document.getElementById("store-list");
     if (list) {
       list.innerHTML = shown.length
-        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">${shown.map(storeRow).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("storefront", inFilter.length ? "Nenhuma loja corresponde à pesquisa." : stores.length ? "Nenhuma loja neste filtro." : "Ainda não há lojas.")}</div>`;
+        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">${shown.map(storeRow).join("")}</ul>`
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("storefront", inFilter.length ? "Nenhuma loja corresponde à pesquisa." : stores.length ? "Nenhuma loja neste filtro." : "Ainda não há lojas.")}</div>`;
     }
     updateChipCounts("store-filter", counts());
   }

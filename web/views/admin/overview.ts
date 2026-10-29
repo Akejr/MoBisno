@@ -37,10 +37,10 @@ interface Kpi {
 
 function kpiCard(k: Kpi): string {
   return `<li class="min-w-0 ${k.wide ? "col-span-2 lg:col-span-1" : ""}">
-    <a href="${esc(k.href)}" class="flex h-full flex-col rounded-2xl border bg-white p-4 transition-colors hover:border-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-2 ${k.urgent ? "border-orange-300" : "border-gray-200"}">
-      <span class="flex items-center gap-2 text-sm font-medium text-gray-700">${icon(k.icon, "text-[20px] text-[#F95901]")}<span class="min-w-0">${esc(k.label)}</span></span>
-      <span class="mt-2 text-xl xl:text-2xl font-black tracking-tight break-words ${k.urgent ? "text-orange-700" : "text-gray-900"}">${esc(k.value)}</span>
-      <span class="mt-1 text-xs text-gray-600">${esc(k.hint)}</span>
+    <a href="${esc(k.href)}" class="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] focus-visible:ring-offset-2">
+      <span class="flex items-center justify-between gap-2 text-[13px] font-medium text-gray-500"><span class="min-w-0">${esc(k.label)}</span>${k.urgent ? `<span class="h-2 w-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true"></span>` : icon(k.icon, "text-[18px] text-gray-400")}</span>
+      <span class="mt-2 text-2xl font-semibold tracking-tight tabular-nums break-words text-gray-900">${esc(k.value)}</span>
+      <span class="mt-1 text-xs text-gray-500">${esc(k.hint)}</span>
     </a>
   </li>`;
 }
@@ -48,12 +48,12 @@ function kpiCard(k: Kpi): string {
 function attentionRow(item: AttentionItem, iconName: string, aside: string): string {
   return `<li>
     <a href="${esc(item.href)}" class="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:bg-gray-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#F95901]">
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-50">${icon(iconName, "text-[20px] text-[#F95901]")}</span>
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500">${icon(iconName, "text-[17px]")}</span>
       <span class="min-w-0 flex-1">
-        <span class="block font-semibold text-gray-900 break-words">${esc(item.title)}</span>
-        <span class="block text-sm text-gray-600 break-words">${esc(item.detail)}</span>
+        <span class="block truncate text-sm font-medium text-gray-900">${esc(item.title)}</span>
+        <span class="block truncate text-[13px] text-gray-500">${esc(item.detail)}</span>
       </span>
-      <span class="shrink-0 text-right text-sm text-gray-700">${aside}</span>
+      <span class="shrink-0 text-right text-[13px] text-gray-600">${aside}</span>
       ${icon("chevron_right", "text-[20px] text-gray-400 shrink-0")}
     </a>
   </li>`;
@@ -70,8 +70,8 @@ function attentionGroup(
   const rest = items.length - ATTENTION_ROWS;
   return `<div>
     <div class="flex flex-wrap items-center justify-between gap-2 px-4 pb-1 pt-4">
-      <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900">${esc(title)}${pill(String(items.length), "amber")}</h3>
-      <a href="${esc(all.href)}" class="rounded text-sm font-semibold text-orange-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]">${esc(all.label)}</a>
+      <h3 class="flex items-center gap-2 text-[13px] font-semibold text-gray-900">${esc(title)}${pill(String(items.length), "amber")}</h3>
+      <a href="${esc(all.href)}" class="rounded text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901]">${esc(all.label)}</a>
     </div>
     <ul role="list" class="divide-y divide-gray-100">${items.slice(0, ATTENTION_ROWS).map((i) => attentionRow(i, iconName, aside(i))).join("")}</ul>
     ${rest > 0 ? `<p class="px-4 pb-3 text-sm text-gray-600">E mais ${rest}.</p>` : ""}
@@ -174,13 +174,13 @@ export async function renderOverview(view: AdminView): Promise<void> {
     <section aria-labelledby="ov-kpis">
       <h2 id="ov-kpis" class="sr-only">Números principais</h2>
       <ul role="list" class="grid grid-cols-2 gap-3 lg:grid-cols-5">${cards.map(kpiCard).join("")}</ul>
-      ${PAYMENTS_PROVIDER_READY ? "" : `<div class="mt-3">${noteBox(`Os pagamentos online ainda não estão ligados: a receita só conta subscrições pagas na plataforma. Para ativar uma subscrição paga por outro meio, use «Ativar» em <a href="${esc(ADMIN_HREFS.contas)}" class="font-semibold text-orange-700 underline">Contas</a>.`)}</div>`}
-      ${ownStores > 0 ? `<div class="mt-3">${noteBox(`${plural(ownStores, "loja", "lojas")} da sua própria conta de administração não entra${ownStores === 1 ? "" : "m"} nestes números, para não contar como negócio. ${ownStores === 1 ? "Está" : "Estão"} em <a href="${esc(ADMIN_HREFS.lojas)}" class="font-semibold text-orange-700 underline">Lojas</a>.`, "shield_person")}</div>` : ""}
+      ${PAYMENTS_PROVIDER_READY ? "" : `<div class="mt-3">${noteBox(`Os pagamentos online ainda não estão ligados: a receita só conta subscrições pagas na plataforma. Para ativar uma subscrição paga por outro meio, use «Ativar» em <a href="${esc(ADMIN_HREFS.contas)}" class="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-500">Contas</a>.`)}</div>`}
+      ${ownStores > 0 ? `<div class="mt-3">${noteBox(`${plural(ownStores, "loja", "lojas")} da sua própria conta de administração não entra${ownStores === 1 ? "" : "m"} nestes números, para não contar como negócio. ${ownStores === 1 ? "Está" : "Estão"} em <a href="${esc(ADMIN_HREFS.lojas)}" class="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-500">Lojas</a>.`, "shield_person")}</div>` : ""}
     </section>
 
     <section aria-labelledby="ov-attention" class="mt-8">
       <h2 id="ov-attention" class="mb-3 text-base font-bold text-gray-900">A precisar de atenção</h2>
-      <div class="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <div class="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         ${groups.length
           ? groups.join("")
           : emptyState("task_alt", "Está tudo em dia.", "Não há verificações nem levantamentos à espera.")}

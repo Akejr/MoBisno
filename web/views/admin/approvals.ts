@@ -128,7 +128,7 @@ function pendingCard(v: AdminVerification): string {
   const titleId = `ver-${v.storeId}-title`;
   const sent = v.submittedAt ? `Enviado ${ago(v.submittedAt)} · ${fmtDateTime(v.submittedAt)}` : "Data de envio desconhecida";
   return `<li>
-    <article aria-labelledby="${esc(titleId)}" class="rounded-2xl border border-gray-200 bg-white p-4 md:p-5">
+    <article aria-labelledby="${esc(titleId)}" class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 md:p-5">
       ${headerHtml(v, esc(titleId))}
       <p class="mt-1 text-xs text-gray-600">${esc(sent)}</p>
       <div class="mt-4">${detailsHtml(v)}</div>
@@ -237,7 +237,7 @@ export async function renderApprovals(view: AdminView): Promise<void> {
     if (pendingEl) {
       pendingEl.innerHTML = pending.length
         ? `<ul role="list" class="space-y-4">${pending.map(pendingCard).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("task_alt", "Não há pedidos por aprovar.", "Quando um Dono enviar os dados da empresa, o pedido aparece aqui.")}</div>`;
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("task_alt", "Não há pedidos por aprovar.", "Quando um Dono enviar os dados da empresa, o pedido aparece aqui.")}</div>`;
     }
 
     const counts = {
@@ -261,8 +261,8 @@ export async function renderApprovals(view: AdminView): Promise<void> {
     const historyEl = document.getElementById("ver-history");
     if (historyEl) {
       historyEl.innerHTML = shown.length
-        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">${shown.map((v) => historyRow(v, open.has(v.storeId))).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("history", history.length ? "Nenhum pedido com este estado." : "Ainda não há decisões.")}</div>`;
+        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">${shown.map((v) => historyRow(v, open.has(v.storeId))).join("")}</ul>`
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("history", history.length ? "Nenhum pedido com este estado." : "Ainda não há decisões.")}</div>`;
     }
   }
 

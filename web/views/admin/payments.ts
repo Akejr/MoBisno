@@ -101,14 +101,14 @@ function paymentChips(group: string, label: string, counts: Record<PaymentFilter
 function tabsNav(active: Tab, requested: number, visiveis: readonly Tab[]): string {
   const tabs = TABS.filter((t) => visiveis.includes(t.id));
   if (tabs.length < 2) return "";
-  return `<nav aria-label="Tipos de pagamento" class="mb-6 flex gap-2 overflow-x-auto pb-1">
+  return `<nav aria-label="Tipos de pagamento" class="mb-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1">
     ${tabs.map((t) => {
       const on = t.id === active;
       // `data-nav-count`: o painel atualiza este contador com os da navegação.
       const badge = t.id === "levantamentos"
         ? `<span data-nav-count="withdrawals" class="${requested > 0 ? "" : "hidden"} rounded-full bg-orange-700 px-1.5 py-0.5 text-xs font-bold leading-none text-white">${requested > 0 ? `<span aria-hidden="true">${requested}</span><span class="sr-only">(${requested} por tratar)</span>` : ""}</span>`
         : "";
-      return `<a href="${esc(t.href)}" ${on ? 'aria-current="page"' : ""} class="inline-flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] ${on ? "border-orange-300 bg-orange-50 text-orange-800" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}">${icon(t.icon)}${esc(t.label)}${badge}</a>`;
+      return `<a href="${esc(t.href)}" ${on ? 'aria-current="page"' : ""} class="inline-flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F95901] ${on ? "border-gray-300 bg-white text-gray-900 shadow-sm" : "border-transparent text-gray-600 hover:bg-white hover:text-gray-900"}">${icon(t.icon)}${esc(t.label)}${badge}</a>`;
     }).join("")}
   </nav>`;
 }
@@ -142,7 +142,7 @@ async function renderSubscriptions(view: AdminView, tabs: string): Promise<void>
   const painted = view.paint(`
     ${liveRegion(LIVE)}
     ${tabs}
-    ${PAYMENTS_PROVIDER_READY ? "" : `<div class="mb-4">${noteBox(`Ainda não há pagamentos online: as subscrições pagas por outro meio ativam-se à mão em <a href="${esc(ADMIN_HREFS.contas)}" class="font-semibold text-orange-700 underline">Contas</a>, e não aparecem aqui.`)}</div>`}
+    ${PAYMENTS_PROVIDER_READY ? "" : `<div class="mb-4">${noteBox(`Ainda não há pagamentos online: as subscrições pagas por outro meio ativam-se à mão em <a href="${esc(ADMIN_HREFS.contas)}" class="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-500">Contas</a>, e não aparecem aqui.`)}</div>`}
     <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2" id="plan-totals">
       ${statCard("Recebido este mês", formatKz(t.month))}
       ${statCard("Recebido no total", formatKz(t.total))}
@@ -161,8 +161,8 @@ async function renderSubscriptions(view: AdminView, tabs: string): Promise<void>
     const list = document.getElementById("plan-list");
     if (list) {
       list.innerHTML = shown.length
-        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">${shown.map(planRow).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("receipt_long", payments.length ? "Nenhum pagamento corresponde aos filtros." : "Ainda não há pagamentos de subscrição.")}</div>`;
+        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">${shown.map(planRow).join("")}</ul>`
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("receipt_long", payments.length ? "Nenhum pagamento corresponde aos filtros." : "Ainda não há pagamentos de subscrição.")}</div>`;
     }
     updateChipCounts("plan-filter", paymentCounts(payments.map((p) => p.status)));
   }
@@ -246,8 +246,8 @@ async function renderOrders(view: AdminView, tabs: string): Promise<void> {
     const list = document.getElementById("order-list");
     if (list) {
       list.innerHTML = shown.length
-        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">${shown.map(orderRow).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("shopping_bag", orders.length ? "Nenhuma encomenda corresponde aos filtros." : "Ainda não há encomendas nas lojas.")}</div>`;
+        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">${shown.map(orderRow).join("")}</ul>`
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("shopping_bag", orders.length ? "Nenhuma encomenda corresponde aos filtros." : "Ainda não há encomendas nas lojas.")}</div>`;
     }
   }
 
@@ -298,7 +298,7 @@ function withdrawalRow(w: AdminWithdrawal): string {
   return `<li class="px-4 py-3">
     <div class="flex flex-wrap items-start gap-3">
       <div class="min-w-0 flex-1 basis-56">
-        <p class="flex flex-wrap items-center gap-2"><span class="text-lg font-black text-gray-900">${esc(formatKz(w.amount))}</span>${withdrawalPill(w.status)}</p>
+        <p class="flex flex-wrap items-center gap-2"><span class="text-base font-semibold tabular-nums text-gray-900">${esc(formatKz(w.amount))}</span>${withdrawalPill(w.status)}</p>
         <p class="text-sm text-gray-700 break-words">${esc(store)} · <span class="break-all">${esc(w.ownerEmail || "dono desconhecido")}</span></p>
         <p class="text-xs text-gray-600">Pedido a ${esc(fmtDateTime(w.createdAt))}${w.processedAt && !open ? ` · tratado a ${esc(fmtDate(w.processedAt))}` : ""}</p>
         ${w.iban || bank ? `<p class="mt-1 text-sm text-gray-800 break-words">${bank ? `${esc(bank)} · ` : ""}<span class="font-mono tracking-wide">${esc(w.iban ? formatIban(w.iban) : "IBAN não indicado")}</span></p>` : ""}
@@ -351,8 +351,8 @@ async function renderWithdrawals(view: AdminView, tabsFor: (requested: number) =
     const list = document.getElementById("wd-list");
     if (list) {
       list.innerHTML = shown.length
-        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">${shown.map(withdrawalRow).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("account_balance_wallet", filter === "tratar" ? "Não há levantamentos por tratar." : "Nenhum pedido corresponde aos filtros.")}</div>`;
+        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">${shown.map(withdrawalRow).join("")}</ul>`
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("account_balance_wallet", filter === "tratar" ? "Não há levantamentos por tratar." : "Nenhum pedido corresponde aos filtros.")}</div>`;
     }
     updateChipCounts("wd-filter", withdrawalCounts(items));
     const totals = document.getElementById("wd-totals");

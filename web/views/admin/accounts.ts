@@ -102,7 +102,7 @@ function storeLine(s: AdminStore): string {
 function orphansCard(estado: OrphanResult): string {
   const caixa = (tom: "amber" | "gray" | "red", corpo: string): string => {
     const cores = { amber: "border-amber-200 bg-amber-50", gray: "border-gray-200 bg-white", red: "border-red-200 bg-red-50" } as const;
-    return `<div class="mb-4 rounded-2xl border ${cores[tom]} p-4">${corpo}</div>`;
+    return `<div class="mb-4 rounded-xl border ${cores[tom]} p-4">${corpo}</div>`;
   };
   const recheck = `<button type="button" data-act="recheck" class="${btnClass("ghost", "sm")}">${icon("refresh")} Verificar de novo</button>`;
 
@@ -125,11 +125,14 @@ function orphansCard(estado: OrphanResult): string {
   }
 
   if (estado.list.length === 0) {
-    return caixa("gray", `<div class="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-      <span class="material-symbols-outlined mb-ico text-[18px] text-gray-500" aria-hidden="true">mark_email_read</span>
-      <span class="min-w-0 flex-1">Nenhum email preso: as ${esc(plural(estado.checked, "identidade verificada", "identidades verificadas"))} têm conta. Se alguém disser que o email «já existe», procure-o na lista aqui em baixo.</span>
-      ${recheck}
-    </div>`);
+    // «Está tudo bem» numa linha discreta, e não numa caixa do tamanho de um
+    // aviso: é informação, não um pedido de atenção.
+    // O botão vai dentro da frase: no telemóvel, solto, ficava numa linha só
+    // dele, e o ícone noutra.
+    return `<p class="mb-3 flex items-start gap-1.5 text-[13px] text-gray-500">
+      <span class="material-symbols-outlined shrink-0 text-emerald-600" style="font-size:16px;margin-top:1px" aria-hidden="true">mark_email_read</span>
+      <span class="min-w-0">Nenhum email preso: as ${esc(plural(estado.checked, "identidade verificada", "identidades verificadas"))} têm conta. <button type="button" data-act="recheck" class="font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900">Verificar de novo</button></span>
+    </p>`;
   }
 
   return caixa("amber", `<div class="flex items-start gap-2">
@@ -157,20 +160,24 @@ function accountRow(row: AccountRow, open: boolean): string {
   const panelId = `acc-${a.id}-details`;
   const who = a.name || a.email || "Conta sem nome";
 
-  return `<li class="px-4 py-3">
-    <div class="flex flex-wrap items-center gap-3">
-      <span aria-hidden="true" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 font-bold text-gray-700">${esc(initials(who))}</span>
-      <div class="min-w-0 flex-1 basis-48">
-        <p class="font-semibold text-gray-900 break-words">${esc(who)}</p>
-        <p class="text-sm text-gray-600 break-all">${a.name ? `${esc(a.email)} · ` : ""}${esc(storesText)}</p>
+  /*
+   * O nome e o email cortam com reticências (o texto inteiro fica no `title`),
+   * e os selos vão por baixo deles, como nas «Lojas». O email tinha `break-all`
+   * e, no telemóvel, partia a meio («…@gmail.c» numa linha, «om» na seguinte),
+   * com «Detalhes» a cair para uma linha sozinha.
+   */
+  return `<li class="px-4 py-3.5">
+    <div class="flex items-center gap-3">
+      <span aria-hidden="true" class="flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full bg-gray-100 text-sm font-semibold text-gray-700">${esc(initials(who))}</span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-semibold text-gray-900" title="${esc(who)}">${esc(who)}</p>
+        <p class="truncate text-[13px] text-gray-500" title="${esc(a.email)}">${a.name ? `${esc(a.email)} · ` : ""}${esc(storesText)}</p>
+        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+          ${planPill(row.status)}
+          ${a.isAdmin || a.phoneVerified ? "" : pill("Telefone por confirmar", "amber", "phone_iphone")}
+        </div>
       </div>
-      <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-        ${planPill(row.status)}
-        ${a.isAdmin || a.phoneVerified ? "" : pill("Telefone por confirmar", "amber", "phone_iphone")}
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <button type="button" data-act="toggle" data-id="${esc(a.id)}" aria-expanded="${open}" aria-controls="${esc(panelId)}" aria-label="Detalhes de ${esc(who)}" class="${btnClass("ghost", "sm")}">${icon(open ? "expand_less" : "expand_more")}<span>Detalhes</span></button>
-      </div>
+      <button type="button" data-act="toggle" data-id="${esc(a.id)}" aria-expanded="${open}" aria-controls="${esc(panelId)}" aria-label="Detalhes de ${esc(who)}" class="${btnClass("ghost", "sm")} shrink-0">${icon(open ? "expand_less" : "expand_more")}<span>Detalhes</span></button>
     </div>
     <div id="${esc(panelId)}" class="mt-3 rounded-xl bg-gray-50 px-4 py-3" ${open ? "" : "hidden"}>
       <p class="text-xs text-gray-600">Conta criada a ${esc(fmtDate(a.createdAt))}${a.phone ? ` · ${esc(formatPhoneForDisplay(a.phone))}${a.phoneVerified ? " (confirmado)" : " (por confirmar)"}` : " · sem telemóvel"}</p>
@@ -179,7 +186,7 @@ function accountRow(row: AccountRow, open: boolean): string {
       ${row.stores.length
         ? `<ul role="list" class="mt-1 divide-y divide-gray-200">${row.stores.map(storeLine).join("")}</ul>`
         : `<p class="mt-2 text-sm text-gray-600">Esta conta ainda não tem lojas.</p>`}
-      ${a.isAdmin ? "" : `<p class="mt-2 text-xs text-gray-600">Cada loja tem a sua subscrição: ativa-se, prolonga-se e desativa-se em <a href="${esc(ADMIN_HREFS.lojas)}" class="font-semibold text-orange-700 hover:underline">Lojas</a>.</p>
+      ${a.isAdmin ? "" : `<p class="mt-2 text-xs text-gray-600">Cada loja tem a sua subscrição: ativa-se, prolonga-se e desativa-se em <a href="${esc(ADMIN_HREFS.lojas)}" class="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-500">Lojas</a>.</p>
       <div class="mt-3 border-t border-gray-200 pt-3">
         <button type="button" data-act="delete" data-id="${esc(a.id)}" class="${btnClass("dangerOutline", "sm")}">${icon("person_remove")} Eliminar conta</button>
       </div>`}
@@ -246,8 +253,8 @@ export async function renderAccounts(view: AdminView): Promise<void> {
     const list = document.getElementById("acc-list");
     if (list) {
       list.innerHTML = shown.length
-        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">${shown.map((r) => accountRow(r, open.has(r.account.id))).join("")}</ul>`
-        : `<div class="rounded-2xl border border-gray-200 bg-white">${emptyState("person_search", inFilter.length ? "Nenhuma conta corresponde à pesquisa." : "Nenhuma conta neste filtro.")}</div>`;
+        ? `<ul role="list" class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">${shown.map((r) => accountRow(r, open.has(r.account.id))).join("")}</ul>`
+        : `<div class="rounded-xl border border-gray-200 bg-white shadow-sm">${emptyState("person_search", inFilter.length ? "Nenhuma conta corresponde à pesquisa." : "Nenhuma conta neste filtro.")}</div>`;
     }
     updateChipCounts("acc-filter", counts());
   }
