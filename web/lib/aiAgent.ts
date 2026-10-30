@@ -232,6 +232,10 @@ export function mountAiAgent(
   let backdrop: HTMLElement | null = null;
   /** `overflow` que o `body` tinha antes de a folha o bloquear. */
   let bodyOverflow = "";
+  /** Posição da página quando a folha abriu, para a repor ao fechar. */
+  let scrollAtOpen = 0;
+  /** Desliga os ouvintes do `visualViewport` da folha aberta (ver `followViewport`). */
+  let stopFollow: (() => void) | null = null;
 
   /**
    * Ecrã estreito — telemóvel na prática. Decidido no momento de abrir, e não por
@@ -245,13 +249,63 @@ export function mountAiAgent(
     // `overflow` sem a folha aberta apagaria o de quem o tivesse posto depois —
     // e o desmonte chama isto sempre, a cada mudança de ecrã.
     const eraFolha = backdrop !== null;
+    stopFollow?.();
     panel?.remove();
     panel = null;
     backdrop?.remove();
     backdrop = null;
-    // Devolve o scroll à página e o mascote ao canto.
-    if (eraFolha) document.body.style.overflow = bodyOverflow;
+    // Devolve o scroll à página e o mascote ao canto. O teclado pode ter
+    // deslocado a página por baixo da folha: ela volta ao sítio onde estava.
+    if (eraFolha) {
+      document.body.style.overflow = bodyOverflow;
+      if (Math.abs(window.scrollY - scrollAtOpen) > 2) window.scrollTo(0, scrollAtOpen);
+    }
     widget.style.display = "";
+  }
+
+  /**
+   * Mantém a folha do telemóvel em cima do teclado.
+   *
+   * No Safari do iPhone, abrir o teclado não encolhe a página: encolhe só a
+   * parte que se vê, e desloca-a para o campo de escrita aparecer. A folha
+   * estava presa ao fundo da página (`bottom:0`), por isso ficava por baixo do
+   * teclado e fora do sítio: a conversa descia, o cabeçalho saía do ecrã, e via-se
+   * a loja entre o campo e o teclado.
+   *
+   * Agora, a cada mudança da parte visível (`visualViewport`), a folha encosta o
+   * fundo ao fundo dela, que é o cimo do teclado quando ele está aberto, e nunca
+   * fica mais alta do que ela. É a técnica da conversa de criação de loja
+   * (`fitToViewport` em `web/views/wizard.ts`). No Chrome de Android a página já
+   * encolhe sozinha (`interactive-widget=resizes-content`), e isto dá o mesmo.
+   */
+  function followViewport(sheetEl: HTMLElement): void {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const fit = (): boolean => {
+      if (!sheetEl.isConnected) { stop(); return false; }
+      const visible = Math.round(vv.height);
+      const h = Math.max(240, Math.min(640, visible - 24));
+      const layout = document.documentElement.clientHeight || window.innerHeight;
+      sheetEl.style.top = `${Math.round(vv.offsetTop + visible - h)}px`;
+      sheetEl.style.bottom = "auto";
+      sheetEl.style.height = `${h}px`;
+      sheetEl.style.maxHeight = "none";
+      // Com o teclado aberto, a margem da barra do iPhone fica escondida por ele.
+      sheetEl.style.paddingBottom = layout - visible > 120 ? "0px" : "env(safe-area-inset-bottom)";
+      return true;
+    };
+    // O teclado abriu ou fechou: a última mensagem fica à vista.
+    const onResize = (): void => { if (fit() && panel) scrollMsgs(); };
+    const onScroll = (): void => { fit(); };
+    function stop(): void {
+      vv!.removeEventListener("resize", onResize);
+      vv!.removeEventListener("scroll", onScroll);
+      if (stopFollow === stop) stopFollow = null;
+    }
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onScroll);
+    stopFollow = stop;
+    fit();
   }
 
   function msgsEl(): HTMLElement { return panel!.querySelector("[data-msgs]") as HTMLElement; }
@@ -390,12 +444,14 @@ export function mountAiAgent(
       // A página atrás deixa de rolar. Era isto que fazia a vista «fugir» quando o
       // teclado aparecia e o dedo arrastava sobre a conversa.
       bodyOverflow = document.body.style.overflow;
+      scrollAtOpen = window.scrollY;
       document.body.style.overflow = "hidden";
       // O mascote fica debaixo da folha; escondê-lo evita os olhos a espreitar.
       widget.style.display = "none";
     }
 
     root.appendChild(panel);
+    if (sheet) followViewport(panel);
     panel.querySelector("[data-close]")!.addEventListener("click", closeChat);
     panel.querySelector("[data-form]")!.addEventListener("submit", (e) => { e.preventDefault(); void send(); });
     // Repõe o histórico anterior (se houver) ou mostra a saudação.

@@ -361,3 +361,61 @@ describe("Fechar e desmontar repõem a página", () => {
     expect(mascote()).toBeDefined();
   });
 });
+
+describe("No telemóvel, a folha fica em cima do teclado", () => {
+  /**
+   * No iPhone, o teclado não encolhe a página: encolhe só a parte que se vê
+   * (`visualViewport`) e desloca-a. Presa ao fundo da página, a folha ficava por
+   * baixo do teclado: a conversa descia e via-se a loja entre o campo e o teclado.
+   */
+  function comVisualViewport(altura: number): Ouvintes & { height: number; offsetTop: number } {
+    const vv = Object.assign(new Ouvintes(), { height: altura, offsetTop: 0 });
+    Object.assign(janela, { visualViewport: vv, scrollY: 0, scrollTo: vi.fn() });
+    Object.assign(doc, { documentElement: { clientHeight: altura } });
+    return vv;
+  }
+  const folha = (): ElementoFalso | undefined => app.children.find((c) => c.style.cssText.includes("z-index:90"));
+
+  it("encosta o fundo ao fundo da parte visível, e acompanha o teclado", () => {
+    estreito = true;
+    const vv = comVisualViewport(760);
+    montar();
+    mascote()?.disparar("click");
+    const f = folha();
+    expect(f).toBeDefined();
+    expect(f!.style.height).toBe("640px");
+    expect(f!.style.top).toBe("120px");
+
+    // O teclado abre: vê-se só 400 px, deslocados 300 px para baixo.
+    vv.height = 400;
+    vv.offsetTop = 300;
+    vv.disparar("resize");
+    expect(f!.style.height).toBe("376px");
+    // 300 + 400 - 376: o fundo da folha é o cimo do teclado.
+    expect(f!.style.top).toBe("324px");
+    // A margem da barra do iPhone fica escondida pelo teclado.
+    expect(f!.style.paddingBottom).toBe("0px");
+  });
+
+  it("ao fechar, larga o visualViewport e devolve a página ao sítio", () => {
+    estreito = true;
+    const vv = comVisualViewport(760);
+    montar();
+    mascote()?.disparar("click");
+    expect(vv.contar("resize")).toBe(1);
+    expect(vv.contar("scroll")).toBe(1);
+    // O teclado deslocou a página por baixo da folha.
+    Object.assign(janela, { scrollY: 180 });
+    folha()!.querySelector("[data-close]").disparar("click");
+    expect(vv.contar("resize")).toBe(0);
+    expect(vv.contar("scroll")).toBe(0);
+    expect((janela as unknown as { scrollTo: ReturnType<typeof vi.fn> }).scrollTo).toHaveBeenCalledWith(0, 0);
+  });
+
+  it("no computador, a caixa flutuante não mexe no visualViewport", () => {
+    const vv = comVisualViewport(900);
+    montar();
+    mascote()?.disparar("click");
+    expect(vv.contar("resize")).toBe(0);
+  });
+});
