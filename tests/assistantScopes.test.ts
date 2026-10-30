@@ -1557,3 +1557,34 @@ describe("Assistente no telemóvel — folha inferior, sem zoom e sem a página 
     expect(AI_AGENT).toContain("@keyframes mbBubbleIn");
   });
 });
+
+describe("Orientação do ecrã «editor» — no telemóvel", () => {
+  /**
+   * No telemóvel a barra do editor era uma linha só, mais larga do que o ecrã:
+   * «Guardar» ficava cortado e «Página de produto» partia em duas linhas. Agora
+   * «Guardar» está ao lado do nome da loja e as ferramentas deslizam na linha de
+   * baixo. Quem pergunta «onde está o Guardar?» tem de ouvir isso.
+   */
+  const guia = guiaDe("editor");
+  const EDITOR = readFileSync(join(ROOT, "web/views/editor.ts"), "utf8");
+
+  it("diz onde ficam «Guardar» e as ferramentas, e o nome curto do botão do produto", () => {
+    expect(guia).toContain("no telemóvel, o botão do meio chama-se «Produto»");
+    expect(guia).toMatch(/«Guardar» fica sempre à vista/);
+    expect(guia).toMatch(/desliza para o lado/);
+    expect(EDITOR).toContain('<span class="sm:hidden">Produto</span>');
+  });
+
+  it("«Guardar» não está dentro da linha que desliza", () => {
+    const inicio = EDITOR.indexOf('id="editor-tools"');
+    const fim = EDITOR.indexOf('id="save"');
+    expect(inicio).toBeGreaterThan(0);
+    expect(fim).toBeGreaterThan(inicio);
+    const ferramentas = EDITOR.slice(inicio, fim);
+    expect(ferramentas).toContain("overflow-x-auto");
+    expect(ferramentas).toContain('id="ver-loja"');
+    // A linha das ferramentas fecha antes de «Guardar»: um `</div>` só, o dela.
+    expect(ferramentas.match(/<\/div>/g) ?? []).toHaveLength(1);
+    expect(ferramentas).not.toMatch(/<div[\s>]/);
+  });
+});

@@ -51,6 +51,18 @@ import { openWhatsappForm } from "../lib/whatsappForm.js";
 
 const ACCENT = "#F95901";
 
+/**
+ * Botão de «Início», «Página de produto» e «Checkout». No telemóvel os três
+ * dividem a largura em partes iguais e nenhum parte em duas linhas; o do
+ * produto encurta para «Produto».
+ */
+const SCREEN_TAB = "flex flex-1 sm:flex-none items-center justify-center gap-1 whitespace-nowrap px-3 sm:px-4 py-1.5 rounded-full transition-colors";
+
+/** Ecrã de telemóvel, lido no momento de desenhar. O mesmo corte do `sm` do Tailwind. */
+function isNarrowScreen(): boolean {
+  return typeof matchMedia === "function" ? matchMedia("(max-width: 639px)").matches : window.innerWidth < 640;
+}
+
 /** Ícones predefinidos para as garantias da página de produto. */
 const PERK_ICON_CHOICES = [
   "local_shipping", "verified", "payments", "lock", "workspace_premium", "autorenew",
@@ -255,21 +267,25 @@ export async function renderEditor(): Promise<void> {
   <div class="min-h-screen flex flex-col bg-gray-100 font-sans text-gray-900">
     <header class="sticky top-0 z-[60] bg-white/95 backdrop-blur border-b border-gray-200">
       <div class="flex justify-center px-4 pt-2 pb-1.5 border-b border-gray-100">
-        <div class="inline-flex bg-gray-100 rounded-full p-1 gap-1 text-sm">
-          <button data-screen="home" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">home</span> Início</button>
-          <button data-screen="product" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">sell</span> Página de produto</button>
-          <button data-screen="checkout" class="px-4 py-1.5 rounded-full transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">shopping_bag</span> Checkout</button>
+        <div class="flex w-full sm:w-auto bg-gray-100 rounded-full p-1 gap-1 text-sm">
+          <button data-screen="home" class="${SCREEN_TAB}"><span class="material-symbols-outlined text-[16px]">home</span><span>Início</span></button>
+          <button data-screen="product" class="${SCREEN_TAB}"><span class="material-symbols-outlined text-[16px]">sell</span><span class="sm:hidden">Produto</span><span class="hidden sm:inline">Página de produto</span></button>
+          <button data-screen="checkout" class="${SCREEN_TAB}"><span class="material-symbols-outlined text-[16px]">shopping_bag</span><span>Checkout</span></button>
         </div>
       </div>
-      <div class="flex items-center justify-between gap-3 px-4 md:px-6 py-2.5">
-        <div class="flex items-center gap-3 min-w-0">
-          <a href="${backHref}" id="back-link" class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">arrow_back</span></a>
+      <!-- No telemóvel: o nome da loja e «Guardar» numa linha, e as ferramentas
+           na linha de baixo, a deslizar para o lado. Estava tudo numa linha só,
+           mais larga do que o ecrã: «Guardar» ficava cortado, o «A personalizar»
+           passava por baixo das cores e a página inteira ganhava scroll para o lado. -->
+      <div class="flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1.5 px-4 md:px-6 py-2.5">
+        <div class="order-1 flex flex-1 md:flex-none items-center gap-3 min-w-0">
+          <a href="${backHref}" id="back-link" class="w-9 h-9 shrink-0 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors"><span class="material-symbols-outlined">arrow_back</span></a>
           <div class="min-w-0">
-            <p class="text-xs text-gray-400 leading-none">A personalizar</p>
+            <p class="text-xs text-gray-400 leading-none truncate">A personalizar</p>
             <p class="text-gray-900 font-bold truncate">${esc(store.name)}</p>
           </div>
         </div>
-        <div class="flex items-center gap-1 md:gap-2">
+        <div id="editor-tools" class="order-3 md:order-2 flex w-full md:w-auto md:ml-auto items-center gap-1 md:gap-2 overflow-x-auto md:overflow-visible -mx-2 px-2 md:mx-0 md:px-0">
           <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer rounded-full hover:bg-gray-100 px-2 py-1.5 relative" title="Cor de destaque">
             <span class="w-6 h-6 rounded-full border border-gray-200" id="color-dot" style="background:${esc(brandColor())}"></span>
             <span class="hidden sm:inline">Cor</span>
@@ -295,8 +311,8 @@ export async function renderEditor(): Promise<void> {
           <button id="tutorial" class="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-full transition-colors" style="color:${ACCENT}"><span class="material-symbols-outlined text-[18px]">school</span><span class="hidden sm:inline">Tutorial</span></button>
           <button id="open-preview" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">visibility</span><span class="hidden sm:inline">Abrir preview</span></button>
           <a id="ver-loja" href="${esc(storeUrl)}" target="_blank" rel="noopener" class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-full hover:bg-gray-100 transition-colors"><span class="material-symbols-outlined text-[18px]">open_in_new</span><span class="hidden sm:inline">Ver loja</span></a>
-          <button id="save" class="text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-1 shadow-sm transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>
         </div>
+        <button id="save" class="order-2 md:order-3 shrink-0 text-white px-4 md:px-5 py-2 rounded-full text-sm font-bold flex items-center gap-1 shadow-sm transition-opacity hover:opacity-95" style="background:${ACCENT}"><span class="material-symbols-outlined text-[18px]">save</span> Guardar</button>
       </div>
     </header>
     <div id="preview" class="flex-grow overflow-auto"></div>
@@ -341,6 +357,9 @@ export async function renderEditor(): Promise<void> {
     #preview [data-edit]:focus{outline:2px solid ${ACCENT};outline-offset:2px}
     .mb-ov{opacity:0;transition:opacity .2s ease, transform .2s ease;pointer-events:none}
     .mb-ov-btn{pointer-events:auto}
+    #editor-tools{scrollbar-width:none}
+    #editor-tools::-webkit-scrollbar{display:none}
+    #editor-tools > *{flex-shrink:0}
     [data-edit-logo]{cursor:pointer}
     [data-edit-hero]:hover .mb-hero-ov{opacity:1}
     [data-edit-feature-image]{cursor:pointer}
@@ -842,7 +861,14 @@ export async function renderEditor(): Promise<void> {
           rm.addEventListener("click", (e) => { e.preventDefault(); snapshot(); custom.sections!.splice(i, 1); void rebuild(); });
           wrap.appendChild(rm);
         }
-        head.appendChild(wrap);
+        // No telemóvel, os controlos vão para uma linha própria por cima do
+        // título: na mesma linha, o título ficava reduzido a «Dest…».
+        if (isNarrowScreen()) {
+          wrap.classList.add("justify-end", "mb-3");
+          head.before(wrap);
+        } else {
+          head.appendChild(wrap);
+        }
       });
       const addSec = document.createElement("div");
       addSec.className = "mb-ov-btn mt-10 relative";
@@ -1637,7 +1663,7 @@ ${fieldCss}
   function updateScreenTabs(): void {
     document.querySelectorAll<HTMLElement>("[data-screen]").forEach((b) => {
       const active = b.dataset.screen === currentScreen;
-      b.className = "px-4 py-1.5 rounded-full transition-colors flex items-center gap-1 " + (active ? "text-white font-bold shadow-sm" : "text-gray-500 hover:text-gray-900");
+      b.className = `${SCREEN_TAB} ${active ? "text-white font-bold shadow-sm" : "text-gray-500 hover:text-gray-900"}`;
       b.style.background = active ? ACCENT : "";
     });
   }

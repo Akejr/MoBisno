@@ -290,7 +290,8 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - Uma secção acrescentada sai sempre com o desenho do modelo, a tipografia, os cantos e as cores dele. Não há secções com aspeto de outro modelo.
 - As secções acrescentadas sobem, descem e removem-se; as do modelo mantêm-se.
 - Numa loja criada a partir de um modelo, as secções estruturais do modelo não se acrescentam nem se removem: o menu oferece só o que aquele modelo aceita.
-- No topo alterna-se entre «Início», «Página de produto» e «Checkout».
+- No topo alterna-se entre «Início», «Página de produto» e «Checkout» (no telemóvel, o botão do meio chama-se «Produto»).
+- NO TELEMÓVEL: «Guardar» fica sempre à vista, ao lado do nome da loja; as cores, o estilo, «Desfazer», «Tutorial», a pré-visualização e «Ver loja» ficam na linha de baixo, que desliza para o lado. Nas secções de produtos, as setas, a categoria e o caixote do lixo ficam numa linha por cima do título da secção.
 - LOCALIZAÇÃO: quando o modelo tem bloco de mapa, dá para acrescentar várias localizações e escolher cada uma no mapa, com o pin arrastável.
 - «Guardar» publica as alterações. «Desfazer» reverte. «Abrir preview» mostra computador e telemóvel. «Ver loja» abre a loja. «Tutorial» inicia a visita guiada.
 - Pagamentos, WhatsApp, entregas e descontos não se configuram aqui: é no Dashboard.`,
