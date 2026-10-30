@@ -17,6 +17,7 @@ import { describe, it, expect } from "vitest";
 import { assertPropertyAsync, assertProperty, fc } from "./helpers/property.js";
 import {
   LEGACY_STORE_APEX, MODEL_STORE_PREFIX, PLATFORM_APEX, PLATFORM_CONTACT_EMAIL, STORE_APEX,
+  PLATFORM_SUPPORT_WHATSAPP, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
   isModelIdentifier, storePublicUrl,
 } from "../src/services/domains.js";
 import {
@@ -41,6 +42,13 @@ describe("Domínios", () => {
     const url = new URL(storePublicUrl("cafe-ndombe"));
     expect(url.protocol).toBe("https:");
     expect(url.hostname).toBe(`cafe-ndombe.${STORE_APEX}`);
+  });
+
+  it("o WhatsApp do suporte é um número angolano, e o rótulo e a ligação saem dele", () => {
+    expect(PLATFORM_SUPPORT_WHATSAPP).toMatch(/^2449\d{8}$/);
+    expect(PLATFORM_SUPPORT_WHATSAPP_LABEL).toMatch(/^\+244 9\d{2} \d{3} \d{3}$/);
+    expect(PLATFORM_SUPPORT_WHATSAPP_LABEL.replace(/\D/g, "")).toBe(PLATFORM_SUPPORT_WHATSAPP);
+    expect(PLATFORM_SUPPORT_WHATSAPP_URL).toBe(`https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}`);
   });
 
   it("o contacto da MôBisno é um email do domínio da Plataforma", () => {

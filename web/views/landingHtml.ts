@@ -46,7 +46,9 @@ import { glowCardStyleTag } from "../lib/glowCards.js";
 import { esc } from "../lib/dom.js";
 import { PLAN_NAME, PLAN_PRICE_KZ, PLAN_PERIOD_DAYS, PLAN_HIGHLIGHTS, PLAN_UNIT_LABEL } from "../../src/services/plans.js";
 import { comingSoonList } from "../../src/services/comingSoon.js";
-import { STORE_APEX, PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
+import {
+  STORE_APEX, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
+} from "../../src/services/domains.js";
 import { DELIVERY_PROVINCE, LUANDA_AREAS } from "../../src/services/delivery.js";
 import {
   PLATFORM_FEE_RATE, PLATFORM_FEE_LABEL, platformFee, netForOwner, feeForMethod,
@@ -536,7 +538,7 @@ function faqSection(): string {
           <div data-motion data-reveal class="lg:col-span-4">
             ${eyebrow("Dúvidas")}
             <h2 class="${H2}">Perguntas frequentes</h2>
-            <p class="${LEAD}">Não encontrou a resposta? Escreva para <a href="mailto:${esc(PLATFORM_CONTACT_EMAIL)}" class="font-semibold underline decoration-2 underline-offset-4" style="color:${ACCENT_INK}">${esc(PLATFORM_CONTACT_EMAIL)}</a>.</p>
+            <p class="${LEAD}">Não encontrou a resposta? Fale connosco pelo WhatsApp: <a href="${esc(PLATFORM_SUPPORT_WHATSAPP_URL)}" target="_blank" rel="noopener" class="font-semibold underline decoration-2 underline-offset-4 whitespace-nowrap" style="color:${ACCENT_INK}">${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a>.</p>
           </div>
           <div class="lg:col-span-8">${items}
           </div>

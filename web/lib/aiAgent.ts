@@ -8,6 +8,7 @@
  */
 
 import { assistantContextFor, scopeFor, type AssistantScreen } from "./assistantContext.js";
+import { PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL } from "../../src/services/domains.js";
 
 const ACCENT = "#F95901";
 const WIDGET_ID = "mb-ai-agent";
@@ -426,6 +427,12 @@ export function mountAiAgent(
         <!-- Alvo de toque maior no telemóvel: 30px é pequeno para um dedo. -->
         <button data-close type="button" aria-label="Fechar o assistente" style="flex:none;width:${sheet ? 40 : 30}px;height:${sheet ? 40 : 30}px;border-radius:9999px;border:none;background:#f3f4f6;color:#6b7280;cursor:pointer;display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:${sheet ? 22 : 18}px">close</span></button>
       </div>
+      <!-- Quem prefere falar com uma pessoa tem o suporte à vista logo ao abrir. -->
+      <a data-support href="${PLATFORM_SUPPORT_WHATSAPP_URL}" target="_blank" rel="noopener" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:9px 14px;border-bottom:1px solid #dcfce7;background:#f0fdf4;color:#166534;font-size:13px;font-weight:600;text-decoration:none">
+        <span class="material-symbols-outlined" style="font-size:18px" aria-hidden="true">support_agent</span>
+        <span style="flex:1;min-width:0">Falar com o suporte no WhatsApp</span>
+        <span style="font-size:12px;font-weight:500;color:#15803d;white-space:nowrap">${PLATFORM_SUPPORT_WHATSAPP_LABEL}</span>
+      </a>
       <div data-msgs style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f9fafb"></div>
       <form data-form style="display:flex;gap:8px;padding:10px;border-top:1px solid #f0f1f2;background:#fff">
         <!-- font-size 16px no telemóvel NÃO é estética: o Safari do iOS dá zoom

@@ -34,7 +34,7 @@
 import { PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ, PLAN_HIGHLIGHTS } from "../../src/services/plans.js";
 import { PAYMENTS_PROVIDER_READY } from "../../src/services/payments.js";
 import { COMING_SOON_LABELS, comingSoonList } from "../../src/services/comingSoon.js";
-import { PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
+import { PLATFORM_CONTACT_EMAIL, PLATFORM_SUPPORT_WHATSAPP_LABEL } from "../../src/services/domains.js";
 import { COMPANY_DOCUMENTS, VERIFICATION_STATUS_LABEL } from "../../src/services/paymentVerification.js";
 import {
   ACTIVATION_MONTHS, REJECTION_REASON_MIN, TX_CATEGORY_LABELS, TX_DEFAULT_PERIOD, TX_PERIOD_LABELS, TX_PERIODS,
@@ -134,6 +134,7 @@ export function platformFacts(): string {
 - Endereços: a plataforma é ${PLATFORM_APEX}; cada loja fica em «nomedaloja.${STORE_APEX}».
 - «EM BREVE», anunciado e bloqueado: ${emBreveLista()}. Não prometas datas. O que já estiver guardado (saldo de SMS, domínio, ids de pixel) fica guardado.
 - NÃO existe: gerador de logótipos por IA (foi removido), compra de créditos de SMS, exportação de dados, nem filtro de datas nas Análises.
+- SUPORTE: fala-se com a equipa MôBisno pelo WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}, ou pelo email ${PLATFORM_CONTACT_EMAIL}. Nesta conversa, a faixa verde «Falar com o suporte no WhatsApp», logo abaixo do título, abre a conversa com o suporte. Quem pedir para falar com uma pessoa recebe este número.
 - O assistente NÃO executa ações: explica como o Dono faz, não faz por ele.`;
 }
 
@@ -156,7 +157,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - As «Perguntas frequentes» são um acordeão: cada pergunta abre a resposta ao ser clicada, e a primeira já está aberta. Ao lado está o email da MôBisno, para o que não estiver lá.
 - A secção de preços tem **um só cartão**: o plano único, o preço **por loja** (cada loja tem a sua subscrição), o que inclui e, numa linha, o que está «Em breve». Responde com o preço que está nos FACTOS; nunca mandes o visitante «ver a secção de preços».
 - «Lojas criadas na MôBisno», no rodapé, abre o diretório público com pré-visualização real de cada loja.
-- O contacto da MôBisno é ${PLATFORM_CONTACT_EMAIL}. Não há número de telefone nem redes sociais publicadas.`,
+- O contacto da MôBisno é o WhatsApp do suporte, ${PLATFORM_SUPPORT_WHATSAPP_LABEL}, que está no rodapé e nas perguntas frequentes, e o email ${PLATFORM_CONTACT_EMAIL}. Não há redes sociais publicadas.`,
 
   registo: `ECRÃ: início de sessão (${PLATFORM_APEX}/login).
 - Conta por email e palavra-passe, com o botão «Entrar» e um olho para mostrar a palavra-passe escrita.

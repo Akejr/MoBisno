@@ -507,6 +507,9 @@ var PLATFORM_APEX = "mobisno.store";
 var STORE_APEX = "sualoja.digital";
 var LEGACY_STORE_APEX = "mobisno.store";
 var PLATFORM_CONTACT_EMAIL = `geral@${PLATFORM_APEX}`;
+var PLATFORM_SUPPORT_WHATSAPP = "244950996111";
+var PLATFORM_SUPPORT_WHATSAPP_LABEL = `+${PLATFORM_SUPPORT_WHATSAPP.slice(0, 3)} ${PLATFORM_SUPPORT_WHATSAPP.slice(3, 6)} ${PLATFORM_SUPPORT_WHATSAPP.slice(6, 9)} ${PLATFORM_SUPPORT_WHATSAPP.slice(9)}`;
+var PLATFORM_SUPPORT_WHATSAPP_URL = `https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}`;
 
 // web/lib/routing.ts
 var STORE_APEXES = [STORE_APEX, LEGACY_STORE_APEX];
@@ -4506,7 +4509,8 @@ function platformFooterHtml() {
             <!-- Sem superlativos: \xABa forma mais simples\xBB n\xE3o \xE9 verific\xE1vel. O que
                  a loja faz \xE9 que \xE9. -->
             <p class="text-sm text-gray-500 max-w-xs leading-relaxed">Lojas online angolanas, sem programar: modelos prontos, editor visual e encomendas por WhatsApp em todas as lojas.</p>
-            <a href="${esc(mail)}" class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">mail</span>${esc(PLATFORM_CONTACT_EMAIL)}</a>
+            <a href="${esc(PLATFORM_SUPPORT_WHATSAPP_URL)}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">chat</span>WhatsApp ${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a>
+            <a href="${esc(mail)}" class="-mt-2 inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">mail</span>${esc(PLATFORM_CONTACT_EMAIL)}</a>
           </div>
           <!-- Os titulos das colunas sao h3, e nao h4: a pagina acima deles
                acaba em h2, e saltar de h2 para h4 deixa um degrau vazio na
@@ -4884,7 +4888,7 @@ function faqSection() {
           <div data-motion data-reveal class="lg:col-span-4">
             ${eyebrow("D\xFAvidas")}
             <h2 class="${H2}">Perguntas frequentes</h2>
-            <p class="${LEAD}">N\xE3o encontrou a resposta? Escreva para <a href="mailto:${esc(PLATFORM_CONTACT_EMAIL)}" class="font-semibold underline decoration-2 underline-offset-4" style="color:${ACCENT_INK}">${esc(PLATFORM_CONTACT_EMAIL)}</a>.</p>
+            <p class="${LEAD}">N\xE3o encontrou a resposta? Fale connosco pelo WhatsApp: <a href="${esc(PLATFORM_SUPPORT_WHATSAPP_URL)}" target="_blank" rel="noopener" class="font-semibold underline decoration-2 underline-offset-4 whitespace-nowrap" style="color:${ACCENT_INK}">${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a>.</p>
           </div>
           <div class="lg:col-span-8">${items}
           </div>

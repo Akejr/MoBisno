@@ -14,7 +14,9 @@
  * simplificado do `platformHtml` de `api/_seo.js` até a SPA arrancar.
  */
 import { esc } from "../lib/dom.js";
-import { PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
+import {
+  PLATFORM_CONTACT_EMAIL, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
+} from "../../src/services/domains.js";
 
 /** Laranja da plataforma. Só interface da MôBisno — as Lojas usam `var(--brand)`. */
 export const PLATFORM_ACCENT = "#F95901";
@@ -170,9 +172,10 @@ export function platformFooterHtml(): string {
     `<li><a href="${esc(href)}"${extra} class="text-gray-500 hover:text-gray-900 transition-colors">${esc(label)}</a></li>`;
   const mail = `mailto:${PLATFORM_CONTACT_EMAIL}`;
 
-  // Só contactos verdadeiros: o email geral. As ligações de WhatsApp
-  // (`wa.me/244900000000`) e de Instagram (`#`) eram marcadores de posição —
-  // um número que não é de ninguém e uma ligação para lado nenhum.
+  // Só contactos verdadeiros: o WhatsApp do suporte e o email geral, ambos de
+  // `src/services/domains.ts`. As ligações de WhatsApp (`wa.me/244900000000`) e
+  // de Instagram (`#`) que aqui estiveram eram marcadores de posição: um número
+  // que não era de ninguém e uma ligação para lado nenhum.
   return `
     <footer class="bg-white border-t border-gray-100">
       <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-14">
@@ -182,7 +185,8 @@ export function platformFooterHtml(): string {
             <!-- Sem superlativos: «a forma mais simples» não é verificável. O que
                  a loja faz é que é. -->
             <p class="text-sm text-gray-500 max-w-xs leading-relaxed">Lojas online angolanas, sem programar: modelos prontos, editor visual e encomendas por WhatsApp em todas as lojas.</p>
-            <a href="${esc(mail)}" class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">mail</span>${esc(PLATFORM_CONTACT_EMAIL)}</a>
+            <a href="${esc(PLATFORM_SUPPORT_WHATSAPP_URL)}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">chat</span>WhatsApp ${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a>
+            <a href="${esc(mail)}" class="-mt-2 inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">mail</span>${esc(PLATFORM_CONTACT_EMAIL)}</a>
           </div>
           <!-- Os titulos das colunas sao h3, e nao h4: a pagina acima deles
                acaba em h2, e saltar de h2 para h4 deixa um degrau vazio na

@@ -42,7 +42,9 @@ import {
   type TxCategory,
 } from "../src/services/adminMetrics.js";
 import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../src/services/phoneVerification.js";
-import { PLATFORM_CONTACT_EMAIL } from "../src/services/domains.js";
+import {
+  PLATFORM_CONTACT_EMAIL, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
+} from "../src/services/domains.js";
 import { DELIVERY_PROVINCE } from "../src/services/delivery.js";
 import type { StoreTemplate } from "../web/templates/types.js";
 
@@ -409,6 +411,7 @@ function resolver(guia: string): string {
     .replace(/\$\{REJECTION_REASON_MIN\}/g, String(REJECTION_REASON_MIN))
     .replace(/\$\{DELIVERY_PROVINCE\}/g, DELIVERY_PROVINCE)
     .replace(/\$\{PLATFORM_CONTACT_EMAIL\}/g, PLATFORM_CONTACT_EMAIL)
+    .replace(/\$\{PLATFORM_SUPPORT_WHATSAPP_LABEL\}/g, PLATFORM_SUPPORT_WHATSAPP_LABEL)
     .replace(/\$\{DOCUMENTOS\}/g, COMPANY_DOCUMENTS.map((d) => `«${d.label}»`).join(" e "))
     .replace(/\$\{emBreveLista\(\)\}/g, comingSoonList().map((x) => `«${x}»`).join(", "))
     .replace(/\$\{ACTIVATION_MONTHS\.slice\(0, -1\)\.join\(", "\)\}/g, ACTIVATION_MONTHS.slice(0, -1).join(", "))
@@ -1586,5 +1589,30 @@ describe("Orientação do ecrã «editor» — no telemóvel", () => {
     // A linha das ferramentas fecha antes de «Guardar»: um `</div>` só, o dela.
     expect(ferramentas.match(/<\/div>/g) ?? []).toHaveLength(1);
     expect(ferramentas).not.toMatch(/<div[\s>]/);
+  });
+});
+
+describe("Suporte pelo WhatsApp — o assistente sabe o número, e o painel mostra-o", () => {
+  /**
+   * O contacto do site passou a ser o WhatsApp do suporte. A orientação da
+   * página inicial dizia «Não há número de telefone»: o assistente ia negar um
+   * número que está no rodapé.
+   */
+  it("os factos têm o número, interpolado do domínio, e a faixa do painel", () => {
+    expect(factsLiteral()).toContain("${PLATFORM_SUPPORT_WHATSAPP_LABEL}");
+    expect(resolver(factsLiteral())).toContain(`WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}`);
+    expect(factsLiteral()).toContain("«Falar com o suporte no WhatsApp»");
+  });
+
+  it("a página inicial já não diz que não há telefone", () => {
+    const guia = resolver(guiaDe("site"));
+    expect(guia).not.toMatch(/Não há número de telefone/);
+    expect(guia).toContain(PLATFORM_SUPPORT_WHATSAPP_LABEL);
+  });
+
+  it("o painel do assistente abre com a ligação para o suporte", () => {
+    expect(AI_AGENT).toContain("Falar com o suporte no WhatsApp");
+    expect(AI_AGENT).toContain('href="${PLATFORM_SUPPORT_WHATSAPP_URL}"');
+    expect(PLATFORM_SUPPORT_WHATSAPP_URL).toMatch(/^https:\/\/wa\.me\/\d+$/);
   });
 });

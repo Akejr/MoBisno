@@ -14,7 +14,8 @@
  *
  *  - os números (preço, período, comissão, zonas de entrega) vêm das constantes;
  *  - nada que esteja «Em breve» é apresentado como incluído;
- *  - não há contacto inventado: nem `wa.me`, nem Instagram, nem telefones;
+ *  - não há contacto inventado: o único `wa.me` é o do suporte, e não há
+ *    Instagram nem outros telefones;
  *  - as perguntas que o `FAQPage` declara estão **visíveis** na página (é a
  *    condição que o Google impõe), incluindo as do espelho de `api/_seo.js`;
  *  - as secções que o cabeçalho e o rodapé oferecem existem mesmo no HTML;
@@ -38,6 +39,7 @@ import { PLATFORM_FEE_LABEL, platformFee, netForOwner, feeForMethod } from "../s
 import { comingSoonList } from "../src/services/comingSoon.js";
 import { LUANDA_AREAS } from "../src/services/delivery.js";
 import { platformFaq, kzWhole } from "../src/services/seo.js";
+import { PLATFORM_SUPPORT_WHATSAPP, PLATFORM_SUPPORT_WHATSAPP_LABEL } from "../src/services/domains.js";
 
 const ROOT = join(__dirname, "..");
 const read = (rel: string): string => readFileSync(join(ROOT, rel), "utf8");
@@ -173,8 +175,9 @@ describe("Página inicial — nenhum número escrito à mão", () => {
   });
 
   it("não há promessas de quantidades de lojas, clientes ou vendas", () => {
-    // «Mais de 500 lojas» e afins: não existe número desses para mostrar.
-    const texto = visivel(html);
+    // «Mais de 500 lojas» e afins: não existe número desses para mostrar. O
+    // WhatsApp do suporte («+244 …») é um contacto, não uma contagem: sai antes.
+    const texto = visivel(html).split(PLATFORM_SUPPORT_WHATSAPP_LABEL).join("");
     expect(texto).not.toMatch(/mais de \d/i);
     expect(texto).not.toMatch(/\+\s?\d{3,}/);
     expect(texto).not.toMatch(/\d+\s*(?:mil|milhões)\s+(?:lojas|clientes|vendas|utilizadores)/i);
@@ -218,17 +221,23 @@ describe("Página inicial — o que está «Em breve» nunca é prometido", () =
 });
 
 describe("Página inicial — nenhum contacto inventado", () => {
-  it("não há WhatsApp, Instagram, Facebook nem telefones a apontar para ninguém", () => {
+  it("o único WhatsApp é o do suporte, e não há Instagram, Facebook nem telefones a apontar para ninguém", () => {
     // **Nomear** o WhatsApp e o Instagram é o assunto da página; o que não pode
-    // existir é uma ligação para um deles. O `wa.me/244900000000` e o
-    // `href="#"` do Instagram estiveram no rodapé: um número que não é de
-    // ninguém e uma ligação para lado nenhum.
-    for (const padrao of [/wa\.me/i, /instagram\.com/i, /facebook\.com/i, /twitter\.com/i, /tel:/i, /api\.whatsapp/i]) {
+    // existir é uma ligação para um número que não é de ninguém. O
+    // `wa.me/244900000000` e o `href="#"` do Instagram estiveram no rodapé. O
+    // suporte tem agora um número verdadeiro (`PLATFORM_SUPPORT_WHATSAPP`), e é
+    // o único que pode aparecer.
+    for (const padrao of [/instagram\.com/i, /facebook\.com/i, /twitter\.com/i, /tel:/i, /api\.whatsapp/i]) {
       expect(html, `contacto inventado: ${padrao}`).not.toMatch(padrao);
     }
-    // Um número angolano (9 dígitos a começar em 9) ou um indicativo do país.
-    expect(html).not.toMatch(/\+\s?244/);
-    expect(html).not.toMatch(/\b9\d{8}\b/);
+    const numeros = [...html.matchAll(/wa\.me\/(\d*)/g)].map((m) => m[1]);
+    expect(numeros.length, "o WhatsApp do suporte não está na página").toBeGreaterThan(0);
+    for (const n of numeros) expect(n, "um wa.me que não é o do suporte").toBe(PLATFORM_SUPPORT_WHATSAPP);
+    expect(visivel(html)).toContain(PLATFORM_SUPPORT_WHATSAPP_LABEL);
+    // Fora do suporte, nenhum número angolano (9 algarismos a começar em 9) nem indicativo do país.
+    const resto = html.split(PLATFORM_SUPPORT_WHATSAPP_LABEL).join("").split(PLATFORM_SUPPORT_WHATSAPP).join("");
+    expect(resto).not.toMatch(/\+\s?244/);
+    expect(resto).not.toMatch(/\b9\d{8}\b/);
   });
 
   it("não há ligações mortas (href vazio ou a cardinal)", () => {
