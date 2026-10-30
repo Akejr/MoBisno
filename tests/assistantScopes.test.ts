@@ -37,7 +37,10 @@ import {
 } from "../src/ui/wizardSteps.js";
 import { COMING_SOON_LABELS, comingSoonList } from "../src/services/comingSoon.js";
 import { VERIFICATION_STATUS_LABEL, COMPANY_DOCUMENTS } from "../src/services/paymentVerification.js";
-import { ACTIVATION_MONTHS, REJECTION_REASON_MIN } from "../src/services/adminMetrics.js";
+import {
+  ACTIVATION_MONTHS, REJECTION_REASON_MIN, TX_CATEGORIES, TX_CATEGORY_LABELS, TX_DEFAULT_PERIOD, TX_PERIOD_LABELS, TX_PERIODS,
+  type TxCategory,
+} from "../src/services/adminMetrics.js";
 import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../src/services/phoneVerification.js";
 import { PLATFORM_CONTACT_EMAIL } from "../src/services/domains.js";
 import { DELIVERY_PROVINCE } from "../src/services/delivery.js";
@@ -413,7 +416,13 @@ function resolver(guia: string): string {
     .replace(/\$\{PHONE_CODE_LENGTH\}/g, String(PHONE_CODE_LENGTH))
     .replace(/\$\{CODIGO_MINUTOS\}/g, String(Math.round(PHONE_CODE_TTL_MS / 60_000)))
     .replace(/\$\{REENVIOS\}/g, PHONE_RESEND_DELAYS_MS.map((ms) => String(Math.round(ms / 1000))).join(" e "))
-    .replace(/\$\{WIZARD_DRAFT_TTL_DAYS\}/g, String(WIZARD_DRAFT_TTL_DAYS));
+    .replace(/\$\{WIZARD_DRAFT_TTL_DAYS\}/g, String(WIZARD_DRAFT_TTL_DAYS))
+    .replace(/\$\{TX_CATEGORY_LABELS\.(\w+)\}/g, (_m, k: string) => TX_CATEGORY_LABELS[k as TxCategory])
+    .replace(/\$\{TX_PERIOD_LABELS\[TX_DEFAULT_PERIOD\]\}/g, TX_PERIOD_LABELS[TX_DEFAULT_PERIOD])
+    .replace(/\$\{TX_PERIODOS\}/g, (() => {
+      const l = TX_PERIODS.map((p) => `«${TX_PERIOD_LABELS[p]}»`);
+      return `${l.slice(0, -1).join(", ")} ou ${l[l.length - 1]}`;
+    })());
 }
 
 describe("Factos da plataforma — derivados do domínio, nunca escritos à mão", () => {
@@ -958,9 +967,37 @@ describe("Orientação do ecrã «Administração» — as seis secções e as a
   it("distingue a receita da plataforma do dinheiro dos Donos, e não fala do que saiu", () => {
     expect(guia).toContain("Receita do mês");
     expect(guia).toMatch(/dinheiro dos Donos/);
-    expect(guia).not.toMatch(/Transações/);
+    // As vendas das lojas voltaram a aparecer, nas transações: e continuam fora da receita.
+    expect(guia).toMatch(/vendas das lojas são dinheiro dos Donos: entram nas transações, mas não entram na «Receita do mês»/);
+    expect(guia).not.toMatch(/transações de serviço/i);
     expect(guia).not.toMatch(/SMS e logótipos/);
     expect(guia).not.toMatch(/teste grátis/i);
+  });
+
+  it("descreve as transações da Visão geral com os rótulos do ecrã", () => {
+    // O Administrador pediu para ver as transações por categoria, com controlo:
+    // quem pergunta «onde vejo as pendentes?» tem de ouvir os quadros e os filtros reais.
+    const linha = guia.split("\n").find((l) => l.startsWith("- TRANSAÇÕES")) ?? "";
+    expect(linha, "falta a linha das transações").not.toBe("");
+    for (const c of TX_CATEGORIES) expect(linha, c).toContain(`«${TX_CATEGORY_LABELS[c]}»`);
+    for (const p of TX_PERIODS) expect(linha, p).toContain(`«${TX_PERIOD_LABELS[p]}»`);
+    expect(linha).toContain(`abre em «${TX_PERIOD_LABELS[TX_DEFAULT_PERIOD]}»`);
+    expect(linha).toContain("inclui as falhadas e as expiradas");
+    expect(linha).toMatch(/Luanda/);
+    for (const rotulo of ["Todas", "Tudo", "Subscrições", "Vendas das lojas", "Mostrar mais", "Ver em Pagamentos"]) {
+      expect(linha, `rótulo ausente da orientação: ${rotulo}`).toContain(`«${rotulo}»`);
+    }
+    // Os rótulos com números saem do domínio, e não de uma cópia escrita à mão.
+    expect(guiaDe("admin")).toContain("${TX_PERIODOS}");
+    expect(guiaDe("admin")).toContain("${TX_PERIOD_LABELS[TX_DEFAULT_PERIOD]}");
+    // E são os mesmos que o ecrã mostra.
+    const VISAO = readFileSync(join(ROOT, "web/views/admin/overview.ts"), "utf8");
+    for (const rotulo of ["Todas", "Tudo", "Subscrições", "Vendas das lojas", "Mostrar mais", "Ver em Pagamentos"]) {
+      expect(VISAO, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    expect(VISAO).toContain("TX_PERIOD_LABELS[p]");
+    expect(VISAO).toContain("TX_CATEGORY_LABELS[c]");
+    expect(VISAO).toContain("As canceladas incluem as falhadas e as expiradas.");
   });
 
   it("explica porque é que as lojas da própria conta não entram nos números, e onde estão", () => {

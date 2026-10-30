@@ -50,7 +50,8 @@ const METHOD_LABEL: Readonly<Record<string, string>> = {
   whatsapp: "WhatsApp",
 };
 
-function methodLabel(method: string): string {
+/** Nome do método de pagamento gravado (`mcx`, `reference`). Também o da Visão geral. */
+export function methodLabel(method: string): string {
   return METHOD_LABEL[method] ?? (method || "Método desconhecido");
 }
 

@@ -36,7 +36,9 @@ import { PAYMENTS_PROVIDER_READY } from "../../src/services/payments.js";
 import { COMING_SOON_LABELS, comingSoonList } from "../../src/services/comingSoon.js";
 import { PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
 import { COMPANY_DOCUMENTS, VERIFICATION_STATUS_LABEL } from "../../src/services/paymentVerification.js";
-import { ACTIVATION_MONTHS, REJECTION_REASON_MIN } from "../../src/services/adminMetrics.js";
+import {
+  ACTIVATION_MONTHS, REJECTION_REASON_MIN, TX_CATEGORY_LABELS, TX_DEFAULT_PERIOD, TX_PERIOD_LABELS, TX_PERIODS,
+} from "../../src/services/adminMetrics.js";
 import { DELIVERY_PROVINCE } from "../../src/services/delivery.js";
 import { kzWhole, platformFeeNote } from "../../src/services/seo.js";
 import { PASSWORD_MIN_LENGTH, REGISTER_FIX_LABELS, WIZARD_DRAFT_TTL_DAYS } from "../../src/ui/wizardSteps.js";
@@ -81,6 +83,12 @@ function emBreveLista(): string {
 
 /** Nomes dos documentos da empresa, pela ordem em que são pedidos. */
 const DOCUMENTOS = COMPANY_DOCUMENTS.map((d) => `«${d.label}»`).join(" e ");
+
+/** Os períodos das transações da Visão geral, com os rótulos dos botões: «…», «…» ou «…». */
+const TX_PERIODOS = (() => {
+  const l = TX_PERIODS.map((p) => `«${TX_PERIOD_LABELS[p]}»`);
+  return l.length <= 1 ? l.join("") : `${l.slice(0, -1).join(", ")} ou ${l[l.length - 1]}`;
+})();
 
 /**
  * Como estão os pagamentos digitais **hoje**, do lado da plataforma.
@@ -309,7 +317,8 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 
   admin: `ECRÃ: Dashboard de Administração (só para administradores da MôBisno).
 - Seis secções: «Visão geral», «Aprovações», «Contas», «Lojas», «Modelos» e «Pagamentos». Em ecrã grande na barra lateral; em telemóvel em atalhos debaixo do cabeçalho. A navegação mostra quantas verificações estão por aprovar e quantos levantamentos estão por tratar.
-- VISÃO GERAL: «Contas», «Lojas publicadas», «Subscrições ativas», «Receita do mês» e «Verificações por aprovar»; cada número abre a sua secção. Por baixo, «A precisar de atenção»: verificações por aprovar e levantamentos pedidos, os mais antigos primeiro. As lojas-modelo e as contas de administração ficam fora dos números.
+- VISÃO GERAL: «Contas», «Lojas publicadas», «Subscrições ativas», «Receita do mês» e «Verificações por aprovar»; cada número abre a sua secção. Por baixo, «Transações», e no fim «A precisar de atenção»: verificações por aprovar e levantamentos pedidos, os mais antigos primeiro. As lojas-modelo e as contas de administração ficam fora dos números e das transações.
+- TRANSAÇÕES (na Visão geral): as subscrições e as vendas das lojas, em quatro quadros: «Todas», «${TX_CATEGORY_LABELS.concluida}» (pagas), «${TX_CATEGORY_LABELS.pendente}» (à espera do pagamento) e «${TX_CATEGORY_LABELS.cancelada}» (inclui as falhadas e as expiradas). Cada quadro tem o número, o valor em Kz e a parte do total. O período escolhe-se em ${TX_PERIODOS}, e abre em «${TX_PERIOD_LABELS[TX_DEFAULT_PERIOD]}»; os dias e os meses são os de Luanda. Quando há vendas, escolhe-se também a origem: «Tudo», «Subscrições» ou «Vendas das lojas». Carregar num quadro filtra a lista e realça essa categoria no gráfico, que tem uma coluna por dia (ou por mês, quando o período é em meses) e mostra o detalhe de cada coluna ao passar o rato. Por baixo, as mais recentes, com «Mostrar mais» e «Ver em Pagamentos». As vendas das lojas são dinheiro dos Donos: entram nas transações, mas não entram na «Receita do mês». Se houver muitas vendas, só entram as mais recentes, e uma nota diz quantas.
 - «Receita do mês» são as subscrições pagas na plataforma nesse mês. **Não** inclui as vendas das lojas, que são dinheiro dos Donos. Já não há compras de SMS nem de logótipos.
 - Se o Administrador tiver criado lojas com a **própria conta**, elas não entram nos números da Visão geral (são de teste, e contá-las dava uma leitura falsa do negócio). A Visão geral diz-lho numa nota, com ligação para «Lojas», que é onde elas aparecem. Em «Contas», a conta de administração está no filtro «Administradores», não no de entrada.
 - Quando uma secção não consegue ler os dados, aparece «Não foi possível carregar esta secção» **com a causa** e um botão «Tentar de novo». Se a causa disser que falta uma coluna ou uma tabela, falta aplicar uma migração de supabase/migrations: é a diferença entre a plataforma estar vazia e a leitura ter falhado.

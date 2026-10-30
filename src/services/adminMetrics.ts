@@ -11,6 +11,8 @@
  *    {@link attentionLists}, «A precisar de atenção»: verificações de empresa por
  *    aprovar e levantamentos pedidos;
  *  - **saúde do negócio** — {@link businessHealth} e {@link monthlyEvolution};
+ *  - **transações** — {@link transactionOverview}: subscrições e vendas das
+ *    lojas por categoria (concluídas, pendentes e canceladas), num período;
  *  - **estado de uma conta e de uma loja** — {@link accountStatus} e
  *    {@link storeStatus}, com os mesmos critérios das métricas;
  *  - **o que o Administrador grava** — ao ativar ou desativar uma subscrição
@@ -21,8 +23,8 @@
  *
  * **Não consulta nada.** Recebe os dados já lidos por `web/supabase/admin.ts`
  * através dos tipos `…Like` deste ficheiro, estruturalmente compatíveis com
- * `AdminAccount`, `AdminStore`, `AdminWithdrawal`, `AdminPlanPayment` e
- * `AdminVerification` sem criar dependência de `web/` — `src/**` é verificado
+ * `AdminAccount`, `AdminStore`, `AdminWithdrawal`, `AdminPlanPayment`,
+ * `AdminOrder` e `AdminVerification` sem criar dependência de `web/` — `src/**` é verificado
  * pelo `tsc` com `lib: ["ES2022"]`, sem DOM.
  *
  * ## Três regras que atravessam o ficheiro
@@ -201,6 +203,24 @@ export interface ServiceTxLike {
 export type PlanPaymentLike = ServiceTxLike;
 
 /**
+ * Venda de uma loja (`orders`), por Multicaixa Express ou Referência Bancária.
+ * Forma mínima de `AdminOrder`. É dinheiro do Dono, não receita da Plataforma:
+ * entra nas transações da Visão geral, nunca na «Receita do mês».
+ */
+export interface OrderLike {
+  readonly id: string;
+  readonly storeId?: string | null | undefined;
+  readonly storeName?: string | null | undefined;
+  readonly customerName?: string | null | undefined;
+  readonly amount?: number | string | null | undefined;
+  readonly method?: string | null | undefined;
+  /** `"open"`, `"paid"`, `"failed"`, `"cancelled"` ou `"expired"`. */
+  readonly status?: string | null | undefined;
+  readonly createdAt?: string | null | undefined;
+  readonly paidAt?: string | null | undefined;
+}
+
+/**
  * Pedido de verificação de empresa (`store_payments`). Forma mínima de
  * `AdminVerification`.
  */
@@ -240,6 +260,8 @@ export interface AdminMetricsInput {
   readonly withdrawals?: readonly WithdrawalLike[] | null | undefined;
   /** Pagamentos de subscrição (`plan_payments`). */
   readonly transactions?: readonly ServiceTxLike[] | null | undefined;
+  /** Vendas das lojas (`orders`). Só as transações da Visão geral as leem. */
+  readonly orders?: readonly OrderLike[] | null | undefined;
   /** Pedidos de verificação de empresa (`store_payments`). */
   readonly verifications?: readonly VerificationLike[] | null | undefined;
 }
@@ -501,6 +523,8 @@ interface Scope {
   readonly withdrawals: readonly WithdrawalLike[];
   /** Pagamentos de subscrição de contas que não são de Administrador. */
   readonly transactions: readonly ServiceTxLike[];
+  /** Vendas de lojas elegíveis. */
+  readonly orders: readonly OrderLike[];
   /** Pedidos de verificação de lojas elegíveis. */
   readonly verifications: readonly VerificationLike[];
 }
@@ -581,13 +605,16 @@ function buildScope(input: AdminMetricsInput | null | undefined, override?: Inst
   const ofEligibleStore = (storeId: unknown): boolean => typeof storeId === "string" && storeIds.has(storeId);
   const withdrawals = asList(input?.withdrawals).filter((w) => !!w && ofEligibleStore(w.storeId));
   const verifications = asList(input?.verifications).filter((v) => !!v && ofEligibleStore(v.storeId));
+  // As vendas, pela mesma regra: só as de uma loja elegível (as de demonstração
+  // das lojas-modelo e as de teste das lojas da equipa ficam de fora).
+  const orders = asList(input?.orders).filter((o) => !!o && ofEligibleStore(o.storeId));
 
   // Exclusão 4 — o que não é subscrição, e as subscrições de Administradores.
   const transactions = asList(input?.transactions).filter(
     (t) => !!t && asText(t.service) === PLAN_SERVICE && !(typeof t.ownerId === "string" && adminIds.has(t.ownerId)),
   );
 
-  return { nowMs, accounts, billing, storeBilling, stores, withdrawals, transactions, verifications };
+  return { nowMs, accounts, billing, storeBilling, stores, withdrawals, transactions, orders, verifications };
 }
 
 /**
@@ -835,6 +862,314 @@ export function attentionLists(input: AdminMetricsInput, now?: Instant): Attenti
     .map((row) => row.item);
 
   return { verificationsToReview, withdrawalsToApprove };
+}
+
+// ---------------------------------------------------------------------------
+// Transações da Visão geral
+// ---------------------------------------------------------------------------
+
+/**
+ * Categoria de uma transação, como o Administrador a lê:
+ *
+ *  - `concluida`: paga;
+ *  - `pendente`: à espera do pagamento (uma referência por pagar, um pedido
+ *    Multicaixa Express por confirmar);
+ *  - `cancelada`: não vai ser paga, porque falhou, foi cancelada ou expirou.
+ */
+export type TxCategory = "concluida" | "pendente" | "cancelada";
+
+/** As categorias, pela ordem em que a Visão geral as mostra. */
+export const TX_CATEGORIES: readonly TxCategory[] = ["concluida", "pendente", "cancelada"];
+
+/**
+ * Nome de cada categoria, tal como está nos quadros da Visão geral. A vista e a
+ * orientação do assistente leem-no daqui, para dizerem a mesma palavra.
+ */
+export const TX_CATEGORY_LABELS: Readonly<Record<TxCategory, string>> = {
+  concluida: "Concluídas",
+  pendente: "Pendentes",
+  cancelada: "Canceladas",
+};
+
+/** Origem de uma transação: subscrição (`plan_payments`) ou venda de uma loja (`orders`). */
+export type TxKind = "plan" | "order";
+
+/** Período das transações: os últimos 7 dias, os últimos 30, ou os últimos 12 meses. */
+export type TxPeriod = "7d" | "30d" | "12m";
+
+/** Os períodos, pela ordem dos botões. */
+export const TX_PERIODS: readonly TxPeriod[] = ["7d", "30d", "12m"];
+
+/** Período com que a Visão geral abre. */
+export const TX_DEFAULT_PERIOD: TxPeriod = "30d";
+
+/** Nome de cada período, tal como está no botão (e na orientação do assistente). */
+export const TX_PERIOD_LABELS: Readonly<Record<TxPeriod, string>> = {
+  "7d": "7 dias",
+  "30d": "30 dias",
+  "12m": "12 meses",
+};
+
+/**
+ * Fuso de Angola (WAT): UTC+1, fixo, sem hora de verão. Os dias e os meses das
+ * transações são os de Luanda, e não os do navegador de quem abre o painel nem
+ * os de UTC: uma venda às 00:30 de Luanda é desse dia, e não do anterior. Sendo
+ * fixo, é uma soma, e o resultado é o mesmo em qualquer máquina.
+ */
+export const ANGOLA_UTC_OFFSET_MINUTES = 60;
+
+const DAY_MS = 86_400_000;
+const ANGOLA_OFFSET_MS = ANGOLA_UTC_OFFSET_MINUTES * 60_000;
+
+/** Intervalos do gráfico em cada período, e a unidade de cada um. */
+const PERIOD_SHAPE: Readonly<Record<TxPeriod, { readonly unit: "day" | "month"; readonly buckets: number }>> = {
+  "7d": { unit: "day", buckets: 7 },
+  "30d": { unit: "day", buckets: 30 },
+  "12m": { unit: "month", buckets: 12 },
+};
+
+/** Uma transação, já lida e normalizada para a Visão geral. */
+export interface PlatformTx {
+  readonly id: string;
+  readonly kind: TxKind;
+  readonly category: TxCategory;
+  /**
+   * Estado gravado, em minúsculas. A categoria junta «falhada», «cancelada» e
+   * «expirada»; é o estado que as distingue no selo ({@link txStatusLabel}).
+   */
+  readonly status: string;
+  /** Montante em Kz; `0` quando ilegível ou negativo. */
+  readonly amount: number;
+  /** Momento da criação, em milissegundos. */
+  readonly createdAt: number;
+  /** Método gravado (`mcx`, `reference`), ou `""`. */
+  readonly method: string;
+  /** Quem paga: o Dono numa subscrição (o email, ou o nome), o cliente numa venda. */
+  readonly who: string;
+  /** A loja: a da venda, ou a da subscrição quando se sabe; `""` sem loja conhecida. */
+  readonly store: string;
+}
+
+/** Número e montante de um conjunto de transações. */
+export interface TxTotals {
+  readonly count: number;
+  readonly amount: number;
+}
+
+/** Totais do período, por categoria. `total` é a soma das três. */
+export interface TxSummary {
+  readonly total: TxTotals;
+  readonly concluida: TxTotals;
+  readonly pendente: TxTotals;
+  readonly cancelada: TxTotals;
+}
+
+/** Um intervalo do gráfico: um dia (7 e 30 dias) ou um mês (12 meses). */
+export interface TxBucket {
+  /** Início do intervalo, em milissegundos: a meia-noite, ou o dia 1, em Luanda. */
+  readonly start: number;
+  readonly concluida: number;
+  readonly pendente: number;
+  readonly cancelada: number;
+  /** Montante das concluídas no intervalo: o dinheiro que entrou. */
+  readonly amount: number;
+}
+
+/** O que a Visão geral mostra das transações, para um período e uma origem. */
+export interface TransactionOverview {
+  readonly period: TxPeriod;
+  readonly unit: "day" | "month";
+  /** Início do período, em milissegundos: o início do primeiro intervalo. */
+  readonly from: number;
+  /** Totais do período e da origem, das três categorias. */
+  readonly summary: TxSummary;
+  /** Um intervalo por dia ou por mês, do mais antigo para o atual, sem buracos. */
+  readonly series: readonly TxBucket[];
+  /** As transações do período, da origem e da categoria pedidas, a mais recente primeiro. */
+  readonly items: readonly PlatformTx[];
+  /**
+   * Há vendas de lojas na entrada, de qualquer data? Sem nenhuma, escolher a
+   * origem não tem o que escolher, e a vista não mostra essa escolha.
+   */
+  readonly hasOrders: boolean;
+}
+
+/** O que mostrar. Um campo omitido ou inválido fica no valor por omissão. */
+export interface TxQuery {
+  /** Omitido ⇒ {@link TX_DEFAULT_PERIOD}. */
+  readonly period?: TxPeriod | undefined;
+  /** Omitido ⇒ `"all"`: subscrições e vendas. */
+  readonly kind?: TxKind | "all" | undefined;
+  /** Filtra só `items`: o resumo e o gráfico mostram sempre as três. Omitido ⇒ `"all"`. */
+  readonly category?: TxCategory | "all" | undefined;
+}
+
+/**
+ * Categoria de um estado gravado. `paid` é concluída; `open` (e `pending`) é
+ * pendente; tudo o resto é cancelada: `failed`, `cancelled`, `expired` e
+ * qualquer estado que não se conheça. Um estado desconhecido nunca passa por
+ * dinheiro recebido nem por dinheiro a caminho.
+ */
+export function txCategory(status: unknown): TxCategory {
+  const s = asStatus(status);
+  if (s === "paid") return "concluida";
+  if (s === "open" || s === "pending") return "pendente";
+  return "cancelada";
+}
+
+/** Nome de cada estado gravado, no feminino de «transação». */
+const TX_STATUS_LABELS: ReadonlyMap<string, string> = new Map([
+  ["paid", "Concluída"],
+  ["open", "Pendente"],
+  ["pending", "Pendente"],
+  ["failed", "Falhada"],
+  ["cancelled", "Cancelada"],
+  ["expired", "Expirada"],
+]);
+
+/**
+ * Nome do estado, para o selo de uma linha: «Concluída», «Pendente»,
+ * «Falhada», «Cancelada» ou «Expirada». Um estado desconhecido é «Cancelada»,
+ * que é a categoria onde conta ({@link txCategory}).
+ */
+export function txStatusLabel(status: unknown): string {
+  return TX_STATUS_LABELS.get(asStatus(status)) ?? "Cancelada";
+}
+
+/** Período válido, ou o de omissão. */
+function asPeriod(value: unknown): TxPeriod {
+  return value === "7d" || value === "30d" || value === "12m" ? value : TX_DEFAULT_PERIOD;
+}
+
+/** Meia-noite de Luanda do dia que contém `ms`. */
+function angolaDayStart(ms: number): number {
+  return Math.floor((ms + ANGOLA_OFFSET_MS) / DAY_MS) * DAY_MS - ANGOLA_OFFSET_MS;
+}
+
+/** Número do mês de Luanda que contém `ms` (ano × 12 + mês), para contar meses. */
+function angolaMonthNumber(ms: number): number {
+  const d = new Date(ms + ANGOLA_OFFSET_MS);
+  return d.getUTCFullYear() * 12 + d.getUTCMonth();
+}
+
+/** Uma subscrição como transação; `null` sem data de criação legível. */
+function planTxOf(t: ServiceTxLike): PlatformTx | null {
+  const createdAt = asInstant(t.createdAt ?? null);
+  if (createdAt === null) return null;
+  return {
+    id: typeof t.id === "string" ? t.id : "",
+    kind: "plan",
+    category: txCategory(t.status),
+    status: asStatus(t.status),
+    amount: asAmount(t.amount),
+    createdAt,
+    method: asText(t.method) ?? "",
+    who: asText(t.ownerEmail) ?? asText(t.ownerName) ?? "Conta desconhecida",
+    store: asText(t.storeName) ?? "",
+  };
+}
+
+/** Uma venda como transação; `null` sem data de criação legível. */
+function orderTxOf(o: OrderLike): PlatformTx | null {
+  const createdAt = asInstant(o.createdAt ?? null);
+  if (createdAt === null) return null;
+  return {
+    id: typeof o.id === "string" ? o.id : "",
+    kind: "order",
+    category: txCategory(o.status),
+    status: asStatus(o.status),
+    amount: asAmount(o.amount),
+    createdAt,
+    method: asText(o.method) ?? "",
+    who: asText(o.customerName) ?? "Cliente sem nome",
+    store: asText(o.storeName) ?? "Loja sem nome",
+  };
+}
+
+/** A mais recente primeiro; desempate pela origem e pelo identificador, para a ordem ser total. */
+function byNewestTx(a: PlatformTx, b: PlatformTx): number {
+  return b.createdAt - a.createdAt || compareText(a.kind, b.kind) || compareText(a.id, b.id);
+}
+
+/**
+ * As transações da Visão geral: as subscrições e as vendas das lojas, por
+ * categoria ({@link txCategory}), num período que acaba agora.
+ *
+ *  - **período**: os últimos 7 ou 30 dias (com o de hoje), ou os últimos 12
+ *    meses (com o atual), em hora de Luanda ({@link ANGOLA_UTC_OFFSET_MINUTES});
+ *  - **âmbito**: o de todas as métricas ({@link buildScope}), sem as
+ *    subscrições de contas de Administrador e sem as vendas das lojas-modelo e
+ *    das lojas da equipa;
+ *  - **data**: a da criação, a única que uma transação pendente ou cancelada
+ *    tem. Uma data ilegível deixa a transação de fora; uma no futuro (um relógio
+ *    adiantado) conta no último intervalo, para a soma do gráfico bater sempre
+ *    com o resumo.
+ *
+ * As vendas são dinheiro dos Donos. Estão aqui para o Administrador ver o
+ * movimento da Plataforma, e nunca entram na receita ({@link businessHealth}).
+ *
+ * @param input Dados já lidos da Plataforma, com `transactions` e `orders`.
+ * @param query Período, origem e categoria (a categoria só filtra `items`).
+ * @param now Momento de referência; tem precedência sobre `input.now`.
+ */
+export function transactionOverview(
+  input: AdminMetricsInput,
+  query?: TxQuery | null,
+  now?: Instant,
+): TransactionOverview {
+  const scope = buildScope(input, now);
+  const period = asPeriod(query?.period);
+  const kind: TxKind | "all" = query?.kind === "plan" || query?.kind === "order" ? query.kind : "all";
+  const category: TxCategory | "all" = TX_CATEGORIES.find((c) => c === query?.category) ?? "all";
+  const { unit, buckets } = PERIOD_SHAPE[period];
+
+  // Os inícios dos intervalos, do mais antigo para o atual.
+  const starts: number[] = [];
+  if (unit === "day") {
+    const today = angolaDayStart(scope.nowMs);
+    for (let back = buckets - 1; back >= 0; back -= 1) starts.push(today - back * DAY_MS);
+  } else {
+    const ref = new Date(scope.nowMs + ANGOLA_OFFSET_MS);
+    for (let back = buckets - 1; back >= 0; back -= 1) {
+      starts.push(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() - back, 1) - ANGOLA_OFFSET_MS);
+    }
+  }
+  const from = starts[0] ?? scope.nowMs;
+  const firstMonth = angolaMonthNumber(from);
+  const series = starts.map((start) => ({ start, concluida: 0, pendente: 0, cancelada: 0, amount: 0 }));
+  const totals: Record<TxCategory, { count: number; amount: number }> = {
+    concluida: { count: 0, amount: 0 },
+    pendente: { count: 0, amount: 0 },
+    cancelada: { count: 0, amount: 0 },
+  };
+
+  const inPeriod: PlatformTx[] = [];
+  const add = (tx: PlatformTx | null): void => {
+    if (tx === null || !(tx.createdAt >= from)) return;
+    const index = unit === "day" ? Math.floor((tx.createdAt - from) / DAY_MS) : angolaMonthNumber(tx.createdAt) - firstMonth;
+    const bucket = series[Math.min(buckets - 1, index)];
+    if (!bucket) return;
+    bucket[tx.category] += 1;
+    if (tx.category === "concluida") bucket.amount += tx.amount;
+    totals[tx.category].count += 1;
+    totals[tx.category].amount += tx.amount;
+    inPeriod.push(tx);
+  };
+  if (kind !== "order") for (const t of scope.transactions) add(planTxOf(t));
+  if (kind !== "plan") for (const o of scope.orders) add(orderTxOf(o));
+
+  const summary: TxSummary = {
+    total: {
+      count: totals.concluida.count + totals.pendente.count + totals.cancelada.count,
+      amount: totals.concluida.amount + totals.pendente.amount + totals.cancelada.amount,
+    },
+    concluida: totals.concluida,
+    pendente: totals.pendente,
+    cancelada: totals.cancelada,
+  };
+  const items = (category === "all" ? inPeriod : inPeriod.filter((tx) => tx.category === category)).sort(byNewestTx);
+
+  return { period, unit, from, summary, series, items, hasOrders: scope.orders.length > 0 };
 }
 
 // ---------------------------------------------------------------------------
