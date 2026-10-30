@@ -71,6 +71,28 @@ describe("Botões do cabeçalho — o espaço vem do gap, não do HTML", () => {
     }
   });
 
+  it("cada palavra do rótulo é um elemento seu: «Criarloja» no telemóvel", () => {
+    /*
+     * Nós de texto seguidos formam um só item de flex, e um `display:none` entre
+     * eles não os separa. Com «minha» escondido abaixo de `sm`, «Criar» e «loja»
+     * juntavam-se sem o `gap`. Nenhum texto solto pode ficar encostado ao span
+     * escondido.
+     */
+    for (const src of [CHROME, LANDING]) {
+      expect(src, "texto solto antes do span escondido").not.toMatch(/[A-Za-zÀ-ÿ]<span class="hidden sm:inline">/);
+      expect(src, "texto solto depois do span escondido").not.toMatch(/<span class="hidden sm:inline">[^<]*<\/span>[A-Za-zÀ-ÿ]/);
+    }
+    expect(CHROME).toContain('<span>Criar</span><span class="hidden sm:inline">minha</span><span>loja</span>');
+  });
+
+  it("o «Login» aparece também no telemóvel", () => {
+    const login = /<a href="\/login" id="cta-login" class="([^"]+)"/.exec(CHROME);
+    expect(login, "o Login saiu do cabeçalho").not.toBeNull();
+    expect(login![1], "o Login voltou a esconder-se abaixo de sm").not.toMatch(/(^|\s)hidden(\s|$)/);
+    // A página inicial usa a mesma definição: as duas cópias tinham o defeito.
+    expect(LANDING_HTML).toContain("return platformNavActions(loggedIn);");
+  });
+
   it("o rótulo do Dashboard não voltou a chamar-se Painel", () => {
     expect(CHROME).toContain('"Dashboard"');
     expect(LANDING).toContain("Abrir Dashboard");

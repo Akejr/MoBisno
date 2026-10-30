@@ -41,7 +41,7 @@
  * `glowCardStyleTag()` e `LANDING_CSS`) ou ser Tailwind: uma folha injetada só
  * quando a SPA arranca fazia o primeiro ecrã do servidor aparecer desalinhado.
  */
-import { platformNavHtml, platformFooterHtml, PLATFORM_ACCENT } from "../templates/platformChrome.js";
+import { platformNavHtml, platformNavActions, platformFooterHtml, PLATFORM_ACCENT } from "../templates/platformChrome.js";
 import { glowCardStyleTag } from "../lib/glowCards.js";
 import { esc } from "../lib/dom.js";
 import { PLAN_NAME, PLAN_PRICE_KZ, PLAN_PERIOD_DAYS, PLAN_HIGHLIGHTS, PLAN_UNIT_LABEL } from "../../src/services/plans.js";
@@ -123,10 +123,9 @@ export const ACC_INITIAL = ACCORDION_ITEMS.length - 1;
  * «Criarminhaloja». O espaçamento tem de vir do `gap`.
  */
 export function landingNavActions(loggedIn: boolean): string {
-  return loggedIn
-    ? `<a href="/painel" id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">dashboard</span><span class="hidden sm:inline">Abrir</span>Dashboard</a>`
-    : `<a href="/login" id="cta-login" class="hidden sm:inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg text-sm transition-colors">Login</a>
-       <a href="/criar" id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
+  // A definição é a do cromo partilhado: as outras páginas da plataforma usam o
+  // mesmo cabeçalho, e o defeito do «Criarloja» estava nas duas cópias.
+  return platformNavActions(loggedIn);
 }
 
 /**

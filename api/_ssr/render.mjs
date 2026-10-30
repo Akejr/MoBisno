@@ -4477,9 +4477,13 @@ var HOME_SECTIONS = [
   { id: "pagamentos", label: "Pagamentos" },
   { id: "precos", label: "Pre\xE7os" }
 ];
+function platformNavActions(loggedIn) {
+  return loggedIn ? `<a href="/painel" id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">dashboard</span><span class="hidden sm:inline">Abrir</span><span>Dashboard</span></a>` : `<a href="/login" id="cta-login" class="inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-2.5 sm:px-3 py-2 rounded-lg text-sm transition-colors">Login</a>
+       <a href="/criar" id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}"><span>Criar</span><span class="hidden sm:inline">minha</span><span>loja</span></a>`;
+}
 function platformNavHtml(opts = {}) {
   const brand = opts.brandHtml ?? `<a href="/" class="flex items-center gap-2" aria-label="${esc(PLATFORM_LABEL)}"><img src="/logo-header.png" alt="${esc(PLATFORM_LABEL)}" class="w-auto object-contain" style="height:24px" /></a>`;
-  const actions = opts.actionsHtml ?? `<a href="/criar" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
+  const actions = opts.actionsHtml ?? platformNavActions(false);
   const sections = HOME_SECTIONS.map((s) => `<a href="/" data-goto="${esc(s.id)}" class="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap">${esc(s.label)}</a>`).join("");
   return `
     <nav class="bg-white/90 backdrop-blur sticky top-0 border-b border-gray-100 z-50">
@@ -4604,8 +4608,7 @@ var ACC_OPEN_WIDTH = "20rem";
 var ACC_IDLE_WIDTH = "3.5rem";
 var ACC_INITIAL = ACCORDION_ITEMS.length - 1;
 function landingNavActions(loggedIn) {
-  return loggedIn ? `<a href="/painel" id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">dashboard</span><span class="hidden sm:inline">Abrir</span>Dashboard</a>` : `<a href="/login" id="cta-login" class="hidden sm:inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-3 py-2 rounded-lg text-sm transition-colors">Login</a>
-       <a href="/criar" id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
+  return platformNavActions(loggedIn);
 }
 function landingHeroActions(loggedIn) {
   const exemplos = `<a href="/" data-goto="${SHOWCASE_SECTION_ID}" id="cta-hero-exemplos" class="${BTN_ALT}">${icon("storefront", "text-[20px]")} Ver lojas de exemplo</a>`;

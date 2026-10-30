@@ -97,6 +97,28 @@ export function mountSectionNav(root: ParentNode = document): void {
 }
 
 /**
+ * Ações do cabeçalho: «Login» e «Criar minha loja», ou «Abrir Dashboard» com
+ * sessão. Uma só definição, para a página inicial e para as outras páginas.
+ *
+ * ## Cada palavra num elemento seu
+ *
+ * Num `inline-flex`, os nós de texto seguidos formam **um** item de flex, e um
+ * elemento com `display:none` entre eles não os separa. No telemóvel, «minha»
+ * fica escondido e «Criar» e «loja» juntavam-se num item só, sem o `gap` entre
+ * eles: lia-se «Criarloja». Com cada palavra num `<span>`, são itens separados
+ * e o `gap` aplica-se, esteja «minha» à vista ou não.
+ *
+ * O «Login» tinha `hidden sm:inline-flex`: no telemóvel não havia forma de
+ * entrar a partir do cabeçalho.
+ */
+export function platformNavActions(loggedIn: boolean): string {
+  return loggedIn
+    ? `<a href="/painel" id="cta-painel" class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">dashboard</span><span class="hidden sm:inline">Abrir</span><span>Dashboard</span></a>`
+    : `<a href="/login" id="cta-login" class="inline-flex items-center whitespace-nowrap shrink-0 text-gray-700 hover:text-gray-900 px-2.5 sm:px-3 py-2 rounded-lg text-sm transition-colors">Login</a>
+       <a href="/criar" id="cta-nav" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}"><span>Criar</span><span class="hidden sm:inline">minha</span><span>loja</span></a>`;
+}
+
+/**
  * Barra de navegação da plataforma.
  *
  * @param opts.brandHtml Conteúdo da marca. A landing passa um `<div id="brand">`
@@ -116,8 +138,7 @@ export function platformNavHtml(opts: { brandHtml?: string; actionsHtml?: string
   // **descartado**. O botão lia-se «Criarminhaloja» — o espaço estava escrito no
   // HTML e o flex comia-o. Daí o espaçamento vir do `gap` e os rótulos não terem
   // espaços à volta.
-  const actions = opts.actionsHtml
-    ?? `<a href="/criar" class="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95" style="background:${PLATFORM_ACCENT}">Criar<span class="hidden sm:inline">minha</span>loja</a>`;
+  const actions = opts.actionsHtml ?? platformNavActions(false);
   // Escondidas abaixo de `md`: ao lado da marca e das ações não cabem num
   // telemóvel, e um menu sanduíche é outra conversa.
   const sections = HOME_SECTIONS.map((s) =>
