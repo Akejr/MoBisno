@@ -16,8 +16,9 @@
 import { describe, it, expect } from "vitest";
 import { assertPropertyAsync, assertProperty, fc } from "./helpers/property.js";
 import {
-  LEGACY_STORE_APEX, MODEL_STORE_PREFIX, PLATFORM_APEX, PLATFORM_CONTACT_EMAIL, STORE_APEX,
-  PLATFORM_SUPPORT_WHATSAPP, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
+  LEGACY_STORE_APEX, MODEL_STORE_PREFIX, PLATFORM_APEX, STORE_APEX,
+  PLATFORM_SUPPORT_MESSAGE, PLATFORM_SUPPORT_WHATSAPP, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
+  supportWhatsAppUrl,
   isModelIdentifier, storePublicUrl,
 } from "../src/services/domains.js";
 import {
@@ -48,13 +49,17 @@ describe("Domínios", () => {
     expect(PLATFORM_SUPPORT_WHATSAPP).toMatch(/^2449\d{8}$/);
     expect(PLATFORM_SUPPORT_WHATSAPP_LABEL).toMatch(/^\+244 9\d{2} \d{3} \d{3}$/);
     expect(PLATFORM_SUPPORT_WHATSAPP_LABEL.replace(/\D/g, "")).toBe(PLATFORM_SUPPORT_WHATSAPP);
-    expect(PLATFORM_SUPPORT_WHATSAPP_URL).toBe(`https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}`);
+    expect(PLATFORM_SUPPORT_WHATSAPP_URL.startsWith(`https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}?text=`)).toBe(true);
   });
 
-  it("o contacto da MôBisno é um email do domínio da Plataforma", () => {
-    expect(PLATFORM_CONTACT_EMAIL).toBe(`geral@${PLATFORM_APEX}`);
-    expect(PLATFORM_CONTACT_EMAIL).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/);
-    expect(PLATFORM_CONTACT_EMAIL.split("@")[1]).toBe(PLATFORM_APEX);
+  it("a conversa com o suporte abre a dizer que a pessoa vem da MôBisno", () => {
+    expect(new URL(PLATFORM_SUPPORT_WHATSAPP_URL).searchParams.get("text")).toBe(PLATFORM_SUPPORT_MESSAGE);
+    expect(PLATFORM_SUPPORT_MESSAGE).toContain("MôBisno");
+    expect(PLATFORM_SUPPORT_MESSAGE).toContain(PLATFORM_APEX);
+    // Outra mensagem (a do pedido de ativação) vai para o mesmo número, e chega inteira.
+    const outra = new URL(supportWhatsAppUrl("Loja «Kitanda» & companhia?"));
+    expect(outra.pathname).toBe(`/${PLATFORM_SUPPORT_WHATSAPP}`);
+    expect(outra.searchParams.get("text")).toBe("Loja «Kitanda» & companhia?");
   });
 });
 

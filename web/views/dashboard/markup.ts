@@ -27,7 +27,7 @@ import {
   type CompanyDocumentId, type VerificationError, type VerificationForm, type VerificationStatus,
 } from "../../../src/services/paymentVerification.js";
 import { canDeleteOrder, isValidAoPhone, normalizeAoPhone, orderEffectiveStatus } from "../../../src/services/payments.js";
-import { PLATFORM_CONTACT_EMAIL } from "../../../src/services/domains.js";
+import { PLATFORM_SUPPORT_WHATSAPP_LABEL, supportWhatsAppUrl } from "../../../src/services/domains.js";
 import { PLATFORM_FEE_LABEL } from "../../../src/services/fees.js";
 import { WA_DEFAULT_PHONE, resolveWaPhone } from "../../../src/services/storeCustom.js";
 import { DELIVERY_PROVINCE, LUANDA_AREAS, deliveredAreas, type DeliveryConfig } from "../../lib/areas.js";
@@ -1055,11 +1055,13 @@ const PERIODO = PLAN_PERIOD_DAYS === 30 ? "mês" : `${PLAN_PERIOD_DAYS} dias`;
 /** Preço do plano por extenso (ex.: «… Kz/mês»), sempre a partir de `PLAN_PRICE_KZ`. */
 export const PLAN_PRICE_TEXT = `${kzRound(PLAN_PRICE_KZ)}/${PERIODO}`;
 
-/** Ligação de email para pedir a ativação, com o identificador da loja no assunto. */
-export function planActivationMailto(storeName: string, identifier: string): string {
-  const assunto = `Ativar a subscrição ${PLAN_NAME} da loja ${identifier}`;
-  const corpo = `Olá, equipa ${PLAN_NAME}.\r\n\r\nQuero ativar a subscrição da loja «${storeName}» (identificador: ${identifier}).\r\n\r\nObrigado.`;
-  return `mailto:${PLATFORM_CONTACT_EMAIL}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+/**
+ * Conversa com o suporte no WhatsApp para pedir a ativação, com a loja e o
+ * identificador já escritos na mensagem. Era um email; o WhatsApp é agora o
+ * único contacto.
+ */
+export function planActivationWhatsApp(storeName: string, identifier: string): string {
+  return supportWhatsAppUrl(`Olá! Vim do site da ${PLAN_NAME} e quero ativar a subscrição da loja «${storeName}» (identificador: ${identifier}).`);
 }
 
 /** Estado da subscrição em três peças: etiqueta, título e frase. */
@@ -1099,7 +1101,7 @@ function planState(b: BillingState): { pill: string; title: string; text: string
  *
  * Enquanto não houver serviço de pagamentos (`providerReady`), não há botão de
  * pagar: há a explicação honesta de que a ativação é feita pela equipa MôBisno e
- * o email para a pedir, com o identificador da loja já no assunto.
+ * o WhatsApp do suporte para a pedir, com o identificador da loja já na mensagem.
  */
 export function planHtml(o: { billing: BillingState; providerReady: boolean; storeName: string; identifier: string }): string {
   const b = o.billing;
@@ -1109,16 +1111,16 @@ export function planHtml(o: { billing: BillingState; providerReady: boolean; sto
         <div class="h-full rounded-full" style="width:${Math.max(2, Math.min(100, Math.round((b.daysRemaining / PLAN_PERIOD_DAYS) * 100)))}%;background:${ACCENT}"></div>
       </div>`
     : "";
-  const mailto = planActivationMailto(o.storeName, o.identifier);
+  const whatsapp = planActivationWhatsApp(o.storeName, o.identifier);
   const acao = b.byAdmin
     ? ""
     : o.providerReady
       ? `<button type="button" id="plan-pay" class="${BTN_PRIMARY}">${icon("bolt", "text-[18px]")} ${b.accessActive ? "Renovar a subscrição" : "Ativar a subscrição"}</button>
          <p class="mt-2 text-xs text-gray-500">Pagamento por Multicaixa Express ou Referência Bancária.</p>`
       : `${notice("info", "schedule", "Pagamento online da subscrição: em breve",
-          "Até lá, quem ativa a subscrição é a equipa MôBisno. Escreva-nos com o identificador da loja e tratamos da ativação.",
-          `<p class="mt-2 text-gray-700">Email: <a href="${esc(mailto)}" class="font-bold underline" style="color:${ACCENT_INK}">${esc(PLATFORM_CONTACT_EMAIL)}</a> · Loja: <span class="font-mono font-semibold">${esc(o.identifier)}</span></p>`)}
-         <a href="${esc(mailto)}" id="plan-mailto" class="${BTN_PRIMARY} mt-4">${icon("mail", "text-[18px]")} Pedir a ativação por email</a>`;
+          "Até lá, quem ativa a subscrição é a equipa MôBisno. Fale connosco pelo WhatsApp: a mensagem já leva o identificador da loja.",
+          `<p class="mt-2 text-gray-700">WhatsApp: <a href="${esc(whatsapp)}" target="_blank" rel="noopener" class="font-bold underline" style="color:${ACCENT_INK}">${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a> · Loja: <span class="font-mono font-semibold">${esc(o.identifier)}</span></p>`)}
+         <a href="${esc(whatsapp)}" id="plan-whatsapp" target="_blank" rel="noopener" class="${BTN_PRIMARY} mt-4">${icon("chat", "text-[18px]")} Pedir a ativação pelo WhatsApp</a>`;
   return `<div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
     ${card(`
       ${cardHead({ icon: "workspace_premium", title: "A subscrição desta loja", aside: st.pill })}

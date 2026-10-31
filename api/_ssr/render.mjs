@@ -506,10 +506,13 @@ function applyTheme(root, custom) {
 var PLATFORM_APEX = "mobisno.store";
 var STORE_APEX = "sualoja.digital";
 var LEGACY_STORE_APEX = "mobisno.store";
-var PLATFORM_CONTACT_EMAIL = `geral@${PLATFORM_APEX}`;
-var PLATFORM_SUPPORT_WHATSAPP = "244950996111";
+var PLATFORM_SUPPORT_WHATSAPP = "244931343433";
 var PLATFORM_SUPPORT_WHATSAPP_LABEL = `+${PLATFORM_SUPPORT_WHATSAPP.slice(0, 3)} ${PLATFORM_SUPPORT_WHATSAPP.slice(3, 6)} ${PLATFORM_SUPPORT_WHATSAPP.slice(6, 9)} ${PLATFORM_SUPPORT_WHATSAPP.slice(9)}`;
-var PLATFORM_SUPPORT_WHATSAPP_URL = `https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}`;
+var PLATFORM_SUPPORT_MESSAGE = `Ol\xE1! Vim do site da M\xF4Bisno (${PLATFORM_APEX}) e preciso de ajuda.`;
+function supportWhatsAppUrl(message = PLATFORM_SUPPORT_MESSAGE) {
+  return `https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`;
+}
+var PLATFORM_SUPPORT_WHATSAPP_URL = supportWhatsAppUrl();
 
 // web/lib/routing.ts
 var STORE_APEXES = [STORE_APEX, LEGACY_STORE_APEX];
@@ -4499,7 +4502,7 @@ function platformNavHtml(opts = {}) {
 }
 function platformFooterHtml() {
   const link = (href, label, extra = "") => `<li><a href="${esc(href)}"${extra} class="text-gray-500 hover:text-gray-900 transition-colors">${esc(label)}</a></li>`;
-  const mail = `mailto:${PLATFORM_CONTACT_EMAIL}`;
+  const novo = ' target="_blank" rel="noopener"';
   return `
     <footer class="bg-white border-t border-gray-100">
       <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-14">
@@ -4509,8 +4512,7 @@ function platformFooterHtml() {
             <!-- Sem superlativos: \xABa forma mais simples\xBB n\xE3o \xE9 verific\xE1vel. O que
                  a loja faz \xE9 que \xE9. -->
             <p class="text-sm text-gray-500 max-w-xs leading-relaxed">Lojas online angolanas, sem programar: modelos prontos, editor visual e encomendas por WhatsApp em todas as lojas.</p>
-            <a href="${esc(PLATFORM_SUPPORT_WHATSAPP_URL)}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">chat</span>WhatsApp ${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a>
-            <a href="${esc(mail)}" class="-mt-2 inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">mail</span>${esc(PLATFORM_CONTACT_EMAIL)}</a>
+            <a href="${esc(PLATFORM_SUPPORT_WHATSAPP_URL)}"${novo} class="inline-flex items-center gap-2 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"><span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">chat</span>WhatsApp ${esc(PLATFORM_SUPPORT_WHATSAPP_LABEL)}</a>
           </div>
           <!-- Os titulos das colunas sao h3, e nao h4: a pagina acima deles
                acaba em h2, e saltar de h2 para h4 deixa um degrau vazio na
@@ -4533,7 +4535,7 @@ function platformFooterHtml() {
               ${link("/modelos", "Modelos prontos")}
               ${link("/criar", "Criar loja online")}
               ${link("/", "Perguntas frequentes", ' data-goto="perguntas"')}
-              ${link(mail, "Contacto")}
+              ${link(PLATFORM_SUPPORT_WHATSAPP_URL, "Contacto", novo)}
             </ul>
           </div>
           <div class="md:col-span-2">

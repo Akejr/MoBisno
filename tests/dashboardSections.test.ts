@@ -29,7 +29,7 @@ import { PLAN_HIGHLIGHTS, PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ, PLAN_UNIT_
 import { COMING_SOON, COMING_SOON_LABELS, type ComingSoonFeature } from "../src/services/comingSoon.js";
 import { resolveBilling, type BillingState } from "../src/services/billing.js";
 import { formatKz } from "../src/services/format.js";
-import { PLATFORM_CONTACT_EMAIL } from "../src/services/domains.js";
+import { PLATFORM_SUPPORT_WHATSAPP, PLATFORM_SUPPORT_WHATSAPP_LABEL } from "../src/services/domains.js";
 import {
   COMPANY_DOCUMENTS, VERIFICATION_STATUS_LABEL, formatIban, validateVerification,
   type CompanyDocumentId, type VerificationForm, type VerificationStatus,
@@ -85,7 +85,7 @@ interface Markup {
   deleteStoreHtml(storeName: string): string;
   PLAN_PRICE_TEXT: string;
   planHtml(o: { billing: BillingState; providerReady: boolean; storeName: string; identifier: string }): string;
-  planActivationMailto(storeName: string, identifier: string): string;
+  planActivationWhatsApp(storeName: string, identifier: string): string;
   DOCUMENT_FORMATS_TEXT: string;
   verificationFormHtml(o: { draft: VerificationForm; status: VerificationStatus; docs: Record<CompanyDocumentId, DocEstado>; editing: boolean }): string;
   verificationErrorsHtml(errors: readonly { field: string; message: string }[]): string;
@@ -423,25 +423,31 @@ describe("Plano — um só plano, preço do domínio", () => {
     expect(html(inativa)).toContain("Inativa");
     expect(html(caducada)).toContain("Caducada");
     expect(html(admin)).toContain("Conta de administração");
-    // A conta de administração não paga: não há botão nem email para isso.
+    // A conta de administração não paga: não há botão nem pedido de ativação.
+    expect(html(admin)).not.toContain("wa.me/");
     expect(html(admin)).not.toContain("mailto:");
   });
 
-  it("sem serviço de pagamentos: explicação honesta e email com o identificador no assunto", () => {
+  it("sem serviço de pagamentos: explicação honesta e WhatsApp com a loja na mensagem", () => {
     const html = M.planHtml({ billing: inativa, providerReady: false, storeName: "Kitanda", identifier: "kitanda-luanda" });
     expect(html).not.toContain('id="plan-pay"');
     expect(html).toContain("Pagamento online da subscrição: em breve");
-    expect(html).toContain(PLATFORM_CONTACT_EMAIL);
-    const mailto = M.planActivationMailto("Kitanda", "kitanda-luanda");
-    expect(mailto.startsWith(`mailto:${PLATFORM_CONTACT_EMAIL}?subject=`)).toBe(true);
-    const assunto = decodeURIComponent(new URL(mailto.replace("mailto:", "http://x/")).searchParams.get("subject") ?? "");
-    expect(assunto).toContain("kitanda-luanda");
+    expect(html).toContain(PLATFORM_SUPPORT_WHATSAPP_LABEL);
+    expect(html).toContain("Pedir a ativação pelo WhatsApp");
+    // O WhatsApp é o único contacto: o email saiu.
+    expect(html).not.toContain("mailto:");
+    const url = new URL(M.planActivationWhatsApp("Kitanda", "kitanda-luanda"));
+    expect(url.pathname).toBe(`/${PLATFORM_SUPPORT_WHATSAPP}`);
+    const mensagem = url.searchParams.get("text") ?? "";
+    expect(mensagem).toContain("kitanda-luanda");
+    expect(mensagem).toContain("«Kitanda»");
+    expect(mensagem).toContain("MôBisno");
   });
 
   it("com serviço de pagamentos: o botão abre o checkout do plano", () => {
     const html = M.planHtml({ billing: inativa, providerReady: true, storeName: "Kitanda", identifier: "kitanda" });
     expect(html).toContain('id="plan-pay"');
-    expect(html).not.toContain('id="plan-mailto"');
+    expect(html).not.toContain('id="plan-whatsapp"');
     expect(mod("plano.ts")).toContain("openPlanCheckout({ storeId: store.id, storeName: store.name, onPaid: () => { void ctx.reload(); } });");
     expect(mod("plano.ts")).toContain("if (!PAYMENTS_PROVIDER_READY) return;");
   });

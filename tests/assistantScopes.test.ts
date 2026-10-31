@@ -42,9 +42,7 @@ import {
   type TxCategory,
 } from "../src/services/adminMetrics.js";
 import { PHONE_CODE_LENGTH, PHONE_CODE_TTL_MS, PHONE_RESEND_DELAYS_MS } from "../src/services/phoneVerification.js";
-import {
-  PLATFORM_CONTACT_EMAIL, PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL,
-} from "../src/services/domains.js";
+import { PLATFORM_SUPPORT_WHATSAPP_LABEL, PLATFORM_SUPPORT_WHATSAPP_URL } from "../src/services/domains.js";
 import { DELIVERY_PROVINCE } from "../src/services/delivery.js";
 import type { StoreTemplate } from "../web/templates/types.js";
 
@@ -410,7 +408,6 @@ function resolver(guia: string): string {
     .replace(/\$\{COMING_SOON_LABELS\.(\w+)\}/g, (_m, k: string) => COMING_SOON_LABELS[k as "sms" | "customDomain" | "marketing"])
     .replace(/\$\{REJECTION_REASON_MIN\}/g, String(REJECTION_REASON_MIN))
     .replace(/\$\{DELIVERY_PROVINCE\}/g, DELIVERY_PROVINCE)
-    .replace(/\$\{PLATFORM_CONTACT_EMAIL\}/g, PLATFORM_CONTACT_EMAIL)
     .replace(/\$\{PLATFORM_SUPPORT_WHATSAPP_LABEL\}/g, PLATFORM_SUPPORT_WHATSAPP_LABEL)
     .replace(/\$\{DOCUMENTOS\}/g, COMPANY_DOCUMENTS.map((d) => `«${d.label}»`).join(" e "))
     .replace(/\$\{emBreveLista\(\)\}/g, comingSoonList().map((x) => `«${x}»`).join(", "))
@@ -1512,7 +1509,7 @@ describe("Orientação do ecrã «legal» — descreve o que os documentos dizem
   it("diz quem vê os dados da empresa e para que servem", () => {
     expect(guia).toMatch(/armazenamento privado/);
     expect(guia).toMatch(/administração da MôBisno/);
-    expect(guia).toContain(PLATFORM_CONTACT_EMAIL);
+    expect(guia).toContain(`WhatsApp do suporte, ${PLATFORM_SUPPORT_WHATSAPP_LABEL}`);
   });
 });
 
@@ -1600,8 +1597,18 @@ describe("Suporte pelo WhatsApp — o assistente sabe o número, e o painel most
    */
   it("os factos têm o número, interpolado do domínio, e a faixa do painel", () => {
     expect(factsLiteral()).toContain("${PLATFORM_SUPPORT_WHATSAPP_LABEL}");
-    expect(resolver(factsLiteral())).toContain(`WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}`);
+    expect(resolver(factsLiteral())).toContain(`WhatsApp do suporte, ${PLATFORM_SUPPORT_WHATSAPP_LABEL}`);
     expect(factsLiteral()).toContain("«Falar com o suporte no WhatsApp»");
+  });
+
+  it("diz que o WhatsApp é o único contacto, e já não fala do email", () => {
+    // Pedido do dono: por agora, o WhatsApp é o único meio de contacto.
+    expect(factsLiteral()).toMatch(/\*\*único\*\* contacto/);
+    expect(factsLiteral()).toMatch(/Não há email de contacto/);
+    expect(factsLiteral()).toMatch(/vem da MôBisno/);
+    expect(CONTEXT_SRC, "a orientação voltou a dar o email").not.toContain("PLATFORM_CONTACT_EMAIL");
+    expect(CONTEXT_SRC).not.toMatch(/geral@/);
+    expect(CONTEXT_SRC).toContain("«Pedir a ativação pelo WhatsApp»");
   });
 
   it("a página inicial já não diz que não há telefone", () => {
@@ -1613,6 +1620,6 @@ describe("Suporte pelo WhatsApp — o assistente sabe o número, e o painel most
   it("o painel do assistente abre com a ligação para o suporte", () => {
     expect(AI_AGENT).toContain("Falar com o suporte no WhatsApp");
     expect(AI_AGENT).toContain('href="${PLATFORM_SUPPORT_WHATSAPP_URL}"');
-    expect(PLATFORM_SUPPORT_WHATSAPP_URL).toMatch(/^https:\/\/wa\.me\/\d+$/);
+    expect(PLATFORM_SUPPORT_WHATSAPP_URL).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
   });
 });

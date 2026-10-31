@@ -39,25 +39,34 @@ export function isModelIdentifier(identifier: unknown): boolean {
 }
 
 /**
- * Email geral da MôBisno (o que os Termos e a Política de Privacidade indicam).
- * O painel usa-o para a ativação manual da subscrição, enquanto não há
- * pagamentos online.
+ * WhatsApp do suporte da MôBisno. **Por agora é o único contacto** da
+ * plataforma: está no rodapé, nas perguntas frequentes, nas páginas legais, no
+ * pedido de ativação da subscrição e no topo do assistente. Não há email de
+ * contacto. Em algarismos, com o indicativo de Angola, como o `wa.me` o quer.
  */
-export const PLATFORM_CONTACT_EMAIL = `geral@${PLATFORM_APEX}`;
-
-/**
- * WhatsApp do suporte da MôBisno: o número de contacto do site e o do botão
- * «Falar com o suporte no WhatsApp» do assistente. Em algarismos, com o
- * indicativo de Angola, como o `wa.me` o quer.
- */
-export const PLATFORM_SUPPORT_WHATSAPP = "244950996111";
+export const PLATFORM_SUPPORT_WHATSAPP = "244931343433";
 
 /** O mesmo número, como se lê: «+244 9XX XXX XXX». */
 export const PLATFORM_SUPPORT_WHATSAPP_LABEL =
   `+${PLATFORM_SUPPORT_WHATSAPP.slice(0, 3)} ${PLATFORM_SUPPORT_WHATSAPP.slice(3, 6)} ${PLATFORM_SUPPORT_WHATSAPP.slice(6, 9)} ${PLATFORM_SUPPORT_WHATSAPP.slice(9)}`;
 
-/** Ligação que abre a conversa com o suporte no WhatsApp. */
-export const PLATFORM_SUPPORT_WHATSAPP_URL = `https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}`;
+/**
+ * A mensagem com que a conversa abre, já escrita: quem atende sabe logo que a
+ * pessoa vem da MôBisno.
+ */
+export const PLATFORM_SUPPORT_MESSAGE = `Olá! Vim do site da MôBisno (${PLATFORM_APEX}) e preciso de ajuda.`;
+
+/**
+ * Ligação para a conversa com o suporte, com a mensagem já escrita. Por
+ * omissão, {@link PLATFORM_SUPPORT_MESSAGE}; o pedido de ativação da subscrição
+ * passa a sua, com a loja.
+ */
+export function supportWhatsAppUrl(message: string = PLATFORM_SUPPORT_MESSAGE): string {
+  return `https://wa.me/${PLATFORM_SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`;
+}
+
+/** Ligação que abre a conversa com o suporte, com {@link PLATFORM_SUPPORT_MESSAGE}. */
+export const PLATFORM_SUPPORT_WHATSAPP_URL = supportWhatsAppUrl();
 
 /** Endereço público de uma loja em produção. */
 export function storePublicUrl(identifier: string): string {

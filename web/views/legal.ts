@@ -19,7 +19,7 @@ import { platformNavHtml, platformFooterHtml, mountSectionNav } from "../templat
 import { mountAiAgent } from "../lib/aiAgent.js";
 import { PLAN_NAME, PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "../../src/services/plans.js";
 import { comingSoonList } from "../../src/services/comingSoon.js";
-import { PLATFORM_CONTACT_EMAIL } from "../../src/services/domains.js";
+import { PLATFORM_SUPPORT_WHATSAPP_LABEL } from "../../src/services/domains.js";
 import { kzWhole } from "../../src/services/seo.js";
 
 const ACCENT = "#F95901";
@@ -80,7 +80,7 @@ const TERMOS: LegalSection[] = [
     "Estes Termos podem ser atualizados. A continuação do uso da plataforma após uma alteração constitui aceitação da versão em vigor.",
   ] },
   { h: "11. Contacto", p: [
-    `Para qualquer questão sobre estes Termos, contacte ${PLATFORM_CONTACT_EMAIL}.`,
+    `Para qualquer questão sobre estes Termos, contacte a MôBisno pelo WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}.`,
   ] },
 ];
 
@@ -106,7 +106,7 @@ const PRIVACIDADE: LegalSection[] = [
     "Aplicamos medidas técnicas e organizativas razoáveis para proteger os dados, incluindo isolamento por loja e controlo de acessos. Nenhum sistema é 100% imune; em caso de incidente relevante atuamos para mitigar o impacto.",
   ] },
   { h: "7. Os seus direitos", p: [
-    `Pode aceder, corrigir ou eliminar os seus dados de conta a partir do Dashboard ou contactando-nos através de ${PLATFORM_CONTACT_EMAIL}. O encerramento da conta remove os dados associados, salvo retenção exigida por lei.`,
+    `Pode aceder, corrigir ou eliminar os seus dados de conta a partir do Dashboard ou contactando-nos pelo WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}. O encerramento da conta remove os dados associados, salvo retenção exigida por lei.`,
   ] },
   { h: "8. Cookies", p: [
     "Usamos armazenamento local e cookies estritamente necessários para autenticação e funcionamento do serviço.",
@@ -130,7 +130,7 @@ const POLITICA: LegalSection[] = [
     "A marca, o software e o design da MôBisno são propriedade da MôBisno. Os conteúdos de cada Loja pertencem ao respetivo Dono.",
   ] },
   { h: "6. Contacto", p: [
-    `Para questões legais ou de privacidade, contacte ${PLATFORM_CONTACT_EMAIL}.`,
+    `Para questões legais ou de privacidade, contacte a MôBisno pelo WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}.`,
   ] },
 ];
 

@@ -15,7 +15,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { PLAN_PERIOD_DAYS, PLAN_PRICE_KZ } from "../src/services/plans.js";
 import { COMING_SOON, comingSoonList, isComingSoon, type ComingSoonFeature } from "../src/services/comingSoon.js";
-import { PLATFORM_CONTACT_EMAIL } from "../src/services/domains.js";
+import { PLATFORM_SUPPORT_WHATSAPP_LABEL } from "../src/services/domains.js";
 import { kzWhole } from "../src/services/seo.js";
 
 vi.mock("../web/lib/aiAgent.js", () => ({ mountAiAgent: () => () => undefined }));
@@ -120,13 +120,12 @@ describe("Termos — o que está «Em breve» não é prometido", () => {
 });
 
 describe("Contacto", () => {
-  it("as três páginas indicam o contacto da MôBisno, e só esse", () => {
+  it("as três páginas indicam o WhatsApp do suporte, e nenhum email", () => {
+    // Pedido do dono: por agora, o WhatsApp é o único meio de contacto.
     for (const pagina of ["termos", "privacidade", "politica"] as const) {
-      expect(texto(pagina), pagina).toContain(PLATFORM_CONTACT_EMAIL);
+      expect(texto(pagina), pagina).toContain(`WhatsApp ${PLATFORM_SUPPORT_WHATSAPP_LABEL}`);
     }
-    const emails = TUDO.match(/[^\s@()«»,;:]+@[^\s@()«»,;:]+\.[a-z]{2,}/gi) ?? [];
-    expect(emails.length).toBeGreaterThan(0);
-    for (const e of emails) expect(e.replace(/\.$/, "")).toBe(PLATFORM_CONTACT_EMAIL);
+    expect(TUDO.match(/[^\s@()«»,;:]+@[^\s@()«»,;:]+\.[a-z]{2,}/gi) ?? []).toEqual([]);
   });
 });
 

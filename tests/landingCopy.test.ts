@@ -14,8 +14,8 @@
  *
  *  - os números (preço, período, comissão, zonas de entrega) vêm das constantes;
  *  - nada que esteja «Em breve» é apresentado como incluído;
- *  - não há contacto inventado: o único `wa.me` é o do suporte, e não há
- *    Instagram nem outros telefones;
+ *  - não há contacto inventado: o único contacto é o `wa.me` do suporte, sem
+ *    email, Instagram nem outros telefones;
  *  - as perguntas que o `FAQPage` declara estão **visíveis** na página (é a
  *    condição que o Google impõe), incluindo as do espelho de `api/_seo.js`;
  *  - as secções que o cabeçalho e o rodapé oferecem existem mesmo no HTML;
@@ -234,6 +234,9 @@ describe("Página inicial — nenhum contacto inventado", () => {
     expect(numeros.length, "o WhatsApp do suporte não está na página").toBeGreaterThan(0);
     for (const n of numeros) expect(n, "um wa.me que não é o do suporte").toBe(PLATFORM_SUPPORT_WHATSAPP);
     expect(visivel(html)).toContain(PLATFORM_SUPPORT_WHATSAPP_LABEL);
+    // Por agora o WhatsApp é o único meio de contacto: nem `mailto:` nem um email à vista.
+    expect(html, "voltou a haver um email de contacto").not.toMatch(/mailto:/i);
+    expect(visivel(semFolhas(html))).not.toMatch(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
     // Fora do suporte, nenhum número angolano (9 algarismos a começar em 9) nem indicativo do país.
     const resto = html.split(PLATFORM_SUPPORT_WHATSAPP_LABEL).join("").split(PLATFORM_SUPPORT_WHATSAPP).join("");
     expect(resto).not.toMatch(/\+\s?244/);
