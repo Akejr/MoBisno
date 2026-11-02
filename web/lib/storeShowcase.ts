@@ -33,8 +33,8 @@ import { esc } from "./dom.js";
 import { supabase } from "../supabase/client.js";
 import { STORE_APEX } from "./routing.js";
 import { PLATFORM_ACCENT } from "../templates/platformChrome.js";
-import { loadStorefront } from "./storeCache.js";
-import { getTemplate } from "../templates/registry.js";
+import { loadStorefront, type LoadedStorefront } from "./storeCache.js";
+import { categoryPageHtml, findProduct, productPageHtml, resolveCategory, storeHomeHtml } from "../views/storeHtml.js";
 import { storePreviewDoc, loadPreviewDoc } from "./storePreviewDoc.js";
 import { safeCssColor } from "../../src/services/storeCustom.js";
 
@@ -309,15 +309,88 @@ export function mountStorePreviews(root: ParentNode): void {
 }
 
 /**
+ * Página pedida dentro da pré-visualização de uma loja. `cart` não é uma página
+ * da loja: é o que se mostra a quem tocou no carrinho ou no checkout, que não
+ * abrem aqui.
+ */
+type PreviewPage =
+  | { type: "home" }
+  | { type: "product"; value: string }
+  | { type: "category"; value: string }
+  | { type: "cart" };
+
+/** O que se mostra no lugar do carrinho e do checkout. */
+const CART_NOTE = `<div style="min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px;font-family:Inter,system-ui,sans-serif">
+  <div style="text-align:center;max-width:340px">
+    <span class="material-symbols-outlined" style="font-size:40px;color:#9ca3af" aria-hidden="true">shopping_cart</span>
+    <p style="margin:12px 0 0;font-size:15px;font-weight:700;color:#111827">O carrinho fica para a loja a sério</p>
+    <p style="margin:6px 0 0;font-size:13px;line-height:1.6;color:#6b7280">Aqui dá para ver as páginas e os produtos. Para comprar, abra a loja.</p>
+  </div>
+</div>`;
+
+/**
+ * HTML da página pedida, a partir da loja já carregada. Uma página que não se
+ * reconheça cai na página inicial, nunca num ecrã vazio.
+ */
+function pageHtmlOf(loaded: LoadedStorefront, identifier: string, page: PreviewPage): string {
+  const { view, custom } = loaded;
+  if (view.kind !== "render") return "";
+  if (page.type === "cart") return CART_NOTE;
+  if (page.type === "product") {
+    const p = findProduct(view, page.value);
+    if (p) return productPageHtml(view, p, custom, identifier);
+  }
+  if (page.type === "category") {
+    const c = resolveCategory(view, page.value);
+    if (c.known) return categoryPageHtml(view, c.label, custom);
+  }
+  return storeHomeHtml(view, custom);
+}
+
+/**
  * Documento da loja, pronto a entrar num `iframe`, ou `null` se a loja não
  * abrir (apagada, despublicada, ou sem conteúdo).
  */
 async function previewDocOf(identifier: string): Promise<{ html: string; storeName: string } | null> {
-  const { view, custom } = await loadStorefront(identifier);
-  if (view.kind !== "render") return null;
-  const html = getTemplate(view.templateId).render(view, custom);
+  const loaded = await loadStorefront(identifier);
+  if (loaded.view.kind !== "render") return null;
+  const html = storeHomeHtml(loaded.view, loaded.custom);
   if (!html) return null;
-  return { html: storePreviewDoc(html, custom), storeName: view.storeName };
+  return { html: storePreviewDoc(html, loaded.custom), storeName: loaded.view.storeName };
+}
+
+/**
+ * Liga a navegação dentro da pré-visualização, a partir da página de cima.
+ *
+ * O documento do `iframe` não corre scripts (nem pode: é conteúdo de um Dono
+ * qualquer numa origem com a sessão da plataforma). Por isso não é ele que avisa
+ * de um clique: é a página que lê o clique no documento dele e decide que página
+ * pedir. É o mesmo mecanismo da galeria de modelos (`bindPreviewNavigation` em
+ * `web/lib/templatePreview.ts`), e é o que faltava aqui: as ligações levam a
+ * caminhos reais (`/loja/<id>/categoria/produtos`) que, dentro de um `iframe`
+ * com `<base target="_blank">` e sem janelas novas, não levavam a lado nenhum.
+ * Tocar em «Produtos» não fazia nada.
+ */
+function bindStoreNavigation(frame: HTMLIFrameElement, go: (page: PreviewPage) => void): void {
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  doc.addEventListener("click", (e) => {
+    // O alvo é um elemento de outro documento: nada de `instanceof Element`.
+    const t = e.target as { closest?: (sel: string) => { getAttribute(name: string): string | null } | null } | null;
+    const a = t?.closest?.("a");
+    const href = a?.getAttribute("href") ?? "";
+    const card = t?.closest?.("[data-edit-product]");
+    if (!a && !card) return;
+    e.preventDefault();
+    // `/produto/<categoria>/<nome>`: o nome traz barras, por isso vai inteiro.
+    const produto = /\/produto\/(.+)$/.exec(href.replace(/[?#].*$/, ""));
+    if (produto) { go({ type: "product", value: decodeURIComponent(produto[1]!) }); return; }
+    const categoria = /\/categoria\/([^/?#]+)/.exec(href);
+    if (categoria) { go({ type: "category", value: decodeURIComponent(categoria[1]!) }); return; }
+    if (/\/(carrinho|checkout)/.test(href)) { go({ type: "cart" }); return; }
+    if (card) { go({ type: "product", value: card.getAttribute("data-edit-product") ?? "" }); return; }
+    go({ type: "home" });
+  });
 }
 
 /* ------------------------------ Cartão e janela ------------------------------ */
@@ -417,6 +490,9 @@ export function openStorePreview(c: ShowcaseCard): void {
         <span class="hidden truncate text-xs text-white/60 sm:inline">${esc(c.host)}</span>
       </div>
       <div class="flex shrink-0 items-center gap-2">
+        <button type="button" data-home hidden class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-white/20">
+          <span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">arrow_back</span><span class="hidden sm:inline">Início da loja</span>
+        </button>
         <a href="${esc(c.url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-white/20">
           <span class="material-symbols-outlined mb-ico text-[18px]" aria-hidden="true">open_in_new</span>Abrir a loja
         </a>
@@ -457,13 +533,31 @@ export function openStorePreview(c: ShowcaseCard): void {
       }
       if (c.preview.kind !== "store") { note("Esta loja abre no próprio site."); return; }
 
-      const doc = await previewDocOf(c.preview.identifier);
+      const identifier = c.preview.identifier;
+      const loaded = await loadStorefront(identifier);
       if (!host.isConnected) return;
-      if (!doc) { note("Não foi possível abrir a pré-visualização desta loja."); return; }
-      const frame = makeFrame(`Loja ${doc.storeName}`, "width:100%;height:100%;display:block", false);
-      loadPreviewDoc(frame, doc.html);
+      if (loaded.view.kind !== "render") { note("Não foi possível abrir a pré-visualização desta loja."); return; }
+      const frame = makeFrame(`Loja ${loaded.view.storeName}`, "width:100%;height:100%;display:block", false);
+      const inicio = host.querySelector<HTMLButtonElement>("[data-home]")!;
+
+      /*
+       * `sameOrigin` para a página de cima poder ler os cliques do documento e
+       * trocar a página. Continua **sem** `allow-scripts`: nada do que está lá
+       * dentro corre, nem um `onerror` de uma imagem.
+       */
+      const mostrar = (page: PreviewPage): void => {
+        const html = pageHtmlOf(loaded, identifier, page);
+        loadPreviewDoc(frame, storePreviewDoc(html, loaded.custom), { sameOrigin: true });
+        inicio.hidden = page.type === "home";
+        stage.scrollTop = 0;
+      };
+      // A cada documento novo, a página volta a ligar a navegação dentro dele.
+      frame.addEventListener("load", () => bindStoreNavigation(frame, mostrar));
+      inicio.addEventListener("click", () => mostrar({ type: "home" }));
+
       host.querySelector("[data-note]")?.remove();
       stage.appendChild(frame);
+      mostrar({ type: "home" });
     } catch {
       note("Não foi possível abrir a pré-visualização desta loja.");
     }

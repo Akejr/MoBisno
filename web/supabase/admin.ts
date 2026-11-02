@@ -225,16 +225,15 @@ async function currentUserId(): Promise<string | null> {
   return data.session?.user?.id ?? null;
 }
 
-/** O utilizador autenticado é administrador? */
-export async function isCurrentUserAdmin(): Promise<boolean> {
-  // getSession() espera pela hidratação a partir do armazenamento local,
-  // evitando falsos negativos logo após um refresh da página.
-  const { data: sess } = await supabase.auth.getSession();
-  const id = sess.session?.user?.id;
-  if (!id) return false;
-  const { data: row } = await supabase.from("profiles").select("is_admin").eq("id", id).maybeSingle();
-  return row?.is_admin === true;
-}
+/**
+ * O utilizador autenticado é administrador?
+ *
+ * A definição vive em `web/supabase/viewer.ts`, um módulo mínimo: a
+ * pré-visualização de uma loja também precisa de a fazer, e importar este
+ * ficheiro levava a camada de dados da Administração para o pacote de todas as
+ * lojas. Reexportada aqui para quem já a importava deste sítio.
+ */
+export { isCurrentUserAdmin } from "./viewer.js";
 
 interface ProfileInfo {
   email: string;

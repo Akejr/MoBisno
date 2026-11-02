@@ -88,6 +88,16 @@ export function storeHomePath(identifier: string): string {
 }
 
 /**
+ * Caminho da pré-visualização privada de uma loja.
+ *
+ * Num sítio só: o Dashboard do Dono e a secção «Lojas» da Administração abrem o
+ * mesmo endereço, e era escrito à mão em cada um.
+ */
+export function storePreviewPath(identifier: string): string {
+  return `/previsualizar/${encodeURIComponent(identifier)}`;
+}
+
+/**
  * Normaliza uma rota para um caminho limpo. Aceita o formato antigo (`#/x`) e o
  * novo (`/x`). Em subdomínio de loja, remove o prefixo redundante
  * `/loja/<identificador>` (o host já identifica a loja).

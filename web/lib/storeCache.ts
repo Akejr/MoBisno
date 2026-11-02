@@ -8,6 +8,7 @@ import { storeRepository, assetRepository, bannerRepository, productRepository, 
 import { createStorefrontResolver, type StorefrontResult } from "../../src/services/storefrontResolver.js";
 import { renderStore } from "../../src/storefront/storeRenderer.js";
 import { getCustomization } from "../supabase/customization.js";
+import { isCurrentUserAdmin } from "../supabase/viewer.js";
 import { storefrontFromRows, type LoadedStorefront, type StorefrontRows } from "../ssr/storefrontRows.js";
 import type { StoreCustomization } from "../templates/types.js";
 
@@ -82,10 +83,11 @@ async function withCustomization(result: StorefrontResult, draft: boolean): Prom
  * `/loja/<id>/…`, que só resolvia lojas publicadas: o Dono clicava num produto
  * do seu rascunho e recebia «Loja não encontrada».
  *
- * Quem mais vê o rascunho: ninguém. `resolveForOwner` só devolve a loja se
- * pertencer a quem tem sessão, o repositório filtra por dono e as políticas da
- * base de dados recusam ler a loja de outra pessoa. Um visitante sem sessão (ou
- * com outra conta) continua a receber «Loja não encontrada».
+ * Quem mais vê o rascunho: o Dono dela e um Administrador, mais ninguém.
+ * `resolveForOwner` só devolve a loja se pertencer a quem tem sessão, o
+ * repositório filtra por dono e as políticas da base de dados recusam ler a loja
+ * de outra pessoa. Um visitante sem sessão (ou com outra conta) continua a
+ * receber «Loja não encontrada».
  */
 async function resolveWithDraft(identifier: string): Promise<LoadedStorefront> {
   const result = await resolver.resolve(`${identifier}.mobisno.store`);
@@ -96,8 +98,30 @@ async function resolveWithDraft(identifier: string): Promise<LoadedStorefront> {
   if (ownerId) {
     const own = await resolver.resolveForOwner(identifier, ownerId);
     if (own.kind === "render") return withCustomization(own, own.store.state !== "Publicada");
+    /*
+     * Um Administrador abre qualquer loja. É isto que faz as páginas DE DENTRO
+     * da pré-visualização dele funcionarem: cada ligação da loja (um produto,
+     * uma categoria, «Produtos») leva a `/loja/<id>/…`, que volta aqui — e sem
+     * este ramo respondia «Loja não encontrada» a quem acabou de abrir a loja.
+     */
+    if (await viewerIsAdmin()) {
+      const asAdmin = await resolver.resolveForAdmin(identifier);
+      if (asAdmin.kind === "render") return withCustomization(asAdmin, asAdmin.store.state !== "Publicada");
+    }
   }
   return withCustomization(result, false);
+}
+
+/**
+ * A sessão é de um Administrador? Uma falha a perguntar não derruba a loja: o
+ * caminho normal (loja publicada) nunca passa por aqui.
+ */
+async function viewerIsAdmin(): Promise<boolean> {
+  try {
+    return await isCurrentUserAdmin();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -139,14 +163,26 @@ export async function loadStorefront(identifier: string): Promise<LoadedStorefro
 }
 
 /**
- * Carrega a loja de um Dono para PRÉ-VISUALIZAÇÃO, mesmo por publicar.
+ * Carrega uma loja para PRÉ-VISUALIZAÇÃO, mesmo por publicar.
  *
  * Não passa pela cache nem pelos dados embutidos: a pré-visualização é do
  * rascunho, muda a cada gravação no editor, e servir uma versão de há um minuto
  * seria pior do que não a mostrar.
+ *
+ * @param ownerId Dono a comparar. `null` só é utilizável com `admin`.
+ * @param opts `admin: true` abre a loja de qualquer Dono. Quem chama é que
+ *        confirma a sessão de Administrador (`isCurrentUserAdmin`).
  */
-export async function loadStorePreview(identifier: string, ownerId: string): Promise<LoadedStorefront> {
-  const result = await resolver.resolveForOwner(identifier, ownerId);
+export async function loadStorePreview(
+  identifier: string,
+  ownerId: string | null,
+  opts: { admin?: boolean } = {},
+): Promise<LoadedStorefront> {
+  const result: StorefrontResult = opts.admin === true
+    ? await resolver.resolveForAdmin(identifier)
+    : ownerId
+      ? await resolver.resolveForOwner(identifier, ownerId)
+      : { kind: "not_found" };
   const draft = result.kind === "render" && result.store.state !== "Publicada";
   return withCustomization(result, draft);
 }

@@ -29,6 +29,7 @@ import {
   type AccountStatus, type StoreStatusKind,
 } from "../../../src/services/adminMetrics.js";
 import { resolveBilling } from "../../../src/services/billing.js";
+import { storePreviewPath } from "../../lib/routing.js";
 import { openDialog } from "./dialog.js";
 import {
   announce, bindChips, btnClass, emptyState, filterChips, fmtDate, fold, icon, iconButton, liveRegion, monthsLabel, pill,
@@ -126,6 +127,7 @@ function storeRow(s: AdminStore): string {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2 xl:shrink-0 xl:justify-end">${subscricao}
+        ${iconButton({ act: "preview", id: s.id, label: `Pré-visualizar a loja ${name}`, icon: "visibility" })}
         ${iconButton({ act: "edit", id: s.id, label: `Editar a loja ${name}`, icon: "palette" })}
         ${iconButton({ act: "state", id: s.id, label: `${published ? "Despublicar" : "Publicar"} a loja ${name}`, icon: published ? "visibility_off" : "public" })}
         ${s.isModel
@@ -319,7 +321,15 @@ export async function renderStores(view: AdminView): Promise<void> {
     const s = stores.find((x) => x.id === btn.dataset.id);
     if (!s) return;
     const act = btn.dataset.act;
-    if (act === "edit") view.openStoreEditor(s.id, s.ownerId);
+    if (act === "preview") {
+      /*
+       * A loja como o cliente a vê, mesmo por publicar: o endereço público
+       * (`storeLink`) devolve «Loja não encontrada» a um rascunho, e o editor
+       * mostra-a com as ferramentas de edição por cima. Separador novo, para não
+       * perder o filtro e a pesquisa desta lista.
+       */
+      window.open(storePreviewPath(s.identifier), "_blank", "noopener");
+    } else if (act === "edit") view.openStoreEditor(s.id, s.ownerId);
     else if (act === "state") void toggleState(s);
     else if (act === "activate") void activate(s);
     else if (act === "deactivate") void deactivate(s);

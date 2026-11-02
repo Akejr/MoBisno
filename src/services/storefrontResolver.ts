@@ -79,6 +79,23 @@ export interface StorefrontResolver {
    * base de dados impedem ler a Loja de outra pessoa. É a terceira.
    */
   resolveForOwner(identifier: string, ownerId: string): Promise<StorefrontResult>;
+  /**
+   * Resolve a Loja **de qualquer Dono e em qualquer estado**, para a
+   * pré-visualização da Administração.
+   *
+   * PORQUÊ: o Administrador tinha de aprovar pagamentos, ativar subscrições e
+   * responder por lojas que não conseguia ver. O editor abria-as, mas o editor
+   * mostra a loja com as ferramentas de edição por cima, e não o que o cliente
+   * vai encontrar. Esta porta mostra a loja como ela é.
+   *
+   * **Não verifica nada.** Não há `ownerId` para comparar: quem chama é que
+   * garante que a sessão é de um Administrador, e as políticas da base de dados
+   * (`is_admin()`) decidem o que ela consegue de facto ler. É por isso que esta
+   * função é separada de {@link resolveForOwner} em vez de ser o mesmo caminho
+   * com a comparação relaxada: a comparação de dono é a guarda do Dono, e
+   * afrouxá-la abria a loja de todos a todos.
+   */
+  resolveForAdmin(identifier: string): Promise<StorefrontResult>;
 }
 
 /** Dependências configuráveis do {@link StorefrontResolver}. */
@@ -193,6 +210,13 @@ export function createStorefrontResolver(
       const store = await storeRepository.findByIdentifier(identifier);
       // O dono só vê o que é dele. O estado não conta: é esse o objetivo.
       if (store === null || store.ownerId !== ownerId) return { kind: "not_found" };
+      return gather(store);
+    },
+
+    async resolveForAdmin(identifier: string): Promise<StorefrontResult> {
+      if (!identifier) return { kind: "not_found" };
+      const store = await storeRepository.findByIdentifier(identifier);
+      if (store === null) return { kind: "not_found" };
       return gather(store);
     },
   };

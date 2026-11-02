@@ -12,6 +12,7 @@ import { appState, currentOwnerId, logout, storeRepository, publicStoreUrl } fro
 import { isCurrentUserAdmin } from "../supabase/admin.js";
 import { readPhoneStatus } from "../supabase/phone.js";
 import { isModelIdentifier } from "../../src/services/domains.js";
+import { storePreviewPath } from "../lib/routing.js";
 import { resolveBilling, type BillingState } from "../../src/services/billing.js";
 import { PLAN_UNIT_LABEL } from "../../src/services/plans.js";
 import type { Store } from "../../src/models/index.js";
@@ -383,7 +384,7 @@ export async function renderDashboard(): Promise<void> {
   setDocTitle(`${titulo} · Dashboard | MôBisno`);
 
   const storeUrl = publicStoreUrl(store.identifier);
-  const previewUrl = `/previsualizar/${encodeURIComponent(store.identifier)}`;
+  const previewUrl = storePreviewPath(store.identifier);
   const moldura: ShellInput = { tab, stores, store, isAdmin, billing, storeUrl, previewUrl };
   let molduraPintada = false;
 
