@@ -27,7 +27,7 @@ import {
   type CompanyDocumentId, type VerificationError, type VerificationForm, type VerificationStatus,
 } from "../../../src/services/paymentVerification.js";
 import { canDeleteOrder, isValidAoPhone, normalizeAoPhone, orderEffectiveStatus } from "../../../src/services/payments.js";
-import { PLATFORM_SUPPORT_WHATSAPP_LABEL, supportWhatsAppUrl } from "../../../src/services/domains.js";
+import { PLATFORM_SUPPORT_WHATSAPP_LABEL, STORE_APEX, supportWhatsAppUrl } from "../../../src/services/domains.js";
 import { PLATFORM_FEE_LABEL } from "../../../src/services/fees.js";
 import { WA_DEFAULT_PHONE, resolveWaPhone } from "../../../src/services/storeCustom.js";
 import { DELIVERY_PROVINCE, LUANDA_AREAS, deliveredAreas, type DeliveryConfig } from "../../lib/areas.js";
@@ -36,6 +36,76 @@ import type { Review } from "../../supabase/reviews.js";
 import type { OrderRow, OrderStats, PaymentVerification } from "../../supabase/payments.js";
 import type { WhatsappOrderRow } from "../../supabase/whatsappOrders.js";
 import type { WithdrawalRow } from "../../supabase/withdrawals.js";
+
+/* ============================= Sem nenhuma loja ============================= */
+
+/**
+ * Os três passos de criar uma loja, os mesmos da página inicial. Escritos aqui
+ * uma vez: quem entra no Dashboard sem loja e quem chega pela página inicial
+ * ouvem a mesma coisa.
+ */
+const FIRST_STORE_STEPS: readonly { title: string; text: string }[] = [
+  { title: "Escolha um modelo", text: "Lojas prontas, feitas por tipo de negócio." },
+  { title: "Ponha os produtos", text: "Fotografia, preço e stock. O resto já está feito." },
+  { title: "Publique e partilhe", text: `A loja fica em nomedaloja.${STORE_APEX}.` },
+];
+
+/**
+ * O Dashboard de quem ainda não tem nenhuma loja.
+ *
+ * ## Porquê um ecrã próprio
+ *
+ * Era um cartão pequeno ao meio do ecrã com um ícone, uma frase e dois botões
+ * do mesmo tamanho, «Criar a minha loja» e «Terminar sessão». O primeiro ecrã
+ * de quem acabou de criar conta não pode parecer uma mensagem de erro, nem pôr
+ * a ação principal ao lado da porta de saída.
+ *
+ * Agora é uma página: a marca no topo, o que vai acontecer em três passos, uma
+ * ação principal, e o preço dito antes de ser pedido (criar e pré-visualizar é
+ * grátis; a subscrição serve para publicar). «Terminar sessão» passou para o
+ * cabeçalho, onde está em todos os outros ecrãs.
+ *
+ * A moldura do painel não entra aqui de propósito: sem loja não há separadores
+ * nem seletor de loja, e uma barra lateral com nove secções que não abrem nada
+ * só daria a entender que falta alguma coisa.
+ *
+ * @param o `isAdmin` acrescenta o atalho para a Administração: um Administrador
+ *        sem lojas próprias ficava sem forma de chegar ao painel dele a partir daqui.
+ */
+export function noStoreHtml(o: { isAdmin: boolean }): string {
+  const passos = FIRST_STORE_STEPS.map((s, i) => `<li class="flex items-start gap-3">
+        <span class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm font-black" style="background:${ACCENT_TINT};color:${ACCENT_INK}" aria-hidden="true">${i + 1}</span>
+        <span class="min-w-0">
+          <span class="block text-sm font-bold text-gray-900">${esc(s.title)}</span>
+          <span class="block text-sm text-gray-600">${esc(s.text)}</span>
+        </span>
+      </li>`).join("");
+  return `<div data-panel-shell class="min-h-screen w-full overflow-x-hidden bg-gray-50 font-sans text-gray-900">
+    <header class="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 md:px-8">
+      <img src="/logo-header.png" alt="MôBisno" class="w-auto object-contain" style="height:26px" />
+      <div class="flex items-center gap-1">
+        ${o.isAdmin ? `<a href="#/adminPainel" class="${BTN_GHOST}">${icon("shield_person", "text-[18px]")}<span class="hidden sm:inline">Administração</span></a>` : ""}
+        <button type="button" data-logout class="${BTN_GHOST}">${icon("logout", "text-[18px]")}<span class="hidden sm:inline">Terminar sessão</span></button>
+      </div>
+    </header>
+    <main class="mx-auto w-full max-w-3xl px-4 py-10 md:py-16">
+      ${card(`
+      <div class="flex items-start gap-3">
+        <span class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background:${ACCENT_TINT};color:${ACCENT}">${icon("storefront", "text-[24px]")}</span>
+        <div class="min-w-0">
+          <h1 class="text-xl md:text-2xl font-black tracking-tight text-gray-900">Vamos criar a sua primeira loja</h1>
+          <p class="mt-1 text-sm text-gray-600">Escolhe um modelo pronto e muda os textos, as fotografias e as cores. Não há nada para instalar nem código para escrever.</p>
+        </div>
+      </div>
+      <ul class="mt-6 grid gap-4 sm:grid-cols-3">${passos}</ul>
+      <div class="mt-7 flex flex-col gap-2.5 border-t border-gray-100 pt-6 sm:flex-row sm:items-center">
+        <a href="#/criar" class="${BTN_PRIMARY}">${icon("add_business", "text-[18px]")} Criar a minha loja</a>
+        <a href="/lojas" class="${BTN_SECONDARY}">${icon("visibility", "text-[18px]")} Ver lojas de exemplo</a>
+      </div>
+      <p class="mt-3 text-xs text-gray-500">Criar a loja e pré-visualizá-la é grátis, sem prazo. Só paga para a publicar: ${esc(PLAN_PRICE_TEXT)} ${esc(PLAN_UNIT_LABEL)}.</p>`)}
+    </main>
+  </div>`;
+}
 
 /* ================================= Início ================================= */
 

@@ -28,7 +28,7 @@ import { renderAnalises } from "./dashboard/analises.js";
 import { renderPagamentos } from "./dashboard/pagamentos.js";
 import { renderPlano } from "./dashboard/plano.js";
 import { renderConfig } from "./dashboard/config.js";
-import { PLAN_PRICE_TEXT } from "./dashboard/markup.js";
+import { PLAN_PRICE_TEXT, noStoreHtml } from "./dashboard/markup.js";
 
 /**
  * As secções do painel, por ordem, numa lista só.
@@ -357,11 +357,14 @@ export async function renderDashboard(): Promise<void> {
   const escolhida = pedida ? stores.find((s) => s.id === pedida) ?? null : null;
   const store = escolhida ?? stores[0] ?? null;
   if (!store) {
-    render(standalonePage({
-      icon: "storefront", title: "Ainda não tem nenhuma loja", text: "Crie a sua primeira loja: escolha um modelo pronto e personalize-o.",
-      actions: `<a href="#/criar" class="${BTN_PRIMARY}">Criar a minha loja</a><button type="button" data-logout class="${BTN_SECONDARY}">Terminar sessão</button>`,
-    }));
-    document.querySelector<HTMLElement>("[data-logout]")?.addEventListener("click", async () => { await logout(); go("#/"); });
+    // Página própria, e não o cartão de «não há nada»: é o primeiro ecrã de
+    // quem acabou de criar conta (ver `noStoreHtml`).
+    setDocTitle("Dashboard | MôBisno");
+    render(noStoreHtml({ isAdmin }));
+    document.querySelectorAll<HTMLElement>("[data-logout]").forEach((b) =>
+      b.addEventListener("click", async () => { await logout(); go("#/"); }));
+    // O assistente também aqui: é onde há mais perguntas por responder.
+    if (seq === renderSeq) mountAiAgent(document.getElementById("app"), { screen: "painel" });
     return;
   }
   appState.ownerId = ownerId;

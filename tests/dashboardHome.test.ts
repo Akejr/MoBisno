@@ -66,6 +66,7 @@ interface Markup {
   whatsappConfigured(custom: unknown): boolean;
   deliveryConfigured(d: { mode?: "single" | "perArea"; flatFee?: number; fees?: Record<string, number> } | undefined): boolean;
   orderRowHtml(o: Venda): string;
+  noStoreHtml(o: { isAdmin: boolean }): string;
 }
 
 let M: Markup;
@@ -92,6 +93,72 @@ const semNada = {
   products: 0, hasLogo: false, whatsappOk: false, deliveryOk: false,
   published: false, accessActive: false, verification: "none" as VerificationStatus,
 };
+
+/* ============================= Sem nenhuma loja ============================= */
+
+describe("Dashboard sem nenhuma loja — é um convite, não um aviso", () => {
+  /**
+   * Era um cartão pequeno ao meio do ecrã, com «Ainda não tem nenhuma loja» e
+   * dois botões do mesmo tamanho: «Criar a minha loja» e «Terminar sessão». É o
+   * primeiro ecrã de quem acaba de criar conta, e parecia uma mensagem de erro
+   * com a porta de saída ao lado da ação principal.
+   */
+  it("diz o que vai acontecer, em três passos, e qual é a ação principal", () => {
+    const html = M.noStoreHtml({ isAdmin: false });
+    expect(html).toContain("Vamos criar a sua primeira loja");
+    for (const passo of ["Escolha um modelo", "Ponha os produtos", "Publique e partilhe"]) {
+      expect(html, `passo ausente: ${passo}`).toContain(passo);
+    }
+    // Uma ação principal só (o laranja de `BTN_PRIMARY`), e a saída fora dela.
+    expect(html.match(/hover:bg-\[#E04F00\]/g) ?? [], "mais do que uma ação principal").toHaveLength(1);
+    expect(html).toContain('href="#/criar"');
+    expect(html).toContain("Criar a minha loja");
+    expect(html).toContain('href="/lojas"');
+  });
+
+  it("o preço é dito antes de ser pedido, e vem do domínio", () => {
+    const html = M.noStoreHtml({ isAdmin: false });
+    expect(html).toContain("é grátis");
+    expect(html).toContain("Só paga para a publicar");
+    // O preço e a unidade saem de `plans.ts`, nunca escritos à mão: um preço
+    // escrito aqui ficava errado no dia em que o preço mudasse.
+    const fn = MARKUP.slice(MARKUP.indexOf("export function noStoreHtml("));
+    const corpo = fn.slice(0, fn.indexOf("\n}"));
+    expect(corpo).toContain("${esc(PLAN_PRICE_TEXT)} ${esc(PLAN_UNIT_LABEL)}");
+    expect(corpo, "preço escrito à mão").not.toMatch(/\bKz\b/);
+    // E no HTML desenhado o preço aparece mesmo, vindo da interpolação.
+    expect(html).toMatch(/\d[\d.]*\s?Kz/);
+  });
+
+  it("«Terminar sessão» está no cabeçalho, e a Administração só aparece a quem é administrador", () => {
+    const comum = M.noStoreHtml({ isAdmin: false });
+    const admin = M.noStoreHtml({ isAdmin: true });
+    expect(comum).toContain("data-logout");
+    expect(comum).not.toContain("#/adminPainel");
+    expect(admin).toContain('href="#/adminPainel"');
+    // Um Administrador sem lojas próprias ficava sem forma de chegar ao painel dele.
+    expect(admin).toContain("Administração");
+  });
+
+  it("a vista desenha-a, liga a saída e monta o assistente", () => {
+    expect(DASHBOARD).toContain("render(noStoreHtml({ isAdmin }))");
+    // `querySelectorAll`: o cabeçalho pode ganhar outro comando de saída.
+    expect(DASHBOARD).toContain('document.querySelectorAll<HTMLElement>("[data-logout]")');
+    const trecho = DASHBOARD.slice(DASHBOARD.indexOf("render(noStoreHtml("));
+    expect(trecho.slice(0, trecho.indexOf("return;"))).toContain("mountAiAgent(");
+    // O foco visível do painel é dado por `[data-panel-shell]`.
+    expect(MARKUP.slice(MARKUP.indexOf("export function noStoreHtml("))).toContain("data-panel-shell");
+  });
+
+  it("não há separadores nem seletor de loja: ainda não há loja", () => {
+    const html = M.noStoreHtml({ isAdmin: true });
+    expect(html).not.toContain("data-store-switch-to");
+    expect(html).not.toContain("data-store-menu");
+    for (const s of ["#/painel/produtos", "#/painel/plano", "#/personalizar"]) {
+      expect(html, `${s} não leva a nada sem loja`).not.toContain(s);
+    }
+  });
+});
 
 /* ================================== Início ================================== */
 

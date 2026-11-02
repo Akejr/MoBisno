@@ -713,6 +713,28 @@ describe("Orientação do ecrã «Início» — as nove secções, o funil e os 
   });
 });
 
+describe("Orientação do ecrã «Início» — o Dashboard sem nenhuma loja", () => {
+  /**
+   * O primeiro ecrã de quem acaba de criar conta. Quem pergunta «o painel está
+   * vazio, e agora?» tem de ouvir o nome do botão que está no ecrã.
+   */
+  const guia = guiaDe("painel");
+  const MARKUP = readFileSync(join(ROOT, "web/views/dashboard/markup.ts"), "utf8");
+
+  it("descreve o ecrã e os rótulos que o Dono vê nele", () => {
+    const linha = guia.split("\n").find((l) => l.startsWith("- SEM NENHUMA LOJA")) ?? "";
+    expect(linha, "falta a linha do Dashboard sem loja").not.toBe("");
+    for (const rotulo of ["Vamos criar a sua primeira loja", "Escolha um modelo", "Ponha os produtos", "Publique e partilhe", "Criar a minha loja", "Ver lojas de exemplo"]) {
+      expect(linha, `rótulo ausente da orientação: ${rotulo}`).toContain(rotulo);
+      expect(MARKUP, `rótulo ausente do ecrã: ${rotulo}`).toContain(rotulo);
+    }
+    // Diz o que esse ecrã NÃO tem, senão o assistente manda procurar separadores
+    // que ainda não existem.
+    expect(linha).toMatch(/Não tem separadores nem seletor de loja/);
+    expect(linha).toMatch(/grátis/);
+  });
+});
+
 describe("Orientação do ecrã «Análises» — os quatro números do ecrã reconstruído", () => {
   const guia = guiaDe("analises");
   const ANALISES = readFileSync(join(ROOT, "web/views/dashboard/analises.ts"), "utf8");
