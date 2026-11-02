@@ -1597,6 +1597,19 @@ describe("Orientação do ecrã «editor» — no telemóvel", () => {
     expect(EDITOR).toContain('<span class="sm:hidden">Produto</span>');
   });
 
+  it("descreve a visita guiada, e o que ela é num telemóvel", () => {
+    const linha = guia.split("\n").find((l) => l.startsWith("- VISITA GUIADA")) ?? "";
+    expect(linha, "falta a linha da visita guiada").not.toBe("");
+    for (const rotulo of ["Tutorial", "Anterior", "Seguinte"]) {
+      expect(linha, `rótulo ausente: ${rotulo}`).toContain(`«${rotulo}»`);
+    }
+    expect(linha).toMatch(/dá para rolar a página durante a visita/);
+    expect(linha).toMatch(/«toca» em vez de «passa o rato»/);
+    // O número de passos sai do ecrã, e o ecrã tem de o confirmar.
+    const passos = (EDITOR.slice(EDITOR.indexOf("const TOUR: TourStep[] = [")).match(/\{ sel:/g) ?? []).length;
+    expect(linha, `a visita tem ${passos} passos`).toContain(`${passos === 14 ? "catorze" : String(passos)} passos`);
+  });
+
   it("«Guardar» não está dentro da linha que desliza", () => {
     const inicio = EDITOR.indexOf('id="editor-tools"');
     const fim = EDITOR.indexOf('id="save"');

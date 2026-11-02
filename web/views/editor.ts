@@ -2198,22 +2198,30 @@ ${fieldCss}
   // Tutorial guiado.
   $("#tutorial")?.addEventListener("click", () => void startTutorial());
 
-  interface TourStep { sel: string; title: string; text: string; screen?: "home" | "product"; }
+  /**
+   * Um passo da visita guiada.
+   *
+   * `touch` é o texto para quem está num telemóvel. Três passos diziam «passa o
+   * rato» (no logótipo, nos modelos do topo, num produto) e um dizia para usar
+   * «− / +», controlos que só aparecem ao passar o rato: num telemóvel a visita
+   * mandava fazer coisas que não existem.
+   */
+  interface TourStep { sel: string; title: string; text: string; touch?: string; screen?: "home" | "product"; }
   const TOUR: TourStep[] = [
     { sel: "", title: "Bem-vindo ao editor 👋", text: "Vou mostrar-te, em poucos passos, como personalizar a tua loja. Tudo o que mudas aqui aparece ao vivo.", screen: "home" },
-    { sel: "[data-edit-logo]", title: "O teu logótipo", text: "Clica no logótipo para trocar a imagem e usa − / + para ajustar o tamanho.", screen: "home" },
-    { sel: "#preview [data-edit]", title: "Editar textos", text: "Clica em qualquer texto (títulos, descrições, contactos) e escreve diretamente.", screen: "home" },
+    { sel: "[data-edit-logo]", title: "O teu logótipo", text: "Clica no logótipo para trocar a imagem e usa − / + para ajustar o tamanho.", touch: "Toca no logótipo para trocar a imagem.", screen: "home" },
+    { sel: "#preview [data-edit]", title: "Editar textos", text: "Clica em qualquer texto (títulos, descrições, contactos) e escreve diretamente.", touch: "Toca em qualquer texto (títulos, descrições, contactos) e escreve diretamente.", screen: "home" },
     { sel: "#color-dot", title: "Cor principal", text: "Define a cor da marca. Aplica-se a botões e destaques em toda a loja, ao vivo." },
     { sel: "#ink-dot", title: "Cor dos textos", text: "Muda a cor dos textos e ícones da loja." },
     { sel: "#theme-style", title: "Estilo geral", text: "Escolhe um estilo (moderno, clássico ou minimal) para dar coerência a tudo." },
-    { sel: "#tour-hero", title: "Modelo do cabeçalho (hero)", text: "Troca o topo da loja entre vários modelos. Passa o rato em cada opção para pré-visualizar.", screen: "home" },
+    { sel: "#tour-hero", title: "Modelo do cabeçalho (hero)", text: "Troca o topo da loja entre vários modelos. Passa o rato em cada opção para pré-visualizar.", touch: "Troca o topo da loja entre vários modelos. Toca para abrir a lista e escolher.", screen: "home" },
     { sel: "#tour-grid", title: "Disposição dos produtos", text: "Muda a forma como os produtos aparecem: retrato, quadrado ou alto.", screen: "home" },
-    { sel: "[data-edit-products]", title: "Os teus produtos", text: "Adiciona e edita produtos aqui. Passa o rato num produto para o editar.", screen: "home" },
+    { sel: "[data-edit-products]", title: "Os teus produtos", text: "Adiciona e edita produtos aqui. Passa o rato num produto para o editar.", touch: "Adiciona e edita produtos aqui. Toca num produto para abrir as opções dele.", screen: "home" },
     { sel: "[data-add-toggle]", title: "Adicionar secções", text: "Monta a página por blocos: produtos, informação, texto, testemunhos ou localização.", screen: "home" },
-    { sel: "#mb-ai-agent", title: "O teu assistente", text: "Clica neste robô para abrir o chat e tirar dúvidas sobre o editor a qualquer momento." },
+    { sel: "#mb-ai-agent", title: "O teu assistente", text: "Clica neste robô para abrir o chat e tirar dúvidas sobre o editor a qualquer momento.", touch: "Toca neste robô para abrir a conversa e tirar dúvidas sobre o editor." },
     { sel: "[data-edit-perks]", title: "Garantias do produto", text: "Na página de produto podes editar, adicionar ou remover estas garantias.", screen: "product" },
-    { sel: "#ver-loja", title: "Ver a loja", text: "Abre a tua loja publicada numa nova aba para a veres como um cliente." },
-    { sel: "#save", title: "Guardar", text: "Quando terminares, clica em Guardar para publicar as alterações." },
+    { sel: "#ver-loja", title: "Ver a loja", text: "Abre a tua loja publicada numa nova aba para a veres como um cliente.", touch: "Abre a tua loja publicada noutro separador. No telemóvel está na linha de ferramentas, que desliza para o lado." },
+    { sel: "#save", title: "Guardar", text: "Quando terminares, clica em Guardar para publicar as alterações.", touch: "Quando terminares, toca em Guardar para publicar as alterações." },
   ];
 
   async function startTutorial(): Promise<void> {
@@ -2222,64 +2230,150 @@ ${fieldCss}
     let idx = 0;
     const layer = document.createElement("div");
     layer.id = "mb-tour";
-    layer.style.cssText = "position:fixed;inset:0;z-index:200;font-family:Inter,sans-serif";
+    /*
+     * `pointer-events:none` na camada, e só o cartão a receber toques.
+     *
+     * A camada cobria o ecrã inteiro e engolia tudo: durante a visita não se
+     * conseguia **rolar a página** num telemóvel (não há rato nem teclas), nem
+     * tocar no que estava destacado. Num ecrã pequeno, em que quase todos os
+     * alvos exigem rolar, isso tornava a visita uma sequência de ecrãs presos.
+     */
+    layer.style.cssText = "position:fixed;inset:0;z-index:200;pointer-events:none;font-family:Inter,sans-serif";
     const hole = document.createElement("div");
     hole.style.cssText = "position:fixed;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.55);transition:all .25s ease;pointer-events:none;top:50%;left:50%;width:0;height:0";
     const tip = document.createElement("div");
-    tip.style.cssText = "position:fixed;max-width:320px;background:#fff;border-radius:16px;padding:18px;box-shadow:0 16px 48px rgba(0,0,0,.3);transition:all .2s ease";
+    tip.style.cssText = "position:fixed;background:#fff;border-radius:16px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.3);pointer-events:auto;transition:top .2s ease,left .2s ease";
     layer.appendChild(hole); layer.appendChild(tip);
     document.body.appendChild(layer);
 
     const close = () => { trackToken++; layer.remove(); };
     let trackToken = 0;
 
+    /** Largura do cartão em ecrã largo. No telemóvel encosta às duas margens. */
+    const CARD_W = 320;
+    /** Altura do cartão, MEDIDA: depende das linhas que o texto ocupa. */
+    let cardH = 210;
+
+    /**
+     * Onde acaba o cabeçalho pegajoso do editor.
+     *
+     * Era um valor escrito à mão (70px, a altura do cabeçalho no computador).
+     * No telemóvel o cabeçalho tem três linhas e passa dos 130px: um alvo entre
+     * os 70px e os 130px era considerado visível, não se rolava nada, e o
+     * destaque era desenhado sobre um alvo escondido por baixo do cabeçalho.
+     */
+    function headerBottom(): number {
+      const h = document.querySelector<HTMLElement>("header");
+      return h ? Math.max(0, Math.round(h.getBoundingClientRect().bottom)) : 0;
+    }
+
+    /**
+     * Coloca o destaque e o cartão.
+     *
+     * No telemóvel o cartão é uma **folha** encostada às margens, em baixo, ou
+     * em cima quando o que está destacado fica na metade de baixo do ecrã (o
+     * assistente, «Guardar»). Tinha a geometria do computador, e duas contas
+     * davam errado num ecrã estreito: a largura fixa de 320px com o limite
+     * `vw - 332`, que num ecrã de 320px dá −12 e deixava o cartão meio fora do
+     * ecrã; e uma altura assumida de 210px, quando o mesmo texto a 320px passa
+     * a quatro linhas e o cartão chega perto dos 300px, pelo que a conta de
+     * «cabe por baixo?» respondia sim e o cartão saía pelo fundo.
+     */
     function position(el: Element | null): void {
       const vw = window.innerWidth, vh = window.innerHeight;
-      if (el) {
-        const r = el.getBoundingClientRect();
-        const pad = 8;
-        hole.style.top = `${Math.max(0, r.top - pad)}px`;
-        hole.style.left = `${Math.max(0, r.left - pad)}px`;
-        hole.style.width = `${r.width + pad * 2}px`;
-        hole.style.height = `${r.height + pad * 2}px`;
-        hole.style.transform = "none";
-        let top = r.bottom + 14;
-        if (top + 210 > vh) top = Math.max(12, r.top - 210);
-        const left = Math.min(Math.max(12, r.left), vw - 332);
-        tip.style.top = `${top}px`;
-        tip.style.left = `${left}px`;
-        tip.style.transform = "none";
-      } else {
+      const folha = isNarrowScreen();
+      tip.style.maxWidth = folha ? "none" : `${CARD_W}px`;
+      if (!el) {
         hole.style.width = "0"; hole.style.height = "0"; hole.style.top = "50%"; hole.style.left = "50%";
-        tip.style.top = "50%"; tip.style.left = "50%"; tip.style.transform = "translate(-50%,-50%)";
+        tip.style.top = "50%";
+        tip.style.left = folha ? "12px" : "50%";
+        tip.style.right = folha ? "12px" : "auto";
+        tip.style.width = folha ? "auto" : `${CARD_W}px`;
+        tip.style.transform = folha ? "translateY(-50%)" : "translate(-50%,-50%)";
+        return;
       }
+      const r = el.getBoundingClientRect();
+      const pad = 8;
+      hole.style.top = `${Math.max(0, r.top - pad)}px`;
+      hole.style.left = `${Math.max(0, r.left - pad)}px`;
+      hole.style.width = `${r.width + pad * 2}px`;
+      hole.style.height = `${r.height + pad * 2}px`;
+      hole.style.transform = "none";
+      tip.style.transform = "none";
+      if (folha) {
+        tip.style.left = "12px";
+        tip.style.right = "12px";
+        tip.style.width = "auto";
+        /*
+         * Em baixo, salvo quando a folha taparia o que está destacado (o
+         * assistente e «Guardar» vivem no fundo do ecrã): aí vai para cima,
+         * logo abaixo do cabeçalho. A decisão sai da geometria e não de um
+         * palpite sobre a metade do ecrã, e é estável, porque mover a folha não
+         * mexe no alvo.
+         */
+        const emBaixo = Math.max(12, vh - cardH - 16);
+        tip.style.top = r.bottom > emBaixo - 8 ? `${Math.max(12, headerBottom() + 8)}px` : `${emBaixo}px`;
+        return;
+      }
+      tip.style.right = "auto";
+      tip.style.width = `${CARD_W}px`;
+      const abaixo = r.bottom + 14;
+      tip.style.top = `${abaixo + cardH <= vh - 12 ? abaixo : Math.max(12, r.top - cardH - 14)}px`;
+      tip.style.left = `${Math.max(12, Math.min(r.left, vw - CARD_W - 12))}px`;
+    }
+
+    /**
+     * Coloca o cartão e mede-o: duas passagens, porque a altura só se sabe
+     * depois de a largura estar aplicada, e é a altura que decide se o cartão
+     * cabe por baixo do alvo.
+     */
+    function layout(el: Element | null): void {
+      position(el);
+      cardH = Math.ceil(tip.getBoundingClientRect().height) || 210;
+      position(el);
+
     }
 
     function renderContent(): void {
       const step = TOUR[idx]!;
       const last = idx === TOUR.length - 1;
+      // Num telemóvel, o texto que fala de tocar; no computador, o do rato.
+      const texto = isNarrowScreen() && step.touch ? step.touch : step.text;
       tip.innerHTML = `
         <div class="flex items-center justify-between gap-2 mb-1.5">
           <span style="color:${ACCENT}" class="text-xs font-bold uppercase tracking-wider">Passo ${idx + 1} de ${TOUR.length}</span>
-          <button data-skip class="text-gray-400 hover:text-gray-700"><span class="material-symbols-outlined text-[18px]">close</span></button>
+          <button data-skip aria-label="Sair da visita guiada" class="-mr-1.5 -mt-1.5 w-9 h-9 flex items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"><span class="material-symbols-outlined text-[20px]">close</span></button>
         </div>
         <h3 class="font-black text-gray-900 text-lg">${esc(step.title)}</h3>
-        <p class="text-gray-500 text-sm mt-1.5 leading-relaxed">${esc(step.text)}</p>
+        <p class="text-gray-500 text-sm mt-1.5 leading-relaxed">${esc(texto)}</p>
         <div class="flex items-center justify-between gap-2 mt-5">
-          <button data-prev class="text-sm font-semibold px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 ${idx === 0 ? "invisible" : ""}">Anterior</button>
-          <button data-next class="text-sm font-bold px-5 py-2 rounded-lg text-white" style="background:${ACCENT}">${last ? "Concluir" : "Seguinte"}</button>
+          <button data-prev class="text-sm font-semibold px-3 py-2.5 rounded-lg text-gray-600 transition-colors hover:bg-gray-100 ${idx === 0 ? "invisible" : ""}">Anterior</button>
+          <button data-next class="text-sm font-bold px-6 py-2.5 rounded-lg text-white" style="background:${ACCENT}">${last ? "Concluir" : "Seguinte"}</button>
         </div>`;
       tip.querySelector("[data-skip]")?.addEventListener("click", close);
       tip.querySelector("[data-prev]")?.addEventListener("click", () => { if (idx > 0) { idx--; void show(); } });
       tip.querySelector("[data-next]")?.addEventListener("click", () => { if (last) { close(); return; } idx++; void show(); });
     }
 
-    /** Mantém o destaque sobre o elemento (acompanha scroll/animações). */
+    /**
+     * Mantém o destaque sobre o elemento (acompanha o scroll e as animações).
+     *
+     * Só volta a colocar quando algo **mudou**: media e reescrevia oito estilos
+     * a cada fotograma, o que num telemóvel é trabalho de layout constante
+     * durante toda a visita. A chave inclui o ecrã, para uma rotação ou a
+     * abertura do teclado voltarem a medir o cartão.
+     */
     function track(el: Element): void {
       const token = ++trackToken;
+      let anterior = "";
       const tick = (): void => {
         if (token !== trackToken || !document.body.contains(layer)) return;
-        position(el);
+        const r = el.getBoundingClientRect();
+        const chave = `${r.top}|${r.left}|${r.width}|${r.height}|${window.innerWidth}|${window.innerHeight}`;
+        if (chave !== anterior) {
+          anterior = chave;
+          layout(el);
+        }
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -2296,17 +2390,20 @@ ${fieldCss}
       // Aguarda um frame para o DOM/preview estabilizar após o rebuild.
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const el = (step.sel ? document.querySelector(step.sel) : null) as HTMLElement | null;
-      if (!el) { position(null); return; }
+      if (!el) { layout(null); return; }
 
       // Se o alvo estiver fora da área visível, faz scroll até ao centro (em
-      // qualquer contentor com scroll) e espera o movimento suave assentar.
+      // qualquer contentor com scroll, incluindo a linha de ferramentas que
+      // desliza para o lado) e espera o movimento suave assentar. O limite de
+      // cima é o fim do cabeçalho a sério, não um número escrito à mão.
       const r = el.getBoundingClientRect();
-      const offscreen = r.top < 70 || r.bottom > window.innerHeight - 20 || r.left < 0 || r.right > window.innerWidth;
-      if (offscreen) {
+      const topo = headerBottom() + 8;
+      const fora = r.top < topo || r.bottom > window.innerHeight - 20 || r.left < 0 || r.right > window.innerWidth;
+      if (fora) {
         el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
         await new Promise((res) => setTimeout(res, 420));
       }
-      position(el);
+      layout(el);
       track(el);
     }
 

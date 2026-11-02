@@ -296,6 +296,7 @@ const SCREEN_GUIDES: Record<AssistantScreen, string> = {
 - NO TELEMÓVEL: «Guardar» fica sempre à vista, ao lado do nome da loja; as cores, o estilo, «Desfazer», «Tutorial», a pré-visualização e «Ver loja» ficam na linha de baixo, que desliza para o lado. Nas secções de produtos, as setas, a categoria e o caixote do lixo ficam numa linha por cima do título da secção.
 - LOCALIZAÇÃO: quando o modelo tem bloco de mapa, dá para acrescentar várias localizações e escolher cada uma no mapa, com o pin arrastável.
 - «Guardar» publica as alterações. «Desfazer» reverte. «Abrir preview» mostra computador e telemóvel. «Ver loja» abre a loja. «Tutorial» inicia a visita guiada.
+- VISITA GUIADA («Tutorial»): catorze passos, com «Anterior», «Seguinte» e o X para sair a qualquer momento. Destaca cada coisa no ecrã e explica-a. No telemóvel o cartão encosta às margens, por baixo do que está destacado (ou por cima, quando taparia), e **dá para rolar a página durante a visita**; os textos dizem «toca» em vez de «passa o rato», porque no telemóvel os botões que só aparecem ao passar o rato (o «− / +» do tamanho do logótipo) não existem. Um passo cujo alvo não exista nesta loja mostra só a explicação, ao meio do ecrã.
 - Pagamentos, WhatsApp, entregas e descontos não se configuram aqui: é no Dashboard.`,
 
   modelos: `ECRÃ: galeria de modelos prontos.
