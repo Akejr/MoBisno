@@ -746,3 +746,49 @@ describe("Orientação do assistente — acompanha o que o ecrã mostra", () => 
     }
   });
 });
+
+/* ===================== A loja escolhida sobrevive ao refresh ===================== */
+
+describe("Recarregar o painel não volta à primeira loja", () => {
+  /**
+   * O painel escolhia a loja a partir de `appState`, que vive em memória:
+   * bastava recarregar para quem estava na segunda loja voltar à primeira. Com a
+   * subscrição a ser de cada loja (migração 0025) isso não é só incómodo, é
+   * perigoso, porque o separador «Plano» passava a mostrar o plano de outra loja.
+   */
+  it("a loja escolhida é gravada, e lida ao abrir o painel", () => {
+    expect(DASHBOARD).toContain('const LOJA_KEY = "mb-painel-loja"');
+    expect(DASHBOARD).toContain("function lojaLembrada()");
+    expect(DASHBOARD).toContain("lembraLoja(store.id)");
+  });
+
+  it("por separador, e não por navegador", () => {
+    // Com `localStorage`, dois separadores em duas lojas escreviam um por cima
+    // do outro e recarregar qualquer deles abria a loja do último que mexeu.
+    const bloco = DASHBOARD.slice(DASHBOARD.indexOf("const LOJA_KEY"), DASHBOARD.indexOf("let storeMenuCloseBound"));
+    expect(bloco).toContain("sessionStorage.getItem(LOJA_KEY)");
+    expect(bloco).toContain("sessionStorage.setItem(LOJA_KEY");
+    expect(bloco, "voltou ao localStorage, que é partilhado entre separadores").not.toContain("localStorage");
+  });
+
+  it("a ordem de quem manda: a navegação, o endereço do pagamento, e só depois a memória", () => {
+    // `?loja=` é o regresso da página de pagamento e diz de que loja era a
+    // subscrição: tem de ganhar à memória do separador.
+    // `const escolhida =` também aparece no menu de lojas, muito antes desta
+    // escolha: o fim do recorte procura-se a partir do início, nunca do ficheiro.
+    const inicio = DASHBOARD.indexOf("const pedida = appState.storeId");
+    const escolha = DASHBOARD.slice(inicio, DASHBOARD.indexOf("const escolhida =", inicio));
+    expect(escolha).toContain("appState.storeId");
+    expect(escolha.indexOf('get("loja")')).toBeGreaterThan(escolha.indexOf("appState.storeId"));
+    expect(escolha.indexOf("lojaLembrada()")).toBeGreaterThan(escolha.indexOf('get("loja")'));
+    // E uma loja que não seja deste Dono é ignorada, não aberta.
+    expect(DASHBOARD).toContain("stores.find((s) => s.id === pedida) ?? null");
+  });
+
+  it("sair da conta esquece a loja, e nenhuma destas falhas derruba o painel", () => {
+    expect(DASHBOARD).toContain("esqueceLoja(); await logout();");
+    // Em navegação privada ou com o armazenamento cheio, `sessionStorage` lança.
+    const bloco = DASHBOARD.slice(DASHBOARD.indexOf("const LOJA_KEY"), DASHBOARD.indexOf("let storeMenuCloseBound"));
+    expect(bloco.match(/try \{/g) ?? [], "cada acesso ao armazenamento tem de ser protegido").toHaveLength(3);
+  });
+});

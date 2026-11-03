@@ -276,6 +276,56 @@ function shellHtml(o: ShellInput, content: string): string {
   </div>`;
 }
 
+/**
+ * Onde fica gravada a loja em que o Dono está a trabalhar NESTE separador.
+ *
+ * ## Porquê existe
+ *
+ * O painel escolhia a loja a partir de `appState`, que vive em memória. Bastava
+ * recarregar a página para a perder: quem estava na segunda loja voltava à
+ * primeira. Com a subscrição a ser de cada loja (migração 0025), isso não é só
+ * incómodo, é perigoso: o separador «Plano» passava a mostrar o plano de outra
+ * loja, e quem não reparasse pagava a loja errada.
+ *
+ * ## Porquê `sessionStorage` e não `localStorage`
+ *
+ * Porque é **por separador**, e é isso que se quer. Com `localStorage`, dois
+ * separadores abertos em duas lojas diferentes escreviam um por cima do outro, e
+ * recarregar qualquer deles abria a loja do último que tivesse mexido. Um Dono
+ * com duas lojas a comparar os painéis lado a lado é exactamente quem mais sofre
+ * com isto.
+ *
+ * Abrir um separador novo não herda a escolha, e está certo: começa no início.
+ */
+const LOJA_KEY = "mb-painel-loja";
+
+/** A loja gravada neste separador, ou `null`. Nunca lança (ver `wizardDraft.ts`). */
+function lojaLembrada(): string | null {
+  try {
+    return sessionStorage.getItem(LOJA_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Grava a loja em que o Dono está. Em navegação privada pode falhar: segue sem memória. */
+function lembraLoja(id: string): void {
+  try {
+    sessionStorage.setItem(LOJA_KEY, id);
+  } catch {
+    /* sem armazenamento: o painel funciona, só não sobrevive a recarregar */
+  }
+}
+
+/** Esquece a loja escolhida. Ao sair da conta, a escolha não é de mais ninguém. */
+function esqueceLoja(): void {
+  try {
+    sessionStorage.removeItem(LOJA_KEY);
+  } catch {
+    /* idem */
+  }
+}
+
 /** O menu de loja fecha ao tocar fora dele e com Escape. Liga-se uma vez só. */
 let storeMenuCloseBound = false;
 
@@ -285,7 +335,7 @@ function bindShell(): void {
   // grande) e na barra de telemóvel, e dois elementos com o mesmo `id`
   // deixariam o segundo sem ligação nenhuma.
   document.querySelectorAll<HTMLElement>("[data-logout]").forEach((b) =>
-    b.addEventListener("click", async () => { await logout(); go("#/"); }));
+    b.addEventListener("click", async () => { esqueceLoja(); await logout(); go("#/"); }));
   document.querySelectorAll<HTMLButtonElement>("[data-store-switch-to]").forEach((b) =>
     b.addEventListener("click", () => {
       b.closest("details")?.removeAttribute("open");
@@ -352,9 +402,21 @@ export async function renderDashboard(): Promise<void> {
   if (seq !== renderSeq) return;
   // Esconde as lojas-modelo (secção Modelos do admin) do painel pessoal.
   const stores = allStores.filter((s) => !isModelIdentifier(s.identifier));
-  // No regresso da página de pagamento a página recarrega e perde a loja que
-  // estava escolhida: o endereço diz de que loja era a subscrição (`?loja=`).
-  const pedida = appState.storeId ?? new URLSearchParams(location.search).get("loja");
+  /*
+   * Qual das lojas abrir, por ordem de quem manda mais:
+   *
+   *  1. `appState`, a navegação em curso (trocar de separador não vai à memória);
+   *  2. `?loja=` do endereço, o regresso da página de pagamento, que diz de que
+   *     loja era a subscrição;
+   *  3. a loja gravada neste separador, que é o que faz **recarregar a página**
+   *     ficar na mesma loja em vez de voltar à primeira (ver `LOJA_KEY`).
+   *
+   * Um identificador que não corresponda a nenhuma loja deste Dono é ignorado
+   * (outra conta no mesmo separador, uma loja eliminada): fica a primeira.
+   */
+  const pedida = appState.storeId
+    ?? new URLSearchParams(location.search).get("loja")
+    ?? lojaLembrada();
   const escolhida = pedida ? stores.find((s) => s.id === pedida) ?? null : null;
   const store = escolhida ?? stores[0] ?? null;
   if (!store) {
@@ -370,6 +432,9 @@ export async function renderDashboard(): Promise<void> {
   }
   appState.ownerId = ownerId;
   appState.storeId = store.id;
+  // Gravada aqui, e não só ao trocar de loja: assim o separador lembra-se
+  // também da loja que abriu por omissão, e de uma que tenha vindo em `?loja=`.
+  lembraLoja(store.id);
   // A subscrição é de cada loja (migração 0025): o estado é o da loja escolhida.
   const billing = resolveBilling({ planExpiresAt: store.planExpiresAt ?? null, isAdmin });
   // O telemóvel é da conta, e serve todas as lojas. Um administrador publica
