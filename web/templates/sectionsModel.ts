@@ -47,6 +47,20 @@ export function allProductsHref(view: StoreRenderView): string {
   return catHref(view, ALL_LABEL);
 }
 
+/**
+ * Destino do botão principal do hero: a categoria que o Dono escolheu
+ * (`hero.ctaTarget`) ou a secção de produtos da própria página (`#produtos`).
+ *
+ * Num sítio só porque estava escrito modelo a modelo, e os que se esqueceram
+ * dele ficaram com um botão que ignorava a escolha: no Desportivo o editor nem
+ * oferecia o seletor de destino, e nos heros partilhados o botão ia sempre para
+ * `#produtos` por muito que o Dono escolhesse uma categoria.
+ */
+export function heroCtaHref(view: StoreRenderView, custom?: StoreCustomization): string {
+  const target = custom?.hero?.ctaTarget?.trim();
+  return target ? catHref(view, target) : "#produtos";
+}
+
 /** Resolve as secções configuradas para produtos concretos. */
 export function resolveSections(view: StoreRenderView, custom?: StoreCustomization): RenderSection[] {
   const list = custom?.sections && custom.sections.length ? custom.sections : [{ category: SEC_ALL }];

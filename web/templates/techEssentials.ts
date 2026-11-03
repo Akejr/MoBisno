@@ -31,7 +31,7 @@ import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
-import { renderHero } from "./heroes.js";
+import { heroHeightCss, renderHero } from "./heroes.js";
 import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
@@ -39,7 +39,7 @@ import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, heroCtaHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { BlockStyle } from "./blocks.js";
@@ -277,8 +277,7 @@ function heroHtml(view: StoreRenderView, custom?: StoreCustomization): string {
   const subtitle = custom?.hero?.subtitle || DEFAULT_SUBTITLE;
   const cta = custom?.hero?.ctaLabel || DEFAULT_CTA;
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
-  const target = custom?.hero?.ctaTarget?.trim();
-  const href = target ? categoryHref(view, target) : "#produtos";
+  const href = heroCtaHref(view, custom);
   return `
   <section class="${CONTAINER} py-12 md:py-20">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
@@ -291,7 +290,7 @@ function heroHtml(view: StoreRenderView, custom?: StoreCustomization): string {
           <a href="${esc(allProductsHref(view))}" class="tx-outline inline-flex items-center text-label-md px-4 py-3 rounded" style="border:1px solid ${OUTLINE};color:${INK}">Ver catálogo</a>
         </div>
       </div>
-      <div data-edit-hero class="relative w-full aspect-[4/3] rounded-xl overflow-hidden" style="background:${TONE_LOW};box-shadow:${SHADOW_2}">
+      <div data-edit-hero class="relative w-full aspect-[4/3] rounded-xl overflow-hidden" style="background:${TONE_LOW};box-shadow:${SHADOW_2};${heroHeightCss(custom)}">
         <img src="${esc(img)}" alt="" class="object-cover w-full h-full absolute inset-0" />
       </div>
     </div>

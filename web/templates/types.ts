@@ -33,6 +33,20 @@ export interface StoreCustomization {
      * (#produtos); caso contrário, nome da categoria para onde o botão dirige.
      */
     ctaTarget?: string;
+    /**
+     * Altura da ÁREA DE IMAGEM do hero, em píxeis (o elemento com
+     * `data-edit-hero`). Ausente = a altura do modelo.
+     *
+     * PORQUÊ: os heros são altos por omissão, e uma fotografia pequena esticada
+     * para 660px perde qualidade. Quem tem a fotografia que tem precisa de poder
+     * encolher o hero até ela ficar nítida, e isso não se resolve trocando de
+     * modelo. O Dono arrasta a borda de baixo do hero no editor.
+     *
+     * Um só valor para todos os tamanhos de ecrã, de propósito: é a altura que
+     * ele vê e escolhe. Entra em CSS por `heroHeightCss`, que a limita a
+     * `HERO_MIN_HEIGHT`–`HERO_MAX_HEIGHT` (o JSON é editável à mão).
+     */
+    height?: number;
   };
   /** Fotos do hero em arco (modelo Galeria). Se ausente, usa fotos dos produtos. */
   heroImages?: string[];

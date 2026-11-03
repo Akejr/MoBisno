@@ -1179,6 +1179,58 @@ function blocksHtml(custom, ctx) {
   return `<div data-edit-blocks>${blocks.map((b, i) => blockHtml(b, i, full)).join("")}</div>`;
 }
 
+// web/templates/sectionsModel.ts
+var SEC_ALL = "__all__";
+var SEC_FEATURED = "__featured__";
+var FEATURED_LABEL = "Destaques";
+var ALL_LABEL = "Produtos";
+function identifier(view) {
+  return view.subdomain.split(".")[0] ?? view.subdomain;
+}
+function catHref(view, label) {
+  return `${storeBasePath(identifier(view))}/categoria/${categorySlug(label)}`;
+}
+function allProductsHref(view) {
+  return catHref(view, ALL_LABEL);
+}
+function heroCtaHref(view, custom) {
+  const target = custom?.hero?.ctaTarget?.trim();
+  return target ? catHref(view, target) : "#produtos";
+}
+function resolveSections(view, custom) {
+  const list = custom?.sections && custom.sections.length ? custom.sections : [{ category: SEC_ALL }];
+  return list.map((s) => {
+    if (s.category === SEC_FEATURED) {
+      return { token: SEC_FEATURED, title: FEATURED_LABEL, products: view.products.filter((p) => p.featured), moreHref: catHref(view, FEATURED_LABEL) };
+    }
+    if (!s.category || s.category === SEC_ALL) {
+      return { token: SEC_ALL, title: ALL_LABEL, products: [...view.products], moreHref: catHref(view, "Todos") };
+    }
+    return { token: s.category, title: s.category, products: view.products.filter((p) => (p.category ?? "") === s.category), moreHref: catHref(view, s.category) };
+  });
+}
+function filterForCategoryPage(view, label) {
+  if (label === FEATURED_LABEL) return view.products.filter((p) => p.featured);
+  if (label === "Todos" || label === ALL_LABEL) return [...view.products];
+  return view.products.filter((p) => (p.category ?? "") === label);
+}
+function headerCategories(view) {
+  const cats = [...new Set(view.products.map((p) => p.category).filter((c) => !!c))];
+  return view.products.some((p) => p.featured) ? [FEATURED_LABEL, ...cats] : cats;
+}
+function listingProducts(view, category) {
+  if (filterForCategoryPage(view, category).length === 0) return [];
+  if (category === FEATURED_LABEL) return view.products.filter((p) => p.featured);
+  return [...view.products];
+}
+function categoryFilterLabels(view, active) {
+  if (active === FEATURED_LABEL || listingProducts(view, active).length === 0) return [];
+  const cats = headerCategories(view).filter(
+    (c) => c !== FEATURED_LABEL && filterForCategoryPage(view, c).length > 0
+  );
+  return [ALL_LABEL, ...cats];
+}
+
 // web/templates/heroes.ts
 var HERO_FALLBACK = "https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=1600";
 var ARC_FALLBACK = [
@@ -1189,6 +1241,17 @@ var ARC_FALLBACK = [
   "https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=400",
   "https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400"
 ];
+var HERO_MIN_HEIGHT = 160;
+var HERO_MAX_HEIGHT = 900;
+function heroHeightCss(custom) {
+  const h = custom?.hero?.height;
+  if (typeof h !== "number" || !Number.isFinite(h)) return "";
+  return `height:${Math.round(Math.min(HERO_MAX_HEIGHT, Math.max(HERO_MIN_HEIGHT, h)))}px;min-height:0`;
+}
+function heroHeightAttr(custom) {
+  const css = heroHeightCss(custom);
+  return css ? ` style="${css}"` : "";
+}
 function texts(view, custom) {
   return {
     title: custom?.hero?.title || view.storeName,
@@ -1200,14 +1263,14 @@ function heroImagem(view, custom, ctx) {
   const { title, subtitle, cta } = texts(view, custom);
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
   return `
-  <section data-edit-hero class="mb-dark text-white relative h-[520px] md:h-[660px] overflow-hidden bg-neutral-900">
+  <section data-edit-hero class="mb-dark text-white relative h-[520px] md:h-[660px] overflow-hidden bg-neutral-900"${heroHeightAttr(custom)}>
     <img src="${esc(img)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
     <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/45 to-transparent"></div>
     <div class="relative h-full ${ctx.container} flex items-center">
       <div class="max-w-xl">
         <h1 data-edit="hero.title" class="text-4xl md:text-6xl font-black leading-[1.04] tracking-tight">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-5 text-base md:text-lg text-white/85 max-w-md">${esc(subtitle)}</p>
-        <a href="#produtos" class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
       </div>
     </div>
   </section>`;
@@ -1216,15 +1279,17 @@ function heroSplit(view, custom, ctx) {
   const { title, subtitle, cta } = texts(view, custom);
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
   return `
-  <section data-edit-hero class="relative overflow-hidden">
+  <section class="relative overflow-hidden">
     <div class="${ctx.container} py-10 md:py-16">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
         <div>
           <h1 data-edit="hero.title" class="text-4xl md:text-6xl font-black leading-[1.04] tracking-tight text-gray-900">${esc(title)}</h1>
           <p data-edit="hero.subtitle" class="mt-5 text-lg text-gray-500 max-w-md">${esc(subtitle)}</p>
-          <a href="#produtos" class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+          <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
         </div>
-        <div class="relative aspect-[4/5] md:aspect-square rounded-3xl overflow-hidden bg-gray-100">
+        <!-- O marcador data-edit-hero vive na imagem, e nao na seccao: a area de
+             imagem e o que se troca e o que se redimensiona (ver heroHeightCss). -->
+        <div data-edit-hero class="relative aspect-[4/5] md:aspect-square rounded-3xl overflow-hidden bg-gray-100"${heroHeightAttr(custom)}>
           <img src="${esc(img)}" alt="" class="w-full h-full object-cover" />
         </div>
       </div>
@@ -1273,7 +1338,7 @@ function heroArco(view, custom, ctx) {
       <div class="mb-hero-text max-w-2xl mx-auto">
         <h1 data-edit="hero.title" class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 leading-[1.05]">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-4 text-base md:text-lg text-gray-500 max-w-xl mx-auto">${esc(subtitle)}</p>
-        <a href="#produtos" class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-7 py-3 rounded-full shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span></a>
+        <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-7 py-3 rounded-full shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span></a>
       </div>
     </div>
   </section>`;
@@ -1287,7 +1352,7 @@ function heroParticulas(view, custom, ctx) {
       <div class="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6">
         <h1 data-edit="hero.title" class="text-4xl md:text-7xl font-black tracking-tight leading-[1.03] bg-clip-text text-transparent" style="background-image:linear-gradient(to bottom,#ffffff,#9ca3af)">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-5 max-w-2xl text-base md:text-lg text-gray-300">${esc(subtitle)}</p>
-        <a href="#produtos" class="mt-9 inline-flex items-center gap-2 font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity text-white" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-9 inline-flex items-center gap-2 font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity text-white" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
       </div>
     </div>
   </section>`;
@@ -1298,54 +1363,6 @@ function renderHero(variant, view, custom, ctx, fallback = "imagem") {
   if (v === "split") return heroSplit(view, custom, ctx);
   if (v === "particulas") return heroParticulas(view, custom, ctx);
   return heroImagem(view, custom, ctx);
-}
-
-// web/templates/sectionsModel.ts
-var SEC_ALL = "__all__";
-var SEC_FEATURED = "__featured__";
-var FEATURED_LABEL = "Destaques";
-var ALL_LABEL = "Produtos";
-function identifier(view) {
-  return view.subdomain.split(".")[0] ?? view.subdomain;
-}
-function catHref(view, label) {
-  return `${storeBasePath(identifier(view))}/categoria/${categorySlug(label)}`;
-}
-function allProductsHref(view) {
-  return catHref(view, ALL_LABEL);
-}
-function resolveSections(view, custom) {
-  const list = custom?.sections && custom.sections.length ? custom.sections : [{ category: SEC_ALL }];
-  return list.map((s) => {
-    if (s.category === SEC_FEATURED) {
-      return { token: SEC_FEATURED, title: FEATURED_LABEL, products: view.products.filter((p) => p.featured), moreHref: catHref(view, FEATURED_LABEL) };
-    }
-    if (!s.category || s.category === SEC_ALL) {
-      return { token: SEC_ALL, title: ALL_LABEL, products: [...view.products], moreHref: catHref(view, "Todos") };
-    }
-    return { token: s.category, title: s.category, products: view.products.filter((p) => (p.category ?? "") === s.category), moreHref: catHref(view, s.category) };
-  });
-}
-function filterForCategoryPage(view, label) {
-  if (label === FEATURED_LABEL) return view.products.filter((p) => p.featured);
-  if (label === "Todos" || label === ALL_LABEL) return [...view.products];
-  return view.products.filter((p) => (p.category ?? "") === label);
-}
-function headerCategories(view) {
-  const cats = [...new Set(view.products.map((p) => p.category).filter((c) => !!c))];
-  return view.products.some((p) => p.featured) ? [FEATURED_LABEL, ...cats] : cats;
-}
-function listingProducts(view, category) {
-  if (filterForCategoryPage(view, category).length === 0) return [];
-  if (category === FEATURED_LABEL) return view.products.filter((p) => p.featured);
-  return [...view.products];
-}
-function categoryFilterLabels(view, active) {
-  if (active === FEATURED_LABEL || listingProducts(view, active).length === 0) return [];
-  const cats = headerCategories(view).filter(
-    (c) => c !== FEATURED_LABEL && filterForCategoryPage(view, c).length > 0
-  );
-  return [ALL_LABEL, ...cats];
 }
 
 // web/templates/headers.ts
@@ -2150,14 +2167,14 @@ function render(view, custom) {
   const extraBanners = custom?.hero?.imageUrl ? view.banners : view.banners.slice(1);
   const nativeHero = `
     <!-- Hero -->
-    <section data-edit-hero class="mb-dark text-white relative h-[420px] md:h-[520px] overflow-hidden bg-neutral-900">
+    <section data-edit-hero class="mb-dark text-white relative h-[420px] md:h-[520px] overflow-hidden bg-neutral-900"${heroHeightAttr(custom)}>
       <img src="${esc(heroImg)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
       <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent"></div>
       <div class="relative h-full ${CONTAINER} flex items-center">
         <div class="max-w-xl">
           <h1 data-edit="hero.title" style="${BEBAS}" class="text-5xl md:text-7xl text-white leading-[0.95] tracking-tight mb-4">${esc(title)}</h1>
           <p data-edit="hero.subtitle" class="text-base md:text-lg text-white/80 mb-8 max-w-md">${esc(subtitle)}</p>
-          <a href="#produtos" style="background:var(--brand,#DC2626);color:#fff" class="inline-flex items-center gap-2 hover:opacity-90 font-medium px-8 py-3 rounded-lg transition-opacity">
+          <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta style="background:var(--brand,#DC2626);color:#fff" class="inline-flex items-center gap-2 hover:opacity-90 font-medium px-8 py-3 rounded-lg transition-opacity">
             <span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
           </a>
         </div>
@@ -2509,7 +2526,7 @@ function render2(view, custom) {
   const heroImg = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK3;
   const nativeHero = `
     <!-- Hero -->
-    <section data-edit-hero class="relative min-h-[60vh] md:h-[620px] flex items-center overflow-hidden bg-[#f6f3f2]">
+    <section data-edit-hero class="relative min-h-[60vh] md:h-[620px] flex items-center overflow-hidden bg-[#f6f3f2]"${heroHeightAttr(custom)}>
       <img src="${esc(heroImg)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
       <div class="absolute inset-0" style="background:linear-gradient(to right, rgba(252,249,248,.92), rgba(252,249,248,.35), transparent)"></div>
       <div class="relative z-10 ${CONTAINER2}">
@@ -2517,7 +2534,7 @@ function render2(view, custom) {
           <span class="inline-block font-medium tracking-[0.2em] uppercase text-xs mb-4" style="color:var(--brand,${DEFAULT_BRAND})">Nova Cole\xE7\xE3o</span>
           <h1 data-edit="hero.title" style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-5xl md:text-7xl leading-tight mb-6 tracking-tighter">${esc(title)}</h1>
           <p data-edit="hero.subtitle" class="text-[#524345] text-lg md:text-xl mb-10 max-w-md leading-relaxed">${esc(subtitle)}</p>
-          <a href="#produtos" style="background:var(--brand,${DEFAULT_BRAND});color:#fff" class="inline-flex items-center gap-2 px-10 py-4 rounded-lg font-bold tracking-wide hover:opacity-90 transition-all active:scale-95">
+          <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta style="background:var(--brand,${DEFAULT_BRAND});color:#fff" class="inline-flex items-center gap-2 px-10 py-4 rounded-lg font-bold tracking-wide hover:opacity-90 transition-all active:scale-95">
             <span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
           </a>
         </div>
@@ -3110,8 +3127,7 @@ function heroHtml(view, custom) {
   const subtitle = custom?.hero?.subtitle || "Descubra a nossa cole\xE7\xE3o bot\xE2nica, formulada com extratos raros para revelar o seu brilho natural.";
   const cta = custom?.hero?.ctaLabel || "Explorar cole\xE7\xE3o";
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK4;
-  const ctaTarget = custom?.hero?.ctaTarget?.trim();
-  const ctaHref = ctaTarget ? categoryHref6(view, ctaTarget) : "#produtos";
+  const ctaHref = heroCtaHref(view, custom);
   return `
   <section class="${CONTAINER4} pt-12 md:pt-16 pb-16 md:pb-24">
     <div class="flex flex-col md:flex-row items-stretch gap-10 md:gap-12">
@@ -3124,7 +3140,7 @@ function heroHtml(view, custom) {
         </div>
       </div>
       <div class="flex-1 relative">
-        <div data-edit-hero class="w-full h-[52vh] md:h-[78vh] overflow-hidden" style="background:#f6f3f2;box-shadow:0 30px 60px -15px rgba(28,27,27,.08);border-radius:2px">
+        <div data-edit-hero class="w-full h-[52vh] md:h-[78vh] overflow-hidden" style="background:#f6f3f2;box-shadow:0 30px 60px -15px rgba(28,27,27,.08);border-radius:2px;${heroHeightCss(custom)}">
           <img src="${esc(img)}" alt="" class="w-full h-full object-cover hover:scale-105 transition-transform duration-[1800ms] ease-out" />
         </div>
         <div class="absolute -bottom-6 -left-4 md:-left-10 bg-[#fcf9f8] p-6 md:p-8 hidden md:block w-60" style="box-shadow:0 20px 40px -10px rgba(28,27,27,.06)">
@@ -3604,8 +3620,7 @@ function heroHtml2(view, custom) {
   const subtitle = custom?.hero?.subtitle || DEFAULT_SUBTITLE3;
   const cta = custom?.hero?.ctaLabel || DEFAULT_CTA3;
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK5;
-  const target = custom?.hero?.ctaTarget?.trim();
-  const href = target ? categoryHref7(view, target) : "#produtos";
+  const href = heroCtaHref(view, custom);
   return `
   <section class="${CONTAINER5} py-12 md:py-20">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
@@ -3618,7 +3633,7 @@ function heroHtml2(view, custom) {
           <a href="${esc(allProductsHref(view))}" class="tx-outline inline-flex items-center text-label-md px-4 py-3 rounded" style="border:1px solid ${OUTLINE};color:${INK}">Ver cat\xE1logo</a>
         </div>
       </div>
-      <div data-edit-hero class="relative w-full aspect-[4/3] rounded-xl overflow-hidden" style="background:${TONE_LOW};box-shadow:${SHADOW_2}">
+      <div data-edit-hero class="relative w-full aspect-[4/3] rounded-xl overflow-hidden" style="background:${TONE_LOW};box-shadow:${SHADOW_2};${heroHeightCss(custom)}">
         <img src="${esc(img)}" alt="" class="object-cover w-full h-full absolute inset-0" />
       </div>
     </div>

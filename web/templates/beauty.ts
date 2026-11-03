@@ -13,7 +13,7 @@ import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
-import { renderHero } from "./heroes.js";
+import { heroHeightAttr, renderHero } from "./heroes.js";
 import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
@@ -21,7 +21,7 @@ import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, heroCtaHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { BlockStyle } from "./blocks.js";
@@ -246,7 +246,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
 
   const nativeHero = `
     <!-- Hero -->
-    <section data-edit-hero class="relative min-h-[60vh] md:h-[620px] flex items-center overflow-hidden bg-[#f6f3f2]">
+    <section data-edit-hero class="relative min-h-[60vh] md:h-[620px] flex items-center overflow-hidden bg-[#f6f3f2]"${heroHeightAttr(custom)}>
       <img src="${esc(heroImg)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
       <div class="absolute inset-0" style="background:linear-gradient(to right, rgba(252,249,248,.92), rgba(252,249,248,.35), transparent)"></div>
       <div class="relative z-10 ${CONTAINER}">
@@ -254,7 +254,7 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
           <span class="inline-block font-medium tracking-[0.2em] uppercase text-xs mb-4" style="color:var(--brand,${DEFAULT_BRAND})">Nova Coleção</span>
           <h1 data-edit="hero.title" style="${SERIF};color:var(--brand,${DEFAULT_BRAND})" class="text-5xl md:text-7xl leading-tight mb-6 tracking-tighter">${esc(title)}</h1>
           <p data-edit="hero.subtitle" class="text-[#524345] text-lg md:text-xl mb-10 max-w-md leading-relaxed">${esc(subtitle)}</p>
-          <a href="#produtos" style="background:var(--brand,${DEFAULT_BRAND});color:#fff" class="inline-flex items-center gap-2 px-10 py-4 rounded-lg font-bold tracking-wide hover:opacity-90 transition-all active:scale-95">
+          <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta style="background:var(--brand,${DEFAULT_BRAND});color:#fff" class="inline-flex items-center gap-2 px-10 py-4 rounded-lg font-bold tracking-wide hover:opacity-90 transition-all active:scale-95">
             <span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
           </a>
         </div>

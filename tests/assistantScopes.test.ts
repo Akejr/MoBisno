@@ -1580,6 +1580,37 @@ describe("Assistente no telemóvel — folha inferior, sem zoom e sem a página 
   });
 });
 
+describe("Orientação do ecrã «editor» — a altura do hero e o destino do botão", () => {
+  /**
+   * O Dono pediu as duas: um hero alto desfocava uma fotografia pequena e não
+   * havia como o encolher, e o botão do hero ignorava a categoria escolhida em
+   * quase todos os modelos.
+   */
+  const guia = guiaDe("editor");
+  const HEROES = readFileSync(join(ROOT, "web/templates/heroes.ts"), "utf8");
+
+  it("diz como se muda a altura do hero, e o que isso resolve", () => {
+    const linha = guia.split("\n").find((l) => l.startsWith("- ALTURA DO HERO")) ?? "";
+    expect(linha, "falta a linha da altura do hero").not.toBe("");
+    expect(linha).toMatch(/[Aa]rrastar essa barra/);
+    expect(linha).toMatch(/perde qualidade/);
+    expect(linha).toContain("«Altura original»");
+    // Diz o que NÃO tem altura, senão o assistente manda arrastar o que não existe.
+    expect(linha).toMatch(/Galeria/);
+    // E o ecrã tem mesmo os rótulos que a orientação promete.
+    expect(readFileSync(join(ROOT, "web/views/editor.ts"), "utf8")).toContain("Altura original");
+    expect(HEROES).toContain("export function heroHeightCss(");
+  });
+
+  it("diz onde se muda o destino do botão do hero, e que vale em todos os modelos", () => {
+    const linha = guia.split("\n").find((l) => l.startsWith("- DESTINO DO BOTÃO DO HERO")) ?? "";
+    expect(linha, "falta a linha do destino do botão").not.toBe("");
+    expect(linha).toContain("«Destino»");
+    expect(linha).toContain("O botão leva para");
+    expect(linha).toMatch(/\*\*todos\*\* os modelos/);
+  });
+});
+
 describe("Orientação do ecrã «editor» — no telemóvel", () => {
   /**
    * No telemóvel a barra do editor era uma linha só, mais larga do que o ecrã:

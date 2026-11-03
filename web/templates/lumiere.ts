@@ -18,7 +18,8 @@ import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
+import { heroHeightCss } from "./heroes.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, heroCtaHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { mobileMenuParts } from "./headers.js";
 import { productGalleryHtml } from "./gallery.js";
@@ -162,8 +163,7 @@ function heroHtml(view: StoreRenderView, custom?: StoreCustomization): string {
   const subtitle = custom?.hero?.subtitle || "Descubra a nossa coleção botânica, formulada com extratos raros para revelar o seu brilho natural.";
   const cta = custom?.hero?.ctaLabel || "Explorar coleção";
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
-  const ctaTarget = custom?.hero?.ctaTarget?.trim();
-  const ctaHref = ctaTarget ? categoryHref(view, ctaTarget) : "#produtos";
+  const ctaHref = heroCtaHref(view, custom);
   return `
   <section class="${CONTAINER} pt-12 md:pt-16 pb-16 md:pb-24">
     <div class="flex flex-col md:flex-row items-stretch gap-10 md:gap-12">
@@ -176,7 +176,7 @@ function heroHtml(view: StoreRenderView, custom?: StoreCustomization): string {
         </div>
       </div>
       <div class="flex-1 relative">
-        <div data-edit-hero class="w-full h-[52vh] md:h-[78vh] overflow-hidden" style="background:#f6f3f2;box-shadow:0 30px 60px -15px rgba(28,27,27,.08);border-radius:2px">
+        <div data-edit-hero class="w-full h-[52vh] md:h-[78vh] overflow-hidden" style="background:#f6f3f2;box-shadow:0 30px 60px -15px rgba(28,27,27,.08);border-radius:2px;${heroHeightCss(custom)}">
           <img src="${esc(img)}" alt="" class="w-full h-full object-cover hover:scale-105 transition-transform duration-[1800ms] ease-out" />
         </div>
         <div class="absolute -bottom-6 -left-4 md:-left-10 bg-[#fcf9f8] p-6 md:p-8 hidden md:block w-60" style="box-shadow:0 20px 40px -10px rgba(28,27,27,.06)">

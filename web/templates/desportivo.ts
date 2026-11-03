@@ -10,7 +10,7 @@ import { esc, formatKz } from "../lib/dom.js";
 import { productSlugPath, categorySlug } from "../lib/slug.js";
 import { perksItemsHtml } from "./perks.js";
 import { blocksHtml } from "./blocks.js";
-import { renderHero } from "./heroes.js";
+import { heroHeightAttr, renderHero } from "./heroes.js";
 import { renderHeader, mobileMenuParts } from "./headers.js";
 import { renderFooter } from "./footers.js";
 import { renderProductPage } from "./productPage.js";
@@ -18,7 +18,7 @@ import { variationPickerHtml } from "./variationPicker.js";
 import { cardAspectClass, gridColsClass, type ProductVariant } from "./productGrid.js";
 import { platformHomeUrl, STORE_APEX, storeBasePath, storeHomePath } from "../lib/routing.js";
 import { buildProductMessage, resolveWaPhone, waLink } from "../lib/whatsapp.js";
-import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
+import { resolveSections, filterForCategoryPage, headerCategories, allProductsHref, heroCtaHref, listingProducts, categoryFilterLabels } from "./sectionsModel.js";
 import { categoryFilterHtml } from "./categoryFilter.js";
 import { productGalleryHtml } from "./gallery.js";
 import type { BlockStyle } from "./blocks.js";
@@ -268,14 +268,14 @@ function render(view: StoreRenderView, custom?: StoreCustomization): string {
 
   const nativeHero = `
     <!-- Hero -->
-    <section data-edit-hero class="mb-dark text-white relative h-[420px] md:h-[520px] overflow-hidden bg-neutral-900">
+    <section data-edit-hero class="mb-dark text-white relative h-[420px] md:h-[520px] overflow-hidden bg-neutral-900"${heroHeightAttr(custom)}>
       <img src="${esc(heroImg)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
       <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent"></div>
       <div class="relative h-full ${CONTAINER} flex items-center">
         <div class="max-w-xl">
           <h1 data-edit="hero.title" style="${BEBAS}" class="text-5xl md:text-7xl text-white leading-[0.95] tracking-tight mb-4">${esc(title)}</h1>
           <p data-edit="hero.subtitle" class="text-base md:text-lg text-white/80 mb-8 max-w-md">${esc(subtitle)}</p>
-          <a href="#produtos" style="background:var(--brand,#DC2626);color:#fff" class="inline-flex items-center gap-2 hover:opacity-90 font-medium px-8 py-3 rounded-lg transition-opacity">
+          <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta style="background:var(--brand,#DC2626);color:#fff" class="inline-flex items-center gap-2 hover:opacity-90 font-medium px-8 py-3 rounded-lg transition-opacity">
             <span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
           </a>
         </div>

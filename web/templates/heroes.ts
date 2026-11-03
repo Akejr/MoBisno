@@ -5,6 +5,7 @@
  * para a galeria em arco). Qualquer modelo pode usar qualquer hero.
  */
 import { esc } from "../lib/dom.js";
+import { heroCtaHref } from "./sectionsModel.js";
 import type { StoreRenderView, StoreCustomization } from "./types.js";
 
 export type HeroVariant = "imagem" | "split" | "arco" | "particulas";
@@ -33,6 +34,43 @@ export interface HeroCtx {
   brand: string;
 }
 
+/** Altura mínima da área de imagem do hero, em píxeis. */
+export const HERO_MIN_HEIGHT = 160;
+
+/** Altura máxima da área de imagem do hero, em píxeis. */
+export const HERO_MAX_HEIGHT = 900;
+
+/**
+ * A altura que o Dono escolheu para a área de imagem do hero, em CSS, ou `""`.
+ *
+ * ## A regra, uma só
+ *
+ * **A área de imagem do hero é o elemento com `data-edit-hero`, e é a altura
+ * dele que `hero.height` define.** É o mesmo elemento onde se troca a imagem,
+ * e é nele que o editor põe a alça de arrastar: o que se redimensiona é o que
+ * mostra a fotografia. Cada modelo decidia a altura à sua maneira (píxeis
+ * fixos, `vh`, proporção, só espaçamento), e sem este ponto comum uma alça por
+ * modelo seria uma alça por avaria.
+ *
+ * `min-height:0` vai junto porque há heros com `min-h-[60vh]` (o Beauty): sem
+ * isso, encolher não encolhia nada num ecrã alto.
+ *
+ * Limitada entre {@link HERO_MIN_HEIGHT} e {@link HERO_MAX_HEIGHT}: o valor vem
+ * de JSON editável à mão (o Administrador abre o editor das lojas dos outros), e
+ * entra num atributo `style`.
+ */
+export function heroHeightCss(custom?: StoreCustomization): string {
+  const h = custom?.hero?.height;
+  if (typeof h !== "number" || !Number.isFinite(h)) return "";
+  return `height:${Math.round(Math.min(HERO_MAX_HEIGHT, Math.max(HERO_MIN_HEIGHT, h)))}px;min-height:0`;
+}
+
+/** O mesmo, como atributo pronto a entrar numa etiqueta sem `style` próprio. */
+export function heroHeightAttr(custom?: StoreCustomization): string {
+  const css = heroHeightCss(custom);
+  return css ? ` style="${css}"` : "";
+}
+
 function texts(view: StoreRenderView, custom?: StoreCustomization): { title: string; subtitle: string; cta: string } {
   return {
     title: custom?.hero?.title || view.storeName,
@@ -47,14 +85,14 @@ function heroImagem(view: StoreRenderView, custom: StoreCustomization | undefine
   const { title, subtitle, cta } = texts(view, custom);
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
   return `
-  <section data-edit-hero class="mb-dark text-white relative h-[520px] md:h-[660px] overflow-hidden bg-neutral-900">
+  <section data-edit-hero class="mb-dark text-white relative h-[520px] md:h-[660px] overflow-hidden bg-neutral-900"${heroHeightAttr(custom)}>
     <img src="${esc(img)}" alt="" class="absolute inset-0 w-full h-full object-cover" />
     <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/45 to-transparent"></div>
     <div class="relative h-full ${ctx.container} flex items-center">
       <div class="max-w-xl">
         <h1 data-edit="hero.title" class="text-4xl md:text-6xl font-black leading-[1.04] tracking-tight">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-5 text-base md:text-lg text-white/85 max-w-md">${esc(subtitle)}</p>
-        <a href="#produtos" class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
       </div>
     </div>
   </section>`;
@@ -66,15 +104,17 @@ function heroSplit(view: StoreRenderView, custom: StoreCustomization | undefined
   const { title, subtitle, cta } = texts(view, custom);
   const img = custom?.hero?.imageUrl || view.banners[0]?.imageUrl || HERO_FALLBACK;
   return `
-  <section data-edit-hero class="relative overflow-hidden">
+  <section class="relative overflow-hidden">
     <div class="${ctx.container} py-10 md:py-16">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
         <div>
           <h1 data-edit="hero.title" class="text-4xl md:text-6xl font-black leading-[1.04] tracking-tight text-gray-900">${esc(title)}</h1>
           <p data-edit="hero.subtitle" class="mt-5 text-lg text-gray-500 max-w-md">${esc(subtitle)}</p>
-          <a href="#produtos" class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+          <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
         </div>
-        <div class="relative aspect-[4/5] md:aspect-square rounded-3xl overflow-hidden bg-gray-100">
+        <!-- O marcador data-edit-hero vive na imagem, e nao na seccao: a area de
+             imagem e o que se troca e o que se redimensiona (ver heroHeightCss). -->
+        <div data-edit-hero class="relative aspect-[4/5] md:aspect-square rounded-3xl overflow-hidden bg-gray-100"${heroHeightAttr(custom)}>
           <img src="${esc(img)}" alt="" class="w-full h-full object-cover" />
         </div>
       </div>
@@ -127,7 +167,7 @@ function heroArco(view: StoreRenderView, custom: StoreCustomization | undefined,
       <div class="mb-hero-text max-w-2xl mx-auto">
         <h1 data-edit="hero.title" class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 leading-[1.05]">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-4 text-base md:text-lg text-gray-500 max-w-xl mx-auto">${esc(subtitle)}</p>
-        <a href="#produtos" class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-7 py-3 rounded-full shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span></a>
+        <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-8 inline-flex items-center gap-2 text-white font-semibold px-7 py-3 rounded-full shadow-lg hover:opacity-95 transition-opacity" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span></a>
       </div>
     </div>
   </section>`;
@@ -150,7 +190,7 @@ function heroParticulas(view: StoreRenderView, custom: StoreCustomization | unde
       <div class="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6">
         <h1 data-edit="hero.title" class="text-4xl md:text-7xl font-black tracking-tight leading-[1.03] bg-clip-text text-transparent" style="background-image:linear-gradient(to bottom,#ffffff,#9ca3af)">${esc(title)}</h1>
         <p data-edit="hero.subtitle" class="mt-5 max-w-2xl text-base md:text-lg text-gray-300">${esc(subtitle)}</p>
-        <a href="#produtos" class="mt-9 inline-flex items-center gap-2 font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity text-white" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        <a href="${esc(heroCtaHref(view, custom))}" data-hero-cta class="mt-9 inline-flex items-center gap-2 font-semibold px-8 py-3.5 rounded-xl shadow-lg hover:opacity-95 transition-opacity text-white" style="background:${ctx.brand}"><span data-edit="hero.ctaLabel">${esc(cta)}</span> <span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
       </div>
     </div>
   </section>`;

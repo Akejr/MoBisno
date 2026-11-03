@@ -23,7 +23,9 @@ import {
   textByVariant, TEXT_VARIANTS,
   locationByVariant, LOCATION_VARIANTS,
 } from "../templates/blocks.js";
-import { HERO_VARIANTS, renderHero, type HeroVariant } from "../templates/heroes.js";
+import {
+  HERO_MAX_HEIGHT, HERO_MIN_HEIGHT, HERO_VARIANTS, renderHero, type HeroVariant,
+} from "../templates/heroes.js";
 import { HEADER_VARIANTS, renderHeader, type HeaderVariant } from "../templates/headers.js";
 import { FOOTER_VARIANTS, renderFooter, type FooterVariant } from "../templates/footers.js";
 import { PRODUCTPAGE_VARIANTS, renderProductPage, type ProductPageVariant } from "../templates/productPage.js";
@@ -379,7 +381,104 @@ export async function renderEditor(): Promise<void> {
     .mb-model-btn .material-symbols-outlined{font-size:18px}
     .mb-sec-divider{display:flex;align-items:center;gap:12px;margin:8px 0 24px;color:#9ca3af;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;pointer-events:none}
     .mb-sec-divider::before,.mb-sec-divider::after{content:"";flex:1;border-top:2px dashed #d4d4d8}
+    /* Alça de altura do hero. SEMPRE visível (e não só ao passar o rato): num
+       telemóvel não há rato, e uma alça que só aparece no hover não existe. */
+    .mb-hero-grip{position:absolute;left:0;right:0;bottom:0;height:24px;z-index:25;cursor:ns-resize;touch-action:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;background:linear-gradient(to top,rgba(0,0,0,.28),transparent)}
+    .mb-hero-grip::after{content:"";width:56px;height:5px;border-radius:9999px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.45);transition:transform .15s ease}
+    .mb-hero-grip:hover::after{transform:scaleX(1.18)}
+    .mb-hero-grip:focus-visible{outline:2px solid ${ACCENT};outline-offset:-2px}
+    .mb-hero-px{position:absolute;right:10px;bottom:7px;display:inline-flex;align-items:center;gap:3px;background:#171717;color:#fff;font-size:11px;font-weight:700;border-radius:9999px;padding:2px 8px;opacity:0;transition:opacity .15s ease;pointer-events:none}
+    .mb-hero-grip:hover .mb-hero-px,[data-hero-resizing] .mb-hero-px{opacity:1}
+    .mb-hero-px .material-symbols-outlined{font-size:14px}
   </style>`);
+
+  /**
+   * Alça para ARRASTAR a borda de baixo do hero e mudar a altura.
+   *
+   * ## Porquê
+   *
+   * Os heros são altos por omissão (520 a 660px). Uma fotografia pequena
+   * esticada para essa altura fica desfocada, e o Dono não tinha como a
+   * encolher: ou trocava de modelo, ou ficava com a imagem má. Agora arrasta a
+   * borda de baixo e vê a altura a mudar debaixo do dedo.
+   *
+   * ## Como
+   *
+   * Durante o arrasto escreve-se a altura no PRÓPRIO elemento, e não na
+   * Personalização: `rebuild()` troca o `innerHTML` do preview, e isso destruía
+   * o elemento que está a ser arrastado a cada movimento do rato. A gravação é
+   * uma só, no fim (`pointerup`), com `snapshot()` antes para o «Desfazer»
+   * apanhar a mudança inteira e não trinta pedaços dela.
+   *
+   * `setPointerCapture` mantém os eventos nesta alça mesmo quando o ponteiro
+   * sai dela, que é o que acontece sempre num arrasto. Com `touch-action:none`
+   * no CSS, no telemóvel o gesto não rola a página.
+   *
+   * Também responde às setas do teclado: há quem não consiga arrastar.
+   */
+  function mountHeroResize(hero: HTMLElement): void {
+    hero.style.position = hero.style.position || "relative";
+    const grip = document.createElement("div");
+    // `mb-ov-btn` para receber toques: `.mb-ov` desliga-os nas camadas de edição.
+    grip.className = "mb-ov-btn mb-hero-grip";
+    grip.tabIndex = 0;
+    grip.setAttribute("role", "slider");
+    grip.setAttribute("aria-label", "Altura do hero: arraste, ou use as setas");
+    grip.setAttribute("aria-valuemin", String(HERO_MIN_HEIGHT));
+    grip.setAttribute("aria-valuemax", String(HERO_MAX_HEIGHT));
+    grip.title = "Arraste para mudar a altura do hero";
+    grip.innerHTML = `<span class="mb-hero-px"><span class="material-symbols-outlined">height</span><span data-hero-px></span></span>`;
+    hero.appendChild(grip);
+
+    const etiqueta = grip.querySelector<HTMLElement>("[data-hero-px]")!;
+    const limita = (n: number): number => Math.round(Math.min(HERO_MAX_HEIGHT, Math.max(HERO_MIN_HEIGHT, n)));
+    /** A altura gravada, ou a que o modelo está a desenhar agora. */
+    const atual = (): number => limita(custom.hero?.height ?? hero.getBoundingClientRect().height);
+    const mostra = (n: number): void => {
+      etiqueta.textContent = `${n} px`;
+      grip.setAttribute("aria-valuenow", String(n));
+    };
+    const grava = (n: number): void => {
+      snapshot();
+      setPath(custom as Record<string, any>, "hero.height", n);
+      void rebuild();
+    };
+    mostra(atual());
+
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const partidaY = e.clientY;
+      const partidaH = atual();
+      let altura = partidaH;
+      // Alguns navegadores recusam a captura quando o ponteiro já se soltou; sem
+      // ela o arrasto ainda funciona enquanto o dedo estiver sobre a alça.
+      try { grip.setPointerCapture(e.pointerId); } catch { /* segue sem captura */ }
+      hero.dataset.heroResizing = "1";
+      const mover = (ev: PointerEvent): void => {
+        altura = limita(partidaH + (ev.clientY - partidaY));
+        hero.style.height = `${altura}px`;
+        hero.style.minHeight = "0";
+        mostra(altura);
+      };
+      const largar = (): void => {
+        grip.removeEventListener("pointermove", mover);
+        grip.removeEventListener("pointerup", largar);
+        grip.removeEventListener("pointercancel", largar);
+        delete hero.dataset.heroResizing;
+        if (altura !== partidaH) grava(altura);
+      };
+      grip.addEventListener("pointermove", mover);
+      grip.addEventListener("pointerup", largar);
+      grip.addEventListener("pointercancel", largar);
+    });
+
+    grip.addEventListener("keydown", (e) => {
+      const passo = e.key === "ArrowUp" ? -16 : e.key === "ArrowDown" ? 16 : 0;
+      if (passo === 0) return;
+      e.preventDefault();
+      grava(limita(atual() + passo));
+    });
+  }
 
   function bind(preview: HTMLElement): void {
     preview.style.setProperty("--brand", brandColor());
@@ -408,6 +507,15 @@ export async function renderEditor(): Promise<void> {
     preview.querySelectorAll<HTMLElement>("[data-edit]").forEach((el) => {
       el.setAttribute("contenteditable", "true");
       el.setAttribute("spellcheck", "false");
+      /*
+       * Um rótulo editável dentro de um botão (o «COMPRAR AGORA» do hero): o
+       * cursor saltava entre a mão (na margem do botão) e o cursor de texto (no
+       * rótulo), e a mão prometia um clique que o editor não faz, porque no
+       * preview as ligações não navegam. Aqui clicar é escrever, do princípio
+       * ao fim do botão; o destino muda-se no botão «Destino», ao lado.
+       */
+      const botao = el.closest("a,button");
+      if (botao instanceof HTMLElement) botao.style.cursor = "text";
       el.addEventListener("focus", () => { snapshot(); showTextTools(el); });
       el.addEventListener("input", () => setPath(custom as Record<string, any>, el.dataset.edit!, el.textContent?.trim() ?? ""));
       el.addEventListener("keydown", (e) => {
@@ -453,14 +561,36 @@ export async function renderEditor(): Promise<void> {
       ov.querySelector('[data-act="img"]')?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); ($("#logo-input") as HTMLInputElement).click(); });
     }
 
-    // Hero — overlay por hover.
+    /*
+     * Hero — trocar a imagem, e arrastar a borda de baixo para mudar a altura.
+     *
+     * O elemento com `data-edit-hero` é a ÁREA DE IMAGEM do hero em todos os
+     * modelos (`heroHeightCss`, em `web/templates/heroes.ts`): é o que se troca
+     * e o que se redimensiona, e por isso é o mesmo sítio para as duas coisas.
+     */
     const hero = preview.querySelector<HTMLElement>("[data-edit-hero]");
     if (hero) {
       const ov = document.createElement("div");
-      ov.className = "mb-ov mb-hero-ov absolute top-3 right-3 z-10";
-      ov.innerHTML = `<button class="mb-ov-btn bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">image</span> Trocar imagem</button>`;
-      ov.querySelector("button")!.addEventListener("click", (e) => { e.preventDefault(); ($("#hero-input") as HTMLInputElement).click(); });
+      ov.className = "mb-ov mb-hero-ov absolute top-3 right-3 z-10 flex items-center gap-1.5";
+      const btn = (act: string, icon: string, label: string): string =>
+        `<button data-hero-act="${act}" class="mb-ov-btn bg-white/90 hover:bg-white text-neutral-900 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow"><span class="material-symbols-outlined text-[16px]">${icon}</span> ${label}</button>`;
+      // «Altura original» só aparece quando há uma altura escolhida: um botão
+      // para desfazer o que ninguém fez é ruído.
+      ov.innerHTML = btn("img", "image", "Trocar imagem")
+        + (typeof custom.hero?.height === "number" ? btn("reset", "restart_alt", "Altura original") : "");
+      ov.querySelector('[data-hero-act="img"]')!.addEventListener("click", (e) => {
+        e.preventDefault();
+        ($("#hero-input") as HTMLInputElement).click();
+      });
+      ov.querySelector('[data-hero-act="reset"]')?.addEventListener("click", (e) => {
+        e.preventDefault();
+        snapshot();
+        delete custom.hero?.height;
+        void rebuild();
+        toast("Altura do hero reposta.");
+      });
       hero.appendChild(ov);
+      mountHeroResize(hero);
     }
 
     // Bloco editorial (Galeria) — trocar imagem por hover.
